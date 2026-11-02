@@ -152,9 +152,9 @@ test('the header shows the look\'s playback whatever drives the room', () => {
   assert.match(ui.html(ui.h(ui.Header, {})), /<span class="label">Look<\/span><span>Playing<\/span>/);
   // A sequence or the auto show over a frozen base: the pill stays, says so and still answers a click.
   given({ running: false, sequence: { loaded: { id: 'set', name: 'Set' }, playing: true, lanes: [] } });
-  assert.match(ui.html(ui.h(ui.Header, {})), /aria-label="Look playback"[^>]*title="Play look:[^"]*the base look under the sequence"><span class="label">Look<\/span><span>Frozen<\/span>/);
+  assert.match(ui.html(ui.h(ui.Header, {})), /aria-label="Look playback"[^>]*title="Play look:[^"]*the main effect under the sequence"><span class="label">Look<\/span><span>Frozen<\/span>/);
   given({ running: false, showOn: true });
-  assert.match(ui.html(ui.h(ui.Header, {})), /aria-label="Look playback"[^>]*title="Play look:[^"]*the base look under the auto show"><span class="label">Look<\/span><span>Frozen<\/span>/);
+  assert.match(ui.html(ui.h(ui.Header, {})), /aria-label="Look playback"[^>]*title="Play look:[^"]*the main effect under the auto show"><span class="label">Look<\/span><span>Frozen<\/span>/);
 });
 
 test('every header pill keeps its place in every state', () => {
@@ -573,6 +573,8 @@ test('the deck marks the base among saved and party presets', () => {
   assert.match(html, /data-id="position-chase"[^>]*>(?:(?!<\/div>).)*effect-pad-app">Own</s);
   assert.match(html, /<div class="effect-pad active" data-id="position-chase" data-layer="base">/);
   assert.strictEqual(count(html, 'class="effect-pad-now"'), 1);
+  assert.match(html, /class="effect-pad-now">Main effect</, 'the pad on stage is the main effect, not "Base"');
+  assert.match(html, /data-layer="base"> · Main effect</);
   // Every pad and row has its pencil; the pencil is not the pad.
   assert.match(html, /<button type="button" class="effect-edit" aria-label="Edit My Domino"/);
   assert.match(html, /<button type="button" class="effect-edit" aria-label="Edit Neon Domino"/);
@@ -590,6 +592,20 @@ test('shared status stays above the effect search', () => {
   assert.strictEqual(count(html, '<details class="effects-group" open'), 0, 'while every group is folded');
   givenLibrary({ pattern: null });
   assert.match(ui.html(ui.h(ui.Effects, {})), /class="effects-now"/);
+});
+
+test('the picture layers sit beside the main effect chip, read-only and outside its live status', () => {
+  givenLibrary({ background: { version: 1, mode: 'fixed', level: .4, colour: { r: 255, g: 0, b: 0, w: 0, a: 0, uv: 0 }, fixtures: 'selected', selected: [2] } });
+  const html = ui.html(ui.h(ui.Effects, {}));
+  const status = /<div class="effects-now" role="status"[^>]*>(.*?)<\/div>/s.exec(html)[1];
+  assert.match(status, /class="now-playing"[^>]*>Main effect: Neon Domino</, 'the chip names the main effect');
+  assert.doesNotMatch(status, /Picture layers/, 'a background change is not announced as the look changing');
+  const strip = /<div class="picture-layers" role="group" aria-label="Picture layers">(.*?)<\/div>/s.exec(html);
+  assert.ok(strip, 'the strip is a named group');
+  assert.ok(html.indexOf('class="effects-now"') < strip.index && strip.index < html.indexOf('class="effects-search"'), 'between the chip and the search');
+  const text = strip[1].replace(/<[^>]+>/g, '').replace(/&amp;/g, '&');
+  assert.equal(text, 'Pads and overrides: None activeMain effect: Neon DominoBackground: Fixed colour · Selected (1 of 2)');
+  assert.doesNotMatch(strip[1], /<(button|input|select|a)\b/, 'nothing to press: the controls are the cards');
 });
 
 test('a favourite is pinned first on the deck, whatever it is', () => {

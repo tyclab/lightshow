@@ -1,10 +1,20 @@
 import { api, pick } from '../state.js';
 import { NOW_PLAYING_FIELDS, playingState } from '../now-playing.js';
 import { nowPlaying } from '../preview-inputs.js';
+import { PICTURE_LAYER_FIELDS, pictureLayers } from '../picture-layers.js';
 
 export function NowPlaying() {
   const text = nowPlaying(pick(NOW_PLAYING_FIELDS));
   return <span class="now-playing" title={text}>{text}</span>;
+}
+
+/** The picture's layers from the top, read-only: the Effects and Background cards hold the controls. */
+export function PictureLayers() {
+  return <div class="picture-layers" role="group" aria-label="Picture layers">
+    {pictureLayers(pick(PICTURE_LAYER_FIELDS)).map((layer) => <span key={layer.id} class="picture-layer" data-layer={layer.id} title={layer.title || undefined}>
+      <span class="picture-layer-name">{layer.name}:</span> {layer.value}
+    </span>)}
+  </div>;
 }
 
 export function PlayingVoices({ stopAll = false }) {

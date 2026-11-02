@@ -284,9 +284,9 @@ The view strip scrolls with its arrow buttons; keyboard arrows, Home and End
 work while a view tab is focused.
 
 Header, Perform, Effects and the stage preview share the same status line:
-base look, sequence transport, visible voices and palette override. The
-highlighted catalogue row identifies the **base**; a sequence or voice may
-be above it. Perform and Effects list visible voices with individual Stop
+main effect, sequence transport, visible voices and palette override. The
+highlighted catalogue row, tagged **Main effect**, identifies it; a sequence or
+voice may be above it. Perform and Effects list visible voices with individual Stop
 buttons. Stop all voices also clears latched and off-bank effects.
 
 Pads with no custom label use the catalogue name on both Perform and the
@@ -410,6 +410,16 @@ blackout win inside the scope as everywhere, and the rehearsal preview applies t
 same scope as the rig. Selected fixtures are stored by fixture id, which belongs to
 one patch: a cue recalled with **Restore saved background on recall** under another
 patch reaches whichever fixtures carry those ids there; the card shows how many.
+
+The Effects card's status names the running look the **Main effect**, beside its
+pencil, and lists the **Picture layers** under it, from the top. **Pads and
+overrides** names what plays over the main effect, the first few and how many more:
+sequence clips or a stopped sequence's held or black frame, voices (pads, MIDI, the
+API), the strobe, the Matrix while it plays, the palette override and fixture
+overrides or blackouts; otherwise it reads None active. **Main effect** follows,
+on wider screens only, as the chip above already names it on a phone. **Background**
+gives this card's mode and fixtures, such as Fixed colour · Selected (3 of 8). The
+strip is read-only.
 
 **Between effect hits**, beside **Authored background level** in the effect editor,
 decides what a Fixed colour does where an effect is dark. Each dark or partly dark

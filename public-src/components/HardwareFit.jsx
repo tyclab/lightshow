@@ -11,7 +11,7 @@ export function hardwareFitRows(s, { spec = null, table = null, library = null }
   const fixtures = s.fixtures || [], ids = fixtures.map((f) => f.id);
   const base = spec || resolverOf(library?.user)(s.pattern);
   const effects = spec ? [{ id: 'preset', spec, label: 'Preset', beatPos: 0, anchorBeat: 0 }] : [
-    ...(base && s.running !== false ? [{ id: 'base', spec: base, label: 'Base', beatPos: s.clock?.beatPos }] : []),
+    ...(base && s.running !== false ? [{ id: 'base', spec: base, label: 'Main effect', beatPos: s.clock?.beatPos }] : []),
     ...(s.voices || []).filter((v) => v.spec && !v.hidden).map((v) => ({ ...v, label: v.label || v.spec.kind, beatPos: s.clock?.beatPos })),
   ];
   const sequence = !spec && s.sequence?.loaded && (s.sequence.playing || s.sequence.paused);

@@ -1,5 +1,6 @@
 import { presetById } from '../src/shared/effects/catalogue.ts';
 import { playingState } from './now-playing.js';
+import { MAIN_EFFECT, mainEffectText } from './picture-layers.js';
 
 
 export function resolverOf(saved = []) {
@@ -49,7 +50,7 @@ export function liveVoiceEvents(voices) {
 
 export function nowPlaying(s, perBar = s.sequence?.beatsPerBar || 4) {
   const playing = playingState(s);
-  const parts = [`Base: ${playing.base.name}${playing.base.running ? '' : ' (frozen)'}`];
+  const parts = [`${MAIN_EFFECT}: ${mainEffectText(playing)}`];
   parts.push(...playing.layers.map((layer) => `${layer.target}: ${layer.name}`));
   const seq = playing.sequence;
   if (seq) {

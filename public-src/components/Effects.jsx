@@ -1,6 +1,6 @@
 import { LAMP_PATTERNS } from '../../src/shared/patterns.ts';
 import { Strobe } from './Strobe.jsx';
-import { NowPlaying, PlayingVoices } from './NowPlaying.jsx';
+import { NowPlaying, PictureLayers, PlayingVoices } from './NowPlaying.jsx';
 import { signal } from '@preact/signals';
 import { useEffect, useRef, useState } from 'preact/hooks';
 import { librarySig, pick, send } from '../state.js';
@@ -226,7 +226,7 @@ function Pad({ row, active, favourite, onTap, onEdit, onToggleFavourite }) {
         <span class="effect-pad-name">{row.name}</span>
         {row.mapping && <span class="effect-mapping">{MAPPING_LABELS[row.mapping]}</span>}
         <span class="effect-pad-app">{APP_BADGES[row.user ? row.kindApp || 'own' : appOf(row)]}{row.user && <span class="effect-pad-yours"> · Yours</span>}</span>
-        {active && <span class="effect-pad-now">Base</span>}
+        {active && <span class="effect-pad-now">Main effect</span>}
         {row.rapidFlash && <Rapid />}
       </button>
       <div class="effect-pad-tools">
@@ -247,7 +247,7 @@ function Row({ row, active, onBars, onPanels, favourite, onTap, onEdit, onToggle
         aria-pressed={active} title={row.desc || row.name} {...press}>
         <span class="icon" aria-hidden="true">{PATTERN_ICONS[row.id] || APP_ICONS[appOf(row)]}</span>
         <span class="body">
-          <span class="name">{row.name}{active && <span class="layer-tag" data-layer="base"> · Base</span>}{where && <span class="layer-tag"> · on {where}</span>}</span>
+          <span class="name">{row.name}{active && <span class="layer-tag" data-layer="base"> · Main effect</span>}{where && <span class="layer-tag"> · on {where}</span>}</span>
           {row.mapping && <span class="effect-mapping">{MAPPING_LABELS[row.mapping]}</span>}
           {row.desc && <span class="effect-row-desc">{row.desc}</span>}
         </span>
@@ -333,6 +333,7 @@ export function Effects() {
           <NowPlaying />
           {playing && <EditButton row={playing} onEdit={edit} />}
         </div>
+        <PictureLayers />
         <input class="effects-search" type="search" aria-label="Search effects" placeholder="Search effects" value={q} onInput={(e) => setQ(e.target.value)} />
         <div class="effects-chips" role="group" aria-label="Filters">
           <div class="effects-chip-set" role="group" aria-label="Family">

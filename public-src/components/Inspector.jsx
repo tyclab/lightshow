@@ -656,7 +656,7 @@ export function Inspector({ id, onSelect, onPlay, onClose, inline = null, onAppl
 
       <div class="insp-actions">
         {onPlay && !playing && <button type="button" class="btn sm" disabled={dirty}
-          title={dirty ? 'Save your changes to play them as the base look, or use Audition on Stage to try them.' : undefined}
+          title={dirty ? 'Save your changes to play them as the main effect, or use Audition on Stage to try them.' : undefined}
           onClick={() => onPlay(preset.id)}>Play</button>}
         <button type="button" class="btn sm" disabled={paletteInvalid || !!auditionUnavailable} aria-pressed={audition.held.has('inspector-audition')}
           title="Launch a voice on the live engine while held" {...auditionProps}>Hold on live rig</button>

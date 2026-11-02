@@ -3,13 +3,13 @@ import { pick, send } from '../state.js';
 import { DEFAULT_BACKGROUND, storedBackground } from '../../src/shared/background.ts';
 import { cellsOf } from '../../src/shared/rig.ts';
 import { parseHex, toHex } from '../../src/shared/palette-model.ts';
+import { BACKGROUND_LABELS } from '../picture-layers.js';
 
 // The server replaces the whole background on every set, so an edit builds on the last one
 // sent rather than on the last echo: a level dragged within the echo's round trip would
 // otherwise carry the previous mode (or colour) back and undo the click before it.
 const LOST_ECHO_MS = 5000;
 const CHANNELS = ['r', 'g', 'b', 'w', 'a', 'uv'];
-const SCOPES = { rig: 'Whole rig', wash: 'Wash fixtures', selected: 'Selected fixtures…' };
 const picked = (value) => (value.selected ?? []).join(',');
 const same = (a, b) => a.mode === b.mode && a.level === b.level && CHANNELS.every((c) => a.colour[c] === b.colour[c])
   && (a.fixtures ?? 'rig') === (b.fixtures ?? 'rig') && picked(a) === picked(b);
@@ -55,7 +55,7 @@ export function Background() {
     <div class="btn-group" role="group" aria-label="Background mode">
       {['follow', 'fixed', 'off'].map((mode) => <button type="button" class={`btn sm ${value.mode === mode ? 'active' : ''}`}
         aria-pressed={value.mode === mode} onClick={() => update({ mode })}>
-        {mode === 'follow' ? 'Follow effect' : mode === 'fixed' ? 'Fixed colour' : 'Off'}
+        {BACKGROUND_LABELS.mode[mode]}
       </button>)}
     </div>
     <label>Background level <output aria-hidden="true">{Math.round(value.level * 100)}%</output>
@@ -72,7 +72,7 @@ export function Background() {
     </>}
     <label>Fixtures
       <select aria-label="Background fixtures" value={scope} onChange={(e) => update({ fixtures: e.target.value })}>
-        {Object.entries(SCOPES).map(([id, label]) => <option value={id}>{label}</option>)}
+        {Object.entries(BACKGROUND_LABELS.fixtures).map(([id, label]) => <option value={id}>{label}</option>)}
       </select>
     </label>
     {scope === 'selected' && <fieldset class="background-fixtures" aria-label="Fixtures the background reaches">
