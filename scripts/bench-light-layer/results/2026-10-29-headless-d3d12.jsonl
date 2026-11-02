@@ -1,0 +1,27 @@
+{"note":"Headless Chromium on an RTX 2080 SUPER through ANGLE GL on Mesa's d3d12 driver (WSL), 3840x1600 at scale 1, main at 1867eb2, plasma, preview look on. Each line is one 5 s steady.js window as printed (its older field names: inits = ablate, ltN = long tasks); the canvas field was cut from the capture of runs B and C and is left out. Run A and B: the rig unplaced (every fixture in its default row). Run C: the rig spread over the stage (rig.js)."}
+{"run":"A","view":"effects","inits":"-","fps":28.2,"gpuMsPerS":null,"rendererMsPerS":974,"mainBusyMsPerS":466,"scriptMsPerS":138,"styleMsPerS":59,"ltN":1,"heapMB":32.6,"note":"the GPU process restarted during the window: no CPU figure"}
+{"run":"A","view":"rig","inits":"-","fps":18.8,"gpuMsPerS":1016,"rendererMsPerS":390,"mainBusyMsPerS":279,"scriptMsPerS":87,"styleMsPerS":90,"ltN":0,"heapMB":9}
+{"run":"A","view":"show","inits":"-","fps":60,"gpuMsPerS":14,"rendererMsPerS":94,"mainBusyMsPerS":61,"scriptMsPerS":38,"styleMsPerS":0,"ltN":0,"heapMB":20.5}
+{"run":"A-trace","view":"rig","fps":14.7,"gpuMsPerS":1067,"note":"3 s while tracing; summary in 2026-10-29-rig-trace.txt"}
+{"run":"B","view":"rig","inits":"-","fps":18.8,"gpuMsPerS":1012,"rendererMsPerS":422,"mainBusyMsPerS":298,"scriptMsPerS":87,"styleMsPerS":105,"ltN":0,"heapMB":12.9}
+{"run":"B","view":"rig","inits":"nocanvas","fps":22.8,"gpuMsPerS":1026,"rendererMsPerS":370,"mainBusyMsPerS":251,"scriptMsPerS":29,"styleMsPerS":107,"ltN":0,"heapMB":15.2}
+{"run":"B","view":"rig","inits":"nolamps","fps":48,"gpuMsPerS":876,"rendererMsPerS":350,"mainBusyMsPerS":263,"scriptMsPerS":191,"styleMsPerS":23,"ltN":0,"heapMB":11.9}
+{"run":"B","view":"rig","inits":"glownoshadow","fps":22.8,"gpuMsPerS":996,"rendererMsPerS":436,"mainBusyMsPerS":312,"scriptMsPerS":106,"styleMsPerS":95,"ltN":0,"heapMB":15.6}
+{"run":"B","view":"rig","inits":"notransition","fps":19.2,"gpuMsPerS":1014,"rendererMsPerS":302,"mainBusyMsPerS":217,"scriptMsPerS":97,"styleMsPerS":57,"ltN":0,"heapMB":11.6}
+{"run":"B","view":"rig","inits":"glowlayer","fps":16.4,"gpuMsPerS":952,"rendererMsPerS":400,"mainBusyMsPerS":274,"scriptMsPerS":79,"styleMsPerS":92,"ltN":0,"heapMB":10.3}
+{"run":"B","view":"rig","inits":"lamplayer","fps":13,"gpuMsPerS":966,"rendererMsPerS":366,"mainBusyMsPerS":246,"scriptMsPerS":66,"styleMsPerS":86,"ltN":0,"heapMB":15.4}
+{"run":"B","view":"rig","inits":"nocanvas+nolamps","fps":60.2,"gpuMsPerS":228,"rendererMsPerS":200,"mainBusyMsPerS":127,"scriptMsPerS":58,"styleMsPerS":24,"ltN":0,"heapMB":14.3}
+{"run":"C","view":"rig","inits":"-","fps":13.4,"gpuMsPerS":1006,"rendererMsPerS":368,"mainBusyMsPerS":255,"scriptMsPerS":72,"styleMsPerS":88,"ltN":0,"heapMB":10.3}
+{"run":"C","view":"rig","inits":"nocanvas","fps":20.2,"gpuMsPerS":1010,"rendererMsPerS":346,"mainBusyMsPerS":231,"scriptMsPerS":25,"styleMsPerS":106,"ltN":0,"heapMB":15.3}
+{"run":"C","view":"rig","inits":"nolamps","fps":31.4,"gpuMsPerS":966,"rendererMsPerS":288,"mainBusyMsPerS":210,"scriptMsPerS":152,"styleMsPerS":16,"ltN":0,"heapMB":11.6}
+{"run":"C","view":"rig","inits":"nocanvas+nolamps","fps":60,"gpuMsPerS":212,"rendererMsPerS":178,"mainBusyMsPerS":118,"scriptMsPerS":50,"styleMsPerS":29,"ltN":0,"heapMB":9.4}
+{"run":"C","view":"rig","inits":"noswatch","fps":15.2,"gpuMsPerS":1000,"rendererMsPerS":344,"mainBusyMsPerS":235,"scriptMsPerS":69,"styleMsPerS":76,"ltN":0,"heapMB":12.2}
+{"run":"C","view":"rig","inits":"nocanvas+nolamps+noswatch","fps":60,"gpuMsPerS":252,"rendererMsPerS":196,"mainBusyMsPerS":129,"scriptMsPerS":55,"styleMsPerS":29,"ltN":0,"heapMB":10.2}
+{"run":"C","view":"effects","inits":"-","fps":11.4,"gpuMsPerS":1002,"rendererMsPerS":388,"mainBusyMsPerS":279,"scriptMsPerS":91,"styleMsPerS":62,"ltN":0,"heapMB":35.2}
+{"run":"C","view":"effects","inits":"nocanvas","fps":14.2,"gpuMsPerS":996,"rendererMsPerS":336,"mainBusyMsPerS":233,"scriptMsPerS":59,"styleMsPerS":68,"ltN":0,"heapMB":25.1}
+{"run":"C","view":"effects","inits":"nolamps","fps":14.6,"gpuMsPerS":996,"rendererMsPerS":366,"mainBusyMsPerS":261,"scriptMsPerS":130,"styleMsPerS":32,"ltN":0,"heapMB":27.5}
+{"run":"C","view":"effects","inits":"nocanvas+nolamps","fps":21.4,"gpuMsPerS":984,"rendererMsPerS":442,"mainBusyMsPerS":302,"scriptMsPerS":118,"styleMsPerS":53,"ltN":0,"heapMB":18.3}
+{"run":"C","view":"effects","inits":"noswatch","fps":17.8,"gpuMsPerS":988,"rendererMsPerS":538,"mainBusyMsPerS":391,"scriptMsPerS":164,"styleMsPerS":82,"ltN":0,"heapMB":34.7}
+{"run":"C","view":"effects","inits":"nocanvas+nolamps+noswatch","fps":60,"gpuMsPerS":220,"rendererMsPerS":376,"mainBusyMsPerS":264,"scriptMsPerS":184,"styleMsPerS":35,"ltN":0,"heapMB":30.5}
+{"run":"C-colours","view":"rig","fillsPerPaint":[357,354,348,348,346,352,351,348,346,346,341,340,343,339,343,336,330,328,318,321],"cellsPerPaint":3465,"note":"distinct colours (one path fill each) per paint of the cell canvas, 20 paints; the glow pass fills as many again"}
+{"run":"C-colours","view":"effects","fillsPerPaint":[310,320,317,321,311,314,312,312,315,311,322,327,321,325,322,323,333,339,337,340],"cellsPerPaint":3465}

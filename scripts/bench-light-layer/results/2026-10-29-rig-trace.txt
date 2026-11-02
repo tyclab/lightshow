@@ -1,0 +1,65 @@
+GPU process main thread (CrGpuMain), Rig view on main (1867eb2), rig unplaced, 3 s trace (run A-trace in 2026-10-29-headless-d3d12.jsonl); work nested under each source, per second.
+
+## under RendererRasterWorker: 549 ms/s, 15.4/s, 35.7 ms each
+      549.0 ms/s      15/s  CommandBuffer::Flush
+      549.0 ms/s      15/s  CommandBufferStub::OnAsyncFlush
+      548.9 ms/s      15/s  CommandBufferService:PutChanged
+      279.1 ms/s      13/s  RasterDecoderImpl::DoRasterCHROMIUM
+      279.0 ms/s      13/s  RasterDecoderImpl::DoRasterCHROMIUM::Deserializing
+      172.0 ms/s      13/s  RasterDecoderImpl::DoEndRasterCHROMIUM
+      171.7 ms/s      13/s  RasterDecoderImpl::DoEndRasterCHROMIUM::Flush
+      171.6 ms/s      13/s  GrDirectContextPriv::flushSurfaces
+      171.5 ms/s      13/s  GrDrawingManager::flush
+       88.7 ms/s     647/s  skgpu::ganesh::Device::drawDRRect
+       82.4 ms/s    2589/s  skgpu::ganesh::Device::drawPath
+       82.0 ms/s    2619/s  virtual bool skgpu::ganesh::OpsTask::onExecute(GrOpFlushState *)
+       72.9 ms/s    2589/s  SurfaceDrawContext::drawPath
+       64.4 ms/s    2589/s  SurfaceDrawContext::drawShape
+       56.3 ms/s    2589/s  SurfaceDrawContext::internalDrawPath
+       53.3 ms/s     647/s  bool GrGpu::writePixels(GrSurface *, SkIRect, GrColorType, GrColorType, const GrMipLevel *, int, bool)
+       49.9 ms/s    2619/s  virtual void skgpu::ganesh::OpsTask::onPrepare(GrOpFlushState *)
+       35.1 ms/s    9479/s  SurfaceDrawContext::addDrawOp
+       24.4 ms/s    5179/s  DrawAtlasPathOp
+       19.6 ms/s    2589/s  TextureOp
+       18.4 ms/s    2157/s  FillRectOp
+       18.3 ms/s    1065/s  skgpu::ganesh::Device::drawRRect
+       16.8 ms/s    2831/s  AtlasTextOp
+       16.8 ms/s    1294/s  skgpu::ganesh::Device::drawDevice
+       14.4 ms/s    1726/s  SurfaceDrawContext::drawFilledQuad
+       12.3 ms/s    1294/s  CircularRRectOp
+       10.3 ms/s    1294/s  SurfaceDrawContext::drawTexturedQuad
+        8.7 ms/s     418/s  skgpu::ganesh::Device::drawOval
+        8.6 ms/s      28/s  PathStencilCoverOp
+        8.4 ms/s    1294/s  skgpu::ganesh::Device::clearAll
+
+## under RendererMainThread: 256 ms/s, 15.4/s, 16.6 ms each
+      255.5 ms/s      15/s  CommandBuffer::Flush
+      255.4 ms/s      15/s  CommandBufferStub::OnAsyncFlush
+      255.3 ms/s      15/s  CommandBufferService:PutChanged
+      174.3 ms/s      28/s  RasterDecoderImpl::DoEndRasterCHROMIUM
+      173.2 ms/s      28/s  RasterDecoderImpl::DoEndRasterCHROMIUM::Flush
+      172.9 ms/s      28/s  GrDirectContextPriv::flushSurfaces
+      172.8 ms/s      28/s  GrDrawingManager::flush
+       63.7 ms/s      28/s  RasterDecoderImpl::DoRasterCHROMIUM
+       63.6 ms/s      28/s  RasterDecoderImpl::DoRasterCHROMIUM::Deserializing
+       45.7 ms/s    2868/s  skgpu::ganesh::Device::drawPath
+       36.3 ms/s    2868/s  SurfaceDrawContext::drawPath
+       35.4 ms/s     108/s  PathStencilCoverOp
+       34.9 ms/s     107/s  virtual void skgpu::ganesh::OpsTask::onPrepare(GrOpFlushState *)
+       27.5 ms/s    2868/s  SurfaceDrawContext::drawShape
+       18.8 ms/s    2868/s  SurfaceDrawContext::internalDrawPath
+        8.1 ms/s    2924/s  SurfaceDrawContext::addDrawOp
+        7.3 ms/s     107/s  virtual bool skgpu::ganesh::OpsTask::onExecute(GrOpFlushState *)
+        2.3 ms/s      28/s  RasterDecoderImpl::DoBeginRasterCHROMIUM
+        2.2 ms/s     105/s  FillRRectOp
+        1.0 ms/s      55/s  skgpu::ganesh::Device::drawRect
+        0.8 ms/s      54/s  DrawAtlasPathOp
+        0.7 ms/s      55/s  SurfaceDrawContext::drawRect
+        0.6 ms/s      54/s  FillRectOp
+        0.4 ms/s      26/s  bool GrGpu::copySurface(GrSurface *, const SkIRect &, GrSurface *, const SkIRect &, GrSamplerState::Filter)
+        0.3 ms/s      67/s  virtual void GrGLTexture::onRelease()
+        0.3 ms/s      14/s  skgpu::ganesh::Device::drawPaint
+        0.2 ms/s      55/s  SurfaceFillContext::clear
+        0.2 ms/s      27/s  void GrGpu::executeFlushInfo(SkSpan<GrSurfaceProxy *>, SkSurfaces::BackendSurfaceAccess, const GrFlushInfo &, std::optio
+        0.2 ms/s      14/s  SurfaceDrawContext::drawFilledQuad
+        0.1 ms/s      28/s  SurfaceContext::copyScaled
