@@ -89,10 +89,10 @@ export function endToEnd(bars) {
  * moved in (use-dmx.js), so a frame is one paint of the layer and no restyle or
  * repaint of an element.
  */
-function paintPlan(surface, layer, { drawn, rig, positions, s, identifying, connected, again }) {
+function paintPlan(surface, layer, { drawn, rig, positions, chosen, s, identifying, connected }) {
   const dmx = dmxSig.peek();
   const lamps = surface ? surface.querySelectorAll(':scope > .stage-fixture') : NONE;
-  const cells = layer && layer.size ? layoutOf(layer, rig, positions) : null;
+  const cells = layer && layer.size ? layoutOf(layer, rig, positions, chosen) : null;
   const colours = cells ? new Array(rig.points.length) : null;
   const lights = new Array(drawn.length);
   drawn.forEach((fix, i) => {
@@ -108,7 +108,8 @@ function paintPlan(surface, layer, { drawn, rig, positions, s, identifying, conn
     const lamp = lamps[i];
     if (lamp && lamp.dataset.light !== color) lamp.dataset.light = color;
   });
-  if (cells && paintLayer(cells, cells.units.map((u) => colours[u]), lights) && again) frames.schedule(again);
+  // While a lamp eases, the next frames draw the lamps alone (cell-layer.js easeLayer).
+  if (cells && paintLayer(cells, cells.units.map((u) => colours[u]), lights)) frames.schedule(cells.ease);
 }
 
 export function PlanEditor() {
@@ -139,9 +140,11 @@ export function PlanEditor() {
   const identifying = new Set((s.identify && s.identify.ids) || []);
   const lightHost = useRef(null);
   const inputs = useRef(null);
-  inputs.current = { drawn: drawnFixtures, rig, positions, s, identifying, connected, again: null };
+  // A selected bar blooms, as .stage-fixture.selected drew it.
+  const chosenLamps = useMemo(() => drawnFixtures.map((f) => selected.includes(f.id)), [drawnFixtures, selected]);
+  inputs.current = { drawn: drawnFixtures, rig, positions, chosen: chosenLamps, s, identifying, connected };
   const layer = useCellLayer(lightHost, drawnFixtures.length > 0, () => paintPlan(surface.current, layer.current, inputs.current));
-  inputs.current.again = useDmxPaint(() => paintPlan(surface.current, layer.current, inputs.current));
+  useDmxPaint(() => paintPlan(surface.current, layer.current, inputs.current));
   const isBar = (id) => indexOf.has(id) && !!rig.cellMaps[indexOf.get(id)];
   const drawTarget = selected.length === 1 && isBar(selected[0]) ? selected[0] : null;
   const snapPoint = (p) => (snap ? { x: snapTo(p.x, SNAP_STEP), y: snapTo(p.y, SNAP_STEP) } : p);

@@ -35,16 +35,17 @@ export function cellCentres(points, size) {
 /**
  * Each lamp's disc on a surface of `size`: x, y of its centre in CSS pixels, its
  * radius and whether it blooms. A lamp's box is centred on its point and its disc
- * sits at the top of the box; a bar's disc sits at its centre. The disc's box
- * starts on a whole CSS pixel, where the browser painted the element (a lamp is a
- * transformed box, and Chromium places one on whole CSS pixels at any scale).
+ * sits at the top of the box; a bar's disc sits at its centre and blooms only while
+ * selected (`selected[i]`), as .stage-fixture.selected gave it a bloom. The disc's
+ * box starts on a whole CSS pixel, where the browser painted the element (a lamp is
+ * a transformed box, and Chromium places one on whole CSS pixels at any scale).
  */
-export function lampDiscs(points, bars, size) {
+export function lampDiscs(points, bars, size, selected = []) {
   return points.map((point, i) => {
     const at = pxOf(size, point);
     const radius = bars[i] ? BAR_DISC : LAMP_DISC;
     const top = bars[i] ? at.y - radius : at.y - LAMP_H / 2;
-    return { x: Math.round(at.x - radius) + radius, y: Math.round(top) + radius, radius, bloom: !bars[i] };
+    return { x: Math.round(at.x - radius) + radius, y: Math.round(top) + radius, radius, bloom: !bars[i] || !!selected[i] };
   });
 }
 
@@ -142,25 +143,37 @@ export function paintLamps(ctx, { scale = 1 }, lamps) {
 
 /**
  * The light layer on a 2D canvas, for a browser without WebGL 2: the cells as
- * paths, one per colour, and the lamps over them. Null without a 2D context.
+ * paths, one per colour, drawn once into a canvas of their own while they are
+ * unchanged, and the lamps over them. Null without a 2D context.
  */
 export function createCanvasPainter(canvas, createCanvas = () => document.createElement('canvas')) {
   const ctx = canvas.getContext('2d');
   if (!ctx) return null;
+  const lit = createCanvas().getContext('2d');
   // A browser without canvas filters draws the cells without their bloom.
   const glow = typeof ctx.filter === 'string' ? createCanvas().getContext('2d') : null;
   let scale = 1;
+  let drawn = false;
   return {
     kind: '2d',
+    lost: false,
     resize(width, height, backing) {
       scale = backing;
-      for (const target of glow ? [canvas, glow.canvas] : [canvas]) {
+      drawn = false;
+      for (const target of glow ? [canvas, lit.canvas, glow.canvas] : [canvas, lit.canvas]) {
         if (target.width !== width) target.width = width;
         if (target.height !== height) target.height = height;
       }
     },
-    paint({ centres, colours, lamps }) {
-      paintCells(ctx, glow, { scale }, centres, colours);
+    /** Draw a frame; with `cells` false the cells are as last drawn and only the lamps are drawn again. */
+    paint({ centres, colours, lamps, cells = true }) {
+      if (cells || !drawn) {
+        paintCells(lit, glow, { scale }, centres, colours);
+        drawn = true;
+      }
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.drawImage(lit.canvas, 0, 0);
       paintLamps(ctx, { scale }, lamps);
     },
     dispose() {},

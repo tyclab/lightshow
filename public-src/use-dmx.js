@@ -10,8 +10,7 @@ export function useDmxFeed(active = true) {
 /**
  * Paint what follows the DMX feed without rendering for it: after every render
  * and, while `live`, once per animation frame in which a DMX frame arrived.
- * `paint` reads the feed with dmxSig.peek(). Returns the paint job, which a
- * painter still easing a colour schedules for the next frame (frames.schedule).
+ * `paint` reads the feed with dmxSig.peek().
  */
 export function useDmxPaint(paint, live = true) {
   const latest = useRef(paint);
@@ -29,5 +28,4 @@ export function useDmxPaint(paint, live = true) {
     });
     return () => { stop(); frames.cancel(job); };
   }, [live]);
-  return job;
 }

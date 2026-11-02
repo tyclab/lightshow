@@ -2791,17 +2791,14 @@ input[type=range]::-moz-range-thumb {
   box-shadow: var(--glow);
 }
 
-/* A bar cell as an element: 7 px with 2 px corners, lit by --light with a glow
-   of its colour. The plots paint their cells to these measures on the light
-   layer (below); the element is left only as the Rig plan's first-cell ring. */
+/* The Rig plan's first-cell ring, the size of a bar cell (7 px, 2 px corners): the
+   cells themselves are drawn on the light layer (below). */
 .stage-cell {
   position: absolute;
   width: 7px;
   height: 7px;
   border-radius: 2px;
   transform: translate(-50%, -50%);
-  background: var(--light, #222);
-  box-shadow: 0 0 6px -1px var(--light, transparent);
   pointer-events: none;
 }
 /* The stage plot (StagePreview.jsx) and the Rig plan (PlanEditor.jsx) paint their
@@ -3400,7 +3397,7 @@ input[type=range]::-moz-range-thumb {
 .stage-fixture.selected .stage-label { color: var(--text); font-weight: 700; }
 .stage-fixture.identifying .stage-glow { outline: 2px dashed var(--text-amber); outline-offset: 3px; }
 /* The ring alone: the plan paints the cell itself on its canvas (PlanEditor.jsx). */
-.stage-cell.first { background: none; box-shadow: none; outline: 1px solid var(--text); outline-offset: 1px; }
+.stage-cell.first { outline: 1px solid var(--text); outline-offset: 1px; }
 .plan-band { position: absolute; border: 1px dashed var(--accent); background: var(--wash-blue); pointer-events: none; }
 .plan-line { position: absolute; height: 2px; margin-top: -1px; background: var(--accent); transform-origin: 0 50%; pointer-events: none; }
 .plan-end { position: absolute; width: 12px; height: 12px; margin: -6px 0 0 -6px; border-radius: 50%; pointer-events: none; }

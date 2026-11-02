@@ -22,7 +22,7 @@ const NONE = [];
  * Runs outside rendering, once per animation frame the DMX feed moved in, so a
  * frame costs one paint of the layer and no restyle or repaint of an element.
  */
-function paintPlot(surface, layer, { drawn, rig, positions, preview, shown, connected, live, again }) {
+function paintPlot(surface, layer, { drawn, rig, positions, preview, shown, connected, live }) {
   const dmx = live ? dmxSig.peek() : null;
   const lamps = surface ? surface.querySelectorAll(':scope > .stage-fixture') : NONE;
   const cells = layer && layer.size ? layoutOf(layer, rig, positions) : null;
@@ -45,7 +45,8 @@ function paintPlot(surface, layer, { drawn, rig, positions, preview, shown, conn
     if (lamp && lamp.dataset.light !== color) lamp.dataset.light = color;
   });
   // An unchanged picture is not painted again: a still or dark rig costs no new frame.
-  if (cells && paintLayer(cells, cells.units.map((u) => colours[u]), lights) && again) frames.schedule(again);
+  // While a lamp eases, the next frames draw the lamps alone (cell-layer.js easeLayer).
+  if (cells && paintLayer(cells, cells.units.map((u) => colours[u]), lights)) frames.schedule(cells.ease);
 }
 
 export function StagePreview({ controls = true } = {}) {
@@ -93,9 +94,9 @@ export function StagePreview({ controls = true } = {}) {
   const surface = useRef(null);
   const lightHost = useRef(null);
   const inputs = useRef(null);
-  inputs.current = { drawn, rig, positions, preview, shown, connected, live, again: null };
+  inputs.current = { drawn, rig, positions, preview, shown, connected, live };
   const layer = useCellLayer(lightHost, drawn.length > 0, () => paintPlot(surface.current, layer.current, inputs.current));
-  inputs.current.again = useDmxPaint(() => paintPlot(surface.current, layer.current, inputs.current), live);
+  useDmxPaint(() => paintPlot(surface.current, layer.current, inputs.current), live);
 
   // Follows the *track*, not the timeline. A replan — an intensity nudge, a
   // palette change — re-mints timelineRevision and hands us a new `data` for the

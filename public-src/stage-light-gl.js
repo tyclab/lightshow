@@ -1,24 +1,30 @@
-import { SIDE, RADIUS, UNLIT, GLOW_SPREAD, GLOW_SIGMA, BLOOM_SPREAD, BLOOM_SIGMA, LAMP_DISC, rgbOf } from './stage-cells.js';
+import { SIDE, RADIUS, UNLIT, GLOW_SPREAD, GLOW_SIGMA, BLOOM_SPREAD, BLOOM_SIGMA, LAMP_DISC, BAR_DISC, rgbOf } from './stage-cells.js';
 
 /*
  * The light layer in WebGL 2: every bar cell and every lamp of the plot in a fixed
  * handful of draws a frame, whatever the number of colours. A 2D canvas fills one
- * path per distinct colour and the GPU process rasterises each one; here a frame is
- * one upload of the cells' colours and five draws:
+ * path per distinct colour and the GPU process rasterises each one; here, when the
+ * cells change, a frame uploads their places and colours and draws:
  *
  *   1. each cell's glow source (5 px, 1 px corners) into a texture;
- *   2. and 3. that texture blurred across, then down onto the canvas (σ 3 CSS px,
- *      as the 2D layer's canvas filter blurs it);
- *   4. each cell over it (7 px, 2 px corners), stacked as the 2D layer stacks them;
- *   5. each lamp's bloom and disc, in patch order as the elements stacked them.
+ *   2. and 3. that texture blurred across, then down into the cells' texture (σ 3
+ *      CSS px, as the 2D layer's canvas filter blurs it);
+ *   4. each cell over it (7 px, 2 px corners), stacked as the 2D layer stacks them.
+ *
+ * Every frame then copies the cells' texture to the canvas and draws each lamp's
+ * bloom and disc over it, in patch order as the elements stacked them (5 and 6). A
+ * frame in which only a lamp's colour moves (its 120 ms ease) is those two draws.
  *
  * Shapes are drawn by their distance to the edge, a pixel's coverage being half a
- * pixel either side of it. A lamp's bloom is the 15 px disc blurred with σ 7 px,
- * looked up by distance in a profile worked out once (bloomProfile).
+ * pixel either side of it. A lamp's bloom is its disc, BLOOM_SPREAD smaller, blurred
+ * with σ 7 px, looked up by distance in a profile worked out once (bloomProfile).
  */
 
 const QUAD = new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]);
-const MAX_TAPS = 32;
+// Taps each side of a blur's centre: 3σ, to σ 21 backing pixels (the glow's σ 3 CSS
+// pixels at a scale of 7). A larger σ is held at 21: its tail is cut, not its spread.
+const MAX_TAPS = 64;
+const MAX_SIGMA = (MAX_TAPS - 1) / 3;
 export const BLOOM_STEPS = 64;
 
 const SHAPE_VS = `#version 300 es
@@ -61,12 +67,12 @@ layout(location = 2) in vec4 colour;
 layout(location = 3) in vec2 shape;
 uniform vec2 viewport;
 uniform float scale;
-uniform float bloomReach;
+uniform vec2 bloomReach;
 out vec2 local;
 out vec4 tint;
 out vec2 disc;
 void main() {
-  float reach = shape.y > 0.5 ? max(bloomReach, shape.x) : shape.x;
+  float reach = shape.y > 1.5 ? max(bloomReach.y, shape.x) : shape.y > 0.5 ? max(bloomReach.x, shape.x) : shape.x;
   vec2 at = centre * scale;
   vec2 p = at + corner * (reach * scale + 1.0);
   local = p - at;
@@ -75,23 +81,27 @@ void main() {
   gl_Position = vec4((p / viewport * 2.0 - 1.0) * vec2(1.0, -1.0), 0.0, 1.0);
 }`;
 
+// shape.y: 0 no bloom, 1 a lamp's bloom, 2 a bar's (a selected bar blooms, as the
+// element did under .stage-fixture.selected).
 const LAMP_FS = `#version 300 es
 precision highp float;
 in vec2 local;
 in vec4 tint;
 in vec2 disc;
 uniform float scale;
-uniform float bloomReach;
+uniform vec2 bloomReach;
 uniform float profile[${BLOOM_STEPS}];
+uniform float barProfile[${BLOOM_STEPS}];
 out vec4 outColour;
 void main() {
   float d = length(local);
   float cover = clamp(disc.x * scale + 0.5 - d, 0.0, 1.0);
   float bloom = 0.0;
   if (disc.y > 0.5) {
-    float at = d / scale / bloomReach * float(${BLOOM_STEPS - 1});
+    bool bar = disc.y > 1.5;
+    float at = d / scale / (bar ? bloomReach.y : bloomReach.x) * float(${BLOOM_STEPS - 1});
     int i = int(floor(at));
-    if (i < ${BLOOM_STEPS - 1}) bloom = mix(profile[i], profile[i + 1], fract(at));
+    if (i < ${BLOOM_STEPS - 1}) bloom = bar ? mix(barProfile[i], barProfile[i + 1], fract(at)) : mix(profile[i], profile[i + 1], fract(at));
   }
   float a = cover + bloom * (1.0 - cover);
   outColour = vec4(tint.rgb * a, a);
@@ -124,8 +134,9 @@ void main() {
   outColour = sum;
 }`;
 
-/** Normalised one-sided Gaussian weights for σ backing pixels: the centre, then each step out to 3σ. */
-export function gaussianWeights(sigma) {
+/** Normalised one-sided Gaussian weights for σ backing pixels (at most MAX_SIGMA): the centre, then each step out to 3σ. */
+export function gaussianWeights(wanted) {
+  const sigma = Math.min(wanted, MAX_SIGMA);
   const taps = Math.max(1, Math.min(MAX_TAPS, Math.ceil(3 * sigma) + 1));
   const weights = new Float32Array(MAX_TAPS);
   let sum = 0;
@@ -198,14 +209,20 @@ function compile(gl, vs, fs) {
 // test sampling its pixels, a screenshot) when an unchanged picture is not drawn again.
 const CONTEXT = { alpha: true, premultipliedAlpha: true, antialias: false, depth: false, stencil: false, preserveDrawingBuffer: true };
 
+/** The copy pass: the blur with one tap of weight one. */
+const COPY = (() => { const weights = new Float32Array(MAX_TAPS); weights[0] = 1; return { weights, taps: 1 }; })();
+
 /**
- * The light layer on `canvas` in WebGL 2, or null where there is none. `onRestored`
- * is called when a lost context comes back, for a repaint.
+ * The light layer on `canvas` in WebGL 2, or null where there is none, or where the
+ * browser would draw it in software (a blocklisted GPU, a virtual machine) unless
+ * `software` allows that. `onLost` is called when the context is lost, `onRestored`
+ * when it comes back (for a repaint), `onFailed` when it came back and would not
+ * draw again.
  */
-export function createGlPainter(canvas, { onRestored = () => {} } = {}) {
-  const gl = typeof WebGL2RenderingContext === 'function' ? canvas.getContext('webgl2', CONTEXT) : null;
+export function createGlPainter(canvas, { onLost = () => {}, onRestored = () => {}, onFailed = () => {}, software = false } = {}) {
+  const gl = typeof WebGL2RenderingContext === 'function' ? canvas.getContext('webgl2', { ...CONTEXT, failIfMajorPerformanceCaveat: !software }) : null;
   if (!gl) return null;
-  const bloom = bloomProfile();
+  const blooms = [bloomProfile(LAMP_DISC + BLOOM_SPREAD), bloomProfile(BAR_DISC + BLOOM_SPREAD)];
   let state = null;
   let size = { width: canvas.width, height: canvas.height, scale: 1 };
   let lost = false;
@@ -218,7 +235,7 @@ export function createGlPainter(canvas, { onRestored = () => {} } = {}) {
     return { texture, framebuffer };
   }
   function sizeTargets() {
-    for (const t of [state.glow, state.across]) {
+    for (const t of [state.glow, state.across, state.lit]) {
       gl.bindTexture(gl.TEXTURE_2D, t.texture);
       gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, Math.max(1, size.width), Math.max(1, size.height), 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
       gl.bindFramebuffer(gl.FRAMEBUFFER, t.framebuffer);
@@ -249,7 +266,7 @@ export function createGlPainter(canvas, { onRestored = () => {} } = {}) {
       quad: gl.createBuffer(),
       cellCentres: gl.createBuffer(), cellColours: gl.createBuffer(),
       lampCentres: gl.createBuffer(), lampColours: gl.createBuffer(), lampShapes: gl.createBuffer(),
-      glow: target(), across: target(),
+      glow: target(), across: target(), lit: target(),
       cells: -1, at: null, colourBytes: null,
     };
     gl.bindBuffer(gl.ARRAY_BUFFER, state.quad);
@@ -263,20 +280,30 @@ export function createGlPainter(canvas, { onRestored = () => {} } = {}) {
     gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
     gl.bindVertexArray(null);
     gl.useProgram(state.lamp.program);
-    gl.uniform1fv(state.lamp.uniforms.profile, bloom.profile);
-    gl.uniform1f(state.lamp.uniforms.bloomReach, bloom.reach);
+    gl.uniform1fv(state.lamp.uniforms.profile, blooms[0].profile);
+    gl.uniform1fv(state.lamp.uniforms.barProfile, blooms[1].profile);
+    gl.uniform2f(state.lamp.uniforms.bloomReach, blooms[0].reach, blooms[1].reach);
     sizeTargets();
   }
 
-  const onLost = (event) => { event.preventDefault(); lost = true; state = null; };
-  const onRestore = () => { lost = false; setUp(); onRestored(); };
-  canvas.addEventListener('webglcontextlost', onLost);
-  canvas.addEventListener('webglcontextrestored', onRestore);
+  const lose = (event) => { event.preventDefault(); lost = true; state = null; onLost(); };
+  const restore = () => {
+    try {
+      setUp();
+      lost = false;
+      onRestored();
+    } catch (error) {
+      state = null;
+      onFailed(error);
+    }
+  };
+  canvas.addEventListener('webglcontextlost', lose);
+  canvas.addEventListener('webglcontextrestored', restore);
   try { setUp(); } catch (error) {
-    canvas.removeEventListener('webglcontextlost', onLost);
-    canvas.removeEventListener('webglcontextrestored', onRestore);
-    const lose = gl.getExtension('WEBGL_lose_context');
-    if (lose) lose.loseContext();
+    canvas.removeEventListener('webglcontextlost', lose);
+    canvas.removeEventListener('webglcontextrestored', restore);
+    const extension = gl.getExtension('WEBGL_lose_context');
+    if (extension) extension.loseContext();
     throw error;
   }
 
@@ -322,7 +349,7 @@ export function createGlPainter(canvas, { onRestored = () => {} } = {}) {
     list.forEach((lamp, i) => {
       centres[i * 2] = lamp.x; centres[i * 2 + 1] = lamp.y;
       colours.set([lamp.rgb[0], lamp.rgb[1], lamp.rgb[2], 255], i * 4);
-      shapes[i * 2] = lamp.radius; shapes[i * 2 + 1] = lamp.bloom ? 1 : 0;
+      shapes[i * 2] = lamp.radius; shapes[i * 2 + 1] = lamp.bloom ? (lamp.radius === BAR_DISC ? 2 : 1) : 0;
     });
     for (const [buffer, data] of [[state.lampCentres, centres], [state.lampColours, colours], [state.lampShapes, shapes]]) {
       gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
@@ -343,9 +370,8 @@ export function createGlPainter(canvas, { onRestored = () => {} } = {}) {
     gl.drawArraysInstanced(gl.TRIANGLE_STRIP, 0, 4, count);
   }
 
-  function blur(from, to, direction, sigma) {
+  function blur(from, to, direction, { weights, taps }) {
     const { program, uniforms } = state.blur;
-    const { weights, taps } = gaussianWeights(sigma);
     gl.useProgram(program);
     gl.bindFramebuffer(gl.FRAMEBUFFER, to);
     gl.activeTexture(gl.TEXTURE0);
@@ -368,27 +394,33 @@ export function createGlPainter(canvas, { onRestored = () => {} } = {}) {
       size = { width, height, scale };
       if (canvas.width !== width) canvas.width = width;
       if (canvas.height !== height) canvas.height = height;
-      if (state) sizeTargets();
+      if (state) { sizeTargets(); state.drawn = false; }
     },
-    paint({ centres, colours, lamps: lampList }) {
+    /** Draw a frame; with `cells` false the cells are as last drawn and only the lamps are drawn again. */
+    paint({ centres, colours, lamps: lampList, cells: changed = true }) {
       if (!state || gl.isContextLost()) return;
-      const count = cells(centres, colours);
-      const lit = lamps(lampList);
       gl.viewport(0, 0, size.width, size.height);
       gl.enable(gl.BLEND);
       gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
       gl.clearColor(0, 0, 0, 0);
-      if (count) {
-        gl.bindFramebuffer(gl.FRAMEBUFFER, state.glow.framebuffer);
-        gl.clear(gl.COLOR_BUFFER_BIT);
-        shapes(count, (SIDE + 2 * GLOW_SPREAD) / 2, RADIUS + GLOW_SPREAD);
-        blur(state.glow.texture, state.across.framebuffer, [1, 0], GLOW_SIGMA * size.scale);
-        blur(state.across.texture, null, [0, 1], GLOW_SIGMA * size.scale);
-        shapes(count, SIDE / 2, RADIUS);
-      } else {
-        gl.bindFramebuffer(gl.FRAMEBUFFER, null);
-        gl.clear(gl.COLOR_BUFFER_BIT);
+      if (changed || !state.drawn) {
+        const count = cells(centres, colours);
+        const kernel = gaussianWeights(GLOW_SIGMA * size.scale);
+        if (count) {
+          gl.bindFramebuffer(gl.FRAMEBUFFER, state.glow.framebuffer);
+          gl.clear(gl.COLOR_BUFFER_BIT);
+          shapes(count, (SIDE + 2 * GLOW_SPREAD) / 2, RADIUS + GLOW_SPREAD);
+          blur(state.glow.texture, state.across.framebuffer, [1, 0], kernel);
+          blur(state.across.texture, state.lit.framebuffer, [0, 1], kernel);
+          shapes(count, SIDE / 2, RADIUS);
+        } else {
+          gl.bindFramebuffer(gl.FRAMEBUFFER, state.lit.framebuffer);
+          gl.clear(gl.COLOR_BUFFER_BIT);
+        }
+        state.drawn = true;
       }
+      blur(state.lit.texture, null, [1, 0], COPY);
+      const lit = lamps(lampList);
       if (lit) {
         const { program, uniforms } = state.lamp;
         gl.useProgram(program);
@@ -400,12 +432,12 @@ export function createGlPainter(canvas, { onRestored = () => {} } = {}) {
       gl.bindVertexArray(null);
     },
     dispose() {
-      canvas.removeEventListener('webglcontextlost', onLost);
-      canvas.removeEventListener('webglcontextrestored', onRestore);
+      canvas.removeEventListener('webglcontextlost', lose);
+      canvas.removeEventListener('webglcontextrestored', restore);
       // Give the context back now rather than when the canvas is collected: the
       // browser keeps only so many.
-      const lose = gl.getExtension('WEBGL_lose_context');
-      if (lose) lose.loseContext();
+      const extension = gl.getExtension('WEBGL_lose_context');
+      if (extension) extension.loseContext();
       state = null;
     },
   };

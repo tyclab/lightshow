@@ -8,19 +8,20 @@ import { createGlPainter, gaussianWeights, bloomProfile } from '../../public-src
 import { lampDiscs, rgbOf, paintLamps, LAMP_DISC, BAR_DISC, BLOOM_SPREAD, BLOOM_SIGMA } from '../../public-src/stage-cells.js';
 import { placeAt, LAMP_H } from '../../public-src/stage-geometry.js';
 
-const UNIFORMS = ['viewport', 'scale', 'reach', 'halfSide', 'corner', 'bloomReach', 'profile[0]', 'source', 'direction', 'weights[0]', 'taps'];
+const UNIFORMS = ['viewport', 'scale', 'reach', 'halfSide', 'corner', 'bloomReach', 'profile[0]', 'barProfile[0]', 'source', 'direction', 'weights[0]', 'taps'];
 
-/** A WebGL 2 context that records every call; `lost` and `failLink` stage the bad days. */
-function fakeGl({ failLink = false } = {}) {
+/** A WebGL 2 context that records every call; `lose`, `failLink` and `failRelink` stage the bad days. */
+function fakeGl({ failLink = false, failRelink = false } = {}) {
   const calls = [];
   const listeners = {};
   let lost = false;
+  let restored = false;
   const gl = new Proxy({}, {
     get(_, name) {
       if (typeof name !== 'string') return undefined;
       if (/^[A-Z][A-Z0-9_]+$/.test(name)) return name;
       if (name === 'isContextLost') return () => lost;
-      if (name === 'getProgramParameter') return (program, key) => (key === 'ACTIVE_UNIFORMS' ? UNIFORMS.length : !failLink);
+      if (name === 'getProgramParameter') return (program, key) => (key === 'ACTIVE_UNIFORMS' ? UNIFORMS.length : !(failLink || (failRelink && restored)));
       if (name === 'getActiveUniform') return (program, i) => ({ name: UNIFORMS[i] });
       if (name === 'getUniformLocation') return (program, uniform) => ({ uniform });
       if (name === 'getProgramInfoLog') return () => 'link failed';
@@ -37,7 +38,7 @@ function fakeGl({ failLink = false } = {}) {
   return {
     gl, canvas, calls,
     lose() { lost = true; listeners.webglcontextlost({ preventDefault() {} }); },
-    restore() { lost = false; listeners.webglcontextrestored(); },
+    restore() { lost = false; restored = true; listeners.webglcontextrestored(); },
   };
 }
 
@@ -63,7 +64,7 @@ const counted = (calls, from) => {
   return out;
 };
 
-test('a frame is the same handful of draws for one colour as for thousands', () => withWebGl2(() => {
+test('a frame is the same handful of draws for one colour as for thousands; a lamps-only frame is two', () => withWebGl2(() => {
   const fake = fakeGl();
   const painter = createGlPainter(fake.canvas);
   assert.equal(painter.kind, 'webgl2');
@@ -79,8 +80,14 @@ test('a frame is the same handful of draws for one colour as for thousands', () 
   const thousands = counted(fake.calls, next);
   assert.deepEqual(thousands, single, 'the GL calls of a frame do not depend on the colours');
   assert.equal(single.drawArraysInstanced, 3, 'glow sources, cells, lamps');
-  assert.equal(single.drawArrays, 2, 'the glow blurred across, then down');
+  assert.equal(single.drawArrays, 3, 'the glow blurred across, then down, then the cells copied to the canvas');
   assert.equal(single.bufferSubData, 2, 'the cells\' places and colours, once each');
+  const easing = fake.calls.length;
+  painter.paint({ ...many, lamps, cells: false });
+  const lampsOnly = counted(fake.calls, easing);
+  assert.equal(lampsOnly.drawArraysInstanced, 1, 'the lamps');
+  assert.equal(lampsOnly.drawArrays, 1, 'the cells as drawn, copied');
+  assert.equal(lampsOnly.bufferSubData, undefined, 'nothing of the cells uploaded');
 }));
 
 test('cells go up in the 2D layer\'s order: a colour at a time, in the order the colours first appear', () => withWebGl2(() => {
@@ -103,23 +110,51 @@ test('lamps are one instanced draw, in patch order, with their disc and whether 
   const data = fake.calls.slice(start).filter(([name, , data]) => name === 'bufferData' && ArrayBuffer.isView(data) && data.length).map((call) => Array.from(call[2]));
   assert.deepEqual(data, [[40, 30, 90, 60], [255, 0, 0, 255, 0, 0, 255, 255], [LAMP_DISC, 1, BAR_DISC, 0]]);
   assert.deepEqual(fake.calls.slice(start).filter(([name]) => name === 'drawArraysInstanced').map((call) => call.at(-1)), [2], 'no cells: only the lamps draw');
+  painter.paint({ centres: new Float32Array(0), colours: [], lamps: [lamps[0], { ...lamps[1], bloom: true }] });
+  assert.deepEqual(Array.from(fake.calls.filter(([name]) => name === 'bufferData').at(-1)[2]), [LAMP_DISC, 1, BAR_DISC, 2], 'a selected bar blooms from its own profile');
 }));
 
-test('a lost context paints nothing until it is back, then asks for a repaint; dispose gives the context back', () => withWebGl2(() => {
+test('a lost context says so and paints nothing until it is back, then asks for a repaint; dispose gives the context back', () => withWebGl2(() => {
   const fake = fakeGl();
-  let restored = 0;
-  const painter = createGlPainter(fake.canvas, { onRestored: () => { restored++; } });
+  let restored = 0, lostCalls = 0;
+  const painter = createGlPainter(fake.canvas, { onLost: () => { lostCalls++; }, onRestored: () => { restored++; } });
   painter.resize(200, 100, 1);
   fake.lose();
+  assert.equal(lostCalls, 1);
+  assert.equal(painter.lost, true);
   const start = fake.calls.length;
   painter.paint({ ...frame(10, () => 'rgb(1,2,3)'), lamps });
   assert.equal(fake.calls.slice(start).filter(([name]) => /^draw/.test(name)).length, 0);
   fake.restore();
   assert.equal(restored, 1);
+  assert.equal(painter.lost, false);
   painter.paint({ ...frame(10, () => 'rgb(1,2,3)'), lamps });
   assert.ok(fake.calls.some(([name]) => name === 'drawArraysInstanced'));
   painter.dispose();
   assert.ok(fake.calls.some(([name]) => name === 'loseContext'));
+}));
+
+test('a context back but failing to draw is reported, not thrown', () => withWebGl2(() => {
+  const fake = fakeGl({ failRelink: true });
+  const failed = [];
+  const painter = createGlPainter(fake.canvas, { onFailed: (error) => failed.push(error.message), onRestored: () => assert.fail('not restored') });
+  painter.resize(200, 100, 1);
+  fake.lose();
+  assert.doesNotThrow(() => fake.restore());
+  assert.equal(failed.length, 1);
+  assert.match(failed[0], /light layer shaders/);
+  const start = fake.calls.length;
+  painter.paint({ ...frame(10, () => 'rgb(1,2,3)'), lamps });
+  assert.equal(fake.calls.slice(start).filter(([name]) => /^draw/.test(name)).length, 0);
+}));
+
+test('software WebGL is refused unless asked for, so the layer paints in 2D there', () => withWebGl2(() => {
+  const asked = [];
+  const fake = fakeGl();
+  const canvas = { ...fake.canvas, getContext: (type, options) => { asked.push(options.failIfMajorPerformanceCaveat); return fake.gl; } };
+  createGlPainter(canvas);
+  createGlPainter(canvas, { software: true });
+  assert.deepEqual(asked, [true, false]);
 }));
 
 test('no WebGL 2: no painter; shaders that will not link: the context is given back and the error raised', () => {
@@ -131,14 +166,17 @@ test('no WebGL 2: no painter; shaders that will not link: the context is given b
   });
 });
 
-test('the Gaussian weights cover 3σ and sum to one, as the canvas filter\'s blur', () => {
-  for (const sigma of [3, 6, 9]) {
+test('the Gaussian weights cover 3σ and sum to one, as the canvas filter\'s blur, to σ 21', () => {
+  for (const sigma of [3, 6, 9, 10.5, 21]) {
     const { weights, taps } = gaussianWeights(sigma);
     assert.equal(taps, Math.ceil(3 * sigma) + 1);
     const sum = weights.slice(1, taps).reduce((a, w) => a + 2 * w, weights[0]);
     assert.ok(Math.abs(sum - 1) < 1e-6);
-    assert.ok(weights[1] < weights[0] && weights[taps - 1] > 0 && weights[taps] === 0);
+    assert.ok(weights[1] < weights[0] && weights[taps - 1] > 0 && (taps === weights.length || weights[taps] === 0));
   }
+  // The glow's σ 3 CSS px at scale 3.5 is 10.5: all 33 taps, not cut at 32.
+  assert.equal(gaussianWeights(10.5).taps, 33);
+  assert.deepEqual(gaussianWeights(30), gaussianWeights(21), 'beyond σ 21 the blur is held at 21');
 });
 
 test('the bloom profile is the blurred disc, integrated by brute force to within 0.002', () => {
@@ -172,10 +210,11 @@ const cssCentre = (size, point) => {
   return { x: solve(at.left, size.width), y: solve(at.top, size.height) };
 };
 
-test('each disc is where the lamp element drew its light, its box on whole CSS pixels', () => {
+test('each disc is where the lamp element drew its light, its box on whole CSS pixels; a selected bar blooms', () => {
   const size = { width: 1490.4, height: 418.3 };
   const points = [{ x: 0, y: 0 }, { x: 33.3, y: 61.7 }, { x: 100, y: 100 }, { x: 57.15, y: 12.5 }];
   const bars = [false, true, false, true];
+  assert.deepEqual(lampDiscs(points, bars, size, [false, false, false, true]).map((disc) => disc.bloom), [true, false, true, true]);
   lampDiscs(points, bars, size).forEach((disc, i) => {
     const box = cssCentre(size, points[i]);
     const radius = bars[i] ? BAR_DISC : LAMP_DISC;
