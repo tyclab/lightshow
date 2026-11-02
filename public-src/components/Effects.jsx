@@ -8,7 +8,7 @@ import { useFocusTrap } from '../focus-trap.js';
 import { Inspector, familyOf } from './Inspector.jsx';
 import { Photosensitivity as PhotosensitivityConfirm, acknowledgeThen } from './Photosensitivity.jsx';
 import { mappingOf, MAPPING_LABELS } from '../../src/shared/effects/mapping.ts';
-import { REACTIVE_TAGS, SOURCES, TAG_AXES, TAGS } from '../../src/shared/effects/tags.ts';
+import { REACTIVE_TAGS, SOURCES, TAG_AXES, TAG_NOTES, TAGS } from '../../src/shared/effects/tags.ts';
 
 /**
  * The Effects view: an instrument first, an editor second. At the top a deck
@@ -212,7 +212,8 @@ function TagBadges({ row, without = [] }) {
     <span class="effect-tags">
       {tags.map((tag) => {
         const sources = REACTIVE_TAGS.has(tag) ? (row.via ?? []).filter((source) => SOURCES[source]) : [];
-        const title = [TAGS[tag].desc, ...sources.map((source) => SOURCES[source].desc)].join('. ');
+        const note = TAG_NOTES[row.variantOf || row.id]?.[tag];
+        const title = [TAGS[tag].desc, ...(note ? [note] : []), ...sources.map((source) => SOURCES[source].desc)].join('. ');
         return (
           <span key={tag} class={`effect-tag${tag === 'rapid' ? ' badge-rapid' : ''}`} data-tag={tag} title={title}>
             <TagName tag={tag} />{sources.length > 0 && <span class="effect-tag-via"> · {sources.map((source) => SOURCES[source].name).join(' + ')}</span>}

@@ -337,6 +337,15 @@ test('Effects lists every look once, A to Z, each with the tags its code states'
   assert.deepStrictEqual(badgesOf(rowOf(html, 'v2.grooveWave.2d')), ['Beat only']);
 });
 
+test('the Strobe row is Static and its badge says which strobe functions follow the beat', () => {
+  ui.filtersSig.value = [];
+  const strobe = { id: 'strobe', name: 'Strobe', desc: 'All fixtures on colour A', legacy: true, ...ui.tagFields(ui.legacyTags('strobe')) };
+  givenLibrary({ patterns: [strobe, ...PATTERN_ROWS] });
+  const row = rowOf(ui.html(ui.h(ui.Effects, {})), 'strobe');
+  assert.deepStrictEqual(badgesOf(row), ['Static', 'Whole rig']);
+  assert.match(row, /data-tag="static" title="Follows neither the beat nor any input: constant, or timed by a fixed rate of its own\. With the Strobe card's Ramp, Random or Burst function the strobe follows the beat; Standard runs the fixture's own rate"/);
+});
+
 test('a preset saved here lists among the built-ins, marked Yours, with the tags of its own spec', () => {
   ui.filtersSig.value = [];
   givenLibrary({});

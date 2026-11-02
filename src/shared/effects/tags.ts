@@ -1,7 +1,7 @@
 // Catalogue tags: facts a look's code states (what it reads, where it draws, its colours, its use), never how it looks.
 import { ENERGY_KIND_BY_ID } from './energy.ts';
 import { mappingOf } from './mapping.ts';
-import { requiresAcknowledgement } from './registry.ts';
+import { kindOf, requiresAcknowledgement } from './registry.ts';
 import type { EffectSpec } from './types.ts';
 
 export type TagId = 'beat' | 'static' | 'bands' | 'level' | 'sections' | 'screen' | 'rig' | 'room' | 'bars' | 'ownColours' | 'energy' | 'rapid';
@@ -12,8 +12,8 @@ export type TagSource = 'track' | 'live' | 'screen';
 export interface LookTags { tags: TagId[]; via: TagSource[] }
 
 export const TAGS: Readonly<Record<TagId, { name: string; axis: TagAxis; desc: string }>> = Object.freeze({
-  beat: { name: 'Beat only', axis: 'reacts', desc: 'Runs on the beat clock and reads no music or picture input' },
-  static: { name: 'Static', axis: 'reacts', desc: 'Reads no clock and no input' },
+  beat: { name: 'Beat only', axis: 'reacts', desc: 'Follows the beat clock or the tempo, and no music or picture input' },
+  static: { name: 'Static', axis: 'reacts', desc: 'Follows neither the beat nor any input: constant, or timed by a fixed rate of its own' },
   bands: { name: 'Bands & drums', axis: 'reacts', desc: 'Follows stems, drum hits or frequency bands' },
   level: { name: 'Audio level', axis: 'reacts', desc: 'Follows the overall loudness' },
   sections: { name: 'Song sections', axis: 'reacts', desc: 'Follows the song section or the build the show sets' },
@@ -51,6 +51,9 @@ const tagged = (tags: Iterable<TagId>, via: Iterable<TagSource> = []): LookTags 
 };
 
 // The 59 legacy pattern ids have no spec to derive from; each entry follows the pattern function's own reads.
+// They lay out on the Rig plot (roomOf builds from plot positions), never in room metres, so none is Room-placed.
+// The auto show's expression is no input tag: only the show sets it, by hand every reader sees the resting
+// expression, and under the show it shapes 37 of these patterns and dims every lamp look alike.
 const LEGACY: Readonly<Record<string, LookTags>> = Object.freeze({
   solid: tagged(['static', 'rig']),
   fade: tagged(['beat', 'rig']),
@@ -70,7 +73,7 @@ const LEGACY: Readonly<Record<string, LookTags>> = Object.freeze({
   twinkle: tagged(['beat']),
   sparkle: tagged(['beat']),
   'random-flash': tagged(['beat']),
-  ensemble: tagged(['bands'], ['track']),
+  ensemble: tagged(['beat']),
   ribbon: tagged(['beat']),
   gradient: tagged(['beat', 'bars']),
   comet: tagged(['beat', 'bars']),
@@ -115,23 +118,50 @@ const LEGACY: Readonly<Record<string, LookTags>> = Object.freeze({
 
 export const LEGACY_TAGGED: readonly string[] = Object.freeze(Object.keys(LEGACY));
 
+/** A sentence a look's badge adds to one of its tags, where a setting outside the look changes what it follows. */
+export const TAG_NOTES: Readonly<Record<string, Partial<Record<TagId, string>>>> = Object.freeze({
+  strobe: { static: 'With the Strobe card\'s Ramp, Random or Burst function the strobe follows the beat; Standard runs the fixture\'s own rate' },
+});
+
 const ENERGY_KINDS = new Set<string>(['strobe', ...Object.values(ENERGY_KIND_BY_ID)]);
 const FIXED_COLOUR_KINDS = new Set<string>(['energy.whiteStrobe', 'energy.blinder', 'energy.uvWash', 'energy.kill']);
+// Kinds timed by wall frames or wall delays of their own instead of the beat (ldj-rotation.ts, ldj-matrix.ts, ldj-channel.ts).
+const OWN_RATE_KINDS = new Set<string>(['ldj.Swirl', 'ldj.Rotation', 'ldj.Beacon', 'ldj.Perlin', 'ldj.NorthernLights',
+  'ldj.MatrixPulse', 'ldj.MatrixFlash', 'ldj.MatrixFirework', 'ldj.MatrixSplotch', 'ldj.PartyStrobe', 'ldj.SceneMakerFirework']);
+const DISCO_READS: Readonly<Record<string, TagId[]>> = { spectrum: ['bands'], peak: ['level'], neural: ['bands', 'level'] };
 // Kinds that give every unit the same value whatever their params (checked in each kind's render).
 const UNIFORM_KINDS = new Set<string>(['v2.wash', 'hd.breathingFade', ...Object.values(ENERGY_KIND_BY_ID)]);
 
 const isRecord = (value: unknown): value is Record<string, unknown> => value !== null && typeof value === 'object' && !Array.isArray(value);
 const bandTag = (band: unknown): TagId => (band === 'full' ? 'level' : 'bands');
 
+// A container steps its children on the beat and reacts as they do.
+function containerReactions(children: unknown[]): LookTags {
+  const specs = children.filter((child): child is EffectSpec => isRecord(child) && typeof child.kind === 'string');
+  const inner = specs.map((child) => reactions(child));
+  const reactive = inner.filter((r) => r.tags.some((tag) => REACTIVE_TAGS.has(tag)));
+  return reactive.length ? tagged(reactive.flatMap((r) => r.tags.filter((tag) => REACTIVE_TAGS.has(tag))), reactive.flatMap((r) => r.via)) : tagged(['beat']);
+}
+
 function reactions(spec: Pick<EffectSpec, 'kind' | 'params'>): LookTags {
   const p = spec.params ?? {};
   if (spec.kind === 'v2.neural') return tagged(['bands'], ['live']);
   if (spec.kind === 'v2.visualizer') return tagged(['screen'], ['screen']);
+  if (spec.kind === 'hd.disco') return tagged(DISCO_READS[String(p.style)] ?? ['bands'], ['live']);
+  // Loud, soft and quiet sections and loud beats from the live sound level (ldj-visualizer.ts).
+  if (spec.kind === 'ldj.visualizer') return tagged(['level'], ['live']);
+  if (spec.kind === 'macro') return containerReactions(Array.isArray(p.steps) ? p.steps.map((step) => (isRecord(step) ? step.effect : null)) : []);
+  if (spec.kind === 'pattern.bundle') {
+    const clips = isRecord(p.table) && Array.isArray(p.table.clips) ? p.table.clips : [];
+    return containerReactions(clips.map((clip) => (isRecord(clip) ? clip.spec : null)));
+  }
   if (ENERGY_KINDS.has(spec.kind) && spec.kind !== 'strobe') return tagged(['static']);
-  if (spec.kind === 'strobe') return tagged(p.clock === 'wall' ? [] : ['beat']);
+  if (spec.kind === 'strobe') return tagged([p.clock === 'wall' ? 'static' : 'beat']);
+  if (kindOf(spec.kind)?.wallClock || OWN_RATE_KINDS.has(spec.kind)) return tagged(['static']);
+  if (spec.kind === 'ldj.matrixBoard') return tagged([p.mode === 'cycle' ? 'beat' : 'static']);
   const trigger = p.trigger;
-  // Only the v2 generators and the party kinds carry a trigger object; other kinds state no input here.
-  if (!isRecord(trigger) || typeof trigger.mode !== 'string') return tagged([]);
+  // The other kinds step on the beat clock or time by the tempo: the engine rows, waves, bitmaps, studio notes.
+  if (!isRecord(trigger) || typeof trigger.mode !== 'string') return tagged(['beat']);
   const tags = new Set<TagId>(), via = new Set<TagSource>();
   const add = (tag: TagId, ...from: TagSource[]) => { tags.add(tag); for (const source of from) via.add(source); };
   if (trigger.mode !== 'timeline') add(bandTag(trigger.band), 'live');

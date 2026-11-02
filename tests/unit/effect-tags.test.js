@@ -11,8 +11,11 @@ import path from 'node:path';
 import { PATTERNS, PRESET_ROWS } from '../../src/server/presets.ts';
 import { EffectLibrary } from '../../src/server/effect-library.ts';
 import { presetById } from '../../src/shared/effects/index.ts';
-import { validateSpec } from '../../src/shared/effects/registry.ts';
-import { LEGACY_TAGGED, REACTIVE_TAGS, SOURCES, TAG_AXES, TAGS, legacyTags, specTags } from '../../src/shared/effects/tags.ts';
+import { KINDS, validateSpec } from '../../src/shared/effects/registry.ts';
+import { LEGACY_TAGGED, REACTIVE_TAGS, SOURCES, TAG_AXES, TAG_NOTES, TAGS, legacyTags, specTags } from '../../src/shared/effects/tags.ts';
+
+// What every registered kind reacts to with its default params, counted per tag.
+const KIND_REACTS = { beat: 133, static: 19, bands: 4, level: 2, sections: 0, screen: 1 };
 
 // id: 'tags / sources', in vocabulary order.
 const PINNED = {
@@ -34,7 +37,7 @@ const PINNED = {
   twinkle: 'beat',
   sparkle: 'beat',
   'random-flash': 'beat',
-  ensemble: 'bands / track',
+  ensemble: 'beat',
   ribbon: 'beat',
   gradient: 'beat bars',
   comet: 'beat bars',
@@ -161,13 +164,13 @@ test('the twelve tags and their counts over the 111 looks', () => {
   ]);
   const counts = Object.fromEntries(Object.keys(TAGS).map((tag) => [tag, count(VISIBLE, tag)]));
   assert.deepEqual(counts, {
-    beat: 78, static: 7, bands: 19, level: 3, sections: 3, screen: 2,
+    beat: 79, static: 7, bands: 18, level: 3, sections: 3, screen: 2,
     rig: 17, room: 39, bars: 21, ownColours: 8, energy: 11, rapid: 9,
   });
   const reactive = VISIBLE.filter((row) => row.tags.some((tag) => REACTIVE_TAGS.has(tag)));
-  assert.equal(reactive.length, 26);
+  assert.equal(reactive.length, 25);
   assert.deepEqual(Object.fromEntries(Object.keys(SOURCES).map((s) => [s, reactive.filter((r) => r.via.includes(s)).length])),
-    { track: 17, live: 8, screen: 2 });
+    { track: 16, live: 8, screen: 2 });
 });
 
 test('tags restate the fields the server already sends: pixel, room mapping, rapid flash, the energy family', () => {
@@ -205,7 +208,7 @@ test('a saved preset is tagged from its kind and params, so an edited copy gets 
     { tags: ['beat', 'room', 'energy', 'rapid'], via: [] });
   assert.deepEqual(of({ kind: 'strobe', params: strobe }), { tags: ['beat', 'rig', 'ownColours', 'energy', 'rapid'], via: [] }, 'the kind\'s own white palette');
   assert.deepEqual(of({ kind: 'strobe', palette: null, params: { ...strobe, colourMode: 'white', clock: 'wall' } }),
-    { tags: ['rig', 'ownColours', 'energy', 'rapid'], via: [] }, 'a wall-clock strobe states neither the beat clock nor an input');
+    { tags: ['static', 'rig', 'ownColours', 'energy', 'rapid'], via: [] }, 'a wall-clock strobe follows its own rate, not the beat');
   // A saved copy of an older party preset keeps its own palette and its timeline; its trigger can make it react.
   const domino = validateSpec({ kind: 'hd.positionChase', palette: ['#FF2BD6', '#7C3AED'] });
   assert.deepEqual(specTags(domino), { tags: ['beat', 'ownColours'], via: [] });
@@ -227,3 +230,55 @@ test('the presets saved here carry their tags in the summaries the browser lists
     { name: 'Still wash', tags: ['static', 'rig'], via: undefined },
   ]);
 });
+
+// ── Review round 1 ───────────────────────────────────────────────────────────
+
+test('the show expression is no input tag: ensemble and ribbon, which both read it, are tagged alike', () => {
+  assert.deepEqual(legacyTags('ensemble'), legacyTags('ribbon'));
+  assert.deepEqual(legacyTags('ensemble'), { tags: ['beat'], via: [] });
+});
+
+test('every registered kind says what it reacts to, from its code', () => {
+  const reacts = new Set(TAG_AXES.find((axis) => axis.id === 'reacts').tags);
+  const counts = Object.fromEntries([...reacts].map((tag) => [tag, 0]));
+  for (const [kind, def] of KINDS) {
+    const spec = { kind, params: def.defaults.params ?? {}, ...(def.defaults.palette !== undefined ? { palette: def.defaults.palette } : {}) };
+    const tags = specTags(spec).tags.filter((tag) => reacts.has(tag));
+    assert.ok(tags.length > 0, `${kind} has no Reacts-to tag`);
+    for (const tag of tags) counts[tag] = (counts[tag] ?? 0) + 1;
+  }
+  // A new kind changes these counts, so it is placed on purpose.
+  assert.deepEqual(counts, KIND_REACTS);
+});
+
+test('kinds without a trigger: live input, their own rate or the beat, as their code reads', () => {
+  const reactsOf = (raw) => specTags(raw.params ? raw : { ...raw, params: KINDS.get(raw.kind).defaults.params }).tags
+    .filter((tag) => TAGS[tag].axis === 'reacts');
+  const viaOf = (raw) => specTags({ ...raw, params: raw.params ?? KINDS.get(raw.kind).defaults.params }).via;
+  const disco = KINDS.get('hd.disco').defaults.params;
+  assert.deepEqual(reactsOf({ kind: 'hd.disco', params: { ...disco, style: 'spectrum' } }), ['bands']);
+  assert.deepEqual(reactsOf({ kind: 'hd.disco', params: { ...disco, style: 'peak' } }), ['level']);
+  assert.deepEqual(reactsOf({ kind: 'hd.disco', params: { ...disco, style: 'neural' } }), ['bands', 'level']);
+  assert.deepEqual(viaOf({ kind: 'hd.disco' }), ['live']);
+  assert.deepEqual([reactsOf({ kind: 'ldj.visualizer' }), viaOf({ kind: 'ldj.visualizer' })], [['level'], ['live']]);
+  // Wall frames, wall delays and the wall-clock strobe follow a rate of their own, not the beat.
+  for (const kind of ['ldj.TrueStrobe', 'ldj.Swirl', 'ldj.Perlin', 'ldj.MatrixPulse', 'ldj.PartyStrobe', 'ldj.SceneMakerFirework']) {
+    assert.deepEqual(reactsOf({ kind }), ['static'], kind);
+  }
+  assert.deepEqual(reactsOf({ kind: 'strobe', params: { clock: 'wall', flashesPerSecond: 5, continueBetween: true } }), ['static']);
+  const board = KINDS.get('ldj.matrixBoard').defaults.params;
+  assert.deepEqual(reactsOf({ kind: 'ldj.matrixBoard', params: { ...board, mode: 'cycle' } }), ['beat']);
+  assert.deepEqual(reactsOf({ kind: 'ldj.matrixBoard', params: { ...board, mode: 'pulses' } }), ['static']);
+  // Beat-stepped rows, tempo-timed waves, bitmaps and studio notes follow the beat.
+  for (const kind of ['ldj.StrobeCycle', 'ldj.GrooveWave', 'ldj.BigRoomWave', 'ldj.bitmap']) assert.deepEqual(reactsOf({ kind }), ['beat'], kind);
+  // A macro plays its steps on the beat and reacts as they do.
+  const step = (effect) => ({ effect, beats: 4 });
+  assert.deepEqual(reactsOf({ kind: 'macro', params: { steps: [step({ kind: 'ldj.StrobeCycle', params: {} })], loopBeats: 4 } }), ['beat']);
+  assert.deepEqual(reactsOf({ kind: 'macro', params: { steps: [step({ kind: 'ldj.visualizer', params: {} }), step({ kind: 'ldj.Swirl', params: {} })], loopBeats: 8 } }), ['level']);
+});
+
+test('the Strobe pattern is Static by default and its badge says the drawn functions follow the beat', () => {
+  assert.deepEqual(legacyTags('strobe').tags, ['static', 'rig']);
+  assert.match(TAG_NOTES.strobe.static, /Ramp.*Random.*Burst.*beat/);
+});
+

@@ -305,8 +305,8 @@ a look appears.
 
 | Axis | Tag | The look… |
 |------|-----|-----------|
-| Reacts to | **Beat only** | runs on the beat clock and reads no music or picture input |
-| | **Static** | reads no clock and no input |
+| Reacts to | **Beat only** | follows the beat clock or the tempo, and no music or picture input |
+| | **Static** | follows neither the beat nor any input: constant, or timed by a fixed rate of its own |
 | | **Bands & drums** | follows stems, drum hits or frequency bands |
 | | **Audio level** | follows the overall loudness |
 | | **Song sections** | follows the song section, or the build the auto show sets |
@@ -321,8 +321,12 @@ a look appears.
 A reaction also says where its input comes from: **track** (only while the auto show
 plays an analysed track; picked by hand the look runs on its clock), **live** (the
 Reactive audio mode with live input) or **screen** (the screen capture as picture
-source). A look laid out along the Rig plot carries no surface tag; a plot variant's
-card reads **Across layout**.
+source). The auto show's expression channel is not counted as an input: only the
+running show sets it, it shapes many classic patterns and dims every lamp look alike,
+and picked by hand each of them sees the same resting values. A look laid out along
+the Rig plot (every classic pattern that uses positions) carries no surface tag; a plot
+variant's card reads **Across layout**. A badge's tooltip adds what a setting outside
+the look changes: on Strobe, that the Ramp, Random and Burst functions follow the beat.
 
 The chips under the search filter the deck and the list. Chips in one row (Reacts to,
 Surface, Colour, Use & safety) show the looks that carry any of them; rows combine,
