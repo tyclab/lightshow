@@ -114,19 +114,51 @@ test('the background layer names the mode and the fixtures as the Background car
   assert.equal(layerText({ background: null })[2], 'Background: Follow effect · Whole rig', 'before the first state, the default setting');
 });
 
-test('pads and overrides count each thing playing over the main effect once', () => {
-  assert.equal(above({ voices: [{ id: 'v', label: 'Blinder' }, { id: 'h', label: 'Hidden', hidden: true }] }), 'Pads and overrides: 1 active');
+test('pads and overrides name each thing playing over the main effect once', () => {
+  assert.equal(above({ voices: [{ id: 'v', label: 'Blinder' }, { id: 'h', label: 'Hidden', hidden: true }] }), 'Pads and overrides: Blinder');
   const activeClips = [{ id: 'c1', laneId: 'a', lane: 'Front', name: 'Pulse' }, { id: 'c2', laneId: 'b', lane: 'Back', name: 'Wave' }];
-  assert.equal(above({ sequence: { ...sequence, playing: true, activeClips } }), 'Pads and overrides: 2 active');
+  assert.equal(above({ sequence: { ...sequence, playing: true, activeClips } }), 'Pads and overrides: Front: Pulse, Back: Wave');
   // A strobe or a matrix launched as a voice is that voice, not a second layer.
-  assert.equal(above({ strobe: { active: 'pad' } }), 'Pads and overrides: 1 active');
-  assert.equal(above({ strobe: { active: 'pad' }, voices: [{ id: 's', label: 'Strobe', tier: 'strobe' }] }), 'Pads and overrides: 1 active');
-  assert.equal(above({ matrix: { colours: ['#FF0000'], mode: 'fills' }, voices: [{ id: 'm', label: 'Matrix', source: 'matrix' }] }), 'Pads and overrides: 1 active');
-  assert.equal(above({ paletteOverride: ['#112233'] }), 'Pads and overrides: 1 active');
-  const overridden = FIXTURES.map((f, i) => ({ ...f, override: { enabled: i < 2, blackout: false } }));
-  assert.equal(above({ fixtures: overridden }), 'Pads and overrides: 2 active');
-  assert.equal(pictureLayers({ fixtures: overridden, paletteOverride: ['#112233'] })[0].title, 'Palette override, Par 1 override, Par 2 override');
+  assert.equal(above({ strobe: { active: 'pad' } }), 'Pads and overrides: Strobe');
+  assert.equal(above({ strobe: { active: 'pad' }, voices: [{ id: 's', label: 'Strobe pad', tier: 'strobe' }] }), 'Pads and overrides: Strobe pad');
+  assert.equal(above({ matrix: { colours: ['#FF0000'], mode: 'fills', voice: 'm' }, voices: [{ id: 'm', label: 'Matrix', source: 'matrix' }] }), 'Pads and overrides: Matrix');
+  assert.equal(above({ paletteOverride: ['#112233'] }), 'Pads and overrides: Palette override');
   for (const quiet of [{ voices: [] }, { strobe: { active: null } }, { matrix: { colours: [] } }, { paletteOverride: [] }]) {
     assert.equal(above(quiet), 'Pads and overrides: None active');
   }
+});
+
+// As the renderer decides it: a fixture's blackout gates it whether or not its colour override is on.
+test('a fixture override or blackout counts, a disabled override without blackout does not', () => {
+  const fixtures = [
+    { id: 1, label: 'Par 1', override: { enabled: true, blackout: false } },
+    { id: 2, label: 'Par 2', override: { enabled: false, blackout: true } },
+    { id: 3, label: 'Bar 1', override: { enabled: false, blackout: false } },
+  ];
+  assert.equal(above({ fixtures }), 'Pads and overrides: Par 1 override, Par 2 blackout');
+  assert.equal(above({ fixtures: [{ ...fixtures[0], override: { enabled: true, blackout: true } }] }), 'Pads and overrides: Par 1 blackout');
+});
+
+// Stopped on Hold or Black, the sequence lists no clips, yet the renderer keeps or cuts its frame.
+test('a stopped sequence that holds its frame or blacks out counts; one that ended does not', () => {
+  assert.equal(above({ sequence: { ...sequence, stopped: 'hold' } }), 'Pads and overrides: Sequence Intro (holding frame)');
+  assert.equal(above({ sequence: { ...sequence, stopped: 'black' } }), 'Pads and overrides: Sequence Intro (blackout)');
+  for (const flags of [{ ended: true }, {}, { playing: true }]) assert.equal(above({ sequence: { ...sequence, ...flags } }), 'Pads and overrides: None active');
+});
+
+// The board keeps its colours while its voice is stopped (the acknowledgement taken back): nothing plays.
+test('the Matrix counts only while its voice plays, in the strip and the shared status', () => {
+  const held = { colours: ['#FF0000'], mode: 'fills', voice: null };
+  assert.equal(above({ matrix: held }), 'Pads and overrides: None active');
+  assert.doesNotMatch(nowPlaying({ matrix: held }), /Matrix/);
+  assert.equal(above({ matrix: { ...held, voice: 'voice:9' } }), 'Pads and overrides: Matrix');
+  assert.match(nowPlaying({ matrix: { ...held, voice: 'voice:9' } }), /Matrix: 1 colour as fills/);
+});
+
+test('a long list shows the first names and how many more, the full list in the title', () => {
+  const voices = ['Blinder', 'Kill', 'UV', 'Glow', 'Domino'].map((label, i) => ({ id: String(i), label }));
+  assert.equal(above({ voices }), 'Pads and overrides: Blinder, Kill, UV +2 more');
+  assert.equal(pictureLayers({ voices }).at(0).title, 'Blinder, Kill, UV, Glow, Domino');
+  const long = [{ id: 'a', label: 'A long voice label from a pad bank' }, { id: 'b', label: 'Second long voice label' }];
+  assert.equal(above({ voices: long }), 'Pads and overrides: A long voice label from a pad bank +1 more', 'the first name always shows');
 });

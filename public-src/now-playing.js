@@ -43,7 +43,8 @@ export function playingState(s) {
     sequence,
     voices: (s.voices || []).filter((voice) => !voice.hidden).map((voice) => ({ ...voice, label: voice.label?.trim() || effectName(voice.kind || voice.id, s) })),
     strobe: !!s.strobe?.active,
-    matrix: s.matrix?.colours?.length ? s.matrix : null,
+    // The board keeps its colours while its voice is stopped (the acknowledgement taken back): then nothing plays.
+    matrix: s.matrix?.colours?.length && s.matrix.voice ? s.matrix : null,
     override: Array.isArray(s.paletteOverride) && s.paletteOverride.length > 0,
   };
 }

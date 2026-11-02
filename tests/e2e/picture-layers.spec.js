@@ -16,6 +16,7 @@ test.beforeEach(async ({ request }) => {
 
 test.afterEach(async ({ request }) => {
   await request.delete('/api/palette-override');
+  for (const f of (await state(request)).fixtures) if (f.override?.blackout) await request.post(`/api/fixture/${f.id}/blackout/toggle`);
   await set(request, { background: FOLLOW });
 });
 
@@ -33,6 +34,7 @@ test('the chip reads Main effect and the picture layers follow the Background ca
   const layer = (id) => layers.locator(`[data-layer="${id}"]`);
   await expect(layer('above')).toHaveText('Pads and overrides: None active');
   await expect(layer('main')).toHaveText(`Main effect: ${chase}`);
+  await expect(layer('main')).toBeVisible();
   await expect(layer('background')).toHaveText('Background: Follow effect · Whole rig');
 
   const panel = page.getByRole('region', { name: 'Background lighting' });
@@ -54,9 +56,14 @@ test('the chip reads Main effect and the picture layers follow the Background ca
   // would change what the voices of later specs draw.
   const override = await request.put('/api/palette-override', { data: { colours: ['#FF00FF'] } });
   expect(override.ok()).toBe(true);
-  await expect(layer('above')).toHaveText('Pads and overrides: 1 active');
+  await expect(layer('above')).toHaveText('Pads and overrides: Palette override');
   await expect(layer('main')).toHaveText(`Main effect: ${chase}`);
   await request.delete('/api/palette-override');
+  await expect(layer('above')).toHaveText('Pads and overrides: None active');
+  // A fixture's blackout without a colour override is a layer over the effect too, as the renderer applies it.
+  expect((await request.post(`/api/fixture/${fixtures[0].id}/blackout/toggle`)).ok()).toBe(true);
+  await expect(layer('above')).toHaveText(`Pads and overrides: ${fixtures[0].label} blackout`);
+  await request.post(`/api/fixture/${fixtures[0].id}/blackout/toggle`);
   await expect(layer('above')).toHaveText('Pads and overrides: None active');
 
   const frozen = await request.post('/api/stop');
@@ -78,15 +85,17 @@ for (const view of ['show', 'effects']) {
     await expect(layers.locator('[data-layer="background"]')).toHaveText(`Background: Fixed colour · Selected (${fixtures.length} of ${fixtures.length})`);
     await layers.scrollIntoViewIfNeeded();
     const box = await card.boundingBox();
-    for (const item of [card.locator('.effects-now'), layers, ...await layers.locator('[data-layer]').all()]) {
+    for (const item of [card.locator('.effects-now'), layers, ...await layers.locator('[data-layer]:visible').all()]) {
       const inner = await item.boundingBox();
       expect(inner.x).toBeGreaterThanOrEqual(box.x);
       expect(inner.x + inner.width).toBeLessThanOrEqual(box.x + box.width + 0.5);
     }
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
-    // Compact: the three layers take at most three short lines, under the chip and above the search.
+    // Compact: the chip above names the main effect, so the strip keeps the two layers around it, two short lines at most.
+    await expect(layers.locator('[data-layer="main"]')).toBeHidden();
+    await expect(layers.locator('[data-layer="above"]')).toBeVisible();
     const lineHeight = await layers.evaluate((el) => parseFloat(getComputedStyle(el).lineHeight) || parseFloat(getComputedStyle(el).fontSize) * 1.5);
-    expect((await layers.boundingBox()).height).toBeLessThanOrEqual(3 * lineHeight + 4);
+    expect((await layers.boundingBox()).height).toBeLessThanOrEqual(2 * lineHeight + 4);
     const chip = await card.locator('.effects-now').boundingBox();
     const search = await card.getByLabel('Search effects').boundingBox();
     const strip = await layers.boundingBox();

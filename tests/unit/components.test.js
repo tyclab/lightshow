@@ -152,9 +152,9 @@ test('the header shows the look\'s playback whatever drives the room', () => {
   assert.match(ui.html(ui.h(ui.Header, {})), /<span class="label">Look<\/span><span>Playing<\/span>/);
   // A sequence or the auto show over a frozen base: the pill stays, says so and still answers a click.
   given({ running: false, sequence: { loaded: { id: 'set', name: 'Set' }, playing: true, lanes: [] } });
-  assert.match(ui.html(ui.h(ui.Header, {})), /aria-label="Look playback"[^>]*title="Play look:[^"]*the base look under the sequence"><span class="label">Look<\/span><span>Frozen<\/span>/);
+  assert.match(ui.html(ui.h(ui.Header, {})), /aria-label="Look playback"[^>]*title="Play look:[^"]*the main effect under the sequence"><span class="label">Look<\/span><span>Frozen<\/span>/);
   given({ running: false, showOn: true });
-  assert.match(ui.html(ui.h(ui.Header, {})), /aria-label="Look playback"[^>]*title="Play look:[^"]*the base look under the auto show"><span class="label">Look<\/span><span>Frozen<\/span>/);
+  assert.match(ui.html(ui.h(ui.Header, {})), /aria-label="Look playback"[^>]*title="Play look:[^"]*the main effect under the auto show"><span class="label">Look<\/span><span>Frozen<\/span>/);
 });
 
 test('every header pill keeps its place in every state', () => {
@@ -573,6 +573,8 @@ test('the deck marks the base among saved and party presets', () => {
   assert.match(html, /data-id="position-chase"[^>]*>(?:(?!<\/div>).)*effect-pad-app">Own</s);
   assert.match(html, /<div class="effect-pad active" data-id="position-chase" data-layer="base">/);
   assert.strictEqual(count(html, 'class="effect-pad-now"'), 1);
+  assert.match(html, /class="effect-pad-now">Main effect</, 'the pad on stage is the main effect, not "Base"');
+  assert.match(html, /data-layer="base"> · Main effect</);
   // Every pad and row has its pencil; the pencil is not the pad.
   assert.match(html, /<button type="button" class="effect-edit" aria-label="Edit My Domino"/);
   assert.match(html, /<button type="button" class="effect-edit" aria-label="Edit Neon Domino"/);

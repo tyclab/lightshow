@@ -84,7 +84,7 @@ export function Header() {
   const s = pick(['bpm', 'clock', 'running', 'masterDimmer', 'masterBlackout', 'energyOverride', 'flashLimit', 'autoShow', 'armed', 'sequence', 'showOn', 'safety']);
   const blackout = !!s.masterBlackout;
   const driver = driverOf(s);
-  const under = driver === 'look' ? '' : ` — the base look under the ${driver === 'auto' ? 'auto show' : 'sequence'}`;
+  const under = driver === 'look' ? '' : ` — the main effect under the ${driver === 'auto' ? 'auto show' : 'sequence'}`;
   const frozen = s.running === false;
   const energy = s.energyOverride;
   const auto = s.autoShow && s.autoShow.status;
