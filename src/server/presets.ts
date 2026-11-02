@@ -57,7 +57,7 @@ const PATTERNS = [
   { id: 'solid',        name: 'Solid',         desc: 'All fixtures on colour A' },
   { id: 'fade',         name: 'Fade',          desc: 'All fixtures breathe together' },
   { id: 'hit',          name: 'Hit',           desc: 'All fixtures punch on the beat, decay between' },
-  { id: 'strobe',       name: 'Strobe',        desc: 'All fixtures strobe on the beat' },
+  { id: 'strobe',       name: 'Strobe',        desc: 'All fixtures on colour A, strobing at the Strobe card\'s speed (0 is none): Standard runs the fixture\'s own rate; the ramps, Random and Burst follow the beat' },
   { id: 'color-cycle',  name: 'Colour Cycle',  desc: 'Whole rig steps to the next palette colour' },
   { id: 'rainbow',      name: 'Rainbow',       desc: 'Full spectrum spread across the rig — ignores the palette' },
 
@@ -91,7 +91,7 @@ const PATTERNS = [
   { id: 'fire',     name: 'Fire',     desc: 'Flames licking up a panel, taller with the bass, flaring on the kick', pixel: true },
   { id: 'rain',     name: 'Rain',     desc: 'Drops falling down every column in time, the hats shaking loose more', pixel: true },
   { id: 'flash-chase',     name: 'Flash Chase',     desc: 'One flash stepping zone to zone, a lap a step', pixel: true },
-  { id: 'flash-scatter',   name: 'Flash Scatter',   desc: 'Random zones strobing, denser with the hats', pixel: true },
+  { id: 'flash-scatter',   name: 'Flash Scatter',   desc: 'Random zones strobing, more of them halfway between steps', pixel: true },
   { id: 'flash-fill',      name: 'Flash Fill',      desc: 'Every step fills from the middle out, holds, and cuts to black', pixel: true },
   { id: 'flash-alternate', name: 'Flash Alternate', desc: 'Odd zones flash on the step, even ones between', pixel: true },
   { id: 'ramp',            name: 'Ramp',            desc: 'Every step swells from black to full from the middle, cut on the beat', pixel: true },
