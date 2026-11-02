@@ -2,6 +2,7 @@ import { CATALOGUE, presetById } from '../shared/effects/index.ts';
 import { ENERGY_KIND_BY_ID } from '../shared/effects/energy.ts';
 import { requiresAcknowledgement } from '../shared/effects/registry.ts';
 import { mappingOf } from '../shared/effects/mapping.ts';
+import { legacyTags, specTags, tagFields } from '../shared/effects/tags.ts';
 
 interface StrobeFunction {
   id: string;
@@ -57,7 +58,7 @@ const PATTERNS = [
   { id: 'solid',        name: 'Solid',         desc: 'All fixtures on colour A' },
   { id: 'fade',         name: 'Fade',          desc: 'All fixtures breathe together' },
   { id: 'hit',          name: 'Hit',           desc: 'All fixtures punch on the beat, decay between' },
-  { id: 'strobe',       name: 'Strobe',        desc: 'All fixtures strobe on the beat' },
+  { id: 'strobe',       name: 'Strobe',        desc: 'All fixtures on colour A, strobing at the Strobe card\'s speed (0 is none): Standard runs the fixture\'s own rate; the ramps, Random and Burst follow the beat' },
   { id: 'color-cycle',  name: 'Colour Cycle',  desc: 'Whole rig steps to the next palette colour' },
   { id: 'rainbow',      name: 'Rainbow',       desc: 'Full spectrum spread across the rig — ignores the palette' },
 
@@ -91,7 +92,7 @@ const PATTERNS = [
   { id: 'fire',     name: 'Fire',     desc: 'Flames licking up a panel, taller with the bass, flaring on the kick', pixel: true },
   { id: 'rain',     name: 'Rain',     desc: 'Drops falling down every column in time, the hats shaking loose more', pixel: true },
   { id: 'flash-chase',     name: 'Flash Chase',     desc: 'One flash stepping zone to zone, a lap a step', pixel: true },
-  { id: 'flash-scatter',   name: 'Flash Scatter',   desc: 'Random zones strobing, denser with the hats', pixel: true },
+  { id: 'flash-scatter',   name: 'Flash Scatter',   desc: 'Random zones strobing, more of them halfway between steps', pixel: true },
   { id: 'flash-fill',      name: 'Flash Fill',      desc: 'Every step fills from the middle out, holds, and cuts to black', pixel: true },
   { id: 'flash-alternate', name: 'Flash Alternate', desc: 'Odd zones flash on the step, even ones between', pixel: true },
   { id: 'ramp',            name: 'Ramp',            desc: 'Every step swells from black to full from the middle, cut on the beat', pixel: true },
@@ -100,7 +101,7 @@ const PATTERNS = [
   { id: 'flash-burst',     name: 'Flash Burst',     desc: 'A burst of flashes every four steps, odd and even zones in turn, then a break', pixel: true },
   { id: 'core',            name: 'Strobe Core',     desc: 'A colour wash with a white core striking on every kick', pixel: true },
   ...CATALOGUE.filter((p) => p.legacy).map(({ id, name, desc, party, preset }) => ({ id, name, desc, party, ...(preset ? { preset } : {}) })),
-].map((row) => ({ ...row, legacy: true as const }));
+].map((row) => ({ ...row, legacy: true as const, ...tagFields(legacyTags(row.id)) }));
 
 const PATTERN_IDS = PATTERNS.map((p) => p.id);
 
@@ -109,6 +110,7 @@ const PRESET_ROWS = CATALOGUE.flatMap((p) => p.legacy ? [] : [{
   id: p.id, name: p.name, desc: p.desc, ...(p.party ? { party: true } : {}), ...(p.pixel ? { pixel: true } : {}),
   ...(p.retired ? { retired: true } : {}), ...(p.variantOf ? { variantOf: p.variantOf } : {}),
   mapping: mappingOf(p.spec), app: p.app, family: p.family, rapidFlash: requiresAcknowledgement(p.spec), scope: p.spec.scope ?? null,
+  ...tagFields(specTags(p.spec, { pixel: !!p.pixel })),
 }]);
 
 const ENERGY_EFFECTS = [...Object.keys(ENERGY_KIND_BY_ID), 'palette-strobe'].map((id) => {

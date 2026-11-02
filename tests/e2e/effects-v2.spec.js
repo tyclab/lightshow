@@ -10,6 +10,10 @@ const NAMES = ['Scatter Strobe', 'Scatter Fade', 'Scatter Grow', 'Groove Wave', 
   'Zones', 'Surround Answer', 'Near and Far', 'Drifting Clouds', 'Aurora', 'Fire', 'Rising Wall', 'Falling Wall',
   'Light Orbs', 'Orb Collision', 'Fireworks', 'Rain', 'Stems in Space', 'Visualizer Flow', 'Visualizer Drift'];
 
+/** The pencil of one catalogue row, by id: looks of one name sit side by side in the list. */
+const editRow = (page, id, name) => page.locator('.effect-row', { has: page.locator(`.pattern-btn[data-id="${id}"]`) })
+  .getByRole('button', { name: `Edit ${name}`, exact: true });
+
 test.beforeEach(async ({ request }) => {
   await request.post('/api/outputs/disarm');
   await reset(request);
@@ -19,22 +23,29 @@ test.afterEach(async ({ request }) => {
   await reset(request);
 });
 
-test('the Spatial group lists each effect once and keeps old ids available', async ({ page, request }) => {
+test('the list has each spatial effect once, in its room form, and keeps old ids available', async ({ page, request }) => {
   await open(page, 'effects');
-  const group = page.locator('details.effects-group').filter({ has: page.locator('summary', { hasText: /^Spatial$/ }) });
-  await group.locator('summary').click();
+  const list = page.locator('.effects-catalogue');
   const s = await state(request);
   expect(s.patterns.filter((p) => p.family === 'spatial' && !p.retired)).toHaveLength(NAMES.length);
-  await expect(group.locator('.pattern-btn')).toHaveCount(NAMES.length);
-  await expect(group.getByText(/^Popcorn(?: 2D)?$/)).toHaveCount(0);
+  await expect(list.locator('[data-id^="v2."]')).toHaveCount(NAMES.length);
+  await expect(list.locator('[data-id$=".2d"]')).toHaveCount(0);
+  await expect(list.getByText(/^Popcorn(?: 2D)?$/)).toHaveCount(0);
   for (const name of NAMES) {
     const row = s.patterns.find((p) => p.name === name && p.family === 'spatial');
     expect(row, name).toBeTruthy();
-    await expect(group.locator(`[data-id="${row.id}"]`)).toContainText(name);
+    await expect(list.locator(`[data-id="${row.id}"]`)).toContainText(name);
     expect(s.patterns.find((p) => p.id === `${row.id}.2d`)?.retired).toBe(true);
   }
+  // The room form is placed in the room, except the three that use no positions.
+  const roomPlaced = s.patterns.filter((p) => p.family === 'spatial' && !p.retired && p.tags.includes('room')).map((p) => p.id);
+  expect(s.patterns.filter((p) => p.family === 'spatial' && !p.retired && !p.tags.includes('room')).map((p) => p.id).sort())
+    .toEqual(['v2.breathe', 'v2.pathRunner', 'v2.wash']);
+  await page.getByRole('group', { name: 'Filters' }).getByRole('button', { name: /^Room-placed/ }).click();
+  for (const id of roomPlaced) await expect(list.locator(`[data-id="${id}"]`)).toBeVisible();
+  await expect(list.locator('[data-id="v2.wash"]')).toHaveCount(0);
   // A plain tap plays the room form; the strobes ask first, the waves do not.
-  await group.locator('[data-id="v2.grooveWave"]').click();
+  await list.locator('[data-id="v2.grooveWave"]').click();
   await until(request, (st) => st.pattern === 'v2.grooveWave');
   expect((await state(request)).armed).toBe(false);
 });
@@ -100,9 +111,9 @@ test('a legacy favourite retains its layout mapping and can be unpinned without 
 test('mapping appears only when the edited effect uses positions', async ({ page }) => {
   await open(page, 'effects');
   const sheet = page.getByRole('dialog', { name: 'Edit effect' });
-  for (const name of ['Wash', 'Breathe', 'Path Runner', 'All Strobe']) {
+  for (const [id, name] of [['v2.wash', 'Wash'], ['v2.breathe', 'Breathe'], ['v2.pathRunner', 'Path Runner'], ['overlay.all', 'All Strobe']]) {
     await page.getByLabel('Search effects').fill(name);
-    await page.getByRole('button', { name: `Edit ${name}`, exact: true }).first().click();
+    await editRow(page, id, name).click();
     await expect(sheet.getByLabel('Mapping', { exact: true })).toHaveCount(0);
     if (name === 'Path Runner') {
       await sheet.getByText('Advanced', { exact: true }).click();
@@ -148,7 +159,7 @@ test('playing a hidden rapid mapping still requires acknowledgement', async ({ p
   try {
     await open(page, 'effects');
     await page.getByLabel('Search effects').fill('Scatter Strobe');
-    await page.getByRole('button', { name: 'Edit Scatter Strobe', exact: true }).first().click();
+    await editRow(page, 'v2.scatterStrobe', 'Scatter Strobe').click();
     const sheet = page.getByRole('dialog', { name: 'Edit effect' });
     await sheet.getByLabel('Mapping', { exact: true }).selectOption('plan');
     await sheet.getByRole('button', { name: 'Play', exact: true }).click();

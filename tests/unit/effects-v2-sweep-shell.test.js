@@ -1,4 +1,4 @@
-// Sweep (a plane through the room) and Shell (distance from an origin): Light DJ's
+// Sweep (a plane through the room) and Shell (distance from an origin): the Entertainment
 // pseudo-3D waves made spatial, each in the room and in its classic plan form.
 import test from 'node:test';
 import assert from 'node:assert/strict';

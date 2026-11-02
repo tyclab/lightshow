@@ -5,6 +5,7 @@ import { createRequire } from 'node:module';
 
 import MidiController from '../../src/midi.ts';
 import { DEFAULT_MAP, MIDI_PRESETS } from '../../src/server/midi-map.ts';
+import { PATTERNS, PRESET_ROWS } from '../../src/server/presets.ts';
 
 // A stand-in for the state the controller reads and the callbacks it drives, so
 // these tests need neither a MIDI port nor the engine. `refuse` answers the
@@ -1111,12 +1112,14 @@ function busk(h, { acknowledged = false } = {}) {
   let on = false;
   h.midi.busk = {
     looks: () => [
-      { id: 'solid', legacy: true }, { id: 'chase', legacy: true }, { id: 'breathe', party: true },
-      { id: 'gradient', pixel: true }, { id: 'comet', pixel: true },
-      { id: 'hd.iceStrike', app: 'hd', rapidFlash: false },
-      { id: 'ldj.visualizer.firework', app: 'ldj', rapidFlash: true },
-      { id: 'ldj.Swirl', app: 'ldj', rapidFlash: false },
-      { id: 'energy.whiteStrobe', app: 'own', rapidFlash: true },
+      { id: 'solid', tags: ['static', 'rig'] }, { id: 'chase', tags: ['beat'] }, { id: 'breathe', tags: ['beat', 'rig'] },
+      { id: 'gradient', pixel: true, tags: ['beat', 'bars'] }, { id: 'comet', pixel: true, tags: ['beat', 'bars'] },
+      { id: 'v2.grooveWave', tags: ['beat', 'room'] },
+      { id: 'v2.scatterStrobe', rapidFlash: true, tags: ['beat', 'room', 'ownColours', 'rapid'] },
+      { id: 'energy.blinder', tags: ['static', 'rig', 'ownColours', 'energy'] },
+      { id: 'energy.whiteStrobe', rapidFlash: true, tags: ['beat', 'rig', 'ownColours', 'energy', 'rapid'] },
+      { id: 'energy.glow', tags: ['static', 'rig', 'energy'] },
+      { id: 'ldj.Swirl', retired: true, tags: ['beat'] },
     ],
     palettes: () => ['redCyan', 'rainbow', 'blueDream'],
     acknowledged: () => acknowledged,
@@ -1135,13 +1138,13 @@ const step = (h, controller, ...values) => {
 };
 const press = (h, note) => h.input.emit('noteon', { note, velocity: 127, channel: 0 });
 
-test('pattern browsing retains fork party looks and filters unacknowledged flashes', () => {
+test('pattern browsing takes every look but the bars\' and the energy ones, and filters unacknowledged flashes', () => {
   const h = harness({ cc: { 37: { action: 'browsePattern', type: 'relative' } }, notes: {} });
   busk(h);
   h.midi.busk.looks = () => [
-    { id: 'chase' }, { id: 'own.fire', app: 'own', party: true },
-    { id: 'own.flash', app: 'own', party: true, rapidFlash: true },
-    { id: 'energy.whiteStrobe', app: 'own', rapidFlash: true },
+    { id: 'chase', tags: ['beat'] }, { id: 'own.fire', party: true, tags: ['beat', 'ownColours'] },
+    { id: 'own.flash', party: true, rapidFlash: true, tags: ['beat', 'rapid'] },
+    { id: 'energy.whiteStrobe', rapidFlash: true, tags: ['beat', 'rig', 'energy', 'rapid'] },
   ];
   step(h, 37, 1);
   assert.strictEqual(h.state.pattern, 'own.fire');
@@ -1158,25 +1161,47 @@ test('the pattern and effect encoders browse their own lists, and wrap round', (
     38: { action: 'browseEffect', type: 'relative' },
   }, notes: {} });
   busk(h);
-  step(h, 37, 1);                 // chase → the next rig pattern
+  step(h, 37, 1);                 // chase → the next look
   assert.strictEqual(h.state.pattern, 'breathe');
-  step(h, 37, 1);                 // past the last: the first, never a pixel picture
+  step(h, 37, 1);                 // a room look is a pattern too
+  assert.strictEqual(h.state.pattern, 'v2.grooveWave');
+  step(h, 37, 1);                 // past the last: the first, never a bars' picture, a flash or a retired row
   assert.strictEqual(h.state.pattern, 'solid');
   step(h, 37, 127);
-  assert.strictEqual(h.state.pattern, 'breathe');
+  assert.strictEqual(h.state.pattern, 'v2.grooveWave');
   step(h, 38, 1);                 // a pattern on: the effects start from their first
-  assert.strictEqual(h.state.pattern, 'hd.iceStrike');
+  assert.strictEqual(h.state.pattern, 'energy.blinder');
   step(h, 38, 1);                 // the fast-flashing one is skipped until acknowledged
-  assert.strictEqual(h.state.pattern, 'ldj.Swirl');
+  assert.strictEqual(h.state.pattern, 'energy.glow');
   step(h, 38, 1);
-  assert.strictEqual(h.state.pattern, 'hd.iceStrike', 'and no energy effect: those are the pads');
+  assert.strictEqual(h.state.pattern, 'energy.blinder', 'round the energy looks only');
+});
+
+test('the browse lists over the server\'s own catalogue: every visible look in one, no retired row in any', () => {
+  const h = harness({ cc: {}, notes: {} });
+  busk(h);
+  const rows = [...PATTERNS, ...PRESET_ROWS];
+  h.midi.busk.looks = () => rows;
+  const lists = () => ({ pattern: h.midi._lookList('pattern'), effect: h.midi._lookList('effect'), bars: h.midi._barsList().slice(1) });
+  const sizes = (l) => Object.fromEntries(Object.entries(l).map(([k, v]) => [k, v.length]));
+  assert.deepStrictEqual(sizes(lists()), { pattern: 77, effect: 4, bars: 21 }, 'before the acknowledgement');
+  h.midi.busk.acknowledged = () => true;
+  const all = lists();
+  assert.deepStrictEqual(sizes(all), { pattern: 79, effect: 11, bars: 21 });
+  const visible = rows.filter((r) => !r.retired).map((r) => r.id);
+  assert.deepStrictEqual([...all.pattern, ...all.effect, ...all.bars].sort(), [...visible].sort(), 'each visible look exactly once');
+  assert.ok(all.effect.every((id) => rows.find((r) => r.id === id).tags.includes('energy')));
+  assert.ok(all.bars.every((id) => rows.find((r) => r.id === id).pixel));
+  // A row from an older server, without tags, goes by its pixel flag.
+  h.midi.busk.looks = () => [{ id: 'chase' }, { id: 'gradient', pixel: true }];
+  assert.deepStrictEqual(lists(), { pattern: ['chase'], effect: [], bars: ['gradient'] });
 });
 
 test('acknowledged, the effects encoder reaches the fast-flashing effects', () => {
   const h = harness({ cc: { 38: { action: 'browseEffect', type: 'relative' } }, notes: {} });
   busk(h, { acknowledged: true });
   step(h, 38, 1, 1);
-  assert.strictEqual(h.state.pattern, 'ldj.visualizer.firework');
+  assert.strictEqual(h.state.pattern, 'energy.whiteStrobe');
 });
 
 test('a colour encoder steps its slot, and the fade goes out with the change', () => {
@@ -1245,10 +1270,10 @@ test('random buttons never repeat what is on, and never pick the blackout colour
   } });
   busk(h);
   h.midi._random = () => 0;
-  press(h, 55);                   // chase is on: solid or breathe
+  press(h, 55);                   // chase is on: solid, breathe or the room look
   assert.strictEqual(h.state.pattern, 'solid');
   press(h, 56);
-  assert.strictEqual(h.state.pattern, 'hd.iceStrike');
+  assert.strictEqual(h.state.pattern, 'energy.blinder');
   h.midi._random = () => 0.9999;
   press(h, 57);
   assert.strictEqual(h.state.colorA, 13, 'the last colour that lights (UV), not blackout');

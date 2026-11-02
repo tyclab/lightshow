@@ -1465,9 +1465,9 @@ input[type=range]::-moz-range-thumb {
 .pattern-btn .desc { display: none; }
 
 /* =============================================================
-   EFFECTS — the deck, the folded catalogue, the inspector
+   EFFECTS — the deck, the tagged catalogue, the inspector
    ============================================================= */
-/* The search and the chips stay in reach while the catalogue scrolls by. */
+/* The search stays in reach while the catalogue scrolls by; the filters scroll with it, so the list keeps the screen. */
 .effects-tools {
   position: sticky;
   top: calc(var(--header-height, 47px) + var(--commands-height, 0px) + var(--views-height, 0px));
@@ -1478,7 +1478,7 @@ input[type=range]::-moz-range-thumb {
   padding: 4px 0 8px;
   background: var(--card);
 }
-.effects-deck button, .effects-catalogue :is(button, summary) {
+.effects-deck button, .effects-catalogue button {
   scroll-margin-top: calc(var(--effects-height, 0px) + 8px);
 }
 /* What is on stage, always in sight above the search. */
@@ -1515,8 +1515,13 @@ input[type=range]::-moz-range-thumb {
   font-size: 13px;
 }
 .effects-search:focus { outline: .125rem solid var(--accent); outline-offset: .1875rem; border-color: var(--accent); }
-.effects-chips { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; }
-.effects-chip-set { display: inline-flex; flex-wrap: wrap; gap: 4px; }
+.effects-chips { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; }
+.effects-filters { margin: -4px 0 0; padding: 0 0 8px; }
+.effects-chip-set { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 4px; min-width: 0; }
+.effects-chip-axis { font-size: 9px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
+.effects-chip-count { margin-left: 5px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.effects-chip:disabled { opacity: .45; cursor: default; }
+.effects-chip:disabled:hover { border-color: var(--border); color: var(--muted); }
 .effects-chip {
   appearance: none;
   padding: 3px 10px;
@@ -1559,10 +1564,8 @@ input[type=range]::-moz-range-thumb {
 .effect-pad-tap:focus-visible { outline: .125rem solid var(--accent); outline-offset: .1875rem; }
 .effect-pad.active .effect-pad-tap { background: var(--wash-blue); border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
 .effect-pad-name { font-size: 14px; font-weight: 800; line-height: 1.15; overflow-wrap: anywhere; }
-.effect-pad-app { font-size: 9px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
 .effect-pad-yours { color: var(--text-amber); }
 .effect-pad-now { font-size: 9px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; color: var(--text-blue); }
-.effect-pad .badge-rapid { position: absolute; right: 8px; bottom: 8px; }
 /* The star and the pencil ride the pad's top corner; the pad itself is the tap. */
 .effect-pad-tools { position: absolute; top: 4px; right: 4px; display: flex; gap: 2px; }
 .effect-star, .effect-edit {
@@ -1585,31 +1588,36 @@ input[type=range]::-moz-range-thumb {
 .effect-star:focus-visible, .effect-edit:focus-visible { outline: .125rem solid var(--accent); outline-offset: .1875rem; }
 .effect-star.on { color: var(--text-amber); }
 
-/* The catalogue: every group folded, a search opens them. */
-.effects-group { border-top: 1px solid var(--border); }
-.effects-group-title {
-  cursor: pointer;
+/* The catalogue: one list, A to Z, each row with the tags its code states. */
+.effects-list-title {
   padding: 8px 0;
+  border-top: 1px solid var(--border);
   font-size: 10px;
   font-weight: 800;
   letter-spacing: .14em;
   text-transform: uppercase;
   color: var(--muted);
-  list-style: none;
 }
-.effects-group-title::-webkit-details-marker { display: none; }
-.effects-group-title::before { content: '▸'; display: inline-block; width: 14px; }
-.effects-group[open] > .effects-group-title::before { transform: rotate(90deg); }
-.effects-family { margin-bottom: 8px; }
-.effects-family-title { margin: 4px 0; font-size: 10px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+.effects-list-count { margin-left: 6px; letter-spacing: normal; font-variant-numeric: tabular-nums; }
+.effect-tags { display: flex; flex-wrap: wrap; gap: 3px; margin-top: 4px; }
+.effect-tag {
+  padding: 0 5px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 15px;
+  color: var(--muted);
+  white-space: nowrap;
+}
+.effect-tag-via { font-weight: 400; color: var(--text-blue); }
+.effect-tag.badge-rapid { border-color: var(--amber); color: var(--text-amber); }
+.effect-tag.effect-pad-yours { border-color: var(--amber); }
 .effect-row { display: flex; align-items: center; gap: 2px; min-width: 0; }
 .effect-row .pattern-btn { flex: 1; min-width: 0; }
 .effect-mapping { display: block; font-size: 10px; color: var(--muted); }
 .effect-row-desc { display: block; margin-top: 3px; font-size: 11px; font-weight: 400; line-height: 1.4; color: var(--muted); }
 .effects-empty { margin: 8px 0; font-size: 12px; color: var(--muted); }
-/* The warning on a rapid flash: amber, where the eye lands last. */
-.pattern-btn .badge-rapid { flex-shrink: 0; font-size: 11px; color: var(--text-amber); }
-.badge-rapid { color: var(--text-amber); font-size: 11px; }
 
 /* The inspector: the settings a family can take, nothing else, in a sheet
    over the page (the Rig view's .inspector is another panel). */
@@ -3815,7 +3823,7 @@ input[type=range]::-moz-range-thumb {
   .palette-btn, .pattern-btn, .color-slot-tab, .cue-recall, .cue-capture, .sync-nudge,
   .transport-btn, .warm-toggle, .auto-select, .warm-playlist-select, .shortcuts-tab,
   .sub-tab, .remove-btn, .wizard-step-btn, .ofl-hit, .file-upload-btn, .timeline-section,
-  .effects-chip, .effects-group-title, .effect-star, .effect-edit, .palette-random, .insp-check,
+  .effects-chip, .effect-star, .effect-edit, .palette-random, .insp-check,
   select, input[type=number], input[type=text], input[type=search], input[type=password], input[type=color], textarea {
     min-height: 44px;
   }

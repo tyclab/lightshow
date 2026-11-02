@@ -8,7 +8,7 @@ import { useSafetyGate } from './Photosensitivity.jsx';
 /**
  * The strobe: held under a finger, above every other voice. Touch screens
  * that drop long holds get "Burst 2 s". The gear opens its settings, which
- * apply as they change: palette flashes as Hue Dynamics draws them, or one of
+ * apply as they change: palette flashes as the Party & Disco kinds draw them, or one of
  * the ROOT PAR programs the look's strobe draws, at a speed of its own.
  */
 const BURST_MS = 2000;

@@ -25,7 +25,7 @@ const MODE_TOGGLE = [
 
 const LOOK_KINDS = [
 	{ id: 'pattern', label: 'Patterns' },
-	{ id: 'effect', label: 'Effects (Party & Disco, Entertainment)' },
+	{ id: 'effect', label: 'Effects (energy holds and strobes)' },
 ]
 
 const padOptions = [

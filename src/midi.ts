@@ -7,6 +7,8 @@ import { createRequire } from 'node:module';
 
 import { COLOR_PRESETS, ENERGY_EFFECT_IDS, STROBE_FUNCTION_IDS, SYNC_OFFSET_LIMIT_MS } from './server/presets.ts';
 import { messageOf } from './errors.ts';
+import { browseListOf } from './shared/effects/tags.ts';
+import type { BrowseList } from './shared/effects/tags.ts';
 import type { MidiBinding, MidiMap } from './server/midi-map.ts';
 import type { ShowState } from './server/state.ts';
 import type { Override } from './types/rig.ts';
@@ -120,10 +122,11 @@ const clearRing = (value: number): number => (value >= 64 ? 96 : 32);
 export interface LookRow {
   id: string;
   pixel?: boolean;
-  app?: string;
-  party?: boolean;
   rapidFlash?: boolean;
+  retired?: boolean;
+  tags?: readonly string[];
 }
+
 
 export interface MidiBusk {
   looks(): readonly LookRow[];
@@ -732,16 +735,14 @@ class MidiController {
     this.sendFeedback();
   }
 
-  _lookList(kind: 'pattern' | 'effect'): string[] {
-    const rows = this.busk?.looks() ?? [];
+  // Browse lists by tag (browseListOf): the bars' pictures, the energy looks, every other look; retired rows in none.
+  _lookList(kind: BrowseList): string[] {
     const acknowledged = !!this.busk?.acknowledged();
-    const eligible = rows.filter((r) => acknowledged || !r.rapidFlash);
-    if (kind === 'pattern') return eligible.filter((r) => !r.pixel && (!r.app || (r.app === 'own' && r.party))).map((r) => r.id);
-    return eligible.filter((r) => r.app === 'hd' || r.app === 'ldj').map((r) => r.id);
+    return (this.busk?.looks() ?? []).filter((r) => !r.retired && browseListOf(r) === kind && (acknowledged || !r.rapidFlash)).map((r) => r.id);
   }
 
   _barsList(): (string | null)[] {
-    return [null, ...(this.busk?.looks() ?? []).filter((r) => r.pixel && (this.busk?.acknowledged() || !r.rapidFlash)).map((r) => r.id)];
+    return [null, ...this._lookList('bars')];
   }
 
   _look(id: string): void {

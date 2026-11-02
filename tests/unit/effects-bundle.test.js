@@ -181,7 +181,7 @@ test("over-deep nesting exposes no playing leaves", () => {
   assert.deepEqual(playingLeaves(deep, 0.5, 0, IDS), []);
 });
 
-test("an HD clip's gaps stay the pad's own black and carry their background field", () => {
+test("a Party & Disco clip's gaps stay the pad's own black and carry their background field", () => {
   const kind = 'hd.twinkle';
   const gap = { kind, params: { ...HD_DEFAULTS[kind].params, probability: 0, trigger: { ...HD_DEFAULTS[kind].params.trigger, mode: 'timeline' } } };
   const table = { revision: 0, lanes: [lane('shared:0')], clips: [clip('gap', 'shared:0', gap, 0, 4)] };

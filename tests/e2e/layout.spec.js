@@ -64,11 +64,13 @@ test('catalogue controls scroll clear of sticky tools', async ({ page }) => {
   await expect.poll(() => page.evaluate(() => [['header', '.app-header'], ['commands', '.command-bar'], ['views', '.mode-nav'], ['effects', '.effects-tools']]
     .every(([bar, selector]) => Math.abs(parseFloat(getComputedStyle(document.documentElement).getPropertyValue(`--${bar}-height`))
       - document.querySelector(selector).getBoundingClientRect().height) < 0.5))).toBe(true);
-  const group = page.locator('.effects-group summary').first();
-  await group.evaluate((element) => element.scrollIntoView({ block: 'start' }));
+  const row = page.locator('.effects-catalogue .pattern-btn').nth(3);
+  await row.evaluate((element) => element.scrollIntoView({ block: 'start' }));
   const tools = await page.locator('.effects-tools').boundingBox();
-  const target = await group.boundingBox();
+  const target = await row.boundingBox();
   expect(target.y).toBeGreaterThanOrEqual(tools.y + tools.height);
-  await group.click();
-  await expect(page.locator('.effects-group').first()).toHaveAttribute('open', '');
+  // Nothing sticky covers it: the tap would land on the row.
+  await row.click({ trial: true });
+  await page.locator('.effects-catalogue .effect-edit').nth(3).click();
+  await expect(page.getByRole('dialog', { name: 'Edit effect' })).toBeVisible();
 });

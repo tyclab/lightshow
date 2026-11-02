@@ -25,7 +25,7 @@ const EMPTY: BackgroundField = Object.freeze({ colour: BLACK, level: 0, fullLeve
 const COVERED: BackgroundField = Object.freeze({ colour: BLACK, level: 0, fullLevel: 0, coverage: 0 });
 const DARK_REST: BackgroundField = Object.freeze({ ...COVERED, dark: true });
 
-// HD has no authored ambient colour. Its envelope, spatial kernel and audio gate
+// These kinds have no authored ambient colour. Their envelope, spatial kernel and audio gate
 // explicitly define foreground opacity, independently of palette RGB or output
 // brightness. Ordinary gaps expose a Fixed wash unless the effect keeps them
 // dark; rapid rests still own black.

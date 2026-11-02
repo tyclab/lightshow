@@ -1,4 +1,4 @@
-// Orbit: Light DJ's rotation family as a beam turning round the listener, in the room and on the plot.
+// Orbit: the Entertainment rotation family as a beam turning round the listener, in the room and on the plot.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { kindOf, validateSpec } from '../../src/shared/effects/registry.ts';

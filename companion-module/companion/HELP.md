@@ -18,7 +18,7 @@ The patterns, colours, palettes, energy effects, fixtures and cues offered in ac
 
 The **Busk** preset page has what a set played by hand needs:
 
-- **Looks** — previous, next and random patterns or effects, plus the current look. Pattern browsing includes the gentle Fire and Ice looks. Rapid effects enter the browse list after the server's photosensitivity acknowledgement.
+- **Looks** — previous, next and random patterns or effects, plus the current look. Patterns are every look the server lists except the bars' pictures and the energy looks, by the tags the server sends (the gentle Fire and Ice included); effects are the energy holds and strobe voices. Retired ids are in neither list. Rapid effects enter a browse list after the server's photosensitivity acknowledgement.
 - **Palettes** — toggle a palette over the whole running show, clear the override, or choose a random palette or four random colour slots. Override buttons light while selected.
 - **Pads** — the server's two banks, following each pad's launch mode.
 - **Hits** — a strobe burst and held blackout alongside the pads.
