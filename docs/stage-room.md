@@ -16,8 +16,13 @@ engine's Rig plot, alter any other effect or arm outputs. Keep those placements 
 when commissioning the room. Estimated dimensions and bindings remain marked
 as estimates; a detailed model does not prove measured optical timing.
 
-An imported room displays explicit fixture bindings. Fixtures without a binding
-remain listed for placement instead of being assigned an invented location.
+An imported room displays explicit fixture bindings. A fixture without a binding
+remains listed for placement; when it has a Rig plot position, Stage draws it where the
+effects sample it (`plotPosition` in `src/shared/space.ts`: plot x and y percent of the
+room's width and depth, height percent of its height), each cell of an explicit cell map at
+its own point, and the list says so. A fixture with no position anywhere is not drawn, so no
+location is invented. Cells left unbound in a partly bound fixture (a pixel map's gaps) are
+not drawn either.
 One output unit can have several visual bindings when a shared channel drives
 several physical lights. `unit` is the zero-based light/cell within a fixture,
 not a DMX channel or an index in the entire rig.

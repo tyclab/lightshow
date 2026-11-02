@@ -37,6 +37,8 @@ function SourceFields({ source, fixtures, rig, onChange, prefix = '' }) {
   </>;
 }
 
+const plotUnits = ({ lamps, cells }) => lamps.filter((lamp) => lamp.plot).length + cells.filter((cell) => cell.plot).length;
+
 export function StageRoomPanel({ snapshot, coverage, fixtures, rig, onChange }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -144,11 +146,12 @@ export function StageRoomPanel({ snapshot, coverage, fixtures, rig, onChange }) 
     </p>}
     {coverage && <>
       <p class="stage-room-status">{coverage.lamps.length + coverage.cells.length} light positions
+        {plotUnits(coverage) > 0 && ` (${plotUnits(coverage)} at Rig plot positions)`}
         {' · '}{coverage.estimated} estimated{' · '}{coverage.missing.length} fixtures without positions
         {' · '}{coverage.partial.length} partly positioned{' · '}{coverage.unresolved.length} unmatched bindings
         {' · '}{coverage.incomplete.length} incomplete averages</p>
       {(coverage.missing.length > 0 || coverage.partial.length > 0 || coverage.unresolved.length > 0) && <ul class="stage-room-unplaced">
-        {coverage.missing.map((fixture) => <li key={`missing-${fixture.id}`}>{fixture.label}: no room position <button class="btn sm" type="button" disabled={busy} onClick={() => edit(null, fixture.id)}>Place</button></li>)}
+        {coverage.missing.map((fixture) => <li key={`missing-${fixture.id}`}>{fixture.label}: no room position{coverage.plotted?.includes(fixture) ? ', drawn at its Rig plot position' : ''} <button class="btn sm" type="button" disabled={busy} onClick={() => edit(null, fixture.id)}>Place</button></li>)}
         {coverage.partial.map((fixture) => <li key={`partial-${fixture.id}`}>{fixture.label}: some cells have no room position <button class="btn sm" type="button" disabled={busy} onClick={() => edit(null, fixture.id)}>Place cell</button></li>)}
         {coverage.unresolved.map((binding) => <li key={`binding-${binding.id}`}>{binding.label || binding.id}: its output sources are unavailable</li>)}
       </ul>}

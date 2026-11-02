@@ -11,6 +11,7 @@ const three = JSON.stringify(path.join(root, 'node_modules/three/build/three.mod
 const built = await esbuild.build({
   stdin: { contents: `export { createStageScene } from './public-src/stage3d/scene.js';
     export { keptRig } from './public-src/stage3d/kept-rig.js';
+    export { lightRGB, ROOM_LIGHTS } from './public-src/stage3d/world.js';
     export { built } from 'scene-counts';`, resolveDir: root },
   bundle: true, format: 'esm', platform: 'node', write: false, logLevel: 'silent',
   plugins: [{ name: 'stub-renderer', setup(build) {
@@ -74,4 +75,27 @@ test('a room the scene shows already is not built again; another room is', () =>
   stage.setRoom(null);
   stage.setRoom(first);
   assert.equal(groups() - start, 3, 'after the generic venue, the room is built again');
+});
+
+test('a room is lit by a fixed number of lights coloured by the emitters near them', () => {
+  const stage = ui.createStageScene(canvas, { room: { width: 12, depth: 8, trussHeight: 4.6 }, lightRGB: ui.lightRGB });
+  const LAMP = { id: 'scene-lamp', name: 'Lamp', channelMap: { red: 0, green: 1, blue: 2 } };
+  const lamps = [1, 2].map((id) => ({ id, label: `Lamp ${id}`, universe: 1, address: id * 3, profileId: LAMP.id }));
+  const lit = { ...room('Lit'), bindings: [
+    { id: 'west', fixtureId: 1, position: { x: -1.5, y: 2, z: 0 } }, { id: 'east', fixtureId: 2, position: { x: 1.5, y: 2, z: 0 } }] };
+  const shown = ui.keptRig(lamps, { [LAMP.id]: LAMP }, lit);
+  stage.setRoom(lit);
+  stage.setRig(shown.placed, shown.rig.units.length);
+  assert.equal(stage.info().roomLights.length, ui.ROOM_LIGHTS, 'every light is on in a room, so a patch never changes the programs');
+  stage.setLights([{ r: 255 }, { b: 255 }]);
+  const on = stage.info().roomLights.filter((light) => light.intensity > 0);
+  assert.deepEqual(on.map((light) => light.color).sort((a, b) => a - b), [0x0000ff, 0xff0000]);
+  assert.ok(on.find((light) => light.color === 0xff0000).at[0] < 0, 'the red light stands on the red lamp\'s side');
+  stage.setLights([null, null]);
+  assert.ok(stage.info().roomLights.every((light) => light.intensity === 0), 'dark lamps light nothing');
+  stage.setRoomLight(false);
+  assert.equal(stage.info().roomLights.length, 0);
+  stage.setRoom(null);
+  stage.setRoomLight(true);
+  assert.equal(stage.info().roomLights.length, 0, 'the generic venue has no room to light');
 });

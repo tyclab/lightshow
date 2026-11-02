@@ -1,7 +1,7 @@
 import { emissionOf, hueEmission, beamDirection } from '../../src/shared/emission.ts';
-import { stagePositions } from '../../src/shared/stage.ts';
+import { isPlaced, stagePositions } from '../../src/shared/stage.ts';
 import { lineOf } from '../../src/shared/rig.ts';
-import { bindingSources, resolveBindings } from '../../src/shared/space.ts';
+import { bindingSources, plotPosition, resolveBindings } from '../../src/shared/space.ts';
 
 
 export const STAGE_W = 12;
@@ -189,17 +189,38 @@ export function placeRig(fixtures, profiles, rig) {
 
 export { bindingSources };
 
+// In a room, lights are drawn at their physical size: a bulb about 7 cm across, a par body
+// a third of the generic venue's, a strip as thin as its tape; a pixel as wide as 0.6 of its pitch.
+export const ROOM_BULB = 0.27;
+const STRIP_THICKNESS = 0.014;
+const POINT_CELL = 0.05;
+const pixelSize = (pitch) => Math.max(0.006, Math.min(POINT_CELL, pitch * 0.6));
+
+/** Smallest spacing between consecutive cells of each fixture: the pitch its pixels are drawn at. */
+function pitches(cells) {
+  const pitch = new Map(), last = new Map();
+  for (const cell of cells) {
+    const before = last.get(cell.fixture);
+    last.set(cell.fixture, cell);
+    if (!before || cell.length || before.length || cell.unit !== before.unit + 1) continue;
+    const d = Math.hypot(cell.position.x - before.position.x, cell.position.y - before.position.y, cell.position.z - before.position.z);
+    if (d > 1e-6) pitch.set(cell.fixture, Math.min(pitch.get(cell.fixture) ?? Infinity, d));
+  }
+  return pitch;
+}
+
 export function roomRig(fixtures, rig, model, profiles = {}) {
   const lamps = [];
   const cells = [];
   const unresolved = [];
   const incomplete = [];
   const objectLights = [];
+  const objectEmitters = [];
   const lightObjects = new Map();
   for (const object of model.objects || []) {
     if (!object.lightBindingId) continue;
     if (!lightObjects.has(object.lightBindingId)) lightObjects.set(object.lightBindingId, []);
-    lightObjects.get(object.lightBindingId).push(object.id);
+    lightObjects.get(object.lightBindingId).push(object);
   }
   const indices = new Map(fixtures.map((fixture, index) => [fixture.id, index]));
   const walls = boxWalls(model.objects);
@@ -212,7 +233,10 @@ export function roomRig(fixtures, rig, model, profiles = {}) {
     const light = { unit: sources[0].unit, fixture: binding.fixtureId, position: binding.position,
       ...(binding.sources ? { sources } : {}) };
     if (lightObjects.has(binding.id)) {
-      for (const objectId of lightObjects.get(binding.id)) objectLights.push({ objectId, sources });
+      for (const object of lightObjects.get(binding.id)) {
+        objectLights.push({ objectId: object.id, sources });
+        objectEmitters.push({ position: object.position, weight: object.size ? surfaceWeight(object) : 0 });
+      }
       continue;
     }
     const fixture = fixtures[indices.get(binding.fixtureId ?? binding.sources?.[0]?.fixtureId)];
@@ -222,17 +246,93 @@ export function roomRig(fixtures, rig, model, profiles = {}) {
       for (let index = 1; index < binding.path.length; index++) {
         const from = binding.path[index - 1], to = binding.path[index];
         const length = Math.hypot(to.x - from.x, to.y - from.y, to.z - from.z);
-        if (length > 1e-6) cells.push({ ...light, size: 0.025, length, from, to,
+        if (length > 1e-6) cells.push({ ...light, size: STRIP_THICKNESS, length, from, to,
           position: { x: (from.x + to.x) / 2, y: (from.y + to.y) / 2, z: (from.z + to.z) / 2 } });
       }
-    } else if (emission?.kind === 'beam') lamps.push(beamLight(light, emission, fixture.group === 'floor', model.bounds, walls));
-    else if (emission?.kind === 'strip' || !emission && !binding.sources && rig.cellMaps[indices.get(binding.fixtureId)]) cells.push({ ...light, size: 0.08 });
-    else lamps.push({ ...light, kind: 'bulb', aim: null, length: 0 });
+    } else if (emission?.kind === 'beam') lamps.push({ ...beamLight(light, emission, fixture.group === 'floor', model.bounds, walls), body: ROOM_BULB });
+    else if (emission?.kind === 'strip' || !emission && !binding.sources && rig.cellMaps[indices.get(binding.fixtureId)]) cells.push({ ...light, size: POINT_CELL });
+    else lamps.push({ ...light, kind: 'bulb', aim: null, length: 0, body: ROOM_BULB });
   }
+  // A placed fixture no binding names is drawn where the effects sample it: its Rig plot position in this room (space.ts).
+  const plotted = [];
+  fixtures.forEach((fixture, index) => {
+    if (mapped.has(fixture.id) || !isPlaced(fixture.position)) return;
+    plotted.push(fixture);
+    const { start, count } = rig.ranges[index];
+    const emission = emissionOf(fixture, profiles[fixture.profileId], !!rig.cellMaps[index]);
+    for (let unit = start; unit < start + count; unit++) {
+      const light = { unit, fixture: fixture.id, position: plotPosition(rig, unit, model.bounds), plot: true };
+      if (rig.cellMaps[index] || emission.kind === 'strip') cells.push({ ...light, size: POINT_CELL });
+      else if (emission.kind === 'beam') lamps.push({ ...beamLight(light, emission, fixture.group === 'floor', model.bounds, walls), body: ROOM_BULB });
+      else lamps.push({ ...light, kind: 'bulb', aim: null, length: 0, body: ROOM_BULB });
+    }
+  });
+  const pitch = pitches(cells);
+  for (const cell of cells) if (!cell.length && pitch.has(cell.fixture)) cell.size = pixelSize(pitch.get(cell.fixture));
   const missing = fixtures.filter((fixture) => !mapped.has(fixture.id));
   const partial = fixtures.filter((fixture, index) => mapped.has(fixture.id) && mapped.get(fixture.id).size < rig.ranges[index].count);
   const shared = [...outputs.values()].filter((output) => output.bindings.length > 1);
-  return { lamps, cells, objectLights, trusses: [], missing, partial, unresolved, incomplete, shared, estimated };
+  const clusters = roomLightClusters([...lamps, ...cells, ...objectEmitters]);
+  const objectClusters = objectEmitters.map(({ cluster, weight }) => ({ cluster, weight }));
+  return { lamps, cells, objectLights, objectClusters, trusses: [], missing, partial, plotted, unresolved, incomplete, shared, estimated, clusters };
+}
+
+// What an emitter adds to the light a room is lit by, against a bulb's 1: a pixel's hundredth,
+// a strip's run in metres, a lit surface by its area.
+const surfaceWeight = ({ size }) => Math.min(1, 8 * (size.x * size.y + size.y * size.z + size.x * size.z));
+export function emitterWeight(emitter) {
+  if (emitter.weight !== undefined) return emitter.weight;
+  if (emitter.length) return 0.6 * emitter.length;
+  return emitter.size !== undefined ? 0.01 : 1;
+}
+
+export const ROOM_LIGHTS = 8;
+
+/**
+ * Where the room's few real lights stand: up to ROOM_LIGHTS weighted k-means centres of the emitters,
+ * seeded by farthest points from the heaviest emitter so the same rig always lights the same way.
+ * Writes each emitter's `cluster`; `weight` is what it adds to that light.
+ */
+export function roomLightClusters(emitters, k = ROOM_LIGHTS) {
+  const used = emitters.filter((emitter) => emitter.position && emitterWeight(emitter) > 0);
+  const n = used.length;
+  if (!n) return [];
+  const x = new Float64Array(n), y = new Float64Array(n), z = new Float64Array(n), w = new Float64Array(n);
+  used.forEach((emitter, i) => { x[i] = emitter.position.x; y[i] = emitter.position.y; z[i] = emitter.position.z; w[i] = emitterWeight(emitter); });
+  let first = 0;
+  for (let i = 1; i < n; i++) if (w[i] > w[first]) first = i;
+  const cx = [x[first]], cy = [y[first]], cz = [z[first]];
+  const nearest = new Float64Array(n);
+  for (let i = 0; i < n; i++) nearest[i] = (x[i] - cx[0]) ** 2 + (y[i] - cy[0]) ** 2 + (z[i] - cz[0]) ** 2;
+  while (cx.length < Math.min(k, n)) {
+    let far = 0;
+    for (let i = 1; i < n; i++) if (nearest[i] * w[i] > nearest[far] * w[far]) far = i;
+    if (nearest[far] < 1e-6) break;
+    cx.push(x[far]); cy.push(y[far]); cz.push(z[far]);
+    for (let i = 0; i < n; i++) nearest[i] = Math.min(nearest[i], (x[i] - x[far]) ** 2 + (y[i] - y[far]) ** 2 + (z[i] - z[far]) ** 2);
+  }
+  const m = cx.length, owner = new Int32Array(n);
+  for (let round = 0; round < 8; round++) {
+    const sx = new Float64Array(m), sy = new Float64Array(m), sz = new Float64Array(m), sw = new Float64Array(m);
+    for (let i = 0; i < n; i++) {
+      let best = 0, bestD = Infinity;
+      for (let c = 0; c < m; c++) {
+        const d = (x[i] - cx[c]) ** 2 + (y[i] - cy[c]) ** 2 + (z[i] - cz[c]) ** 2;
+        if (d < bestD) { bestD = d; best = c; }
+      }
+      owner[i] = best;
+      sx[best] += x[i] * w[i]; sy[best] += y[i] * w[i]; sz[best] += z[i] * w[i]; sw[best] += w[i];
+    }
+    for (let c = 0; c < m; c++) if (sw[c] > 0) { cx[c] = sx[c] / sw[c]; cy[c] = sy[c] / sw[c]; cz[c] = sz[c] / sw[c]; }
+  }
+  used.forEach((emitter, i) => { emitter.cluster = owner[i]; emitter.weight = w[i]; });
+  return cx.map((_, c) => ({ x: cx[c], y: cy[c], z: cz[c] }));
+}
+
+/** A light a little into the room from its cluster, so the wall or shelf its emitters sit on is not lit from a hair away. */
+export function roomLightAt(centre, { height }, inset = 0.3) {
+  const across = Math.hypot(centre.x, centre.z), k = across > inset ? (across - inset) / across : 0;
+  return { x: centre.x * k, y: Math.max(0.25, Math.min(height - 0.15, centre.y)), z: centre.z * k };
 }
 
 export function meanLightRGB(sources, frame, out, scratch = new Float32Array(3)) {
@@ -246,7 +346,7 @@ export function meanLightRGB(sources, frame, out, scratch = new Float32Array(3))
 }
 
 export const STAGE_FOV = 48;
-export function roomViews({ width, depth, height }, aspect = 1) {
+export function roomViews({ width, depth, height }, aspect = 1, listener = null) {
   const target = [0, height / 2, 0];
   const vertical = Math.tan(STAGE_FOV * Math.PI / 360);
   const horizontal = vertical * Math.max(0.1, aspect);
@@ -264,7 +364,18 @@ export function roomViews({ width, depth, height }, aspect = 1) {
     }
     return { target, position: target.map((value, index) => value + forward[index] * distance * 1.08) };
   };
-  return { audience: fitted([0.55, 0.65, 1]), above: fitted([0, 1, 0.001]), side: fitted([1, 0.45, 0]) };
+  return { audience: fitted([0.55, 1.3, 1]), above: fitted([0, 1, 0.001]), side: fitted([1, 0.7, 0.2]), eye: eyeView({ width, depth, height }, listener) };
+}
+
+/** Standing in the room: behind the first listener, looking where it faces, else at the front edge looking across. */
+export function eyeView({ width, depth, height }, listener = null) {
+  const eye = Math.min(1.6, height - 0.2), inside = (value, size) => Math.max(-size / 2 + 0.2, Math.min(size / 2 - 0.2, value));
+  if (listener) {
+    const facing = (listener.facingDeg * Math.PI) / 180, at = listener.position, dx = Math.sin(facing), dz = -Math.cos(facing);
+    return { position: [inside(at.x - dx * 1.5, width), eye, inside(at.z - dz * 1.5, depth)],
+      target: [inside(at.x + dx * 1.5, width), Math.min(1, eye), inside(at.z + dz * 1.5, depth)] };
+  }
+  return { position: [0, eye, depth / 2 - 0.2], target: [0, Math.min(1, eye), -depth / 4] };
 }
 
 export function trussesFor(points) {

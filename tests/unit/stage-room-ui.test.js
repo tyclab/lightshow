@@ -6,7 +6,8 @@ import path from 'node:path';
 import esbuild from 'esbuild';
 import { PerspectiveCamera, Vector3 } from 'three';
 import { buildRig } from '../../src/shared/rig.ts';
-import { placeRig, roomRig, roomViews, hasBeams, meanLightRGB, TRUSS_H, STAGE_FOV } from '../../public-src/stage3d/world.js';
+import { placeRig, roomRig, roomViews, hasBeams, meanLightRGB, TRUSS_H, STAGE_FOV, ROOM_BULB, ROOM_LIGHTS, roomLightClusters, roomLightAt, eyeView } from '../../public-src/stage3d/world.js';
+import { buildUnitSpace } from '../../src/shared/space.ts';
 
 const profiles = { lamp: { channelMap: { red: 0 } }, bar: { cells: [{ channelMap: { red: 0 } }, { channelMap: { red: 1 } }] } };
 const fixtures = [{ id: 10, label: 'Lamp', profileId: 'lamp' }, { id: 20, label: 'Bar', profileId: 'bar' }];
@@ -40,6 +41,66 @@ test('surveyed strip paths retain corners and source units instead of bulb marke
     { fixtureId: 10, unit: 0, weight: 1 }, { fixtureId: 20, unit: 1, weight: 3 },
   ]), path }] });
   assert.deepEqual(mixed.cells[1].sources, [{ unit: 0, weight: 1 }, { unit: 2, weight: 3 }]);
+});
+
+test('a placed fixture no binding names is drawn where the effects sample it, an unplaced one is not', () => {
+  const cube = { id: 30, label: 'Cube', profileId: 'pixels', position: { x: 80, y: 60, height: 30 },
+    geometry: { length: 5, angle: 0, points: [{ x: -1, y: 0, height: -2 }, { x: 0, y: 0, height: -2 }, { x: 1, y: 0, height: 2 }] } };
+  const loose = { id: 40, label: 'Loose', profileId: 'lamp' };
+  const local = { ...profiles, pixels: { cells: [0, 1, 2].map((red) => ({ channelMap: { red } })) } };
+  const patch = [...fixtures, cube, loose];
+  const plotRig = buildRig(patch, (fixture) => local[fixture.profileId]);
+  const room = { ...model, bindings: [binding('lamp', 10)] };
+  const placed = roomRig(patch, plotRig, room, local);
+  const space = buildUnitSpace(plotRig, room);
+  const drawn = placed.cells.filter((cell) => cell.fixture === 30);
+  assert.deepEqual(drawn.map((cell) => cell.unit), [3, 4, 5]);
+  for (const cell of drawn) {
+    assert.equal(cell.plot, true);
+    for (const axis of ['x', 'y', 'z']) assert.ok(Math.abs(cell.position[axis] - space[axis][cell.unit]) < 1e-6, `${axis} of unit ${cell.unit}`);
+  }
+  assert.deepEqual(placed.plotted.map((fixture) => fixture.id), [30]);
+  assert.deepEqual(placed.missing.map((fixture) => fixture.id), [20, 30, 40], 'still listed for a room position');
+  assert.equal(placed.lamps.filter((lamp) => lamp.fixture === 40).length, 0, 'a fixture with no position anywhere is not invented');
+  assert.ok(Math.abs(drawn[0].size - 0.6 * Math.hypot(space.x[4] - space.x[3], space.y[4] - space.y[3], space.z[4] - space.z[3])) < 1e-6,
+    'a pixel is drawn 0.6 of its pitch across');
+});
+
+test('a room draws bulbs at their physical size and the generic venue at its own', () => {
+  const room = roomRig(fixtures, rig, { ...model, bindings: [binding('lamp', 10)] });
+  assert.equal(room.lamps[0].body, ROOM_BULB);
+  const venue = placeRig([{ ...fixtures[0], position: { x: 50, y: 50 }, group: 'room' }], profiles, buildRig([fixtures[0]], () => profiles.lamp));
+  assert.equal(venue.lamps[0].body, undefined);
+});
+
+test('the room\'s lights stand at clusters of its emitters, the same every time, at most ROOM_LIGHTS', () => {
+  const group = (x) => Array.from({ length: 5 }, (_, k) => ({ position: { x: x + k * 0.01, y: 2, z: 0 } }));
+  const emitters = [...group(-2), ...group(2)];
+  const centres = roomLightClusters(emitters, 2);
+  assert.equal(centres.length, 2);
+  assert.deepEqual(centres.map((c) => Math.round(c.x * 100) / 100).sort((a, b) => a - b), [-1.98, 2.02]);
+  assert.ok(emitters.every((e, k) => e.cluster === emitters[k < 5 ? 0 : 5].cluster && e.weight === 1));
+  assert.deepEqual(roomLightClusters(group(0).map((e) => ({ ...e })), 2).length, 2);
+  const many = Array.from({ length: 40 }, (_, k) => ({ position: { x: k % 7, y: 1, z: Math.floor(k / 7) } }));
+  assert.equal(roomLightClusters(many).length, ROOM_LIGHTS);
+  assert.deepEqual(roomLightClusters(many.map(({ position }) => ({ position }))), roomLightClusters(many.map(({ position }) => ({ position }))));
+  const pixels = [{ position: { x: 0, y: 1, z: 0 }, size: 0.01 }, { position: { x: 1, y: 1, z: 0 }, length: 2, size: 0.01 }];
+  roomLightClusters(pixels);
+  assert.deepEqual(pixels.map((e) => e.weight), [0.01, 1.2], 'a pixel adds a hundredth of a bulb, a strip by its metres');
+});
+
+test('a room light stands a little into the room and off its floor and ceiling', () => {
+  assert.deepEqual(roomLightAt({ x: 2, y: 2.59, z: 0 }, { height: 2.6 }), { x: 1.7, y: 2.45, z: 0 });
+  assert.deepEqual(roomLightAt({ x: 0.1, y: 0, z: 0 }, { height: 2.6 }), { x: 0, y: 0.25, z: 0 });
+});
+
+test('eye level stands behind the first listener inside the room, or at its front edge', () => {
+  const bounds = { width: 4, depth: 5, height: 2.6 };
+  const behind = eyeView(bounds, { position: { x: 1, y: 1.1, z: 0.5 }, facingDeg: 90 });
+  assert.deepEqual(behind.position.map((v) => Math.round(v * 100) / 100), [-0.5, 1.6, 0.5]);
+  assert.deepEqual(behind.target.map((v) => Math.round(v * 100) / 100), [1.8, 1, 0.5], 'looking where it faces, inside the walls');
+  assert.deepEqual(eyeView(bounds).position, [0, 1.6, 2.3]);
+  assert.deepEqual(roomViews(bounds, 1, { position: { x: 1, y: 1.1, z: 0.5 }, facingDeg: 90 }).eye, behind);
 });
 
 const average = (sources) => ({ id: 'physical', aggregation: 'weightedMean', sources,
@@ -103,7 +164,8 @@ test('room camera distance grows with the imported floor', () => {
 
 test('room cameras fit every corner in portrait and landscape viewports', () => {
   const bounds = { width: 8, depth: 10, height: 3 };
-  for (const aspect of [0.5, 1, 3]) for (const view of Object.values(roomViews(bounds, aspect))) {
+  for (const aspect of [0.5, 1, 3]) for (const name of ['audience', 'above', 'side']) {
+    const view = roomViews(bounds, aspect)[name];
     const camera = new PerspectiveCamera(STAGE_FOV, aspect, 0.1, 1000);
     camera.position.set(...view.position);
     camera.lookAt(...view.target);

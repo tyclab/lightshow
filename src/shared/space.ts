@@ -75,7 +75,8 @@ export function resolveBindings(fixtures: readonly FixtureWithId[], rig: Pick<Ri
   return { resolved, mapped, outputs };
 }
 
-function fallback(rig: Rig, u: number, bounds: UnitSpace['bounds']): Vec3 {
+/** A unit's Rig plot position scaled into the room: where the effects sample a unit no binding places. */
+export function plotPosition(rig: Rig, u: number, bounds: UnitSpace['bounds']): Vec3 {
   const p = rig.points[u], fixture = rig.fixtures[rig.units[u].fixture];
   const height = p.height ?? fixture.position?.height ?? 50;
   return { x: (p.x / 100 - 0.5) * bounds.width, y: (height / 100) * bounds.height, z: (p.y / 100 - 0.5) * bounds.depth };
@@ -136,7 +137,7 @@ export function buildUnitSpace(rig: Rig, room: RoomScene | null): UnitSpace {
   const placed = room ? placements(rig, room) : null;
   for (let u = 0; u < n; u++) {
     const count = placed?.counts[u] ?? 0;
-    const p = count ? { x: placed!.sums[u].x / count, y: placed!.sums[u].y / count, z: placed!.sums[u].z / count } : fallback(rig, u, bounds);
+    const p = count ? { x: placed!.sums[u].x / count, y: placed!.sums[u].y / count, z: placed!.sums[u].z / count } : plotPosition(rig, u, bounds);
     x[u] = p.x; y[u] = p.y; z[u] = p.z; bound[u] = count ? 1 : 0;
   }
   rig.fixtures.forEach((_, i) => {
@@ -167,7 +168,7 @@ export function spaceReport(rig: Rig, room: RoomScene | null, space: UnitSpace):
   }
   for (let u = 0; u < space.n; u++) {
     if (!space.bound[u]) { unbound.push(u); continue; }
-    const plot = fallback(rig, u, space.bounds);
+    const plot = plotPosition(rig, u, space.bounds);
     const metres = Math.hypot(space.x[u] - plot.x, space.y[u] - plot.y, space.z[u] - plot.z);
     if (metres > FAR_METRES) far.push({ unit: u, metres });
   }
