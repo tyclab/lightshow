@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 
-import { SettingsStore, DEFAULTS, LEGACY_HUE_BRIDGE_ID, migrateLegacyHue, retireOldSourceName, warnAboutLegacyEnv } from '../../src/server/settings.ts';
+import { SettingsStore, DEFAULTS, retireOldSourceName, LEGACY_HUE_BRIDGE_ID, migrateLegacyHue, warnAboutLegacyEnv } from '../../src/server/settings.ts';
 import { schema, patchSchema } from '../../src/server/settings.ts';
 
 let counter = 0;
@@ -20,7 +20,7 @@ test('a missing file is the first run, not an error', () => {
 
 test('updates persist and reload', () => {
   const s = store().load();
-  const changed = s.update({ artnet: { host: '10.0.0.5' }, analysis: { downloadTimeoutMs: 90000 } });
+  const changed = [...s.update({ artnet: { host: '10.0.0.5' } }), ...s.update({ analysis: { downloadTimeoutMs: 90000 } })];
   assert.deepStrictEqual(changed.sort(), ['analysis.downloadTimeoutMs', 'artnet.host']);
 
   const reloaded = new SettingsStore(s.file).load();
@@ -111,8 +111,8 @@ test('a settings file with one bridge in the old form loads it as bridge-1', () 
   });
   s.update({ hue: { latencyMs: 70 } });
   const written = JSON.parse(fs.readFileSync(s.file, 'utf8'));
-  assert.strictEqual(written.hue.host, undefined, 'the next save writes the new form');
-  assert.strictEqual(written.hue.bridges[0].clientKey, 'abcdef01');
+  assert.strictEqual(written.values.hue.host, undefined, 'the next save writes the new form');
+  assert.strictEqual(written.values.hue.bridges[0].clientKey, 'abcdef01');
   assert.deepStrictEqual(new SettingsStore(s.file).load().group('hue').bridges.map((b) => b.id), ['bridge-1']);
 });
 

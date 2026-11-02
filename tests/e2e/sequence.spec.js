@@ -4,7 +4,7 @@
 // a take becomes a clip.
 
 import { test, expect } from '@playwright/test';
-import { open, reset } from './helpers.js';
+import { control, open, reset } from './helpers.js';
 
 const BASE = {
   id: 'e2e-seq', name: 'E2E', mode: 'arrangement', snap: 1,
@@ -27,14 +27,15 @@ test.beforeEach(async ({ request }) => {
     patterns: new Set(patterns.map((p) => p.id)),
   };
   await reset(request);
-  await request.post('/api/sequence/stop', { data: {} });
+  await control(request, 'stop');
   expect((await request.put('/api/sequence', { data: BASE })).ok()).toBe(true);
 });
 
 test.afterEach(async ({ request }) => {
   // 404 when the voice ended on its own.
   for (const id of launched.splice(0)) await request.delete(`/api/voices/${encodeURIComponent(id)}`);
-  // Unloaded, not only stopped: a stopped sequence holds its picture over the look.
+  await control(request, 'stop');
+  // Restore the unloaded document for the next test.
   expect((await request.delete('/api/sequence')).ok()).toBe(true);
   const { bank: _b, slot: _s, ...pad } = before.pad;
   const put = await request.put('/api/pads/0/0', { data: pad });
@@ -55,7 +56,7 @@ test('the sequence transport fetches lane and clip names on opening the view', a
     clips: [{ id: 'clip-label', laneId: 'base', startBeat: 0, lengthBeats: 128, loopBeats: 4,
       presetId: 'hd.neonDomino', targets: 'lane', mute: false }] };
   expect((await request.put('/api/sequence', { data: sequence })).ok()).toBe(true);
-  expect((await request.post('/api/sequence/play', { data: {} })).ok()).toBe(true);
+  await control(request, 'start', 'sequence');
   await open(page, 'sequence');
   await expect(page.locator('.transport-lanes')).toContainText('Front wash');
   await expect(page.locator('.transport-lanes')).toContainText('Chase 2D');
@@ -67,13 +68,14 @@ test('a clip added in the editor plays, and the lane cursor moves', async ({ pag
   await page.getByRole('button', { name: 'Edit' }).click();
   await page.getByRole('button', { name: 'Add clip' }).click();
   await expect(page.locator('.seq-block')).toHaveCount(1);
-  await page.getByRole('button', { name: 'Play', exact: true }).click();
+  await page.getByRole('combobox', { name: 'Programme', exact: true }).selectOption('sequence');
+  await page.getByRole('group', { name: 'Global show controls' }).getByRole('button', { name: 'Start', exact: true }).click();
   await expect(page.locator('.seq-now')).toContainText('Playing');
   const before = await cursorLeft(page);
   await expect.poll(() => cursorLeft(page), { timeout: 4000 }).toBeGreaterThan(before);
 });
 
-test('a sequence started in the view plays, and Unload gives the rig back to the look', async ({ page, request }) => {
+test('a sequence starts through global controls, stops and unloads without starting another programme', async ({ page, request }) => {
   expect((await request.delete('/api/sequence')).ok()).toBe(true);
   await open(page, 'sequence');
   await expect(page.locator('.seq-now')).toContainText('No sequence loaded');
@@ -87,9 +89,10 @@ test('a sequence started in the view plays, and Unload gives the rig back to the
   await length.fill('64');
   await length.press('Enter');
   await expect(page.locator('.seq-block')).toHaveAttribute('aria-label', /beats 0 to 64/);
-  await page.getByRole('button', { name: 'Play', exact: true }).click();
+  await page.getByRole('combobox', { name: 'Programme', exact: true }).selectOption('sequence');
+  await page.getByRole('group', { name: 'Global show controls' }).getByRole('button', { name: 'Start', exact: true }).click();
   await expect(page.locator('.seq-now')).toContainText('Playing');
-  await page.getByRole('button', { name: 'Stop' }).click();
+  await page.getByRole('group', { name: 'Global show controls' }).getByRole('button', { name: 'Stop', exact: true }).click();
   page.once('dialog', (dialog) => dialog.accept());
   await page.getByRole('button', { name: 'Unload' }).click();
   await expect(page.locator('.seq-now')).toContainText('No sequence loaded');
@@ -115,13 +118,13 @@ for (const action of ['Unload', 'New sequence']) {
 
 test('cancelling a transport change retains the unsaved sequence selection', async ({ page, request }) => {
   await open(page, 'sequence');
-  const source = page.getByLabel('Transport source');
-  await expect(source).toHaveValue(`sequence:${BASE.id}`);
+  const source = page.getByLabel('Loaded sequence');
+  await expect(source).toHaveValue(BASE.id);
   const question = page.waitForEvent('dialog');
-  const selected = source.selectOption('look');
+  const selected = source.selectOption('');
   await (await question).dismiss();
   await selected;
-  await expect(source).toHaveValue(`sequence:${BASE.id}`);
+  await expect(source).toHaveValue(BASE.id);
   const { sequence } = await (await request.get('/api/sequence')).json();
   expect(sequence.id).toBe(BASE.id);
 });
@@ -189,7 +192,8 @@ test('a pad hit while recording is kept as a clip', async ({ page, request }) =>
   expect(put.ok(), await put.text()).toBe(true);
   await open(page, 'sequence');
   await page.getByLabel('Count-in beats').selectOption('0');
-  await page.getByRole('button', { name: 'Play', exact: true }).click();
+  await page.getByRole('combobox', { name: 'Programme', exact: true }).selectOption('sequence');
+  await page.getByRole('group', { name: 'Global show controls' }).getByRole('button', { name: 'Start', exact: true }).click();
   await page.getByRole('button', { name: 'Record' }).click();
   await expect(page.getByRole('button', { name: 'Keep take' })).toBeVisible();
   const hit = await request.post('/api/pads/0/0/once', { data: {} });
@@ -199,6 +203,6 @@ test('a pad hit while recording is kept as a clip', async ({ page, request }) =>
   await page.getByRole('button', { name: 'Keep take' }).click();
   await expect(page.locator('.seq-block')).not.toHaveCount(0);
   // The transport and the pad back as found, for the specs after this one.
-  await request.post('/api/sequence/stop', { data: {} });
+  await control(request, 'stop');
   await request.put('/api/pads/0/0', { data: pad });
 });

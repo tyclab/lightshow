@@ -1,7 +1,7 @@
 // One card per look; both mappings remain playable with outputs disarmed.
 
 import { test, expect } from '@playwright/test';
-import { open, previewLook, reset, set, state, until } from './helpers.js';
+import { control, open, previewLook, reset, set, state, until } from './helpers.js';
 import { stageImage, stageMotion } from './stage-image.js';
 
 const NAMES = ['Scatter Strobe', 'Scatter Fade', 'Scatter Grow', 'Groove Wave', 'Big Room Wave', 'Ascent', 'Double Wave', 'Swagger',
@@ -15,7 +15,7 @@ const editRow = (page, id, name) => page.locator('.effect-row', { has: page.loca
   .getByRole('button', { name: `Edit ${name}`, exact: true });
 
 test.beforeEach(async ({ request }) => {
-  await request.post('/api/outputs/disarm');
+  await control(request, 'disarm');
   await reset(request);
 });
 

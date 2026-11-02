@@ -15,12 +15,24 @@ export async function set(request, patch) {
   if (!res.ok()) throw new Error(`POST /api/set ${res.status()}: ${await res.text()}`);
 }
 
+export async function control(request, action, programme) {
+  const current = await (await request.get('/api/control')).json();
+  const response = await request.post('/api/control', { data: { ...current.control, action, ...(programme ? { programme } : {}) } });
+  if (!response.ok()) throw new Error(`Control ${action} ${response.status()}: ${await response.text()}`);
+  return (await response.json()).control;
+}
+
 /** The look every spec starts from. */
 export async function reset(request) {
+  await control(request, 'stop');
+  await control(request, 'disarm');
+  await control(request, 'resume');
+  await control(request, 'restore');
   await set(request, {
-    masterDimmer: 255, masterBlackout: false, energyOverride: null, running: true,
+    masterDimmer: 255, energyOverride: null,
     bpm: 120, beatDivision: 1, pattern: 'chase', pixelMap: 'stage',
   });
+  await control(request, 'start', 'look');
 }
 
 /** The page on `view`, connected and drawn. */

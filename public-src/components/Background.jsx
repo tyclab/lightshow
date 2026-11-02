@@ -25,7 +25,7 @@ function scopeHint(value, fixtures, wash) {
 }
 
 export function Background() {
-  const { background, fixtures = [], profiles = {} } = pick(['background', 'fixtures', 'profiles']);
+  const { background, control, fixtures = [], profiles = {} } = pick(['background', 'control', 'fixtures', 'profiles']);
   const value = background ?? DEFAULT_BACKGROUND;
   const sent = useRef(null);
   // The pick leaves the stored setting while another scope is chosen; this page keeps it to offer again.
@@ -52,6 +52,7 @@ export function Background() {
   const hint = scopeHint(value, fixtures, wash);
   return <section class="card" aria-label="Background lighting">
     <div class="card-title">Background</div>
+    {control?.frozen && <p class="hint">The picture is frozen. Background edits appear when you Resume.</p>}
     <div class="btn-group" role="group" aria-label="Background mode">
       {['follow', 'fixed', 'off'].map((mode) => <button type="button" class={`btn sm ${value.mode === mode ? 'active' : ''}`}
         aria-pressed={value.mode === mode} onClick={() => update({ mode })}>

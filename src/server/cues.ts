@@ -116,7 +116,7 @@ function captureLook() {
 }
 
 function recallLook(look: Look, restoreBackground = false): void {
-  const { fixtureIds, overrides, bpm, audioMode, strobe, background, running: _running, ...rest } = look;
+  const { fixtureIds, overrides, bpm, audioMode, strobe, background, running: _running, masterBlackout: _blackout, ...rest } = look;
   const patch: typeof rest & { bpm?: number; running?: boolean } = {
     ...rest, ...(restoreBackground && background ? { background } : {}), pixelPattern: rest.pixelPattern ?? null, panelPattern: rest.panelPattern ?? null,
     paletteOverride: rest.paletteOverride ?? null,
@@ -124,8 +124,6 @@ function recallLook(look: Look, restoreBackground = false): void {
     overridePalette: rest.overridePalette ?? (rest.paletteOverride ? { colours: rest.paletteOverride } : null),
     energyOverride: rest.energyOverride === HOLD_STROBE ? null : rest.energyOverride,
   };
-  // A recall never freezes a running show, whatever the cue was saved under; a stopped one starts so the cue is seen.
-  if (!state.running) patch.running = true;
   if (conductor.status().source === 'tap') patch.bpm = bpm;
   const saved: SettingsPatch = {
     ...(audioMode !== undefined ? { audio: { mode: audioMode } } : {}),

@@ -5,6 +5,7 @@
 // state, the energy endpoints' palette strobe, the pads and the socket.
 
 import test from 'node:test';
+import { installControlRuntime, sendControl } from './control-runtime-helpers.js';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
@@ -478,6 +479,7 @@ test("strobe off stops all strobe-kind voices", (t) => {
  * unacknowledged: nothing written to the operator's config/.
  */
 async function serve(t) {
+  applyPatch({ running: false, masterBlackout: false });
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'strobe-routes-'));
   const effectLibrary = new EffectLibrary(path.join(dir, 'effects.json')).load();
   const paletteStore = new PaletteStore(path.join(dir, 'palettes.json')).load();
@@ -519,7 +521,8 @@ async function serve(t) {
     midi, spotify: { localCallbackUrl: '', setLoopbackPort() {}, configure() {} }, smtc: { start() {}, stop() {} },
     deezer: { init: async () => {} }, applyPatch, broadcast: () => integrations.broadcast(),
   });
-  attachRoutes(app, { integrations, applier });
+  installControlRuntime(t, { integrations, applier, autoShow });
+  attachRoutes(app, { integrations, applier, autoShow });
   attachSockets(io, { midi, integrations });
   await new Promise((r) => server.listen(0, '127.0.0.1', r));
   const url = `http://127.0.0.1:${server.address().port}`;
@@ -883,13 +886,13 @@ test('DELETE /api/voices/strobe ends a latch kept under a strobe hold', async (t
 
 test('a disarm with the outputs off ends a latch kept under a strobe hold', async (t) => {
   const s = await holdOverLatch(await acknowledged(t));
-  assert.deepEqual((await s.call('POST', '/api/outputs/disarm')).body, { ok: true, armed: false });
+  assert.equal((await sendControl(s.call, 'disarm')).body.control.armed, false);
   await gone(s);
 });
 
 test('a disarm saved from armed ends a latch kept under a strobe hold', async (t) => {
   const s = await acknowledged(t);
-  await s.call('POST', '/api/outputs/arm');
+  await sendControl(s.call, 'arm');
   await holdOverLatch(s);
   s.applier.applyChanged(settings.update({ outputs: { armed: false } }));
   await gone(s);
@@ -897,9 +900,9 @@ test('a disarm saved from armed ends a latch kept under a strobe hold', async (t
 
 test('POST /api/outputs/disarm from armed ends a latch kept under a strobe hold', async (t) => {
   const s = await acknowledged(t);
-  await s.call('POST', '/api/outputs/arm');
+  await sendControl(s.call, 'arm');
   await holdOverLatch(s);
-  await s.call('POST', '/api/outputs/disarm');
+  await sendControl(s.call, 'disarm');
   await gone(s);
 });
 
@@ -954,9 +957,9 @@ for (const fn of ['ramp-up', 'random', 'break']) {
   test(`disarm ends a ${fn} program and its covered latch`, async (t) => {
     const s = await acknowledged(t);
     await s.call('PUT', '/api/strobe', { function: fn, speed: 255 });
-    await s.call('POST', '/api/outputs/arm');
+    await sendControl(s.call, 'arm');
     await holdOverLatch(s);
-    await s.call('POST', '/api/outputs/disarm');
+    await sendControl(s.call, 'disarm');
     await gone(s);
   });
 }

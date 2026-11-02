@@ -4,8 +4,10 @@
 import test from 'node:test';
 import assert from 'node:assert';
 
+import { control } from '../../src/server/control.ts';
 import { state } from '../../src/server/state.ts';
 import { renderFrame, resizeFixtureBuffers } from '../../src/server/engine.ts';
+import { getBuffer } from '../../src/server/universes.ts';
 import { conductor } from '../../src/server/conductor.ts';
 import { applyPatch } from '../../src/server/patch.ts';
 import { registerProfile, unregisterProfile } from '../../src/server/profiles.ts';
@@ -41,10 +43,11 @@ const BAR = {
 
 test('a thousand cells stay within the calibrated mean CPU budget', () => {
   registerProfile(BAR);
-  const before = { fixtures: state.fixtures, artnet: state.artnet.enabled };
+  const before = { fixtures: state.fixtures, artnet: state.artnet.enabled, playing: control.playing };
   let beat = 0;
   conductor.setProlinkSource(() => ({ beatPos: beat, bpm: 128 }));
   state.artnet.enabled = false;
+  control.playing = true;
   try {
     const perUniverse = Math.floor(512 / BAR.channelCount);
     state.fixtures = Array.from({ length: 64 }, (_, i) => ({
@@ -80,6 +83,7 @@ test('a thousand cells stay within the calibrated mean CPU budget', () => {
 
     const calibration = calibrate();
     run('startup', { pattern: 'solid' }, 20, 1);
+    assert.ok(getBuffer(0)[2] > 0, 'the startup budget measures the playing solid look');
     run('wave', { pattern: 'wave' });
     run('ribbon', { pattern: 'ribbon', showDynamics: { level: 0.8, width: 0.6, air: 0.5, motion: 0.6 } });
     run('chase', { pattern: 'chase', showDynamics: null });
@@ -101,6 +105,7 @@ test('a thousand cells stay within the calibrated mean CPU budget', () => {
     conductor.setProlinkSource(null);
     state.fixtures = before.fixtures;
     state.artnet.enabled = before.artnet;
+    control.playing = before.playing;
     resizeFixtureBuffers();
     unregisterProfile(BAR.id);
   }

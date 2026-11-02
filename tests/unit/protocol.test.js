@@ -207,7 +207,8 @@ test('the library domain: saved presets and palettes; the built-ins stay catalog
 // A key no domain names goes out as `system`, which no view watches.
 test('every key of the live state names its domain, the tempo mode the look\'s', () => {
   assert.strictEqual(domainOf('tempoMode'), 'look');
-  const unnamed = Object.keys(getLiveState()).filter((key) => domainOf(key) === 'system');
+  assert.strictEqual(domainOf('control'), 'system');
+  const unnamed = Object.keys(getLiveState()).filter((key) => !hasDomain(key));
   assert.deepStrictEqual(unnamed, []);
 });
 

@@ -261,6 +261,7 @@ class MidiController {
   declare output: MidiOutput | null;
   declare map: MidiMap;
   declare enabled: boolean;
+  declare control: ((action: 'start' | 'stop' | 'blackout' | 'restore') => void) | undefined;
   declare recallCue: ((id: string) => unknown) | null;
   declare _learn: {
     binding: MidiBinding;
@@ -624,13 +625,13 @@ class MidiController {
         this.tap();
         break;
       case 'toggleBlackout':
-        this.apply({ masterBlackout: !s.masterBlackout });
+        this.control?.(s.masterBlackout ? 'restore' : 'blackout');
         break;
       case 'toggleTempoMode':
         this.apply({ tempoMode: s.tempoMode === 'manual' ? 'auto' : 'manual' });
         break;
       case 'togglePlay':
-        this.apply({ running: !s.running });
+        this.control?.(s.running ? 'stop' : 'start');
         break;
       case 'setPattern':
         this.apply({ pattern: binding.value });

@@ -14,7 +14,7 @@ import { SRGB_DECODE, toLch } from '../../src/shared/color.ts';
 import { createRenderer } from '../../src/server/renderer.ts';
 import { allocateShared, createUniverseStore } from '../../src/server/universes.ts';
 import { channelReader } from '../../src/shared/placement.ts';
-import { SettingsStore, DEFAULTS, schema, settings, retireGuessedGrade } from '../../src/server/settings.ts';
+import { SettingsStore, DEFAULTS, retireGuessedGrade, schema, settings } from '../../src/server/settings.ts';
 import { attachRoutes } from '../../src/server/routes.ts';
 
 const IDENTITY = { enabled: true, whiteLimit: 0, saturation: 1, ceiling: 1, hueCeiling: 1 };

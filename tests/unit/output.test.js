@@ -335,6 +335,8 @@ test('with ArtSync on, each frame is followed by an OpSync to the same node', as
   socket.on('message', (msg) => ops.push(msg.readUInt16LE(8)));
   await new Promise((r) => socket.bind(0, '127.0.0.1', r));
   const before = { ...state.artnet };
+  const fixtures = state.fixtures;
+  state.fixtures = [...fixtures, { ...fixtures[0], id: 9999, universe: 1 }];
   Object.assign(state.artnet, { enabled: true, host: '127.0.0.1', port: socket.address().port, sync: true });
   try {
     output.sendUniverse(0, Buffer.alloc(512));
@@ -347,6 +349,7 @@ test('with ArtSync on, each frame is followed by an OpSync to the same node', as
     assert.deepStrictEqual(ops, [0x5000, 0x5000, 0x5200, 0x5000], 'two universes, one sync; then no sync once it is off');
   } finally {
     Object.assign(state.artnet, before);
+    state.fixtures = fixtures;
     socket.close();
   }
 });

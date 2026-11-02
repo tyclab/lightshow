@@ -1,4 +1,4 @@
-import { state, setDefaultUniverse, voices as liveVoices } from './state.ts';
+import { state, voices as liveVoices } from './state.ts';
 import { settings } from './settings.ts';
 import * as output from './output.ts';
 import { generateCid } from './sacn.ts';
@@ -8,7 +8,7 @@ import { logger } from './log.ts';
 
 /** Where an arm or disarm came from, for its log line: never a token, query string or other header. */
 export interface ArmOrigin {
-  via: 'rest' | 'companion' | 'schedule' | 'boot';
+  via: 'rest' | 'companion' | 'schedule' | 'boot' | 'control';
   route?: string;
   remote?: string;
   forwardedFor?: string;
@@ -73,11 +73,6 @@ function createApplier({ midi, spotify, smtc, live = null, midiClock = null, dee
     refreshCallbackUrl();
   }
 
-  function applyArtnet() {
-    const { universe, ...rest } = settings.group('artnet');
-    Object.assign(state.artnet, rest);
-    setDefaultUniverse(universe);
-  }
 
   function ensureSacnCid() {
     if (settings.get('sacn.cid')) return;
@@ -199,7 +194,6 @@ function createApplier({ midi, spotify, smtc, live = null, midiClock = null, dee
   }
 
   // Start disarmed and clear voices on disarm so restarts or later arming cannot revive a strobe.
-  // A disarm leaves the look playing: freezing it here left every later effect pick unseen behind Look · Frozen.
   function applyOutputs({ boot = false, origin }: { boot?: boolean; origin?: ArmOrigin } = {}) {
     let wanted = !!settings.get('outputs.armed');
     if (boot) {
@@ -224,7 +218,6 @@ function createApplier({ midi, spotify, smtc, live = null, midiClock = null, dee
   }
 
   const HANDLERS: { match: (key: string) => boolean; run: (origin: ArmOrigin | undefined) => unknown }[] = [
-    { match: (k) => k.startsWith('artnet.'), run: applyArtnet },
     { match: (k) => k.startsWith('sacn.'), run: applySacn },
     { match: (k) => k.startsWith('hue.'), run: applyHue },
     // Ports only: toggling feedback must not drop and reopen the port.
@@ -248,7 +241,6 @@ function createApplier({ midi, spotify, smtc, live = null, midiClock = null, dee
 
   return {
     applyAll() {
-      applyArtnet();
       ensureSacnCid();
       applySacn();
       applyHue();

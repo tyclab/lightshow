@@ -11,7 +11,7 @@ import { hueProfile, hueProfileId } from '../hue-profile.ts';
 import type { AreaLamp, EntertainmentArea } from '../hue.ts';
 import type { HueBridgeSettings } from '../settings.ts';
 import { ddpConflict } from '../ddp-routes.ts';
-import { showStore, snapshotShow, applyShow } from '../show-store.ts';
+import { showStore, snapshotShow } from '../show-store.ts';
 import { barProfile } from '../bar-profile.ts';
 import { parseOfl } from '../ofl.ts';
 import { DEFAULT_WLED_MODE, wledProfile, wledSeat, wledSpan } from '../wled.ts';
@@ -637,15 +637,13 @@ export function attachFixtureRoutes(app: Express, ctx: RouteContext): void {
   // rig between machines or keeping a copy, not for not losing your work.
   app.get('/api/show', (_req, res) => res.json(snapshotShow()));
 
-  app.post('/api/show', (req, res) => {
+  app.post('/api/show', asyncHandler(async (req, res) => {
     try {
-      applyShow(req.body);
-      // The uploaded show is the rig now, so it is also what a restart restores.
-      showStore.scheduleSave();
+      const result = await showStore.commit(req.body);
       integrations.broadcast();
-      res.json({ ok: true });
-    } catch (err) { res.status(statusOf(err) || 400).json({ ok: false, error: messageOf(err) }); }
-  });
+      res.status(result.applied ? 200 : 503).json({ ok: result.applied, ...result });
+    } catch (err) { res.status(statusOf(err) || 500).json({ ok: false, error: messageOf(err) }); }
+  }));
 }
 
 function hueProfileBlocked(profile: Profile): string | null {

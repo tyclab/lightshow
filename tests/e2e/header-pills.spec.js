@@ -1,9 +1,10 @@
 import { test, expect } from '@playwright/test';
-import { open, reset, set } from './helpers.js';
+import { open, reset, control } from './helpers.js';
 
 // Every status pill in the top bar stays visible, with its label, at every width and in every state:
 // a pill that comes and goes moves the controls beside it and hides what the room is doing.
-const PILLS = ['Outputs', 'Look', 'BPM', 'Master', 'Blackout', 'Energy', 'Strobes', 'Flash', 'Auto', 'Online'];
+// Output permission, playback and Blackout are always-present explicit global controls now.
+const PILLS = ['BPM', 'Master', 'Energy', 'Strobes', 'Flash', 'Auto', 'Online'];
 const LABELLED = PILLS.filter((p) => p !== 'Strobes' && p !== 'Online');
 const sequence = { id: 'e2e-pills', name: 'Pills', mode: 'arrangement',
   lanes: [{ id: 'base', kind: 'shared', name: 'Base', mute: false, solo: false }],
@@ -11,9 +12,7 @@ const sequence = { id: 'e2e-pills', name: 'Pills', mode: 'arrangement',
   commands: [] };
 
 test.beforeEach(async ({ request }) => {
-  await request.post('/api/auto/stop');
   await request.delete('/api/sequence');
-  await request.post('/api/outputs/disarm');
   await reset(request);
 });
 test.afterEach(async ({ request }) => {
@@ -31,6 +30,13 @@ async function expectEveryPill(page, where) {
   for (const name of LABELLED) {
     await expect(stats.locator('.stat-pill .label', { hasText: new RegExp(`^${name}$`) }).first(), `${where}: ${name} label`).toBeVisible();
   }
+  const controls = page.getByRole('group', { name: 'Global show controls' });
+  for (const name of ['Start', 'Stop', 'Freeze', /^(Blackout|Restore)$/, 'Arm']) {
+    await expect(controls.getByRole('button', { name, exact: true }), `${where}: ${name}`).toBeInViewport();
+  }
+  await expect(controls.getByRole('combobox', { name: 'Programme' })).toBeInViewport();
+  await expect(controls.getByRole('status')).toContainText('Playing');
+  await expect(controls.getByRole('status')).toContainText('Disarmed');
 }
 
 for (const width of [390, 800, 1280, 1920]) {
@@ -38,11 +44,10 @@ for (const width of [390, 800, 1280, 1920]) {
     await page.setViewportSize({ width, height: 900 });
     await open(page, 'show');
     await expectEveryPill(page, `${width}px`);
-    await set(request, { masterBlackout: true });
+    await control(request, 'blackout');
     expect((await request.put('/api/sequence', { data: sequence })).ok()).toBe(true);
-    await expect(page.locator('.app-header').getByRole('button', { name: 'Master blackout' })).toHaveAttribute('aria-pressed', 'true');
+    await expect(page.getByRole('group', { name: 'Global show controls' }).getByRole('button', { name: 'Restore', exact: true })).toHaveAttribute('aria-pressed', 'true');
     await expectEveryPill(page, `${width}px, blackout and a sequence`);
-    // Still the controls PR82 made of them.
-    await expect(page.locator('.app-header').getByRole('button', { name: 'Look playback' })).toBeEnabled();
+    await expect(page.getByRole('group', { name: 'Global show controls' }).getByRole('button', { name: 'Freeze', exact: true })).toBeEnabled();
   });
 }

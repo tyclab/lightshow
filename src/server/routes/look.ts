@@ -1,8 +1,12 @@
+import { checkLegacyControlPatch, control } from '../control.ts';
+import { asyncHandler } from './common.ts';
 import { state, getClientState, getLiveState, getFixture, maxBrightnessOf, clockState, strobe } from '../state.ts';
 import { applyPatch, applyOverride, setFixtureMaxBrightness, processTap } from '../patch.ts';
 import { ALL_PALETTES } from '../palette-catalogue.ts';
 import { PALETTES } from '../palettes.ts';
 import { messageOf, statusOf } from '../../errors.ts';
+import { showStore } from '../show-store.ts';
+import { HttpError } from '../../errors.ts';
 import type { Express } from 'express';
 import type { RouteContext } from './common.ts';
 
@@ -17,29 +21,26 @@ export function attachLookRoutes(app: Express, ctx: RouteContext): void {
 
   // Answers with the live state: the catalogues (about 75 KB of built-ins)
   // are GET /api/state's and the socket's first snapshot's, not every patch's.
-  app.post('/api/set', (req, res) => {
+  app.post('/api/set', asyncHandler(async (req, res) => {
     try {
-      applyPatch(req.body);
+      checkLegacyControlPatch(req.body);
+      if (req.body && Object.hasOwn(req.body, 'artnet')) {
+        if (Object.keys(req.body).length !== 1) throw new HttpError(400, 'Send routing separately from other settings');
+        const result = await showStore.commitArtnet(req.body.artnet);
+        ctx.integrations.broadcast();
+        if (!result.applied) return res.status(503).json({ ok: false, ...result });
+      } else if (req.body?.masterBlackout === true) await control.execute({ action: 'blackout' });
+      else applyPatch(req.body);
       res.json({ ok: true, state: getLiveState() });
     } catch (err) {
       res.status(statusOf(err) || 400).json({ ok: false, error: messageOf(err) });
     }
-  });
+  }));
 
   // ─── Quick controls ───────────────────────────────────────────────────────
   app.post('/api/tap', (_req, res) => {
     processTap();
     res.json({ ok: true, bpm: state.bpm });
-  });
-
-  app.post('/api/blackout/toggle', (_req, res) => {
-    applyPatch({ masterBlackout: !state.masterBlackout });
-    res.json({ ok: true, masterBlackout: state.masterBlackout });
-  });
-
-  app.post('/api/blackout/:onoff', (req, res) => {
-    applyPatch({ masterBlackout: req.params.onoff !== 'off' });
-    res.json({ ok: true, masterBlackout: state.masterBlackout });
   });
 
   // 'auto' follows the music, and already on ends a tempo held by hand; 'manual' keeps the typed tempo.
@@ -102,9 +103,6 @@ export function attachLookRoutes(app: Express, ctx: RouteContext): void {
       res.json({ ok: true, bpm: state.bpm });
     } catch (err) { res.status(400).json({ ok: false, error: messageOf(err) }); }
   });
-
-  app.post('/api/play', (_req, res) => { applyPatch({ running: true });  res.json({ ok: true }); });
-  app.post('/api/stop', (_req, res) => { applyPatch({ running: false }); res.json({ ok: true }); });
 
   app.post('/api/master/:value', (req, res) => {
     try {

@@ -30,7 +30,7 @@ export function loadSettings() {
 
 export async function saveSettings(patch) {
   const res = await api('/api/settings', { method: 'PUT', body: JSON.stringify(patch) });
-  if (res.ok) {
+  if (res.ok || res.saved) {
     settingsSig.value = { ...(settingsSig.value || {}), ...res };
   }
   return res;

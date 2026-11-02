@@ -223,7 +223,7 @@ function Ruler({ seq, total, beatsPerBar }) {
   );
 }
 
-function ClipBlock({ clip, label, total, snap, editing, playing, selected, onSelect, onChange, onLaunch, launching, onMove }) {
+function ClipBlock({ clip, label, total, snap, editing, playing, selected, onSelect, onChange, onLaunch, onMove }) {
   const drag = useRef(null);
   const [delta, setDelta] = useState(null);
   const start = (e, kind) => {
@@ -255,7 +255,7 @@ function ClipBlock({ clip, label, total, snap, editing, playing, selected, onSel
       class={cls}
       role={editing || onLaunch ? 'button' : 'group'}
       tabIndex={editing || onLaunch ? 0 : undefined}
-      aria-label={`${onLaunch ? launching ? 'Stop ' : 'Play ' : ''}${label}, beats ${clip.startBeat} to ${clip.startBeat + clip.lengthBeats}`}
+      aria-label={`${onLaunch ? 'Go to ' : ''}${label}, beats ${clip.startBeat} to ${clip.startBeat + clip.lengthBeats}`}
       style={{ left: `${(shown.startBeat / total) * 100}%`, width: `${(shown.lengthBeats / total) * 100}%` }}
       onClick={() => editing ? onSelect(clip.id) : onLaunch?.()}
       onKeyDown={(e) => clipKeySelects(e, editing || !!onLaunch, () => editing ? onSelect(clip.id) : onLaunch())}

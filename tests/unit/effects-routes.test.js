@@ -35,6 +35,7 @@ import { BUILTIN_PALETTES, CATALOGUE, FAMILIES, presetById } from '../../src/sha
 import { validateSpec } from '../../src/shared/effects/registry.ts';
 import { resolvePalette, toHex } from '../../src/shared/effects/palette.ts';
 import { acknowledgeFlashes } from '../helpers/acknowledged.js';
+import { installControlRuntime } from './control-runtime-helpers.js';
 
 showStore.scheduleSave = () => {};   // never the real show file
 
@@ -76,7 +77,10 @@ async function serve(t, { cues } = {}) {
     deezerSource: { ...idle, getQueue: () => [], updatePlayback() {}, updateQueue() {}, disconnect() {} },
     prolink, autoShow, effectLibrary, paletteStore, sequenceStore: new SequenceStore(path.join(dir, 'sequences.json')).load(),
   });
-  attachRoutes(app, { integrations, applier: { applyChanged() {} }, ...(cues ? { cues } : {}) });
+  const applier = { applyChanged() {}, disarmed() {} };
+  // The MIDI busking surface drives the production control coordinator, so the routes get the real one.
+  installControlRuntime(t, { autoShow, integrations, applier });
+  attachRoutes(app, { integrations, applier, ...(cues ? { cues } : {}) });
   await new Promise((r) => server.listen(0, '127.0.0.1', r));
   const url = `http://127.0.0.1:${server.address().port}`;
   const pattern = state.pattern;
@@ -834,11 +838,13 @@ test("busking from MIDI reaches the looks, the palettes, the voices, the strobe 
   busk.setStrobeRate(4);
   assert.equal(busk.strobeRate(), 4);
 
-  busk.toggleAutoShow();
+  // The toggle is the explicit Start/Stop of the auto programme; the coordinator acknowledges a frame first.
+  startEngine({ thread: 'main' });
+  await busk.toggleAutoShow();
   assert.equal(busk.autoShowOn(), false, 'nothing analysed: it does not start');
   s.autoShow.analysis = { sections: [] };
-  busk.toggleAutoShow();
+  await busk.toggleAutoShow();
   assert.equal(busk.autoShowOn(), true);
-  busk.toggleAutoShow();
+  await busk.toggleAutoShow();
   assert.equal(busk.autoShowOn(), false);
 });

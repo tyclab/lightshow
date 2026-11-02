@@ -12,6 +12,7 @@ import assert from 'node:assert';
 import os from 'node:os';
 import path from 'node:path';
 
+import { control } from '../../src/server/control.ts';
 import { state, voices, strobe } from '../../src/server/state.ts';
 import { renderFrame, renderInput, resizeFixtureBuffers, setSequenceSource } from '../../src/server/engine.ts';
 import { conductor } from '../../src/server/conductor.ts';
@@ -57,11 +58,12 @@ const clip = (id, laneId, preset) => ({
 });
 
 test('party frames on forty placed fixtures meet the calibrated mean CPU budget', () => {
-  const before = { fixtures: state.fixtures, artnet: state.artnet.enabled, values: settings._values };
+  const before = { fixtures: state.fixtures, artnet: state.artnet.enabled, playing: control.playing, values: settings._values };
   const ownSave = Object.hasOwn(settings, 'save') ? settings.save : null;
   let beat = 0;
   conductor.setProlinkSource(() => ({ beatPos: beat, bpm: 128 }));
   state.artnet.enabled = false;
+  control.playing = true;
   // The strobe waits for the photosensitivity acknowledgement; settings stay in memory.
   settings._values = {
     ...before.values,
@@ -154,6 +156,7 @@ test('party frames on forty placed fixtures meet the calibrated mean CPU budget'
     else delete settings.save;
     state.fixtures = before.fixtures;
     state.artnet.enabled = before.artnet;
+    control.playing = before.playing;
     resizeFixtureBuffers();
   }
 });

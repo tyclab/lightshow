@@ -99,6 +99,7 @@ export interface VoiceSummary {
 }
 
 export interface VoiceManagerOptions {
+  beforeLaunch?: () => void;
   /** The manager's clock, monotonic milliseconds. */
   now: () => number;
   /** The musical clock at a launch; `reading`, when given, is read once for both. */
@@ -229,6 +230,7 @@ export class VoiceManager {
   declare _now: () => number;
   declare _read: () => { beatPos: number; bpm: number };
   declare _onChange: () => void;
+  declare _beforeLaunch: () => void;
   declare _acknowledged: () => boolean;
   declare _anyRunning: () => boolean;
   declare _wallNow: () => number;
@@ -239,7 +241,8 @@ export class VoiceManager {
   declare _revoked: Map<string, number>;
   declare _stopListeners: Set<(stopped: Voice[]) => void>;
 
-  constructor({ now, beatPos, bpm, reading, onChange, acknowledged, anyRunning, wallNow, strobeLatchMs }: VoiceManagerOptions) {
+  constructor({ now, beatPos, bpm, reading, onChange, acknowledged, anyRunning, wallNow, strobeLatchMs, beforeLaunch }: VoiceManagerOptions) {
+    this._beforeLaunch = beforeLaunch ?? (() => {});
     this._now = now;
     this._read = reading ?? (() => ({ beatPos: beatPos ? beatPos() : 0, bpm: bpm ? bpm() : 120 }));
     this._onChange = onChange;
@@ -272,6 +275,7 @@ export class VoiceManager {
    * token and the same launch is renewed, not launched again.
    */
   start(v: StartVoice): Voice {
+    this._beforeLaunch();
     const spec = voiceSpec(v.spec);
     this.admit(spec);
     const ids = fixtureIdsOf(v.targets);

@@ -1,6 +1,7 @@
 import { HttpError } from '../../errors.ts';
+import { control } from '../control.ts';
 import { newUserId } from '../effect-library.ts';
-import type { Express, Request, Response } from 'express';
+import type { Express, Response } from 'express';
 import type { RouteContext } from './common.ts';
 
 // The loaded editor document is separate from the explicit saved-show shelf.
@@ -19,6 +20,7 @@ export function attachSequenceRoutes(app: Express, ctx: RouteContext): void {
   });
 
   app.put('/api/sequence', (req, res) => {
+    if (control.playing && control.programme === 'sequence') throw new HttpError(409, 'Stop the sequence programme before replacing it');
     const body = (req.body ?? {}) as Record<string, unknown>;
     let raw: unknown = body;
     // Only an id: the one on the shelf.
@@ -35,6 +37,7 @@ export function attachSequenceRoutes(app: Express, ctx: RouteContext): void {
 
   // Nothing loaded: a stopped sequence holds its picture, and this is how the look comes back.
   app.delete('/api/sequence', (_req, res) => {
+    if (control.playing && control.programme === 'sequence') throw new HttpError(409, 'Stop the sequence programme before unloading it');
     sequencer().unload();
     ctx.integrations.sequence.workspace?.flush();
     answer(res);
@@ -90,19 +93,8 @@ export function attachSequenceRoutes(app: Express, ctx: RouteContext): void {
   });
 
   // ─── The transport ────────────────────────────────────────────────────────
-  app.post('/api/sequence/play', (_req, res) => {
-    sequencer().play();
-    answer(res);
-  });
   app.post('/api/sequence/pause', (_req, res) => {
     sequencer().pause();
-    answer(res);
-  });
-  // ?blackout=1, or { "blackout": true }: black under every fixture rather than the last picture held.
-  app.post('/api/sequence/stop', (req: Request, res) => {
-    const flag = req.query.blackout;
-    const blackout = (req.body as { blackout?: unknown } | undefined)?.blackout === true || flag === '1' || flag === 'true';
-    sequencer().stop({ blackout });
     answer(res);
   });
   app.post('/api/sequence/next', (_req, res) => {

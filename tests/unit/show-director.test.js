@@ -319,7 +319,7 @@ test('an analysis with nothing in it still produces a usable opening', () => {
   assert.ok(palette.length > 0);
   const opening = from(intents, 'opening')[0];
   assert.ok(opening);
-  assert.strictEqual(opening.running, true);
+  assert.strictEqual(opening.running, undefined, 'planned content cannot start the programme');
   assert.strictEqual(opening.masterBlackout, undefined);
 });
 

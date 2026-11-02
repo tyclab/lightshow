@@ -92,10 +92,12 @@ for (const profile of [HUE_COLOR, HUE_WHITE, HUE_AMBIANCE, HUE_GRADIENT]) {
   });
 }
 
-test('identification shares Hue admission with show output, including its explicit blackout override', () => {
-  for (const masterBlackout of [false, true]) assertRate(trace(HUE_COLOR, (t) => ({ pattern: 'strobe', colorA: 9,
+test('identification shares Hue admission and cannot override Blackout', () => {
+  const traceIdentify = masterBlackout => trace(HUE_COLOR, t => ({ pattern: 'strobe', colorA: 9,
     strobeFunction: 'ramp-down', strobeSpeed: 255, masterBlackout,
-    identify: { seq: Math.floor(t / 300) + 1, ids: Math.floor(t / 300) % 2 ? [0] : [], at: t, ms: 150 } }), 80));
+    identify: { seq: Math.floor(t / 300) + 1, ids: Math.floor(t / 300) % 2 ? [0] : [], at: t, ms: 150 } }), 80);
+  assertRate(traceIdentify(false));
+  assert.ok(traceIdentify(true).every(({ lights }) => lights.every(({ r, g, b }) => r + g + b === 0)));
 });
 
 test('ordinary blackout immediately clears Hue output through transitions', () => {

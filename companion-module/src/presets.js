@@ -239,11 +239,19 @@ export function UpdatePresets(self) {
 	// ── Transport ──
 
 	presets['transport_play_stop'] = button(
-		'Play / Stop',
-		{ text: 'PLAY\nSTOP', size: '18', color: combineRgb(220, 220, 220), bgcolor: combineRgb(0, 50, 0) },
+		'Programme Start / Stop',
+		{ text: 'START\nSTOP', size: '18', color: combineRgb(220, 220, 220), bgcolor: combineRgb(0, 50, 0) },
 		[{ actionId: 'play_stop', options: { mode: 'toggle' } }],
-		{ feedbacks: [{ feedbackId: 'playing', options: {}, style: { bgcolor: combineRgb(0, 180, 60), color: WHITE, text: '▶ PLAY' } }] },
+		{ feedbacks: [{ feedbackId: 'playing', options: {}, style: { bgcolor: combineRgb(0, 180, 60), color: WHITE, text: '▶ STARTED' } }] },
 	)
+	for (const mode of ['freeze', 'resume']) {
+		presets[`picture_${mode}`] = button(
+			mode === 'freeze' ? 'Freeze picture' : 'Resume picture',
+			{ text: mode === 'freeze' ? 'FREEZE' : 'RESUME', size: '16', bgcolor: combineRgb(70, 50, 0), color: WHITE },
+			[{ actionId: 'picture_freeze', options: { mode } }],
+			{ feedbacks: mode === 'freeze' ? [{ feedbackId: 'picture_frozen', options: {}, style: { bgcolor: combineRgb(170, 120, 0), color: WHITE } }] : [] },
+		)
+	}
 	presets['transport_armed'] = button(
 		'Outputs Armed',
 		{ text: 'OUTPUTS\nOFF', size: '14', color: combineRgb(200, 200, 200), bgcolor: combineRgb(30, 30, 30) },
@@ -365,7 +373,7 @@ export function UpdatePresets(self) {
 			description: 'A show played by hand with the auto show stopped: looks, colours over every effect, hits, tempo and the panic buttons',
 			definitions: [
 				group('busk_looks', 'Looks', ['look_pattern_previous', 'look_display', 'look_pattern_next', 'look_effect_previous', 'look_effect_next',
-					'look_random_pattern', 'look_random_effect', 'transport_play_stop']),
+					'look_random_pattern', 'look_random_effect', 'transport_play_stop', 'picture_freeze', 'picture_resume']),
 				group('busk_colours', 'Colours over every effect (on until pressed again)', [...palettes.map((p) => `override_${p.id}`), 'override_off', 'random_palette', 'random_colours']),
 				group('busk_hits', 'Hits (the pads; a hold pad plays while pressed)', [...padIds, 'strobe_burst', 'hold_blackout']),
 				group('busk_tempo', 'Tempo', ['transport_tap_tempo', 'transport_bpm_display', 'tempo_double', 'tempo_halve', 'tempo_auto',
@@ -389,7 +397,7 @@ export function UpdatePresets(self) {
 		{
 			id: 'sequence',
 			name: 'Sequence',
-			description: 'Play or resume the loaded sequence, pause its transport, stop holding its picture, and adjust the shared tempo',
+			description: 'Start or resume the sequence, pause its timeline, Stop programme, and adjust the shared tempo',
 			definitions: ['sequence_play', 'sequence_pause', 'sequence_stop', 'transport_bpm_display', 'transport_bpm_up', 'transport_bpm_down'],
 		},
 		{
@@ -420,7 +428,7 @@ export function UpdatePresets(self) {
 			name: 'Transport',
 			definitions: [
 				'transport_armed',
-				'transport_play_stop',
+				'transport_play_stop', 'picture_freeze', 'picture_resume',
 				'transport_blackout',
 				'transport_tap_tempo',
 				'transport_bpm_display',

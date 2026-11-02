@@ -1,4 +1,4 @@
-import { state, universeOf } from './state.ts';
+import { state, universeOf, activeUniverses } from './state.ts';
 import { getProfile } from './profiles.ts';
 import { isHueProfile, hueChannels } from '../shared/hue-lamp.ts';
 import { hueSectionColour } from '../shared/hue-colour.ts';
@@ -13,7 +13,7 @@ import { defaultHueBridgeId } from './settings.ts';
 import type { HueChannelColour } from './hue.ts';
 import { ddpRoutes } from './ddp-routes.ts';
 import { openrgbRoutes } from './openrgb-routes.ts';
-import type { SacnOutput, SendOptions, TransmitConfig, Wire } from './transmit.ts';
+import type { ArtnetDestination, SacnOutput, SendOptions, TransmitConfig, Wire } from './transmit.ts';
 import type { Settings } from './settings.ts';
 
 let sacn: SacnOutput = {
@@ -49,6 +49,8 @@ function getHueConfig(): HueOutputConfig {
 }
 
 const transmitter = createTransmitter();
+let rigRevision = 0;
+export function setRigRevision(revision: number): void { rigRevision = revision; }
 
 function artnetDiscoveryWanted(): boolean {
   const a = state.artnet;
@@ -62,6 +64,8 @@ const artnetDiscovery = createDiscovery({
 
 function transmitConfig(): TransmitConfig {
   return {
+    rigRevision,
+    universes: activeUniverses(),
     artnet: {
       enabled: state.artnet.enabled,
       host: state.artnet.host,
@@ -128,8 +132,13 @@ function sendUniverse(universe: number, frame: Buffer, { immediate = false, term
   return transmitter.send(universe, frame, transmitConfig(), { immediate, terminate });
 }
 
-function endFrame(): void {
-  transmitter.endFrame(transmitConfig());
+function endFrame(): boolean {
+  return transmitter.endFrame(transmitConfig());
+}
+
+/** Destinations an engine thread may have left lit: this thread's sender retires them before any new light. */
+function seedArtnet(destinations: readonly ArtnetDestination[]): void {
+  transmitter.seed(destinations);
 }
 
 export const getHueStatus = () => hue.getStatusAll();
@@ -141,6 +150,7 @@ export {
   sacnUniverseFor,
   sendUniverse,
   endFrame,
+  seedArtnet,
   transmitConfig,
   setArmed,
   isArmed,

@@ -23,7 +23,7 @@ The **Busk** preset page has what a set played by hand needs:
 - **Pads** — the server's two banks, following each pad's launch mode.
 - **Hits** — a strobe burst and held blackout alongside the pads.
 - **Tempo** — tap, the BPM, double and halve, beat divisions, and automatic tempo matching on/off.
-- **Show** — auto-show start/stop, current track and stop all live effects. Play/stop is in Looks; output arming is on the Transport page.
+- **Show** — auto-show start/stop, current track and stop all live effects. Programme Start/Stop and picture Freeze/Resume are in Looks; output arming is on the Transport page.
 - **Master** — the master level (±10 % and a display) and blackout.
 - **Cues** — one button for each cue saved on the server.
 
@@ -50,21 +50,26 @@ The separate **Auto Show** page has start/stop, intensity (±10 and a display), 
 | Tap Tempo                         | Register a tap                                                                       |
 | Set / Adjust Master Dimmer        | 0-255, or by ± amount                                                                |
 | Master Blackout                   | On / Off / Toggle — On on a button's down and Off on its up makes a blackout hold    |
-| Play / Stop                       | On / Off / Toggle                                                                    |
-| Outputs Armed / Disarmed          | Arm / Disarm / Toggle whether anything leaves the machine: disarmed, no Art-Net, sACN or DDP frame goes out and the Hue bridges are handed back. The server starts disarmed; disarming stops the patterns |
+| Programme Start / Stop            | Start, Stop or Toggle the selected programme; Start never arms, restores Blackout or releases Freeze |
+| Picture Freeze / Resume           | Hold or resume the complete composition independently of programme transport |
+| Outputs Armed / Disarmed          | Arm / Disarm / Toggle whether anything leaves the machine: disarmed, no Art-Net, sACN or DDP frame goes out and the Hue bridges are handed back. The server starts disarmed; disarming does not freeze or stop the programme |
 | Set Beat Division                 | 1/1, 1/2, 1/4, 1/8                                                                   |
 | Energy Hold                       | Press on a button's down, Release on its up: the effect lasts while it is held      |
 | Energy Override / Off             | Latch an energy effect on, or clear it                                               |
 | Set Strobe Function / Speed       | Choose the strobe program and its speed                                              |
 | Recall Cue                        | Put a saved cue on stage                                                             |
-| Auto Show Start / Stop            | Start, stop or toggle the auto show                                                  |
-| Sequence transport               | Play/resume the loaded sequence, pause, stop holding its last picture, or stop with a black sequence base |
+| Start Auto / Stop programme       | Start selects Auto explicitly; Stop stops the selected programme |
+| Sequence transport               | Start/resume the loaded sequence, pause its timeline (clips continue), or Stop programme |
 | Auto Show Intensity               | Set it, or adjust it by ± amount                                                     |
 | Auto Show Source                  | What the auto show follows: auto-detect, Spotify, PRO DJ LINK, the live input, …     |
 | Nudge Auto Show Sync              | Run the lights earlier (+) or later (−) against the music                             |
 | Fixture Blackout                  | Per fixture, toggle/on/off                                                           |
 | Fixture Override (RGBWAUV)        | Set colour + dimmer on one fixture                                                   |
 | Clear Fixture Override            | Remove override on one or all fixtures                                               |
+
+Global commands use the server session and revision last received for the displayed controls. A stale command is refused once: the module does not fetch fresh state and silently retry it. Wait for the updated feedback and press the intended action again. Reconnection or a missing state patch invalidates global controls until a complete snapshot arrives.
+
+An older server without this contract leaves global commands unavailable; its old `running` flag cannot represent whole-picture Freeze. The retained `play_stop` action ID now means **Programme Start/Stop**. Review existing button labels, and use the new **Picture Freeze/Resume** action for a held picture. Existing custom button text is not rewritten automatically.
 
 ## Feedbacks
 
@@ -79,7 +84,9 @@ The separate **Auto Show** page has start/stop, intensity (±10 and a display), 
 | Automatic tempo matching       | Tempo mode is automatic                                    |
 | Colour A/B/C/D selected        | That colour slot matches                                   |
 | Master blackout active         | Blackout is on                                             |
-| Show is playing                | Show is playing                                            |
+| Programme is playing           | The selected programme is running and its timeline is not paused |
+| Whole picture is frozen         | The server confirms the complete composition is held |
+| Explicit controls available     | The server provides the current global control contract |
 | Sequence transport state       | The loaded sequence is playing, paused or stopped          |
 | Outputs are armed              | Frames are going out to the rig                            |
 | Auto show is running           | The auto show is on                                        |
@@ -89,14 +96,14 @@ The separate **Auto Show** page has start/stop, intensity (±10 and a display), 
 
 ## Variables
 
-`bpm` (to a tenth), `clock_source` (Auto, CDJ, Track or Tap), `beat_division`, `playing`, `outputs_armed`, `pattern`, `pattern_id`, `pixel_pattern`, `panel_pattern`, `pixel_map`, `palette`, `palette_override` (the overriding palette or "off"), `color_a` … `color_d`, `master_dimmer`, `master_dimmer_pct`, `master_blackout`, `strobe_function`, `strobe_speed`, `energy_override`, `auto_show`, `auto_source`, `auto_intensity`, `sync_offset`, `track` (Artist — Title), `cue_count`
+`bpm` (to a tenth), `clock_source` (Auto, CDJ, Track or Tap), `beat_division`, `playing`, `programme`, `picture_frozen`, `controls_available`, `outputs_armed`, `pattern`, `pattern_id`, `pixel_pattern`, `panel_pattern`, `pixel_map`, `palette`, `palette_override` (the overriding palette or "off"), `color_a` … `color_d`, `master_dimmer`, `master_dimmer_pct`, `master_blackout`, `strobe_function`, `strobe_speed`, `energy_override`, `auto_show`, `auto_source`, `auto_intensity`, `sync_offset`, `track` (Artist — Title), `cue_count`
 
 ## Presets
 
-Besides **Busk**: every pattern (the whole-rig ones and the pixel effects apart), the bars' and the panels' own pictures and the pixel map; all four colour slots; transport (the outputs' arming switch, play/stop, blackout, tap tempo, BPM, beat divisions); **Sequence** transport and tempo; a blackout for each fixture in the patch; and latched energy effects.
+Besides **Busk**: every pattern (the whole-rig ones and the pixel effects apart), the bars' and the panels' own pictures and the pixel map; all four colour slots; transport (outputs, programme Start/Stop, picture Freeze/Resume, blackout, tap tempo, BPM, beat divisions); **Sequence** transport and tempo; a blackout for each fixture in the patch; and latched energy effects.
 
-Load or edit the sequence in the Lightshow's Sequence page first. **Sequence: Play / Resume** starts after a stop and resumes after a pause. Pause freezes the transport while its clips keep running; Stop holds the last picture. The optional stop-with-black action blacks only the sequence base, so live voices can still appear above it. These controls never arm outputs. Server refusals, including no loaded sequence or a missing photosensitivity acknowledgement, appear in the connection log.
+Load or edit the sequence in Lightshow's Sequence page first. **Sequence: Start** starts after a stop and resumes a paused timeline. Pause holds timeline progression while clips continue; it does not freeze the composition. Stop uses global programme Stop. The combined legacy sequence stop-with-black action now refuses; configure separate explicit Stop and Blackout actions. These controls never arm outputs or release Freeze/Blackout. Server refusals, including no loaded sequence or a missing photosensitivity acknowledgement, appear in the connection log.
 
 The Sequence presets reuse the existing BPM display and ±5 actions. Set BPM and Adjust BPM change the shared tempo and end sequence tempo automation; later authored tempo commands can change it again. Pausing and resuming preserves the sequence position and does not reapply its initial tempo.
 
-TycStation Lightshow builds on [LightD31’s ArtNet Lightshow](https://github.com/LightD31/artnet-lightshow) under the MIT license. The `artnet-lightshow` module ID and `lightshow` variable prefix stay compatible with existing Companion connections.
+TycStation Lightshow builds on [LightD31’s ArtNet Lightshow](https://github.com/LightD31/artnet-lightshow) under the MIT license. The module ID is `tycstation-lightshow`; the variable prefix is `lightshow`.

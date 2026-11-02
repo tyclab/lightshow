@@ -1,6 +1,6 @@
 {
 	"name": "companion-module-tycstation-lightshow",
-	"version": "2.1.0",
+	"version": "3.0.0",
 	"description": "Bitfocus Companion module for TycStation Lightshow: busk a light show from a Stream Deck",
 	"main": "src/main.js",
 	"type": "module",

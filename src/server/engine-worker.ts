@@ -23,7 +23,7 @@ const port = parentPort;
 const post = (msg: FromWorker) => port.postMessage(msg);
 
 const {
-  shared, epochMs, periodMs = FRAME_MS, capture = false, seed = null, startNow = null,
+  shared, epochMs, periodMs = FRAME_MS, capture = false, seed = null, startNow = null, retire = null,
 } = (workerData || {}) as EngineWorkerData;
 
 function seeded(value: number): () => number {
@@ -41,6 +41,9 @@ if (capture && Number.isInteger(seed)) Math.random = seeded(seed as number);
 const store = createUniverseStore();               // rendered into, this thread only
 const published = createUniverseStore(shared);     // what the main thread reads
 const transmitter = createTransmitter();
+// A previous sender's unfinished retirement comes first: nothing lights until those routes are dark.
+const inherited = !!retire?.length;
+if (retire?.length) transmitter.seed(retire);
 const renderer = createRenderer({
   profileOf: getProfile,
   profilesRevision,
@@ -77,7 +80,7 @@ function warmUp(): void {
   }
 }
 
-let snapshot: { input: RenderInput; outputs: TransmitConfig } | null = null;   // from the main thread
+let snapshot: { input: RenderInput; outputs: TransmitConfig; barrierRevision: number; outputSeq: number } | null = null;
 let pendingSequence: { table: SequenceTable | null } | null = null;
 
 function takeSequence(): void {
@@ -100,12 +103,14 @@ function publish(): void {
   published.drainRetired();
 }
 
-function transmit(outputs: TransmitConfig): void {
-  for (const universe of store.list()) transmitter.send(universe, store.getBuffer(universe), outputs);
+function transmit(outputs: TransmitConfig): boolean {
+  const protective = snapshot?.input.masterBlackout || !outputs.armed;
+  for (const universe of store.list()) transmitter.send(universe, store.getBuffer(universe), outputs,
+    protective ? { immediate: true, terminate: true } : undefined);
   for (const [universe, frame] of store.drainRetired()) {
     transmitter.send(universe, frame, outputs, { immediate: true, terminate: true });
   }
-  transmitter.endFrame(outputs);
+  return transmitter.endFrame(outputs);
 }
 
 let ticker: Ticker | null = null;
@@ -126,16 +131,20 @@ function renderTick(due: number, now: number): void {
   }
   renderer.frame(snapshot.input, reading, now, store, epochMs);
   postCommands();
-  transmit(snapshot.outputs);
+  const applied = transmit(snapshot.outputs);
   publish();
-  post({ type: 'frame' });
+  const { barrierRevision, outputSeq } = snapshot;
+  if (applied) post({ type: 'frame', barrierRevision, outputSeq });
+  else if (snapshot.input.masterBlackout) post({ type: 'frame', barrierRevision, outputSeq, applied: false, dark: true });
   if (now - lastStatsAt >= 1000) {
     lastStatsAt = now;
     if (ticker) post({ type: 'stats', stats: ticker.stats.summary() });
   }
 }
 
-function blackout(): void {
+/** Darken everything; whether every destination, inherited ones included, was actually retired. */
+function blackout(): boolean {
+  let applied = !inherited;
   if (snapshot) {
     store.sync(snapshot.input.universes);
     store.clearAll();
@@ -146,11 +155,12 @@ function blackout(): void {
     for (const [universe, frame] of store.drainRetired()) {
       transmitter.send(universe, frame, outputs, { immediate: true, terminate: true });
     }
-    transmitter.endFrame(outputs);
+    applied = transmitter.endFrame(outputs);
   } else {
     store.clearAll();
   }
   publish();
+  return applied;
 }
 
 function renderOnce({ input, reading, now, gridOriginMs }: { input: RenderInput; reading: MusicalTime; now: number; gridOriginMs?: number }): RenderedFrames {
@@ -172,7 +182,7 @@ port.on('message', guarded('engine-worker', (msg: ToWorker | null) => {
       break;
     case 'snapshot':
       takeSequence();
-      snapshot = { input: msg.input, outputs: msg.outputs };
+      snapshot = { input: msg.input, outputs: msg.outputs, barrierRevision: msg.barrierRevision ?? 0, outputSeq: msg.outputSeq ?? 0 };
       follow.push(msg.reading, msg.at);
       break;
     case 'sequence':
@@ -189,11 +199,12 @@ port.on('message', guarded('engine-worker', (msg: ToWorker | null) => {
     case 'command':
       renderer.command(msg.seq, msg.cmd, msg.arg, msg.intent ?? null);
       break;
-    case 'stop':
+    case 'stop': {
       if (ticker) ticker.stop();
-      blackout();
-      post({ type: 'stopped' });
+      const applied = blackout();
+      post({ type: 'stopped', applied });
       break;
+    }
     default:
       break;
   }

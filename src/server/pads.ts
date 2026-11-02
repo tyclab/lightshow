@@ -293,6 +293,7 @@ export class PadStore extends JsonStore {
 // ── Playing them ────────────────────────────────────────────────────────────
 
 export interface PadsOptions {
+  beforePress?: () => void;
   voices: VoiceManager;
   store: PadStore;
   /** Presets by id or alias, as a launch reads them now (the library's, saved ones included). */
@@ -323,6 +324,7 @@ interface PadRecord {
 const HELD_ONLY = 'The strobe pad plays while it is held: press and release it';
 
 export class Pads {
+  private beforePress: (() => void) | undefined;
   declare store: PadStore;
   // Installed by the sequencer; until then a sequencePattern pad answers 409.
   declare insertPattern: InsertPatternHook | undefined;
@@ -339,7 +341,8 @@ export class Pads {
   declare _beat: () => number;
   declare _records: PadRecord[];
 
-  constructor({ voices, store, lookup, pattern, fixtureIds, beat, insertPattern, patternVoice, strobe }: PadsOptions) {
+  constructor({ voices, store, lookup, pattern, fixtureIds, beat, insertPattern, patternVoice, strobe, beforePress }: PadsOptions) {
+    this.beforePress = beforePress;
     this.store = store;
     if (typeof patternVoice !== 'function') throw new TypeError('Pads needs a pattern player');
     if (typeof pattern !== 'function') throw new TypeError('Pads needs the pattern shelf');
@@ -364,6 +367,7 @@ export class Pads {
 
   /** A press, as the pad's launch says; null when nothing plays (an empty pad, a loop stopped, a pattern dropped in). */
   press(bank: number, slot: number, owner: string, token: string): Voice | null {
+    this.beforePress?.();
     const index = padIndex(bank, slot);
     const entry = this.store.get(bank, slot);
     const content = entry.content;
@@ -416,6 +420,7 @@ export class Pads {
 
   /** Play the pad once, whatever its launch: `ms` long, else its preset's or its pattern's length. */
   once(bank: number, slot: number, ms?: number): Voice | null {
+    this.beforePress?.();
     const index = padIndex(bank, slot);
     const entry = this.store.get(bank, slot);
     const content = entry.content;
@@ -427,6 +432,7 @@ export class Pads {
 
   /** Stop what the pad plays, or start it as a loop, whatever its launch. Null when it stopped. */
   toggle(bank: number, slot: number): Voice | null {
+    this.beforePress?.();
     const index = padIndex(bank, slot);
     const entry = this.store.get(bank, slot);
     if (entry.content?.kind === 'strobe') throw new HttpError(409, HELD_ONLY);
@@ -447,6 +453,7 @@ export class Pads {
 
   /** voice-hold's `{ preset: 'strobe' }`, through the strobe pad's hook; without one, a preset by that id (a 400). */
   holdStrobe(owner: string, token: string, targets?: unknown): Voice {
+    this.beforePress?.();
     return this._holdStrobe(null, owner, token, targets);
   }
 

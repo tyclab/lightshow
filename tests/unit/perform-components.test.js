@@ -23,6 +23,7 @@ async function load() {
         export { PhotosensitivityConfirm } from './public-src/components/Effects.jsx';
         export { StrobePad } from './public-src/components/StrobePad.jsx';
         export { Pads } from './public-src/components/Pads.jsx';
+        export { GlobalControls } from './public-src/components/GlobalControls.jsx';
         export { CommandBar } from './public-src/components/CommandBar.jsx';
         export { createPadPresses, rapidPad, padKey } from './public-src/voice-pad.js';
         export { createVoiceHolds } from './public-src/hold-control.js';
@@ -408,57 +409,58 @@ test('transport positions count the configured eighth-note beat unit', () => {
 });
 
 test("transport lists available sequences and marks the loaded one", () => {
-  given({ sequence: STATUS, sequences: [{ id: 'set1', name: 'Set one' }, { id: 'set2', name: 'Set two' }] });
+  given({ control: { programme: 'sequence', playing: true }, sequence: STATUS, sequences: [{ id: 'set1', name: 'Set one' }, { id: 'set2', name: 'Set two' }] });
   const html = ui.html(ui.h(ui.Transport, { initial: { sequence: SEQ } }));
-  assert.match(html, /aria-label="Transport source"/);
-  assert.match(html, /<option value="sequence:set1" selected[^>]*>Set one</);
-  assert.match(html, /<option value="sequence:set2"[^>]*>Set two</);
+  assert.match(html, /aria-label="Loaded sequence"/);
+  assert.match(html, /<option(?=[^>]*value="set1")(?=[^>]*selected)[^>]*>Set one</);
+  assert.match(html, /<option value="set2"[^>]*>Set two</);
 });
 
 test("playing transport exposes clip position and controls", () => {
-  given({ sequence: STATUS, sequences: [{ id: 'set1', name: 'Set one' }, { id: 'set2', name: 'Set two' }] });
+  given({ control: { programme: 'sequence', playing: true }, sequence: STATUS, sequences: [{ id: 'set1', name: 'Set one' }, { id: 'set2', name: 'Set two' }] });
   const html = ui.html(ui.h(ui.Transport, { initial: { sequence: SEQ } }));
-  for (const label of ['Pause', 'Stop', 'Next', 'Shuffle', 'Loop']) assert.match(html, new RegExp(`aria-label="${label}"`));
+  for (const label of ['Pause timeline', 'Next row', 'Shuffle rows', 'Loop region']) assert.match(html, new RegExp(`aria-label="${label}"`));
   assert.match(html, /class="transport-position"[^>]*>3\.2</);
   assert.match(html, /Front[\s\S]*Chase 2D/);
 });
 
-test("paused transport offers play and unloading", () => {
-  given({ sequence: { ...STATUS, playing: false, paused: true } });
-  assert.match(ui.html(ui.h(ui.Transport, { initial: { sequence: SEQ } })), /aria-label="Play"/);
-  assert.match(ui.html(ui.h(ui.Transport, { initial: { sequence: SEQ } })), /<option value="look"[^>]*>Look by hand</);
+test('paused timeline keeps its context and directs resume to global controls', () => {
+  given({ control: { programme: 'sequence', playing: true, paused: true }, sequence: { ...STATUS, playing: true, paused: true } });
+  const html = ui.html(ui.h(ui.Transport, { initial: { sequence: SEQ } }));
+  assert.match(html, /aria-label="Pause timeline" aria-pressed="true"/);
+  assert.match(html, /<option value(?:="")?>No sequence loaded</);
+  assert.match(html, /aria-label="Loaded sequence"[^>]*disabled/);
+  assert.doesNotMatch(html, /aria-label="Play|>Resume</);
 });
 
 test('sequence picker follows shelves received from other clients', () => {
-  given({ sequence: STATUS, sequences: [{ id: 'set1', name: 'Set one' }] });
+  given({ control: { programme: 'sequence', playing: true }, sequence: STATUS, sequences: [{ id: 'set1', name: 'Set one' }] });
   assert.doesNotMatch(ui.html(ui.h(ui.Transport, { initial: { sequence: SEQ } })), /Saved on the tablet/);
-  given({ sequence: STATUS, sequences: [{ id: 'set1', name: 'Set one' }, { id: 'tab', name: 'Saved on the tablet' }] });
-  assert.match(ui.html(ui.h(ui.Transport, { initial: { sequence: SEQ } })), /<option value="sequence:tab"[^>]*>Saved on the tablet</);
+  given({ control: { programme: 'sequence', playing: true }, sequence: STATUS, sequences: [{ id: 'set1', name: 'Set one' }, { id: 'tab', name: 'Saved on the tablet' }] });
+  assert.match(ui.html(ui.h(ui.Transport, { initial: { sequence: SEQ } })), /<option value="tab"[^>]*>Saved on the tablet</);
 });
 
-test('with no sequence loaded the transport controls the look', () => {
-  given({ running: false, sequence: { ...STATUS, loaded: null, playing: false, lanes: [] }, sequences: [{ id: 'set1', name: 'Set one' }] });
+test('without a sequence the look has no duplicate global transport buttons', () => {
+  given({ control: { programme: 'look', playing: false }, running: false,
+    sequence: { ...STATUS, loaded: null, playing: false, lanes: [] }, sequences: [{ id: 'set1', name: 'Set one' }] });
   const html = ui.html(ui.h(ui.Transport, { initial: { sequence: null } }));
-  assert.match(html, /<option value="look" selected[^>]*>Look by hand</);
-  assert.match(html, /aria-label="Play look"/);
-  assert.doesNotMatch(html, /aria-label="Play look"[^>]*disabled/);
-  assert.doesNotMatch(html, /transport-position/);
+  assert.doesNotMatch(html, /<button|transport-picker|transport-position/);
+  const global = ui.html(ui.h(ui.GlobalControls));
+  assert.match(global, /aria-label="Global show controls"/);
+  for (const label of ['Start', 'Stop', 'Freeze', 'Blackout', 'Arm']) assert.match(global, new RegExp(`>${label}</button>`));
 });
 
-test('a frozen look is a pressed Freeze with its state named, and no second stop', () => {
+test('whole-picture Freeze stays in global controls and does not create secondary look transport', () => {
   const look = { ...STATUS, loaded: null, playing: false, lanes: [] };
-  given({ running: false, sequence: look });
-  let html = ui.html(ui.h(ui.Transport, { initial: { sequence: null } }));
-  assert.match(html, /aria-label="Freeze look" aria-pressed="true"/);
-  assert.match(html, /aria-label="Play look" aria-pressed="false"/);
-  assert.doesNotMatch(html, /Stop look/);
-  assert.match(html, /class="transport-state"[^>]*>Look · frozen — holding the last picture; pads still play</);
-  given({ running: true, sequence: look });
-  html = ui.html(ui.h(ui.Transport, { initial: { sequence: null } }));
-  assert.match(html, /aria-label="Play look" aria-pressed="true"/);
-  assert.match(html, /class="transport-state"[^>]*>Look · playing</);
-  assert.doesNotMatch(html, /frozen/);
-  assert.doesNotMatch(ui.html(ui.h(ui.Transport, { compact: true })), /transport-state/);
+  for (const playing of [true, false]) {
+    given({ control: { version: 1, programme: 'look', playing, frozen: true }, running: playing, sequence: look });
+    const html = ui.html(ui.h(ui.Transport, { initial: { sequence: null } }));
+    assert.doesNotMatch(html, /<button|Freeze|Resume|transport-state/);
+    const global = ui.html(ui.h(ui.GlobalControls));
+    assert.match(global, /aria-pressed="true"[^>]*>Resume<\/button>/);
+    assert.match(global, />Stop<\/button>/);
+  }
+  assert.equal(ui.html(ui.h(ui.Transport, { compact: true })), '');
 });
 
 const FEED = {

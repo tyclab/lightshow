@@ -1,5 +1,6 @@
 import { DEFAULT_BACKGROUND } from '../shared/background.ts';
 import type { BackgroundSettings } from '../shared/background.ts';
+import { control } from './control.ts';
 import { isHueProfile } from '../shared/hue-lamp.ts';
 import { BUILTIN_PROFILE_ID, BUILTIN_PROFILE_IDS, getProfile, listProfiles } from './profiles.ts';
 import { settings } from './settings.ts';
@@ -91,7 +92,7 @@ const state: ShowState = {
   // The clock's default; apply.ts restores the stored mode through applyPatch, which tells the clock.
   tempoMode: 'auto',
   beatDivision: 1,
-  running: true,
+  running: false,
   pattern: 'chase',
   colorA: 0,
   colorB: 6,
@@ -150,6 +151,7 @@ state.fixtures = Array.from({ length: 4 }, (_, i) => ({
 const voiceListeners = new Set<() => void>();
 
 const voices = new VoiceManager({
+  beforeLaunch: () => control.requirePads(),
   now: () => performance.now(),
   // The beat the engine reads next, the grid line and the tempo from one reading.
   reading: () => conductor.peek(),
@@ -197,7 +199,7 @@ function onVoicesChange(fn: () => void): () => void {
 }
 
 // What the free clock was last told. It starts running, as the patterns do.
-let freeClockRunning = true;
+let freeClockRunning = false;
 
 // Whether the sequencer's transport moves (sequencer.ts runs()); false while none is registered.
 let sequenceRuns: () => boolean = () => false;
@@ -350,6 +352,7 @@ function getCatalogs() {
 // The catalogues go once on connect and dmxSnapshot on its own channel, so neither is here.
 function getLiveState() {
   return {
+    control: control.snapshot(),
     // Copies, not references: these leave the module.
     artnet: { ...state.artnet },
     bpm: state.bpm,

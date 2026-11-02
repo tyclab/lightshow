@@ -57,7 +57,7 @@ test('seek and previous move the playhead without starting playback', async ({ p
   await page.getByLabel('Seek to beat (from 0)').fill('33.5');
   await page.getByRole('button', { name: 'Seek', exact: true }).click();
   await expect.poll(() => position(request)).toBe(33.5);
-  await page.getByRole('button', { name: 'Previous', exact: true }).click();
+  await page.getByRole('button', { name: 'Previous row', exact: true }).click();
   await expect.poll(() => position(request)).toBe(16);
   expect((await state(request)).sequence.playing).toBe(false);
 });
@@ -90,18 +90,23 @@ test('six-eight transport and loop inputs count eighth-note beats', async ({ pag
   await expect.poll(async () => (await current(request)).loop).toEqual({ on: true, startBeat: 4.5, endBeat: 7.5 });
 });
 
-test('playlist rows start, jump and stop through pointer or keyboard', async ({ page, request }) => {
+test('playlist rows navigate with pointer or keyboard; global Start and Stop control playback', async ({ page, request }) => {
   expect((await request.put('/api/sequence', { data: { ...sequence(), mode: 'playlist' } })).ok()).toBe(true);
   await open(page, 'sequence');
+  const controls = page.getByRole('group', { name: 'Global show controls' });
+  await controls.getByRole('button', { name: 'Stop', exact: true }).click();
   await page.locator('.seq-block').nth(1).click();
+  expect((await state(request)).sequence.playing).toBe(false);
+  await controls.getByRole('combobox', { name: 'Programme', exact: true }).selectOption('sequence');
+  await controls.getByRole('button', { name: 'Start', exact: true }).click();
   await until(request, (s) => s.sequence.playing && s.sequence.lanes[0].clip === 'second');
   await page.locator('.seq-block').nth(2).focus();
   await page.keyboard.press('Enter');
   await until(request, (s) => s.sequence.playing && s.sequence.lanes[0].clip === 'third');
-  // The page hears of the change up to 100 ms after the server (broadcastSoon): click once it shows the row playing.
-  await expect(page.locator('.seq-block').nth(2)).toHaveAttribute('aria-label', /^Stop /);
   await page.locator('.seq-block').nth(2).click();
-  await until(request, (s) => s.sequence.stopped === 'hold');
+  expect((await state(request)).sequence.playing).toBe(true, 'a row never silently stops the programme');
+  await controls.getByRole('button', { name: 'Stop', exact: true }).click();
+  await until(request, (s) => !s.control.playing && !s.sequence.playing);
 });
 
 test('pattern rename and mapping change the fixture used by later inserts', async ({ page, request }) => {

@@ -76,9 +76,9 @@ the server under its supervisor. Complete or skip the first-run wizard; its
 controls remain available in Rig, Sources and Settings.
 
 The server always starts **disarmed**, including after a crash or restart.
-Previewing still works. Arm from the strip above any live view, Settings →
-Show, Companion, or `POST /api/outputs/arm` when the rig should transmit. Arming alone does not
-start the pattern engine.
+It also starts with the programme stopped and no held picture or pad leases. A saved
+Blackout stays active. Use the global header on any tab or the versioned
+`/api/control` endpoint when the rig should transmit. Arming does not start the programme.
 
 ### Packaged builds
 
@@ -186,10 +186,10 @@ draws the rendered look that arming would send and the label becomes **Preview (
 is saved in this browser across reloads and shared by both views.
 They say **Live output** once outputs are armed.
 
-The sticky header keeps **Outputs**, **Look** play/freeze and **Blackout** clickable
-in every view, including while scrolling through Show. Look playback appears when
-the manual look drives the room. Disarming does not freeze it: the look keeps playing
-in the preview and is on the rig again as soon as the outputs are armed.
+The sticky header keeps Programme, Start/Stop, Freeze/Resume, Blackout/Restore,
+Arm/Disarm and Master available in every view, including while scrolling through
+Show. Disarm ends the physical streams and clears voices; it preserves programme
+playback, Freeze and Blackout. Re-arming reveals the current picture.
 
 **Audition effects** in Stage or the fixture plot plays any current or saved effect
 against a deterministic 124 BPM demo: build, drop, breakdown and groove, with
@@ -264,23 +264,22 @@ to effects; pad banks launch effects or patterns over the look.
 | Perform | 3 | Pads and Matrix, transport, strobe, tap, colours, the room picture's colour grade and the intensity fader |
 | Stage | 4 | Monitor the rendered rig in 3D, import a room and bind its lights |
 | Auto Show | 5 | Analyse music, choose its source, run the generated show; Timeline tab for rehearsal and edits |
-| Sequence | 6 | Create/load sequences; shared transport and recording; lanes, clips and patterns behind Edit |
+| Sequence | 6 | Create/load sequences; timeline tools and recording; lanes, clips and patterns behind Edit |
 | Rig | 7 | Plan, patch, fixture profiles and outputs |
 | Sources | 8 | Playback sources, live input, analysis environment and models |
 | Settings | 9 | Show behaviour, safety, MIDI, engine and server access |
 | Preflight | 0 | Run the pre-show checks |
 
-Above every live view — Show to Sequence — one strip carries the switches a
-party needs wherever it is: arm and the picture source, the auto show on or
-off, blackout and the master. It is rendered once by the app shell; the setup
-views have none, and no view repeats its controls below it.
+The global controls appear once in the app header, including setup views.
+The live view strip keeps the picture-source choice; choosing content never
+starts the programme or releases Freeze or Blackout.
 
 Hashes open a view directly, such as `/#perform` or `/#rig/outputs`.
 Show opens by default. Old `#manual`, `#timeline` and `#matrix` bookmarks redirect
-to Effects, Auto Show → Timeline and Perform → Matrix. The shared transport names
-the look, Auto Show or sequence it controls; its Play, Freeze or Pause and Stop
-buttons stay pressed while that state holds, and a status line names it (a
-frozen look holds its last picture while pads still play).
+to Effects, Auto Show → Timeline and Perform → Matrix. The global header stays
+in one place on every tab: Programme, Start, Stop, Freeze/Resume, Blackout/Restore,
+Arm/Disarm and Master. Sequence tools retain timeline Pause and row navigation.
+Start resumes a paused sequence timeline; Resume releases only the picture hold.
 The view strip scrolls with its arrow buttons; keyboard arrows, Home and End
 work while a view tab is focused.
 
@@ -601,6 +600,21 @@ Use Rig, Sources and Settings, then **Apply**. `GET /api/settings` reports
 settings with secrets blanked, per-secret presence flags and pending restart
 keys; `PUT /api/settings` changes selected fields.
 
+Art-Net routing is part of the saved rig in `show.json`; the settings API exposes
+that same route. A routing save or show import validates the whole patch, writes
+one complete rig document, then publishes it to the renderer. Success includes
+`saved: true`, `revision` and `applied: true` after the coherent frame is accepted
+by the local sender. This does not confirm UDP delivery at a fixture. A sender
+failure returns `saved: true, applied: false` and an error; the committed rig stays
+saved. A superseded request cannot claim that its older rig was applied.
+
+Save Art-Net separately from other settings: mixed requests are rejected before
+any changes with `mixed_settings_domains`. Outputs, the setup wizard, node
+**Send only here** and **Undo** all wait for this result. Old physical destinations
+receive dark frames and their required ArtSync on their original ports before new
+destinations receive light. Failed retirement is retried and withholds application.
+New mapping revisions discard delayed and partially staged colours.
+
 | Section | Fields and defaults |
 |---------|---------------------|
 | `server` | `host: '127.0.0.1'`, `port: 3000`, `token: ''`, `publicUrl: ''` |
@@ -632,16 +646,38 @@ Other settings apply immediately. The UI lists pending restart keys.
 | Location | Contents |
 |----------|----------|
 | `config/settings.json` | Settings and credentials; gitignored, mode 0600 |
-| `config/show.json` | Fixture patch and custom profiles |
+| `config/show.json` | Canonical Art-Net routing, fixture patch and custom profiles |
 | `config/cues.json` | Saved looks |
 | `config/midi-map.json` | Custom MIDI map |
 | `config/effects.json`, `palettes.json`, `pads.json`, `sequences.json` | Effect library, palettes, global pad deck, sequences, reusable patterns and named pad layouts |
 | `config/sequence-workspace.json` | Recovery copy of the loaded sequence, playhead and pending take |
-| `config/look.json` | Supervisor recovery snapshot |
+| `config/look.json` | Saved look content and Blackout; playback restarts stopped |
 | `config/stage-room.json` | Optional private Stage geometry and light bindings; mode 0600 |
 | `cache/` | Analysis cache |
 | `logs/` | Structured logs |
 | `.venv/` | Managed analysis environment |
+
+Settings and rig files use versioned envelopes. Legacy files are validated and
+backed up privately as `.pre-v1-*` before migration. The existing legacy picture-grade
+and source-name migrations still run once. Choices saved in the versioned format
+remain explicit, including values equal to former defaults. Unknown future versions
+refuse writes.
+If legacy settings and show routing disagree, outputs remain disarmed and Rig →
+Outputs offers both routes for an explicit choice. Existing fixture universes are
+preserved when resolving that conflict.
+
+For a downgrade, export compatible settings and show files together:
+
+```sh
+node scripts/export-config-rollback.ts ./config ../lightshow-rollback
+```
+
+The destination must be new. It contains private files and a `COMPLETE.txt` marker;
+the running configuration is untouched. After the normal safe-stop checks, restore
+both files with the matching old binary. Never start an old strict loader against
+the new envelope. Preserve the original backups too. Legacy binaries apply the
+former-default migrations to flat files, so recheck intentional picture-grade and
+source-name choices after rollback.
 
 The checkout is the default data directory. `LIGHTSHOW_DATA_DIR` moves the
 whole data tree; `LIGHTSHOW_CONFIG_DIR`, `LIGHTSHOW_CACHE_DIR` and
@@ -725,7 +761,8 @@ Art-Net and sACN can run together. Universe mappings and the selected network
 interface are configured under Rig → Outputs. Preflight detects overlapping
 patches, output reachability problems and competing sACN sources.
 
-Disarm stops pattern playback and all voices. It sends a dark frame, terminates
+Disarm clears voices while preserving programme playback and the picture hold.
+It sends a dark frame, terminates
 sACN streams, stops DDP updates, closes OpenRGB connections and releases Hue
 Entertainment sessions. Master blackout keeps the outputs owned and streaming.
 
@@ -1256,8 +1293,8 @@ Timing and playlist settings are under Edit; saved tempo, music mode and initial
 palette take effect on Play. Select a clip to edit its timing/targets or open its
 effect settings. Apply to clip embeds that edited effect without changing its
 source preset. **Hold on live rig** launches a live voice using the clip's targets and releases on exit. **Audition on Stage** previews the draft locally while disarmed.
-Playlist rows support click or keyboard activation to start/jump; activating the
-playing row stops it. Saved patterns can be renamed, mapped to lanes or deleted.
+Playlist rows move the playhead by click or keyboard without starting or stopping
+the programme. Choose Sequence in the global controls and use Start or Stop. Saved patterns can be renamed, mapped to lanes or deleted.
 Clips can carry a name; selected clips can be grouped, moved together by beats
 or lanes, and ungrouped. Command rows have Run now.
 
@@ -1301,10 +1338,10 @@ Playlist mode requires one shared lane with non-overlapping chronological rows.
 
 | Transport | Behaviour |
 |-----------|-----------|
-| Play | Start or resume; runs even while the base engine is stopped |
+| Global Start | Start the selected sequence, or resume its paused timeline |
 | Pause | Hold sequence position while selected clips continue looping |
-| Stop | Freeze the last base/sequence picture; `blackout=1` freezes black |
-| Unload | Release the held picture and return ownership to the base look |
+| Global Stop | Clear programme and pad foreground; show only the background, preserving Freeze, Blackout and Arm |
+| Unload | Clear the loaded document after global Stop; does not start Look |
 | Next/previous/shuffle/jump/seek | Select another position or clip |
 | Resync | Align to beat or bar; 6/8 is three quarter-note beats per bar |
 
@@ -1344,7 +1381,7 @@ available. The Header and Perform acknowledgement indicator opens the warning.
 | `safety.hdFlashIntervalMs`, default 350 | Per-lamp bright-rise interval for the Party effects (`hd.*`); not Disco or every effect family |
 | `safety.flashLimit`, default false | Limit large-area flashing to three flashes per second |
 | Master blackout | Darken the show while retaining output ownership |
-| Disarm | Darken/release output streams, stop the base and clear voices |
+| Disarm | Darken/release output streams and clear voices; programme, Freeze and Blackout remain unchanged |
 
 Other rapid loop/latched effects do not inherit the manual strobe cap.
 Hue flash/pulse adaptation preserves the exemptions described under
@@ -1590,6 +1627,31 @@ actions and feedback. The module uses Socket.IO protocol 2. See
 [installation](companion-module/INSTALL.md) and
 [action/feedback reference](companion-module/companion/HELP.md).
 
+## Global control contract
+
+`GET /api/control` returns `{ ok, control }`. Send a deliberate action with the
+last displayed `version: 1`, `session` and `revision` to `POST /api/control`, plus
+`action` and optional `programme` (`look`, `auto`, `sequence`). Actions are
+`select`, `start`, `stop`, `freeze`, `resume`, `arm`, `disarm`, `blackout`, `restore`.
+A successful response follows the renderer acknowledgement. A 409 requires a
+refresh and a new operator action; never fetch a newer revision and retry silently.
+Protective Stop, Disarm and Blackout also accept stale revisions. While the renderer
+is starting, enabling or releasing actions return 503 before changing state; the
+protective actions remain available.
+
+Freeze holds the complete logical picture, including background, pads, sequence,
+pixels and Identify, before live masters and output safety. New or incompatible
+fixture cells remain dark. Freeze does not pause programme time; Resume shows the
+current picture and never starts a stopped programme. Pads pressed while frozen
+are rejected, not queued. If the render worker loses its held picture, the server
+reports that reason and holds dark until Resume. Blackout always darkens Identify
+as well. Freeze under Blackout holds the underlying scene.
+
+Content edits, cues, analysis completion and recovery cannot start, arm, release
+Freeze or release Blackout. `/api/set` transport fields and analysis `start:true`
+return 409. Global Stop cancels pending auto starts, ends the programme and voices,
+and leaves background settings and the other global controls unchanged.
+
 ## Home Assistant integration surface
 
 Use authenticated REST commands and a sensor polling `/api/state`; the server
@@ -1599,9 +1661,9 @@ from POST/PUT/DELETE actions.
 
 | Integration function | API/state |
 |----------------------|-----------|
-| Ownership switch | `POST /api/outputs/arm` and `/disarm`; state `armed` |
-| Base playback | `POST /api/play`, `/stop`, `/api/pattern/:id`; state `running`, `pattern` |
-| Master | `/api/master/:value`, `/api/blackout/on` or `/off`; `masterDimmer`, `masterBlackout` |
+| Ownership switch | `/api/control` actions `arm` / `disarm`; state `control.armed` |
+| Programme and picture | `/api/control` actions `select`, `start`, `stop`, `freeze`, `resume`; state `control` |
+| Master | `/api/master/:value`; `/api/control` actions `blackout` / `restore`; `masterDimmer`, `control.blackout` |
 | Palette | `PUT /api/palette-override` with `{ paletteId }`; clear with DELETE; feedback `paletteOverrideId` plus materialised `paletteOverride` |
 | Pads | Press/renew/release, toggle or once; `pads.layout`, `pads.lit` |
 | Voices | GET/POST/DELETE `/api/voices`; state `voices` |
@@ -1614,11 +1676,9 @@ from POST/PUT/DELETE actions.
 
 Disarm when releasing the rig to the house. Blackout alone does not release
 Hue Entertainment, WLED realtime control or OpenRGB ownership. Every restart
-is disarmed; an integration must deliberately re-arm. A disarm ends the streams
-and clears the voices and the energy effect; it leaves the look playing, so the
-header reads Look · Frozen only after Freeze look (or `POST /api/stop`). An arm
-with no patterns running (they run from start), no voice, no sequence playing (a paused one
-counts as stopped), no auto show and no pixel input at every 10 s check for
+is disarmed; an integration must deliberately re-arm. Disarm leaves programme
+transport and the picture hold unchanged. If no programme, voice, sequence,
+auto show or pixel input is active at every 10 s check for
 `outputs.idleDisarmMin` minutes (15) is disarmed as `/api/outputs/disarm`
 would. Surface a 409 safety refusal to the operator instead of retrying it as
 an acknowledgement.
@@ -1646,12 +1706,13 @@ All endpoints return JSON. When a token is configured, send it as an
 | GET | `/api/stage/room/report` | Read-only: `{ ok, revision, units, unbound, shared, far }`, where the [Spatial effects](#spatial-effects) place each unit against the room bindings and the Rig plot |
 | POST | `/api/set` | Patch state fields (JSON body) |
 | POST | `/api/tap` | Tap tempo |
-| POST | `/api/play` · `/api/stop` | Start / stop the pattern engine |
+| GET · POST | `/api/control` | Versioned explicit global controls; see contract below |
+| POST | `/api/play` · `/api/stop` | Retired ambiguous transport; returns 409 with upgrade guidance |
 | POST | `/api/bpm/:value` | Set BPM (20–300, fractions allowed) |
 | POST | `/api/bpm/adjust/:delta` | Nudge BPM |
 | POST | `/api/tempo/auto` · `/api/tempo/manual` | Automatic tempo match on (follow the music) or off (keep the tapped or typed BPM); `auto` while on ends a tempo held by hand; answers `{ ok, tempoMode, clock }`, stored across restarts |
 | POST | `/api/master/:value` | Master dimmer (0–255) |
-| POST | `/api/blackout/toggle` · `/api/blackout/on` · `/api/blackout/off` | Master blackout |
+| POST | `/api/blackout/on` | Protective compatibility alias for global Blackout; toggle/off return 409 |
 | POST | `/api/pattern/:id` | Set pattern (e.g. `chase`, `rainbow`) or an effect preset as the base look; an unknown id is taken and plays nothing |
 | POST | `/api/color/:slot/:index` | Set colour slot `a`–`d` (index 0–23) |
 | GET | `/api/palettes` | The unified catalogue and legacy look sizes, plus the selected base |
@@ -1714,7 +1775,7 @@ Transport routes answer `{ ok, status }`; with no sequence loaded they answer
 | DELETE | `/api/sequence` | Unload it: nothing is loaded, a running take is dropped, and the look is the rig's base again |
 | GET · POST | `/api/sequences` | The saved sequences · save one (201; 409 if the id is taken) |
 | GET · PUT · DELETE | `/api/sequences/:id` | One saved sequence |
-| POST | `/api/sequence/play` · `pause` · `stop` · `next` · `prev` · `shuffle` | Transport; `stop?blackout=1` (or `{ blackout: true }`) goes black |
+| POST | `/api/sequence/pause` · `next` · `prev` · `shuffle` | Timeline tools; programme Start/Stop use `/api/control`; legacy play/stop return 409 |
 | POST | `/api/sequence/seek/:beat` · `/api/sequence/jump/:clipId` | Go to a beat · to a clip |
 | POST | `/api/sequence/resync/:boundary` | `beat` or `bar` |
 | POST | `/api/sequence/loop` | `{ on, startBeat, endBeat }` |
@@ -1766,7 +1827,7 @@ Transport routes answer `{ ok, status }`; with no sequence loaded they answer
 
 | Method | Path | Description |
 |--------|------|-------------|
-| POST | `/api/outputs/arm` · `/api/outputs/disarm` · `/api/outputs/toggle` | Whether anything leaves the machine (`{ armed }` back). Disarm ends every stream — a black frame, the sACN terminate, a dark frame to each WLED, a dark frame to each OpenRGB device and its connection closed, a dark frame and the session closed on each Hue bridge — and clears every voice; the look keeps playing; arm resumes transmit. Stored as `outputs.armed`, applied at once, always off at start |
+| POST | `/api/outputs/disarm` | Protective compatibility alias: darken and end all output streams, clear voices, preserve programme and global latches. Legacy arm/toggle and `outputs.armed` settings writes return 409 |
 | GET | `/api/artnet/nodes` | The Art-Net nodes that answered, with the universes each outputs, and whether frames are being routed by them; `?scan=1` asks the network now |
 | GET | `/api/network/interfaces` | This machine's IPv4 addresses and their broadcast addresses, for sACN's network and the Art-Net target |
 | POST | `/api/artnet/identify` | `{ address, universes?, seconds? }`: send the node ArtAddress *locate* (and *normal* after), and identify the fixtures on the universes it outputs |
@@ -1803,7 +1864,7 @@ Transport routes answer `{ ok, status }`; with no sequence loaded they answer
 | POST | `/api/auto/analyze-spotify` · `-nowplaying` · `-deezer` · `-prolink` | Analyse what's playing on that source |
 | POST | `/api/auto/download-analyze` | Analyse a YouTube URL or search |
 | POST | `/api/auto/analyze-upload` | Analyse an uploaded audio file (multipart `audio`) |
-| POST | `/api/auto/start` · `/api/auto/stop` · `/api/auto/reset` | Playback control |
+| POST | `/api/auto/reset` | Clear analysis after stopping the auto programme; legacy start/stop return 409 |
 | POST | `/api/auto/intensity/:value` | Generated-show energy, 0–100 |
 | POST | `/api/auto/palette-size/:value` | Colours per song: 2, 3 or 4 |
 | POST | `/api/auto/sync-offset/:value` | Light/music sync offset in ms, −2000 to 2000 |

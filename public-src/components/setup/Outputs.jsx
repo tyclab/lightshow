@@ -1,6 +1,6 @@
 import { hueChannels } from '../../../src/shared/hue-lamp.ts';
 import { useEffect, useRef, useState } from 'preact/hooks';
-import { pick, send, connectedSig, toast } from '../../state.js';
+import { pick, connectedSig, toast } from '../../state.js';
 import { settingsSig, loadSettings, saveSettings, networkInterfaces, post, at } from '../../setup-state.js';
 import { footprintOf, hasNoAddress } from '../../../src/shared/placement.ts';
 import { identify } from '../../rig-ui.js';
@@ -47,10 +47,11 @@ function ArtnetNodes({ nodes, setNodes }) {
           : 'Find Nodes asks the network which Art-Net nodes are there.');
   };
   useEffect(() => { load(false); }, []);
-  const sendTo = (address) => {
+  const sendTo = async (address) => {
     const before = s.artnet && s.artnet.host;
-    send({ artnet: { host: address } });
-    toast.push({ message: `Art-Net now goes to ${address} only`, action: before ? { label: 'Undo', onClick: () => send({ artnet: { host: before } }) } : undefined });
+    const result = await saveSettings({ artnet: { host: address } });
+    if (!result.ok) { setStatus(result.error || 'Routing was not applied'); return; }
+    toast.push({ message: `Art-Net now goes to ${address} only`, action: before ? { label: 'Undo', onClick: () => sendTo(before) } : undefined });
   };
   const locate = async (node) => {
     const res = await post('/api/artnet/identify', { address: node.address, universes: node.outputs || [] });
@@ -95,16 +96,24 @@ function ArtnetNodes({ nodes, setNodes }) {
 function Artnet({ nodes, setNodes }) {
   const s = pick(['artnet']);
   const live = { artnet: s.artnet || {} };
-  // Through the socket, as the patch's own edits go: a new default universe
-  // takes the fixtures on the old one with it, and the saved show follows.
-  const apply = async (patch) => {
-    if (!patch.artnet) return { ok: true };
-    if (!send({ artnet: patch.artnet })) return { ok: false, error: 'Disconnected — reconnect and apply again' };
-    setTimeout(() => loadSettings(), 400);
-    return { ok: true };
+  const apply = patch => saveSettings(patch);
+  const conflict = settingsSig.value?.rig?.routingConflict;
+  const [resolution, setResolution] = useState('');
+  const resolve = async source => {
+    setResolution('Saving routing…');
+    const result = await post('/api/rig/resolve-routing', { source });
+    await loadSettings();
+    setResolution(result.ok ? '' : result.error || 'Routing was not applied');
   };
   return (
     <SettingsSection {...ARTNET} stored={(path) => at(live, path)} onApply={apply}>
+      {conflict && <div role="alert">
+        <p>The saved show and previous settings have different Art-Net routes. Outputs stay disarmed until you choose. Fixture universe assignments are preserved.</p>
+        <p>Show: {conflict.show.host}:{conflict.show.port}, default universe {conflict.show.universe}. Previous settings: {conflict.settings.host}:{conflict.settings.port}, default universe {conflict.settings.universe}.</p>
+        <button type="button" class="btn" onClick={() => resolve('show')}>Use show routing</button>
+        <button type="button" class="btn" onClick={() => resolve('settings')}>Use previous settings</button>
+      </div>}
+      {resolution && <p role="status">{resolution}</p>}
       <ArtnetNodes nodes={nodes} setNodes={setNodes} />
     </SettingsSection>
   );

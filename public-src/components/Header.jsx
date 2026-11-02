@@ -1,7 +1,7 @@
 import { NowPlaying } from './NowPlaying.jsx';
-import { api, connectedSig, pick, send } from '../state.js';
+import { connectedSig, pick } from '../state.js';
 import { formatBpm, clockSource } from '../utils.js';
-import { driverOf } from '../transport-model.js';
+import { GlobalControls } from './GlobalControls.jsx';
 import { useState } from 'preact/hooks';
 import { awakeSig, fullscreenSig, setAwake, toggleFullscreen, canFullscreen } from '../device.js';
 import { StrobesOff, isAcknowledged } from './Photosensitivity.jsx';
@@ -83,9 +83,6 @@ export function Header() {
   const connected = connectedSig.value;
   const s = pick(['bpm', 'clock', 'running', 'masterDimmer', 'masterBlackout', 'energyOverride', 'flashLimit', 'autoShow', 'armed', 'sequence', 'showOn', 'safety']);
   const blackout = !!s.masterBlackout;
-  const driver = driverOf(s);
-  const under = driver === 'look' ? '' : ` — the main effect under the ${driver === 'auto' ? 'auto show' : 'sequence'}`;
-  const frozen = s.running === false;
   const energy = s.energyOverride;
   const auto = s.autoShow && s.autoShow.status;
 
@@ -100,27 +97,8 @@ export function Header() {
       <span class="site-kicker" aria-hidden="true">{KICKER}</span>
 
       <div class="header-stats">
-        <button type="button" class={`stat-pill control ${s.armed ? 'live' : ''}`} disabled={!connected || s.armed == null}
-          aria-label={s.armed ? 'Disarm outputs' : 'Arm outputs'} aria-pressed={!!s.armed}
-          onClick={() => api(s.armed ? '/api/outputs/disarm' : '/api/outputs/arm', { method: 'POST' })}
-          title={s.armed ? 'Disarm outputs: stop sending frames; the look keeps playing' : 'Arm outputs: send frames to the rig'}>
-          <span class="label">Outputs</span>
-          <span>{s.armed == null ? '—' : s.armed ? 'Armed' : 'Disarmed'}</span>
-        </button>
-        <button type="button" class={`stat-pill control${frozen ? ' energy frozen' : ''}`} disabled={!connected}
-          aria-label="Look playback" aria-pressed={!frozen} onClick={() => send({ running: frozen })}
-          title={`${frozen ? 'Play look: animate the look; outputs stay as they are' : 'Freeze look: hold the current picture; pads still play'}${under}`}>
-          <span class="label">Look</span>
-          <span>{frozen ? 'Frozen' : 'Playing'}</span>
-        </button>
         <BpmPill bpm={s.bpm} running={!!s.running} source={s.clock && s.clock.source} />
         <MasterPill master={s.masterDimmer} blackout={blackout} />
-        <button type="button" class={`stat-pill control${blackout ? ' alert' : ''}`} disabled={!connected}
-          aria-label="Master blackout" aria-pressed={blackout} onClick={() => send({ masterBlackout: !blackout })}
-          title={blackout ? 'Release blackout: restore the current look' : 'Blackout: darken every light'}>
-          <span class="label">Blackout</span>
-          <span>{blackout ? 'ON' : 'OFF'}</span>
-        </button>
         <div class={`stat-pill${energy ? ' energy' : ''}`} title={energy ? `Energy override: ${energy}` : 'Energy override: none'}>
           <span class="label">Energy</span>
           <span>{energy ? energy.replace(/-/g, ' ') : 'off'}</span>
@@ -145,6 +123,7 @@ export function Header() {
         </div>
       </div>
       <DeviceTools />
+      <GlobalControls />
       <div class="header-now"><NowPlaying /></div>
     </header>
   );

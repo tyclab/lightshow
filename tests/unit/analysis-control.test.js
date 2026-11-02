@@ -1,14 +1,17 @@
-// Analysis the operator can steer: call it off, have the show start once it
-// is in (held on the server, so a tab switch or a closed page does not lose
-// it), and hear why it failed.
+// Analysis can be cancelled and reports its outcome. Playback always needs
+// a separate fresh control action; analysis completion cannot override Stop.
 
 import test from 'node:test';
+import { installControlRuntime, sendControl } from './control-runtime-helpers.js';
 import assert from 'node:assert';
 import path from 'node:path';
 import express from 'express';
 
 import AnalyzerWorker from '../../src/analyzer-worker.ts';
 import AutoShow from '../../src/auto-show.ts';
+import { Sequencer } from '../../src/server/sequencer.ts';
+import { createApplier } from '../../src/server/apply.ts';
+import { applyPatch } from '../../src/server/patch.ts';
 import { attachRoutes } from '../../src/server/routes.ts';
 import { cancelledError, isCancelled } from '../../src/errors.ts';
 
@@ -91,14 +94,15 @@ test('a failed analysis says why, until the next one starts', async () => {
 
 // ── The routes ───────────────────────────────────────────────────────────────
 
-async function withApp(fn) {
+async function withApp(t, fn) {
+  applyPatch({ running: false, masterBlackout: false });
   const calls = { started: 0, gate: null };
   const autoShow = {
     track: null,
     startPending: null,
     analysis: null,
     downloadAndAnalyze() {
-      return new Promise((resolve, reject) => { calls.gate = { resolve, reject }; });
+      return new Promise((resolve, reject) => { calls.gate = { resolve: () => { autoShow.analysis = { bpm: 112 }; resolve(); }, reject }; });
     },
     cancelAnalysis() {
       calls.gate.reject(cancelledError());
@@ -108,58 +112,82 @@ async function withApp(fn) {
   };
   const integrations = {
     broadcast() {}, prefetchNextFromQueue() {},
+    sequence: { sequencer: new Sequencer({ resolve: () => null }) },
+    resolveAutoSource: () => 'spotify',
     startAutoShow() { calls.started++; return 'spotify'; },
     stopAutoShow() {},
   };
   const spotify = { authenticated: true, getCurrentlyPlaying: async () => ({ trackId: 't', name: 'N', artist: 'A', album: '', durationMs: 180000 }) };
   const app = express();
   app.use(express.json());
-  attachRoutes(app, { autoShow, integrations, spotify });
+  const applier = createApplier({
+    midi: { close() {}, connect() { return true; }, setControlFeedback() {} },
+    spotify: { localCallbackUrl: '', setLoopbackPort() {}, configure() {} },
+    smtc: { start() {}, stop() {} }, deezer: { init: async () => {} }, applyPatch, broadcast() {},
+  });
+  installControlRuntime(t, { autoShow, integrations, applier });
+  attachRoutes(app, { autoShow, integrations, spotify, applier });
   const server = await new Promise((r) => { const s = app.listen(0, '127.0.0.1', () => r(s)); });
-  const post = (route, body) => fetch(`http://127.0.0.1:${server.address().port}${route}`, {
-    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body || {}),
+  const call = (method, route, body) => fetch(`http://127.0.0.1:${server.address().port}${route}`, {
+    method, headers: { 'Content-Type': 'application/json' }, body: body === undefined ? undefined : JSON.stringify(body),
   }).then(async (res) => ({ status: res.status, body: await res.json() }));
+  const post = (route, body) => call('POST', route, body);
   const settle = async () => { for (let i = 0; i < 20 && !calls.gate; i++) await new Promise((r) => setTimeout(r, 5)); };
   try {
-    await fn({ post, calls, autoShow, settle });
+    await fn({ post, call, calls, autoShow, settle });
   } finally {
     await new Promise((r) => server.close(r));
   }
 }
 
-test('asked to start, the server starts the show once the analysis is in', async () => {
-  await withApp(async ({ post, calls, autoShow, settle }) => {
-    const reply = post('/api/auto/analyze-spotify', { start: true });
-    await settle();
-    assert.ok(autoShow.startPending, 'held on the server while it analyses');
-    calls.gate.resolve();
-    const { status, body } = await reply;
-    assert.strictEqual(status, 200);
-    assert.strictEqual(body.started, true);
-    assert.strictEqual(calls.started, 1);
+test('legacy analysis-and-start is rejected before analysis or playback begins', async (t) => {
+  await withApp(t, async ({ post, calls, autoShow }) => {
+    const reply = await post('/api/auto/analyze-spotify', { start: true });
+    assert.strictEqual(reply.status, 409);
+    assert.match(reply.body.error, /explicit programme Start\/Stop/);
+    assert.strictEqual(calls.gate, null);
+    assert.strictEqual(calls.started, 0);
     assert.strictEqual(autoShow.startPending, null);
   });
 });
 
-test('a stop while it analyses calls the start off; without start, nothing starts', async () => {
-  await withApp(async ({ post, calls, settle }) => {
-    const reply = post('/api/auto/analyze-spotify', { start: true });
+test('analysis completes stopped and a separate current Start runs the prepared show', async (t) => {
+  await withApp(t, async ({ post, call, calls, autoShow, settle }) => {
+    const reply = post('/api/auto/analyze-spotify');
     await settle();
-    await post('/api/auto/stop');
+    assert.strictEqual(autoShow.startPending, null);
     calls.gate.resolve();
     assert.strictEqual((await reply).body.started, false);
-    calls.gate = null;
-    const plain = post('/api/auto/analyze-spotify');
+    assert.strictEqual(calls.started, 0);
+    assert.strictEqual((await call('GET', '/api/control')).body.control.playing, false);
+    const started = await sendControl(call, 'start', 'auto');
+    assert.strictEqual(started.status, 200);
+    assert.strictEqual(started.body.control.playing, true);
+    assert.strictEqual(started.body.control.programme, 'auto');
+    assert.strictEqual(calls.started, 1);
+  });
+});
+
+test('analysis completion preserves later Stop, Freeze and Blackout and rejects an older Start', async (t) => {
+  await withApp(t, async ({ post, call, calls, settle }) => {
+    const old = (await call('GET', '/api/control')).body.control;
+    const reply = post('/api/auto/analyze-spotify');
     await settle();
+    for (const action of ['freeze', 'blackout', 'stop']) assert.strictEqual((await sendControl(call, action)).status, 200);
     calls.gate.resolve();
-    assert.strictEqual((await plain).body.started, false);
+    assert.strictEqual((await reply).body.started, false);
+    assert.strictEqual(calls.started, 0);
+    const current = (await call('GET', '/api/control')).body.control;
+    assert.deepStrictEqual([current.playing, current.frozen, current.blackout, current.armed], [false, true, true, false]);
+    const stale = await post('/api/control', { version: old.version, session: old.session, revision: old.revision, action: 'start', programme: 'auto' });
+    assert.strictEqual(stale.status, 409);
     assert.strictEqual(calls.started, 0);
   });
 });
 
-test('a cancelled analysis answers as cancelled, not as an error', async () => {
-  await withApp(async ({ post, calls, autoShow, settle }) => {
-    const reply = post('/api/auto/analyze-spotify', { start: true });
+test('a cancelled analysis answers as cancelled, not as an error', async (t) => {
+  await withApp(t, async ({ post, calls, autoShow, settle }) => {
+    const reply = post('/api/auto/analyze-spotify');
     await settle();
     const cancelled = await post('/api/auto/cancel');
     assert.deepStrictEqual(cancelled.body, { ok: true, cancelled: true });

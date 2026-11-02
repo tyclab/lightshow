@@ -1,3 +1,4 @@
+import { checkLegacyControlPatch, control } from './control.ts';
 import { state, getClientState, getFixture, countUniverses, universeOf, placeAddresslessFixtures, voices, legacyEnergy, onVoicesChange } from './state.ts';
 import { applyPatch, applyOverride, processTap } from './patch.ts';
 import { overrideMessageSchema, fixtureMessageSchema, validate } from './validation.ts';
@@ -189,8 +190,17 @@ function attachSockets(io: Server, { midi, integrations }: {
       socket.emit('state', getClientState());
     }
 
-    socket.on('set', (payload) => {
-      try { applyPatch(payload); }
+    socket.on('set', async (payload) => {
+      try {
+        checkLegacyControlPatch(payload);
+        if (payload && Object.hasOwn(payload, 'artnet')) {
+          if (Object.keys(payload).length !== 1) throw new HttpError(400, 'Send routing separately from other settings');
+          const result = await showStore.commitArtnet(payload.artnet);
+          integrations.broadcast();
+          if (!result.applied) throw new HttpError(503, result.error || 'Routing saved but not applied');
+        } else if (payload?.masterBlackout === true) await control.execute({ action: 'blackout' });
+        else applyPatch(payload);
+      }
       catch (err) { socket.emit('error-msg', { source: 'set', message: messageOf(err) }); }
     });
 

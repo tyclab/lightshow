@@ -11,7 +11,7 @@ const sequence = { loaded: { id: 'intro', name: 'Intro' }, beat: 5.5, bar: 2, be
 
 test('status resolves the base name from saved presets first', () => {
   const s = { pattern: 'mine', effects: [{ id: 'mine', name: 'Custom' }], patterns: [{ id: 'mine', name: 'Other' }] };
-  assert.deepEqual(playingState(s).base, { id: 'mine', name: s.effects[0].name, running: true });
+  assert.deepEqual(playingState(s).base, { id: 'mine', name: s.effects[0].name, running: true, frozen: false });
 });
 
 for (const [flags, mode] of [[{ playing: true }, 'playing'], [{ paused: true }, 'paused'], [{ stopped: 'hold' }, 'hold'], [{ stopped: 'black' }, 'black'], [{ ended: true }, 'ended'], [{}, 'loaded']]) {
@@ -81,7 +81,7 @@ for (const kind of ['pattern', 'sequencePattern']) {
 }
 
 test('a frozen main effect reads as frozen, the word its transport button uses', () => {
-  assert.match(nowPlaying({ pattern: 'chase', running: false }), /^Main effect: [^·]* \(frozen\)/);
+  assert.match(nowPlaying({ pattern: 'chase', running: true, control: { frozen: true } }), /^Main effect: [^·]* \(frozen\)/);
   assert.doesNotMatch(nowPlaying({ pattern: 'chase', running: true }), /frozen|stopped/);
 });
 
@@ -101,7 +101,7 @@ const backdrop = (background) => layerText({ background: { ...DEFAULT_BACKGROUND
 test('picture layers read top to bottom: what plays over the main effect, the main effect, the background', () => {
   assert.deepEqual(layerText({ pattern: 'chase' }), ['Pads and overrides: None active', 'Main effect: Chase', 'Background: Follow effect · Whole rig']);
   assert.deepEqual(pictureLayers({}).map((layer) => layer.id), ['above', 'main', 'background']);
-  assert.equal(layerText({ pattern: 'chase', running: false })[1], 'Main effect: Chase (frozen)');
+  assert.equal(layerText({ pattern: 'chase', running: true, control: { frozen: true } })[1], 'Main effect: Chase (frozen)');
   assert.equal(layerText({})[1], 'Main effect: No look');
 });
 
@@ -161,4 +161,10 @@ test('a long list shows the first names and how many more, the full list in the 
   assert.equal(pictureLayers({ voices }).at(0).title, 'Blinder, Kill, UV, Glow, Domino');
   const long = [{ id: 'a', label: 'A long voice label from a pad bank' }, { id: 'b', label: 'Second long voice label' }];
   assert.equal(above({ voices: long }), 'Pads and overrides: A long voice label from a pad bank +1 more', 'the first name always shows');
+});
+
+test('a stopped main effect reads as stopped and is not frozen: the two states are independent', () => {
+  assert.match(nowPlaying({ pattern: 'chase', running: false }), /^Main effect: [^·]* \(stopped\)/);
+  assert.doesNotMatch(nowPlaying({ pattern: 'chase', running: false }), /frozen/);
+  assert.match(nowPlaying({ pattern: 'chase', running: false, control: { frozen: true } }), /^Main effect: [^·]* \(stopped\) \(frozen\)/);
 });

@@ -2,7 +2,6 @@ import os from 'node:os';
 import { startSyncTest, resizeFixtureBuffers } from '../engine.ts';
 import { hueDisconnectSchema, huePairSchema, validate } from '../validation.ts';
 import * as output from '../output.ts';
-import { isArmed } from '../armed.ts';
 import { discoverNodes } from '../artnet.ts';
 import { interfaces } from '../artnet-nodes.ts';
 import { discoverBridges } from '../hue.ts';
@@ -13,11 +12,11 @@ import { pixelInputs } from '../pixel-input-live.ts';
 import { pictureInput, pictureUnits } from '../picture-live.ts';
 import { pictureGradePatchSchema, pictureSourceSchema } from '../validation.ts';
 import { messageOf } from '../../errors.ts';
-import type { Express, Request, Response } from 'express';
+import type { Express } from 'express';
 import type { ArtNode } from '../artnet.ts';
 import type { EntertainmentArea } from '../hue.ts';
 import type { HueBridgeSettings } from '../settings.ts';
-import { asyncHandler, requestOrigin, resolveHueBridge } from './common.ts';
+import { asyncHandler, resolveHueBridge } from './common.ts';
 import type { RouteContext } from './common.ts';
 
 export function attachOutputRoutes(app: Express, ctx: RouteContext): void {
@@ -39,16 +38,6 @@ export function attachOutputRoutes(app: Express, ctx: RouteContext): void {
     applier.applyChanged(settings.update({ picture: { grade: { ...settings.group('picture').grade, ...patch } } }));
     res.json(picture());
   });
-
-  // Disarm voices even when outputs are already off so rehearsal cannot preserve a hidden latch.
-  const answerArmed = (req: Request, res: Response, on: boolean) => {
-    applier.applyChanged(settings.update({ outputs: { armed: on } }), requestOrigin(req));
-    if (!on) applier.disarmed();
-    res.json({ ok: true, armed: isArmed() });
-  };
-  app.post('/api/outputs/arm', (req, res) => answerArmed(req, res, true));
-  app.post('/api/outputs/disarm', (req, res) => answerArmed(req, res, false));
-  app.post('/api/outputs/toggle', (req, res) => answerArmed(req, res, !isArmed()));
 
   // Use bridge-issued pairing and area discovery because these values cannot be ordinary settings fields.
 
