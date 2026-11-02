@@ -296,9 +296,10 @@ const buskState = () => ({
   pattern: 'chase', paletteOverrideId: null, paletteOverride: null, tempoMode: 'auto',
   safety: { photosensitivityAcknowledged: false },
   patterns: [
-    { id: 'solid', legacy: true }, { id: 'chase', legacy: true }, { id: 'breathe', party: true }, { id: 'gradient', pixel: true },
-    { id: 'hd.iceStrike', app: 'hd', rapidFlash: false }, { id: 'ldj.visualizer.firework', app: 'ldj', rapidFlash: true },
-    { id: 'ldj.Swirl', app: 'ldj', rapidFlash: false }, { id: 'energy.whiteStrobe', app: 'own', rapidFlash: true },
+    { id: 'solid', tags: ['static', 'rig'] }, { id: 'chase', tags: ['beat'] }, { id: 'breathe', tags: ['beat', 'rig'] },
+    { id: 'gradient', pixel: true, tags: ['beat', 'bars'] }, { id: 'v2.scatterStrobe', rapidFlash: true, tags: ['beat', 'room', 'rapid'] },
+    { id: 'energy.blinder', tags: ['static', 'rig', 'energy'] }, { id: 'energy.whiteStrobe', rapidFlash: true, tags: ['beat', 'rig', 'energy', 'rapid'] },
+    { id: 'energy.glow', tags: ['static', 'rig', 'energy'] }, { id: 'ldj.Swirl', retired: true, tags: ['beat'] },
   ],
   colorPresets: COLOR_PRESETS,
   builtinPalettes: [{ id: 'redCyan', colours: ['#FF0000', '#00BFFF'] }, { id: 'rainbow', colours: ['#FF0000'] }],
@@ -306,11 +307,14 @@ const buskState = () => ({
 
 test('the Busk lists step and randomise through eligible looks', () => {
   const s = buskState();
-  assert.deepStrictEqual(catalog.lookList(s, 'pattern').map((r) => r.id), ['solid', 'chase', 'breathe']);
-  assert.deepStrictEqual(catalog.lookList(s, 'effect').map((r) => r.id), ['hd.iceStrike', 'ldj.Swirl'], 'no fast flashes before the acknowledgement, no energy effects');
+  assert.deepStrictEqual(catalog.lookList(s, 'pattern').map((r) => r.id), ['solid', 'chase', 'breathe'], 'no bars\' picture, no flash yet, no retired row');
+  assert.deepStrictEqual(catalog.lookList(s, 'effect').map((r) => r.id), ['energy.blinder', 'energy.glow'], 'the energy looks, no fast flashes before the acknowledgement');
+  const acknowledged = { ...s, safety: { photosensitivityAcknowledged: true } };
+  assert.deepStrictEqual(catalog.lookList(acknowledged, 'pattern').map((r) => r.id), ['solid', 'chase', 'breathe', 'v2.scatterStrobe']);
+  assert.deepStrictEqual(catalog.lookList(acknowledged, 'effect').map((r) => r.id), ['energy.blinder', 'energy.whiteStrobe', 'energy.glow']);
   assert.strictEqual(catalog.stepLook(s, 'pattern', 'next'), 'breathe');
   assert.strictEqual(catalog.stepLook({ ...s, pattern: 'breathe' }, 'pattern', 'next'), 'solid', 'round the list');
-  assert.strictEqual(catalog.stepLook(s, 'effect', 'previous'), 'ldj.Swirl', 'from a pattern, the last effect');
+  assert.strictEqual(catalog.stepLook(s, 'effect', 'previous'), 'energy.glow', 'from a pattern, the last effect');
   assert.strictEqual(catalog.randomLook(s, 'pattern', () => 0), 'solid', 'never the look on stage');
   assert.strictEqual(catalog.randomPalette({ ...s, paletteOverrideId: 'redCyan' }, () => 0), 'rainbow');
   const colours = catalog.randomColours(s, () => 0.9999);
@@ -319,13 +323,22 @@ test('the Busk lists step and randomise through eligible looks', () => {
   assert.strictEqual(catalog.palettesOf(s)[0].name, 'Red Cyan', 'a nameless built-in palette is named');
 });
 
-test('Companion browsing includes our gentle party looks from the server catalogue', () => {
-  const s = { patterns: [...PATTERNS, ...PRESET_ROWS], safety: { photosensitivityAcknowledged: false } };
+test('Companion browsing over the server catalogue: every look but the bars\' and energy ones, the energy looks, no retired row', () => {
+  const rows = [...PATTERNS, ...PRESET_ROWS];
+  const s = { patterns: rows, safety: { photosensitivityAcknowledged: false } };
   const patterns = catalog.lookList(s, 'pattern');
-  for (const id of ['solid', 'breathe', 'party.fire', 'party.ice']) assert.ok(patterns.some((p) => p.id === id), id);
+  for (const id of ['solid', 'breathe', 'party.fire', 'party.ice', 'v2.grooveWave']) assert.ok(patterns.some((p) => p.id === id), id);
   for (const kind of ['pattern', 'effect']) {
     assert.ok(catalog.lookList(s, kind).every((p) => !p.rapidFlash), 'rapid effects wait for acknowledgement');
   }
+  assert.deepStrictEqual([patterns.length, catalog.lookList(s, 'effect').length], [77, 4]);
+  const acknowledged = { ...s, safety: { photosensitivityAcknowledged: true } };
+  const [all, effects] = ['pattern', 'effect'].map((kind) => catalog.lookList(acknowledged, kind));
+  assert.deepStrictEqual([all.length, effects.length], [79, 11]);
+  assert.ok([...all, ...effects].every((p) => !p.retired && !p.pixel));
+  assert.ok(effects.every((p) => p.tags.includes('energy')));
+  // Before it connects, the module's own list has no tags: the patterns without the pixel pictures.
+  assert.deepStrictEqual(catalog.lookList({ patterns: [] }, 'pattern').map((p) => p.id), catalog.PATTERNS.filter((p) => !p.pixel).map((p) => p.id));
 });
 
 test('the Busk page plays looks, colours over the effects, the pads, tempo and the panic buttons', async () => {
@@ -366,7 +379,7 @@ test('the Busk actions reach the server', async () => {
   await actions.stop_effects.callback({ options: {} });
   await actions.tempo_mode.callback({ options: { mode: 'toggle' } });
   assert.deepStrictEqual(sent.slice(0, 3), [['override', 'redCyan'], ['override', null], ['set', { pattern: 'breathe', fadeMs: 500 }]]);
-  assert.ok(['hd.iceStrike', 'ldj.Swirl'].includes(sent[3][1].pattern));
+  assert.ok(['energy.blinder', 'energy.glow'].includes(sent[3][1].pattern), 'a random energy look, no flash before the acknowledgement');
   assert.deepStrictEqual(sent.slice(4), [['stop'], ['set', { tempoMode: 'manual' }]]);
   assert.ok(actions.beat_division.options[0].choices.some((c) => c.id === 16), 'down to 1/16');
 });

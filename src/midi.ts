@@ -120,9 +120,16 @@ const clearRing = (value: number): number => (value >= 64 ? 96 : 32);
 export interface LookRow {
   id: string;
   pixel?: boolean;
-  app?: string;
-  party?: boolean;
   rapidFlash?: boolean;
+  retired?: boolean;
+  tags?: readonly string[];
+}
+
+// Browse lists by tag: the bars' pictures, the energy holds and strobes, and every other look; retired rows in none.
+type LookList = 'pattern' | 'effect' | 'bars';
+function listOf(row: LookRow): LookList {
+  const tags = row.tags ?? (row.pixel ? ['bars'] : []);
+  return tags.includes('bars') ? 'bars' : tags.includes('energy') ? 'effect' : 'pattern';
 }
 
 export interface MidiBusk {
@@ -732,16 +739,13 @@ class MidiController {
     this.sendFeedback();
   }
 
-  _lookList(kind: 'pattern' | 'effect'): string[] {
-    const rows = this.busk?.looks() ?? [];
+  _lookList(kind: LookList): string[] {
     const acknowledged = !!this.busk?.acknowledged();
-    const eligible = rows.filter((r) => acknowledged || !r.rapidFlash);
-    if (kind === 'pattern') return eligible.filter((r) => !r.pixel && (!r.app || (r.app === 'own' && r.party))).map((r) => r.id);
-    return eligible.filter((r) => r.app === 'hd' || r.app === 'ldj').map((r) => r.id);
+    return (this.busk?.looks() ?? []).filter((r) => !r.retired && listOf(r) === kind && (acknowledged || !r.rapidFlash)).map((r) => r.id);
   }
 
   _barsList(): (string | null)[] {
-    return [null, ...(this.busk?.looks() ?? []).filter((r) => r.pixel && (this.busk?.acknowledged() || !r.rapidFlash)).map((r) => r.id)];
+    return [null, ...this._lookList('bars')];
   }
 
   _look(id: string): void {

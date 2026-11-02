@@ -225,12 +225,16 @@ export function paletteSwatch(state, palette) {
 // ── Busking: the show played by hand ─────────────────────────────────────────
 // Browse the catalogue supplied by the connected server.
 
-/** The rig's patterns (classic and party, no pixel pictures), or the Party and Entertainment effects — the fast-flashing ones only once acknowledged. */
+// By the tags the server attaches; a row without them (an older server, the list above) goes by its pixel flag.
+const listOf = (row) => {
+	const tags = Array.isArray(row.tags) ? row.tags : row.pixel ? ['bars'] : []
+	return tags.includes('bars') ? 'bars' : tags.includes('energy') ? 'effect' : 'pattern'
+}
+
+/** The looks (every one but the bars' pictures and the energy looks), or the energy holds and strobes — no retired row, and the fast-flashing ones only once acknowledged. */
 export function lookList(state, kind) {
-	const rows = patternsOf(state)
 	const acknowledged = !!state.safety?.photosensitivityAcknowledged
-	if (kind === 'pattern') return rows.filter((r) => !r.pixel && (!r.app || (r.app === 'own' && r.party)) && (acknowledged || !r.rapidFlash))
-	return rows.filter((r) => (r.app === 'hd' || r.app === 'ldj') && (acknowledged || !r.rapidFlash))
+	return patternsOf(state).filter((r) => !r.retired && listOf(r) === kind && (acknowledged || !r.rapidFlash))
 }
 
 /** The look one step from the one on stage, round the list; from outside it, its first or last. */
