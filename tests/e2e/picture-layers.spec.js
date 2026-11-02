@@ -1,0 +1,94 @@
+// The Effects card's status: the chip names the main effect, and the picture layers
+// beside it follow the Background card and what plays over the effect, from the state.
+
+import { test, expect } from '@playwright/test';
+import { open, reset, set, state, until } from './helpers.js';
+
+const nameOf = (patterns, id) => patterns.find((p) => p.id === id).name;
+const FOLLOW = { version: 1, mode: 'follow', level: 1, colour: { r: 255, g: 160, b: 70, w: 0, a: 0, uv: 0 } };
+
+test.beforeEach(async ({ request }) => {
+  await reset(request);
+  await request.delete('/api/voices');
+  await set(request, { background: FOLLOW });
+});
+
+test.afterEach(async ({ request }) => {
+  await request.delete('/api/voices');
+  await set(request, { background: FOLLOW });
+});
+
+test('the chip reads Main effect and the picture layers follow the Background card', async ({ page, request }) => {
+  const { fixtures, patterns } = await state(request);
+  const chase = nameOf(patterns, 'chase');
+  await open(page, 'effects');
+  const card = page.locator('.card.effects');
+  const now = card.locator('.effects-now');
+  await expect(now.locator('.now-playing')).toHaveText(`Main effect: ${chase}`);
+  await expect(now).not.toContainText('Base');
+  await expect(now.getByRole('button', { name: `Edit ${chase}`, exact: true })).toBeVisible();
+
+  const layers = card.getByRole('group', { name: 'Picture layers' });
+  const layer = (id) => layers.locator(`[data-layer="${id}"]`);
+  await expect(layer('above')).toHaveText('Pads and overrides: None active');
+  await expect(layer('main')).toHaveText(`Main effect: ${chase}`);
+  await expect(layer('background')).toHaveText('Background: Follow effect · Whole rig');
+
+  const panel = page.getByRole('region', { name: 'Background lighting' });
+  await panel.getByRole('button', { name: 'Fixed colour', exact: true }).click();
+  await until(request, (s) => s.background?.mode === 'fixed');
+  await expect(layer('background')).toHaveText('Background: Fixed colour · Whole rig');
+  const scope = panel.getByRole('combobox', { name: 'Background fixtures' });
+  await scope.selectOption('wash');
+  await expect(layer('background')).toHaveText('Background: Fixed colour · Wash fixtures');
+  await scope.selectOption('selected');
+  await panel.getByRole('group', { name: 'Fixtures the background reaches' }).getByRole('checkbox', { name: fixtures[0].label }).check();
+  await until(request, (s) => s.background?.selected?.length === 1);
+  await expect(layer('background')).toHaveText(`Background: Fixed colour · Selected (1 of ${fixtures.length})`);
+  await panel.getByRole('button', { name: 'Off', exact: true }).click();
+  await expect(layer('background')).toHaveText(`Background: Off · Selected (1 of ${fixtures.length})`);
+
+  // A voice plays over the main effect; the main effect is still the look on stage.
+  const launch = await request.post('/api/voices', { data: { preset: 'hd.auroraDrift', mode: 'latched' } });
+  expect(launch.ok()).toBe(true);
+  await expect(layer('above')).toHaveText('Pads and overrides: 1 active');
+  await expect(layer('main')).toHaveText(`Main effect: ${chase}`);
+  await request.delete('/api/voices');
+  await expect(layer('above')).toHaveText('Pads and overrides: None active');
+
+  const frozen = await request.post('/api/stop');
+  expect(frozen.ok()).toBe(true);
+  await expect(layer('main')).toHaveText(`Main effect: ${chase} (frozen)`);
+  await expect(now.locator('.now-playing')).toHaveText(`Main effect: ${chase} (frozen)`);
+  await set(request, { running: true });
+});
+
+for (const view of ['show', 'effects']) {
+  test(`at phone width the ${view} view keeps the chip, its pencil and the picture layers inside the Effects card`, async ({ page, request }) => {
+    const { fixtures, patterns } = await state(request);
+    // The longest wording the background layer has.
+    await set(request, { background: { ...FOLLOW, mode: 'fixed', fixtures: 'selected', selected: fixtures.map((f) => f.id) } });
+    await page.setViewportSize({ width: 390, height: 844 });
+    await open(page, view);
+    const card = page.locator('.card.effects');
+    const layers = card.getByRole('group', { name: 'Picture layers' });
+    await expect(layers.locator('[data-layer="background"]')).toHaveText(`Background: Fixed colour · Selected (${fixtures.length} of ${fixtures.length})`);
+    await layers.scrollIntoViewIfNeeded();
+    const box = await card.boundingBox();
+    for (const item of [card.locator('.effects-now'), layers, ...await layers.locator('[data-layer]').all()]) {
+      const inner = await item.boundingBox();
+      expect(inner.x).toBeGreaterThanOrEqual(box.x);
+      expect(inner.x + inner.width).toBeLessThanOrEqual(box.x + box.width + 0.5);
+    }
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
+    // Compact: the three layers take at most three short lines, under the chip and above the search.
+    const lineHeight = await layers.evaluate((el) => parseFloat(getComputedStyle(el).lineHeight) || parseFloat(getComputedStyle(el).fontSize) * 1.5);
+    expect((await layers.boundingBox()).height).toBeLessThanOrEqual(3 * lineHeight + 4);
+    const chip = await card.locator('.effects-now').boundingBox();
+    const search = await card.getByLabel('Search effects').boundingBox();
+    const strip = await layers.boundingBox();
+    expect(strip.y).toBeGreaterThanOrEqual(chip.y + chip.height - 0.5);
+    expect(strip.y + strip.height).toBeLessThanOrEqual(search.y + 0.5);
+    await card.locator('.effects-now').getByRole('button', { name: `Edit ${nameOf(patterns, 'chase')}`, exact: true }).click({ trial: true });
+  });
+}

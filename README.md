@@ -411,6 +411,13 @@ same scope as the rig. Selected fixtures are stored by fixture id, which belongs
 one patch: a cue recalled with **Restore saved background on recall** under another
 patch reaches whichever fixtures carry those ids there; the card shows how many.
 
+The Effects card's status names the running look the **Main effect**, beside its
+pencil, and lists the **Picture layers** under it, from the top. **Pads and
+overrides** counts what plays over the main effect: sequence clips, voices (pads,
+MIDI, the API), the strobe, the Matrix, the palette override and fixture overrides,
+or reads None active. **Main effect** follows; **Background** gives this card's mode
+and fixtures, such as Fixed colour · Selected (3 of 8). The strip is read-only.
+
 **Between effect hits**, beside **Authored background level** in the effect editor,
 decides what a Fixed colour does where an effect is dark. Each dark or partly dark
 pixel is one of three things:

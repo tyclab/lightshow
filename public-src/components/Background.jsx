@@ -3,6 +3,7 @@ import { pick, send } from '../state.js';
 import { DEFAULT_BACKGROUND, storedBackground } from '../../src/shared/background.ts';
 import { cellsOf } from '../../src/shared/rig.ts';
 import { parseHex, toHex } from '../../src/shared/palette-model.ts';
+import { BACKGROUND_MODES } from '../picture-layers.js';
 
 // The server replaces the whole background on every set, so an edit builds on the last one
 // sent rather than on the last echo: a level dragged within the echo's round trip would
@@ -55,7 +56,7 @@ export function Background() {
     <div class="btn-group" role="group" aria-label="Background mode">
       {['follow', 'fixed', 'off'].map((mode) => <button type="button" class={`btn sm ${value.mode === mode ? 'active' : ''}`}
         aria-pressed={value.mode === mode} onClick={() => update({ mode })}>
-        {mode === 'follow' ? 'Follow effect' : mode === 'fixed' ? 'Fixed colour' : 'Off'}
+        {BACKGROUND_MODES[mode]}
       </button>)}
     </div>
     <label>Background level <output aria-hidden="true">{Math.round(value.level * 100)}%</output>

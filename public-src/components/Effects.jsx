@@ -1,6 +1,6 @@
 import { LAMP_PATTERNS } from '../../src/shared/patterns.ts';
 import { Strobe } from './Strobe.jsx';
-import { NowPlaying, PlayingVoices } from './NowPlaying.jsx';
+import { NowPlaying, PictureLayers, PlayingVoices } from './NowPlaying.jsx';
 import { signal } from '@preact/signals';
 import { useEffect, useRef, useState } from 'preact/hooks';
 import { librarySig, pick, send } from '../state.js';
@@ -333,6 +333,7 @@ export function Effects() {
           <NowPlaying />
           {playing && <EditButton row={playing} onEdit={edit} />}
         </div>
+        <PictureLayers />
         <input class="effects-search" type="search" aria-label="Search effects" placeholder="Search effects" value={q} onInput={(e) => setQ(e.target.value)} />
         <div class="effects-chips" role="group" aria-label="Filters">
           <div class="effects-chip-set" role="group" aria-label="Family">

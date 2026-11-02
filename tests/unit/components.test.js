@@ -592,6 +592,20 @@ test('shared status stays above the effect search', () => {
   assert.match(ui.html(ui.h(ui.Effects, {})), /class="effects-now"/);
 });
 
+test('the picture layers sit beside the main effect chip, read-only and outside its live status', () => {
+  givenLibrary({ background: { version: 1, mode: 'fixed', level: .4, colour: { r: 255, g: 0, b: 0, w: 0, a: 0, uv: 0 }, fixtures: 'selected', selected: [2] } });
+  const html = ui.html(ui.h(ui.Effects, {}));
+  const status = /<div class="effects-now" role="status"[^>]*>(.*?)<\/div>/s.exec(html)[1];
+  assert.match(status, /class="now-playing"[^>]*>Main effect: Neon Domino</, 'the chip names the main effect');
+  assert.doesNotMatch(status, /Picture layers/, 'a background change is not announced as the look changing');
+  const strip = /<div class="picture-layers" role="group" aria-label="Picture layers">(.*?)<\/div>/s.exec(html);
+  assert.ok(strip, 'the strip is a named group');
+  assert.ok(html.indexOf('class="effects-now"') < strip.index && strip.index < html.indexOf('class="effects-search"'), 'between the chip and the search');
+  const text = strip[1].replace(/<[^>]+>/g, '').replace(/&amp;/g, '&');
+  assert.equal(text, 'Pads and overrides: None activeMain effect: Neon DominoBackground: Fixed colour · Selected (1 of 2)');
+  assert.doesNotMatch(strip[1], /<(button|input|select|a)\b/, 'nothing to press: the controls are the cards');
+});
+
 test('a favourite is pinned first on the deck, whatever it is', () => {
   const rows = [{ id: 'a', party: true }, { id: 'u', user: true }, { id: 'x', app: 'ldj' }, { id: 'b', party: true }];
   assert.deepStrictEqual(ui.quickDeck(rows, []).map((r) => r.id), ['u', 'a', 'b']);
