@@ -44,17 +44,22 @@ function countPrograms() {
   }
 }
 
-/** A digest of the cell layer's pixels: two pictures that differ anywhere give different digests. */
+/** A digest of the light layer's pixels: two pictures that differ anywhere give different digests. */
 const cellDigest = (page) => page.locator('canvas.stage-cells-canvas').evaluate((canvas) => {
-  const data = canvas.getContext('2d').getImageData(0, 0, canvas.width, canvas.height).data;
+  // Copied out, whichever context draws the layer (WebGL 2, or 2D without it).
+  const copy = Object.assign(document.createElement('canvas'), { width: canvas.width, height: canvas.height }).getContext('2d');
+  copy.drawImage(canvas, 0, 0);
+  const data = copy.getImageData(0, 0, canvas.width, canvas.height).data;
   let digest = 0;
   for (let i = 0; i < data.length; i++) digest = (Math.imul(digest, 31) + data[i]) | 0;
   return digest;
 });
 
-/** Red and green pixels on the stage plot's cell layer. */
+/** Red and green pixels on the stage plot's light layer. */
 const cellPixels = (page) => page.locator('canvas.stage-cells-canvas').evaluate((canvas) => {
-  const data = canvas.getContext('2d').getImageData(0, 0, canvas.width, canvas.height).data;
+  const copy = Object.assign(document.createElement('canvas'), { width: canvas.width, height: canvas.height }).getContext('2d');
+  copy.drawImage(canvas, 0, 0);
+  const data = copy.getImageData(0, 0, canvas.width, canvas.height).data;
   let red = 0, green = 0;
   for (let i = 0; i < data.length; i += 4) {
     if (data[i] > 150 && data[i + 1] < 80) red++;
@@ -80,7 +85,7 @@ async function redBars(request) {
 const restore = (request, before) => set(request, { pattern: before.pattern, basePalette: before.basePalette,
   overridePalette: before.overridePalette, masterBlackout: before.masterBlackout, running: before.running });
 
-test('switching between Show and Effects keeps one WebGL context for the room', async ({ page, request }) => {
+test('switching between Show and Effects keeps one WebGL context for the room and one for the plot\'s light', async ({ page, request }) => {
   test.setTimeout(60_000);
   await page.addInitScript(countContexts);
   const before = await state(request);
@@ -94,14 +99,15 @@ test('switching between Show and Effects keeps one WebGL context for the room', 
       await page.locator('#tab-show').click();
       await expect(page.getByRole('img', { name: /The rig in 3D/ })).toBeVisible();
     }
-    expect(await page.evaluate(() => window.webglContexts())).toEqual({ made: 1, live: 1, detached: 0 });
+    // On Show: the room's context on screen, the plot's kept for the next return to Effects (cell-layer.js).
+    expect(await page.evaluate(() => window.webglContexts())).toEqual({ made: 2, live: 1, detached: 1 });
   } finally {
     await remove();
     await restore(request, before);
   }
 });
 
-test('the Effects stage plot paints bar cells on one canvas, and the swatches follow, from the live feed', async ({ page, request }) => {
+test('the Effects stage plot paints bar cells and lamps on one canvas, and the swatches follow, from the live feed', async ({ page, request }) => {
   const before = await state(request);
   const remove = await redBars(request);
   try {
@@ -116,7 +122,9 @@ test('the Effects stage plot paints bar cells on one canvas, and the swatches fo
     expect((await cellPixels(page)).green).toBeGreaterThan(500);
     const lamps = plot.locator('.stage-fixture.bar');
     await expect(lamps).toHaveCount(4);
-    expect(await lamps.evaluateAll((nodes) => nodes.map((node) => node.style.getPropertyValue('--light')))).toEqual(Array(4).fill('rgb(0,255,0)'));
+    expect(await lamps.evaluateAll((nodes) => nodes.map((node) => node.dataset.light))).toEqual(Array(4).fill('rgb(0,255,0)'));
+    // The light is the layer's: the element paints none of it.
+    expect(await lamps.first().locator('.stage-glow').evaluate((glow) => getComputedStyle(glow).backgroundColor)).toBe('rgba(0, 0, 0, 0)');
     const swatches = page.locator('.fixture-preview[title="128 cells"]');
     await expect(swatches).toHaveCount(4);
     for (const background of await swatches.evaluateAll((nodes) => nodes.map((node) => node.style.background))) {
@@ -168,7 +176,7 @@ test('the Rig plan paints bar cells on one canvas that follows the live feed, wi
     expect((await cellPixels(page)).green).toBeGreaterThan(500);
     const lamps = plan.locator('.stage-fixture.bar');
     await expect(lamps).toHaveCount(4);
-    expect(await lamps.evaluateAll((nodes) => nodes.map((node) => node.style.getPropertyValue('--light')))).toEqual(Array(4).fill('rgb(0,255,0)'));
+    expect(await lamps.evaluateAll((nodes) => nodes.map((node) => node.dataset.light))).toEqual(Array(4).fill('rgb(0,255,0)'));
     // A picture that changes on every frame of the feed: the canvas follows it.
     await set(request, { pattern: 'plasma' });
     await page.waitForTimeout(500);

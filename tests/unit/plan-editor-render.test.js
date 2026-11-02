@@ -63,11 +63,12 @@ test('the plan builds the rig layout once per patch, not once per render', () =>
   } finally { view.stop(); }
 });
 
-test('the plan draws bar cells on one canvas and rings each bar\'s first cell', () => {
+test('the plan draws its light on one layer and rings each bar\'s first cell', () => {
   const view = mount();
   try {
-    assert.equal(classed(view.seen.tree, 'stage-cells-canvas').length, 1);
-    assert.equal(classed(view.seen.tree, 'stage-cells-canvas')[0].type, 'canvas');
+    // The layer brings its own canvas when it mounts (cell-layer.js); the plan renders only its host.
+    assert.equal(classed(view.seen.tree, 'stage-light-host').length, 1);
+    assert.equal(classed(view.seen.tree, 'stage-cells-canvas').length, 0);
     const cells = classed(view.seen.tree, 'stage-cell');
     assert.equal(cells.length, 2, 'one ring per bar, not an element per cell');
     assert.ok(cells.every((cell) => String(cell.props.class).split(/\s+/).includes('first')), 'the rings mark the first cells');
