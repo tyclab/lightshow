@@ -7,6 +7,8 @@ import { CATALOGUE, deepFreeze, presetById } from '../shared/effects/index.ts';
 import { EFFECT_LIBRARY_VERSION, migrateEffectSpec } from '../shared/effects/migrate.ts';
 import { requiresAcknowledgement, validateSpec } from '../shared/effects/registry.ts';
 import { canonical } from '../shared/effects/layer.ts';
+import { specTags, tagFields } from '../shared/effects/tags.ts';
+import type { TagId, TagSource } from '../shared/effects/tags.ts';
 import { PATTERN_FUNCS } from '../shared/patterns.ts';
 import { PATTERN_IDS } from './presets.ts';
 import { validate, ValidationError } from './validation.ts';
@@ -27,6 +29,7 @@ export type Admission = (id: string, spec: EffectSpec) => void;
 
 export interface PresetSummary {
   id: string; name: string; kind: string; rapidFlash: boolean; scope: EffectSpec['scope'] | null; updatedAt: string;
+  tags: TagId[]; via?: TagSource[];
 }
 
 export interface EffectLibraryOptions {
@@ -154,7 +157,7 @@ export class EffectLibrary extends JsonStore {
 
   summaries(): readonly PresetSummary[] {
     this._summaries ??= deepFreeze(this._presets.map(({ id, name, spec, updatedAt }) => ({
-      id, name, kind: spec.kind, rapidFlash: requiresAcknowledgement(spec), scope: spec.scope ?? null, updatedAt,
+      id, name, kind: spec.kind, rapidFlash: requiresAcknowledgement(spec), scope: spec.scope ?? null, updatedAt, ...tagFields(specTags(spec)),
     })));
     return this._summaries;
   }

@@ -18,6 +18,7 @@ import { HD_MASTER_DEFAULTS } from '../../src/shared/effects/types.ts';
 import { buildRoom } from '../../src/shared/room.ts';
 import { PATTERN_FUNCS } from '../../src/shared/patterns.ts';
 import { PATTERNS, PRESET_ROWS, PATTERN_IDS, ENERGY_EFFECTS } from '../../src/server/presets.ts';
+import { legacyTags, specTags, tagFields } from '../../src/shared/effects/tags.ts';
 import { getCatalogs } from '../../src/server/state.ts';
 import { LOOKS } from '../../scripts/golden-party-looks.js';
 
@@ -253,7 +254,8 @@ test("own looks retain legacy pattern metadata", () => {
     assert.ok(p.id in PATTERN_FUNCS, p.id);
     assert.deepStrictEqual([p.app, p.family, p.party], ['own', 'own.party', true], p.id);
     const pattern = PATTERNS.find((x) => x.id === p.id);
-    assert.deepStrictEqual({ id: p.id, name: p.name, desc: p.desc, party: true, legacy: true, ...(p.preset ? { preset: p.preset } : {}) }, pattern, p.id);
+    assert.deepStrictEqual({ id: p.id, name: p.name, desc: p.desc, party: true, legacy: true, ...(p.preset ? { preset: p.preset } : {}),
+      ...tagFields(legacyTags(p.id)) }, pattern, p.id);
     if (p.id in LINKS) {
       const target = presetById(p.preset);
       assert.strictEqual(target.id, V2_ALIASES[p.preset], p.id);
@@ -380,7 +382,9 @@ test("pickers expose every preset with effective acknowledgement", () => {
   assert.deepStrictEqual(PRESET_ROWS.map((p) => p.id), CATALOGUE.filter((p) => !p.legacy).map((p) => p.id));
   for (const row of PRESET_ROWS) {
     const p = presetById(row.id);
-    assert.deepStrictEqual(Object.keys(row), ['id', 'name', 'desc', ...(p.party ? ['party'] : []), ...(p.pixel ? ['pixel'] : []), ...(p.retired ? ['retired'] : []), ...(p.variantOf ? ['variantOf'] : []), 'mapping', 'app', 'family', 'rapidFlash', 'scope'], row.id);
+    const tags = specTags(p.spec, { pixel: !!p.pixel });
+    assert.deepStrictEqual(Object.keys(row), ['id', 'name', 'desc', ...(p.party ? ['party'] : []), ...(p.pixel ? ['pixel'] : []), ...(p.retired ? ['retired'] : []), ...(p.variantOf ? ['variantOf'] : []), 'mapping', 'app', 'family', 'rapidFlash', 'scope', 'tags', ...(tags.via.length ? ['via'] : [])], row.id);
+    assert.deepStrictEqual([row.tags, row.via ?? []], [tags.tags, tags.via], row.id);
     assert.deepStrictEqual([row.name, row.desc, row.app, row.family], [p.name, p.desc, p.app, p.family], row.id);
     assert.strictEqual(row.rapidFlash, requiresAcknowledgement(p.spec), row.id);
     assert.strictEqual(row.scope, p.spec.scope ?? null, row.id);
