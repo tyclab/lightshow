@@ -62,8 +62,16 @@ test('a placed fixture no binding names is drawn where the effects sample it, an
   assert.deepEqual(placed.plotted.map((fixture) => fixture.id), [30]);
   assert.deepEqual(placed.missing.map((fixture) => fixture.id), [20, 30, 40], 'still listed for a room position');
   assert.equal(placed.lamps.filter((lamp) => lamp.fixture === 40).length, 0, 'a fixture with no position anywhere is not invented');
-  assert.ok(Math.abs(drawn[0].size - 0.6 * Math.hypot(space.x[4] - space.x[3], space.y[4] - space.y[3], space.z[4] - space.z[3])) < 1e-6,
-    'a pixel is drawn 0.6 of its pitch across');
+  const pitch = Math.hypot(space.x[4] - space.x[3], space.y[4] - space.y[3], space.z[4] - space.z[3]);
+  assert.ok(Math.abs(drawn[0].size - 0.4 * pitch) < 1e-6, 'a pixel is drawn 0.4 of its pitch across');
+  const [body] = placed.bodies;
+  assert.equal(body.fixture, 30);
+  for (const axis of ['x', 'y', 'z']) {
+    const at = drawn.map((cell) => cell.position[axis]), lo = Math.min(...at), hi = Math.max(...at);
+    assert.ok(Math.abs(body.position[axis] - (lo + hi) / 2) < 1e-9 && Math.abs(body.size[axis] - (hi - lo + drawn[0].size)) < 1e-9,
+      `its body spans its pixels and one pixel more (${axis})`);
+  }
+  assert.equal(roomRig(fixtures, rig, room, local).bodies.length, 0, 'a bound or unplaced fixture gets no body');
 });
 
 test('a room draws bulbs at their physical size and the generic venue at its own', () => {

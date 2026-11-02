@@ -223,10 +223,11 @@ Surveyed strip paths render as continuous
 runs with their original corners and per-section colours; moving a strip moves the whole path.
 
 In a room, Stage draws every light at its physical size: a bulb about 7 cm across, a strip
-1.4 cm thick, each pixel of a cell map 0.6 of its pitch (a 288-pixel cube is 288 small
+1.4 cm thick, each pixel of a cell map 0.4 of its pitch (a 288-pixel cube is 288 small
 emitters, not one marker). A fixture placed on the Rig plot that no binding names is drawn
 where the effects sample it, its plot position scaled into the room, and stays listed for a
-room position; a fixture with no position anywhere is not drawn. The room's surfaces are lit:
+room position; with an explicit cell map it stands in a dark, see-through body spanning its
+pixels, since the room has no object for it. A fixture with no position anywhere is not drawn. The room's surfaces are lit:
 a dim fill shows them with the outputs off, and **Room light** adds eight point lights, each
 at a cluster of the room's emitters and mixing their live colours, so nearby walls and
 furniture take the colours of the lights near them. It is an approximation for the preview

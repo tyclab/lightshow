@@ -190,11 +190,11 @@ export function placeRig(fixtures, profiles, rig) {
 export { bindingSources };
 
 // In a room, lights are drawn at their physical size: a bulb about 7 cm across, a par body
-// a third of the generic venue's, a strip as thin as its tape; a pixel as wide as 0.6 of its pitch.
+// a third of the generic venue's, a strip as thin as its tape; a pixel 0.4 of its pitch across.
 export const ROOM_BULB = 0.27;
 const STRIP_THICKNESS = 0.014;
 const POINT_CELL = 0.05;
-const pixelSize = (pitch) => Math.max(0.006, Math.min(POINT_CELL, pitch * 0.6));
+const pixelSize = (pitch) => Math.max(0.004, Math.min(POINT_CELL, pitch * 0.4));
 
 /** Smallest spacing between consecutive cells of each fixture: the pitch its pixels are drawn at. */
 function pitches(cells) {
@@ -269,12 +269,25 @@ export function roomRig(fixtures, rig, model, profiles = {}) {
   });
   const pitch = pitches(cells);
   for (const cell of cells) if (!cell.length && pitch.has(cell.fixture)) cell.size = pixelSize(pitch.get(cell.fixture));
+  const bodies = plotted.filter((fixture) => fixture.geometry?.points?.length > 1).map((fixture) => bodyOf(fixture.id, cells));
   const missing = fixtures.filter((fixture) => !mapped.has(fixture.id));
   const partial = fixtures.filter((fixture, index) => mapped.has(fixture.id) && mapped.get(fixture.id).size < rig.ranges[index].count);
   const shared = [...outputs.values()].filter((output) => output.bindings.length > 1);
   const clusters = roomLightClusters([...lamps, ...cells, ...objectEmitters]);
   const objectClusters = objectEmitters.map(({ cluster, weight }) => ({ cluster, weight }));
-  return { lamps, cells, objectLights, objectClusters, trusses: [], missing, partial, plotted, unresolved, incomplete, shared, estimated, clusters };
+  return { lamps, cells, objectLights, objectClusters, bodies, trusses: [], missing, partial, plotted, unresolved, incomplete, shared, estimated, clusters };
+}
+
+/** The box an explicit cell map spans, a pixel wider than its pixels: the body Stage draws them in when no room object is the fixture. */
+function bodyOf(fixture, cells) {
+  const own = cells.filter((cell) => cell.fixture === fixture);
+  const lo = { x: Infinity, y: Infinity, z: Infinity }, hi = { x: -Infinity, y: -Infinity, z: -Infinity };
+  for (const { position } of own) for (const axis of ['x', 'y', 'z']) {
+    lo[axis] = Math.min(lo[axis], position[axis]); hi[axis] = Math.max(hi[axis], position[axis]);
+  }
+  const pad = own[0].size;
+  return { fixture, position: { x: (lo.x + hi.x) / 2, y: (lo.y + hi.y) / 2, z: (lo.z + hi.z) / 2 },
+    size: { x: hi.x - lo.x + pad, y: hi.y - lo.y + pad, z: hi.z - lo.z + pad } };
 }
 
 // What an emitter adds to the light a room is lit by, against a bulb's 1: a pixel's hundredth,

@@ -324,6 +324,9 @@ export function createStageScene(canvas, { haze = 0.6, room, lightRGB }) {
   const lensGeometry = keep(new THREE.CircleGeometry(0.1, 24).rotateX(Math.PI / 2));
   const bulbGeometry = keep(new THREE.SphereGeometry(0.13, 18, 12));
   const cellGeometry = keep(new THREE.BoxGeometry(1, 1, 1));
+  const shellEdges = keep(new THREE.EdgesGeometry(cellGeometry));
+  const shellMaterial = keep(new THREE.MeshStandardMaterial({ color: 0x1a1c22, metalness: 0.5, roughness: 0.2, transparent: true, opacity: 0.28, depthWrite: false }));
+  const shellEdgeMaterial = keep(new THREE.LineBasicMaterial({ color: 0xa0a6b4, transparent: true, opacity: 0.75 }));
 
   let rigGroup = null;
   let rigDisposables = [];
@@ -426,6 +429,14 @@ export function createStageScene(canvas, { haze = 0.6, room, lightRGB }) {
       cellMesh.setMatrixAt(k, tmpM);
       cellGlow.geometry.attributes.position.setXYZ(k, cell.position.x, cell.position.y, cell.position.z);
     });
+    // A fixture drawn from its Rig plot has no room object: a dark, see-through body spans its pixels.
+    for (const body of placed.bodies || []) {
+      const shell = new THREE.Mesh(cellGeometry, shellMaterial);
+      shell.position.set(body.position.x, body.position.y, body.position.z);
+      shell.scale.set(body.size.x, body.size.y, body.size.z);
+      shell.add(new THREE.LineSegments(shellEdges, shellEdgeMaterial));
+      rigGroup.add(shell);
+    }
     for (const truss of placed.trusses) {
       const geometry = new THREE.BoxGeometry(truss.to - truss.from, 0.22, 0.22);
       rigDisposables.push(geometry);
@@ -573,7 +584,7 @@ export function createStageScene(canvas, { haze = 0.6, room, lightRGB }) {
   function focusAt(clientX, clientY) {
     const box = canvas.getBoundingClientRect();
     raycaster.setFromCamera(new THREE.Vector2(((clientX - box.left) / box.width) * 2 - 1, -((clientY - box.top) / box.height) * 2 + 1), camera);
-    const targets = [roomGroup, parts?.cellMesh, parts?.bulbMesh].filter(Boolean);
+    const targets = [roomGroup, rigGroup].filter(Boolean);
     const hit = raycaster.intersectObjects(targets, true).find((h) => h.object.isMesh && h.object.visible)
       || (roomGroup ? null : raycaster.intersectObject(deck, false)[0]);
     if (!hit) return false;
