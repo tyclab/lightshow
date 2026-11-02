@@ -18,6 +18,7 @@ import { createPublisher } from '../../src/server/protocol.ts';
 import { state, getLiveState } from '../../src/server/state.ts';
 import { PATTERNS, PRESET_ROWS, ENERGY_EFFECTS, COLOR_PRESETS, STROBE_FUNCTIONS, AUTO_SOURCES } from '../../src/server/presets.ts';
 import { PIXEL_MAPS } from '../../src/shared/rig.ts';
+import { browseListOf } from '../../src/shared/effects/tags.ts';
 import { showStore } from '../../src/server/show-store.ts';
 
 showStore.scheduleSave = () => {};
@@ -357,6 +358,11 @@ test('the Busk page plays looks, colours over the effects, the pads, tempo and t
   assert.ok(busk.definitions.find((g) => g.id === 'busk_hits').presets.includes('pad_16'));
   assert.strictEqual(presets.transport_bpm_display.style.text, '$(show:bpm)\nBPM', 'variables by the connection\'s own label');
   assert.strictEqual(presets.pad_1.style.text, '$(show:pad_1_label)');
+});
+
+test('Companion sorts a row into a browse list exactly as the server\'s rule does', () => {
+  const rows = [...PATTERNS, ...PRESET_ROWS, ...catalog.PATTERNS, {}, { pixel: true }, { tags: [] }, { tags: ['energy', 'bars'] }, { tags: ['energy'], pixel: true }];
+  for (const row of rows) assert.strictEqual(catalog.browseListOf(row), browseListOf(row), JSON.stringify(row));
 });
 
 test('the Busk actions reach the server', async () => {

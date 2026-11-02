@@ -7,6 +7,8 @@ import { createRequire } from 'node:module';
 
 import { COLOR_PRESETS, ENERGY_EFFECT_IDS, STROBE_FUNCTION_IDS, SYNC_OFFSET_LIMIT_MS } from './server/presets.ts';
 import { messageOf } from './errors.ts';
+import { browseListOf } from './shared/effects/tags.ts';
+import type { BrowseList } from './shared/effects/tags.ts';
 import type { MidiBinding, MidiMap } from './server/midi-map.ts';
 import type { ShowState } from './server/state.ts';
 import type { Override } from './types/rig.ts';
@@ -125,12 +127,6 @@ export interface LookRow {
   tags?: readonly string[];
 }
 
-// Browse lists by tag: the bars' pictures, the energy holds and strobes, and every other look; retired rows in none.
-type LookList = 'pattern' | 'effect' | 'bars';
-function listOf(row: LookRow): LookList {
-  const tags = row.tags ?? (row.pixel ? ['bars'] : []);
-  return tags.includes('bars') ? 'bars' : tags.includes('energy') ? 'effect' : 'pattern';
-}
 
 export interface MidiBusk {
   looks(): readonly LookRow[];
@@ -739,9 +735,10 @@ class MidiController {
     this.sendFeedback();
   }
 
-  _lookList(kind: LookList): string[] {
+  // Browse lists by tag (browseListOf): the bars' pictures, the energy looks, every other look; retired rows in none.
+  _lookList(kind: BrowseList): string[] {
     const acknowledged = !!this.busk?.acknowledged();
-    return (this.busk?.looks() ?? []).filter((r) => !r.retired && listOf(r) === kind && (acknowledged || !r.rapidFlash)).map((r) => r.id);
+    return (this.busk?.looks() ?? []).filter((r) => !r.retired && browseListOf(r) === kind && (acknowledged || !r.rapidFlash)).map((r) => r.id);
   }
 
   _barsList(): (string | null)[] {

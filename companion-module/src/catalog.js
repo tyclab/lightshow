@@ -225,8 +225,9 @@ export function paletteSwatch(state, palette) {
 // ── Busking: the show played by hand ─────────────────────────────────────────
 // Browse the catalogue supplied by the connected server.
 
-// By the tags the server attaches; a row without them (an older server, the list above) goes by its pixel flag.
-const listOf = (row) => {
+// A copy of browseListOf in src/shared/effects/tags.ts, the source of truth: this module ships on its own and
+// cannot import it. tests/unit/companion-module.test.js holds the two to the same answer for every row.
+export const browseListOf = (row) => {
 	const tags = Array.isArray(row.tags) ? row.tags : row.pixel ? ['bars'] : []
 	return tags.includes('bars') ? 'bars' : tags.includes('energy') ? 'effect' : 'pattern'
 }
@@ -234,7 +235,7 @@ const listOf = (row) => {
 /** The looks (every one but the bars' pictures and the energy looks), or the energy holds and strobes — no retired row, and the fast-flashing ones only once acknowledged. */
 export function lookList(state, kind) {
 	const acknowledged = !!state.safety?.photosensitivityAcknowledged
-	return patternsOf(state).filter((r) => !r.retired && listOf(r) === kind && (acknowledged || !r.rapidFlash))
+	return patternsOf(state).filter((r) => !r.retired && browseListOf(r) === kind && (acknowledged || !r.rapidFlash))
 }
 
 /** The look one step from the one on stage, round the list; from outside it, its first or last. */

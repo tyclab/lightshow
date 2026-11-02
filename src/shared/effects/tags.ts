@@ -203,6 +203,14 @@ export function legacyTags(id: string): LookTags {
   return tagged(entry?.tags ?? [], entry?.via ?? []);
 }
 
+export type BrowseList = 'pattern' | 'effect' | 'bars';
+
+/** The MIDI and Companion browse list a catalogue row belongs to; a row without tags (an older server) goes by its pixel flag. */
+export function browseListOf(row: { tags?: readonly string[]; pixel?: boolean }): BrowseList {
+  const tags = row.tags ?? (row.pixel ? ['bars'] : []);
+  return tags.includes('bars') ? 'bars' : tags.includes('energy') ? 'effect' : 'pattern';
+}
+
 /** The fields a catalogue row carries: its tags, and where its reaction comes from when it has one. */
 export function tagFields({ tags, via }: LookTags): { tags: TagId[]; via?: TagSource[] } {
   return via.length ? { tags, via } : { tags };

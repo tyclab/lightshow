@@ -12,7 +12,7 @@ import { PATTERNS, PRESET_ROWS } from '../../src/server/presets.ts';
 import { EffectLibrary } from '../../src/server/effect-library.ts';
 import { presetById } from '../../src/shared/effects/index.ts';
 import { KINDS, validateSpec } from '../../src/shared/effects/registry.ts';
-import { LEGACY_TAGGED, REACTIVE_TAGS, SOURCES, TAG_AXES, TAG_NOTES, TAGS, legacyTags, specTags } from '../../src/shared/effects/tags.ts';
+import { LEGACY_TAGGED, REACTIVE_TAGS, SOURCES, TAG_AXES, TAG_NOTES, TAGS, browseListOf, legacyTags, specTags } from '../../src/shared/effects/tags.ts';
 
 // What every registered kind reacts to with its default params, counted per tag.
 const KIND_REACTS = { beat: 133, static: 19, bands: 4, level: 2, sections: 0, screen: 1 };
@@ -282,3 +282,10 @@ test('the Strobe pattern is Static by default and its badge says the drawn funct
   assert.match(TAG_NOTES.strobe.static, /Ramp.*Random.*Burst.*beat/);
 });
 
+test('one rule sorts a row into the MIDI and Companion browse lists', () => {
+  const rows = [...PATTERNS, ...PRESET_ROWS];
+  const lists = (rapid) => rows.filter((r) => !r.retired && (rapid || !r.rapidFlash)).reduce((acc, r) => { acc[browseListOf(r)]++; return acc; }, { pattern: 0, effect: 0, bars: 0 });
+  assert.deepEqual(lists(true), { pattern: 79, effect: 11, bars: 21 });
+  assert.deepEqual(lists(false), { pattern: 77, effect: 4, bars: 21 });
+  assert.deepEqual([{}, { pixel: true }, { tags: ['beat', 'energy'] }].map(browseListOf), ['pattern', 'bars', 'effect']);
+});
