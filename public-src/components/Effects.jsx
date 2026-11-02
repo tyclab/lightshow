@@ -194,19 +194,15 @@ function InspectorSheet({ id, onSelect, onPlay, onClose }) {
   );
 }
 
-const Rapid = () => (
-  <span class="badge-rapid" role="img" aria-label="rapid flash" title="Rapid flash: plays only after the photosensitivity acknowledgement">⚡</span>
-);
-
 /** A tag's name with its ⚡ kept from screen readers, which would read it out as a word. */
 function TagName({ tag }) {
   const name = TAGS[tag].name;
   return name.endsWith(' ⚡') ? <>{name.slice(0, -2)} <span aria-hidden="true">⚡</span></> : name;
 }
 
-/** A row's tags as badges; a reaction says where its input comes from. */
-function TagBadges({ row, without = [] }) {
-  const tags = tagsOf(row).filter((tag) => TAGS[tag] && !without.includes(tag));
+/** A look's tags as badges, on its pad and its row alike; a reaction says where its input comes from. */
+function TagBadges({ row }) {
+  const tags = tagsOf(row).filter((tag) => TAGS[tag]);
   if (!tags.length && !row.user) return null;
   return (
     <span class="effect-tags">
@@ -251,9 +247,8 @@ function Pad({ row, active, favourite, onTap, onEdit, onToggleFavourite }) {
       <button type="button" class="effect-pad-tap" aria-pressed={active} title={row.desc || row.name} {...press}>
         <span class="effect-pad-name">{row.name}</span>
         <Mapping row={row} />
-        <TagBadges row={row} without={['rapid']} />
+        <TagBadges row={row} />
         {active && <span class="effect-pad-now">Main effect</span>}
-        {tagsOf(row).includes('rapid') && <Rapid />}
       </button>
       <div class="effect-pad-tools">
         <Star row={row} on={favourite} onToggle={onToggleFavourite} />

@@ -337,6 +337,22 @@ test('Effects lists every look once, A to Z, each with the tags its code states'
   assert.deepStrictEqual(badgesOf(rowOf(html, 'v2.grooveWave.2d')), ['Beat only']);
 });
 
+test('a rapid flash reads the same on a pad and on a row: one tag badge, no second glyph', () => {
+  ui.filtersSig.value = [];
+  givenLibrary({});
+  globalThis.localStorage = { getItem: (key) => (key === 'lightshow.effects.favourites' ? JSON.stringify(['hd.voltageConfetti']) : null), setItem() {}, removeItem() {} };
+  try {
+    const html = ui.html(ui.h(ui.Effects, {}));
+    const pad = /<div class="effect-pad ?[^"]*" data-id="hd\.voltageConfetti"[^>]*>(.*?)<div class="effect-pad-tools">/s.exec(html)[1];
+    const badge = (markup) => /<span class="effect-tag badge-rapid" data-tag="rapid"[^>]*>Rapid <span aria-hidden="true">⚡<\/span><\/span>/.exec(markup)?.[0];
+    assert.ok(badge(pad), 'the pad carries the Rapid tag badge');
+    assert.strictEqual(badge(pad), badge(rowOf(html, 'hd.voltageConfetti')), 'the same markup as the row');
+    assert.strictEqual(count(html, 'role="img" aria-label="rapid flash"'), 0, 'no separate glyph');
+  } finally {
+    delete globalThis.localStorage;
+  }
+});
+
 test('the Strobe row is Static and its badge says which strobe functions follow the beat', () => {
   ui.filtersSig.value = [];
   const strobe = { id: 'strobe', name: 'Strobe', desc: 'All fixtures on colour A', legacy: true, ...ui.tagFields(ui.legacyTags('strobe')) };

@@ -1566,7 +1566,6 @@ input[type=range]::-moz-range-thumb {
 .effect-pad-name { font-size: 14px; font-weight: 800; line-height: 1.15; overflow-wrap: anywhere; }
 .effect-pad-yours { color: var(--text-amber); }
 .effect-pad-now { font-size: 9px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; color: var(--text-blue); }
-.effect-pad .badge-rapid { position: absolute; right: 8px; bottom: 8px; }
 /* The star and the pencil ride the pad's top corner; the pad itself is the tap. */
 .effect-pad-tools { position: absolute; top: 4px; right: 4px; display: flex; gap: 2px; }
 .effect-star, .effect-edit {
@@ -1612,16 +1611,13 @@ input[type=range]::-moz-range-thumb {
   white-space: nowrap;
 }
 .effect-tag-via { font-weight: 400; color: var(--text-blue); }
-.effect-tag.badge-rapid { border-color: var(--amber); }
+.effect-tag.badge-rapid { border-color: var(--amber); color: var(--text-amber); }
 .effect-tag.effect-pad-yours { border-color: var(--amber); }
 .effect-row { display: flex; align-items: center; gap: 2px; min-width: 0; }
 .effect-row .pattern-btn { flex: 1; min-width: 0; }
 .effect-mapping { display: block; font-size: 10px; color: var(--muted); }
 .effect-row-desc { display: block; margin-top: 3px; font-size: 11px; font-weight: 400; line-height: 1.4; color: var(--muted); }
 .effects-empty { margin: 8px 0; font-size: 12px; color: var(--muted); }
-/* The warning on a rapid flash: amber, where the eye lands last. */
-.pattern-btn .badge-rapid { flex-shrink: 0; font-size: 11px; color: var(--text-amber); }
-.badge-rapid { color: var(--text-amber); font-size: 11px; }
 
 /* The inspector: the settings a family can take, nothing else, in a sheet
    over the page (the Rig view's .inspector is another panel). */
