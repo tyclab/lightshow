@@ -9,6 +9,10 @@ const AXE = createRequire(import.meta.url).resolve('axe-core/axe.min.js');
 
 const NAME = 'E2E Domino';
 
+/** The pencil of one catalogue row, by id: looks of one name sit side by side in the list. */
+const editRow = (page, id, name) => page.locator('.effect-row', { has: page.locator(`.pattern-btn[data-id="${id}"]`) })
+  .getByRole('button', { name: `Edit ${name}`, exact: true });
+
 async function removeOwn(request) {
   const s = await state(request);
   for (const e of s.effects || []) {
@@ -57,11 +61,12 @@ test('a built-in, changed and saved as a copy, lists as a preset of your own', a
   await sheet.getByRole('button', { name: 'Close the inspector' }).click();
   await expect(sheet).toHaveCount(0);
 
-  // On the deck and in the catalogue, under the fork's own.
+  // On the deck and in the list, marked as yours and tagged from its own spec.
   await search.fill(NAME);
   await expect(page.locator('.effects-deck .effect-pad-name', { hasText: NAME })).toBeVisible();
-  const own = page.locator('.effects-group', { has: page.locator('summary', { hasText: 'Own' }) });
-  await expect(own.locator(`.pattern-btn[data-id="${saved.id}"]`)).toBeVisible();
+  const row = page.locator(`.effects-catalogue .pattern-btn[data-id="${saved.id}"]`);
+  await expect(row).toBeVisible();
+  await expect(row.locator('.effect-tag')).toHaveText(['Beat only', 'Room-placed', 'Yours']);
 
   // A plain tap puts it on stage.
   await page.locator('.effects-deck .effect-pad-tap', { hasText: NAME }).click();
@@ -135,7 +140,7 @@ test('rapid draft audition requires acknowledgement and a fresh hold', async ({ 
   try {
     await open(page, 'effects');
     await page.getByLabel('Search effects').fill(preset.name);
-    await page.getByRole('button', { name: `Edit ${preset.name}`, exact: true }).first().click();
+    await editRow(page, preset.id, preset.name).click();
     const audition = page.getByRole('button', { name: 'Hold on live rig' });
     await audition.click();
     await expect(page.getByRole('alertdialog', { name: 'Rapid flashing' })).toBeVisible();
@@ -165,8 +170,7 @@ test.describe('on a touch screen', () => {
 
   test('the deck, the chips, the catalogue and the inspector are all at least 44 px', async ({ page }) => {
     await open(page, 'effects');
-    // Spatial leads the catalogue; Chase, edited below, is under Party & Disco.
-    await page.locator('.effects-group summary').first().click();
+    await page.getByRole('group', { name: 'Filters' }).getByRole('button', { name: /^Beat only/ }).click();
     await page.getByLabel('Search effects').fill('Chase');
     expect(await small(page, '.card.effects')).toEqual([]);
     await page.getByRole('button', { name: 'Edit Chase', exact: true }).first().click();
@@ -175,18 +179,96 @@ test.describe('on a touch screen', () => {
   });
 });
 
-test('the deck filters families without duplicating the catalogue by mapping', async ({ page }) => {
+test('the tag chips filter the deck and the list: any chip within an axis, every axis with one, live counts and Clear', async ({ page, request }) => {
+  const rows = (await state(request)).patterns.filter((row) => !row.retired);
+  const has = (row, tags) => tags.some((tag) => row.tags.includes(tag));
+  const REACTIVE = ['bands', 'level', 'sections', 'screen'];
   await open(page, 'effects');
-  const chips = page.getByRole('group', { name: 'Filters' });
-  await chips.getByRole('button', { name: 'Spatial', exact: true }).click();
-  const groups = page.locator('details.effects-group');
-  await expect(groups).toHaveCount(1);
-  await expect(groups.first().locator('summary')).toHaveText('Spatial');
-  await groups.first().locator('summary').click();
-  await expect(chips.getByRole('group', { name: 'Space' })).toHaveCount(0);
-  await expect(groups.first().locator('.pattern-btn')).toHaveCount(39);
-  await expect(groups.first().locator('[data-id$=".2d"]')).toHaveCount(0);
-  await chips.getByRole('button', { name: 'Own', exact: true }).click();
-  await expect(groups.first().locator('summary')).toHaveText('Own');
+  const filters = page.getByRole('group', { name: 'Filters' });
+  const chip = (name) => filters.getByRole('button', { name: new RegExp(`^${name}`) });
+  const countOf = async (name) => Number(await chip(name).locator('.effects-chip-count').textContent());
+  const listed = () => page.locator('.effects-catalogue .pattern-btn').evaluateAll((els) => els.map((el) => el.dataset.id));
+  // No folded sections: every look is listed once, A to Z.
+  await expect(page.locator('.effects-catalogue details')).toHaveCount(0);
+  const all = await listed();
+  expect(all).toHaveLength(rows.length);
+  const names = all.map((id) => rows.find((row) => row.id === id).name);
+  expect(names).toEqual([...names].sort(new Intl.Collator('en', { sensitivity: 'base', numeric: true }).compare));
+  for (const [name, tags] of [['Beat only', ['beat']], ['Reactive', REACTIVE], ['Room-placed', ['room']], ['Rapid', ['rapid']]]) {
+    expect(await countOf(name), name).toBe(rows.filter((row) => has(row, tags)).length);
+  }
+  await expect(filters.getByRole('button', { name: 'Clear' })).toHaveCount(0);
+
+  // Within an axis: either.
+  await chip('Beat only').click();
+  await chip('Static').click();
+  await expect(chip('Beat only')).toHaveAttribute('aria-pressed', 'true');
+  expect(await listed()).toEqual(all.filter((id) => has(rows.find((row) => row.id === id), ['beat', 'static'])));
+  // Across axes: both. The Surface counts follow the Reacts-to choice; Beat only's own count does not.
+  await chip('Whole rig').click();
+  const both = all.filter((id) => { const row = rows.find((r) => r.id === id); return has(row, ['beat', 'static']) && has(row, ['rig']); });
+  expect(await listed()).toEqual(both);
+  expect(await countOf('Whole rig')).toBe(both.length);
+  expect(await countOf('Beat only')).toBe(rows.filter((row) => has(row, ['beat']) && has(row, ['rig'])).length);
+  // The deck follows the chips.
+  for (const id of await page.locator('.effects-deck .effect-pad').evaluateAll((els) => els.map((el) => el.dataset.id))) expect(both).toContain(id);
+  await filters.getByRole('button', { name: 'Clear' }).click();
+  expect(await listed()).toEqual(all);
+  await expect(filters.locator('[aria-pressed="true"]')).toHaveCount(0);
+  await expect(filters.getByRole('button', { name: 'Clear' })).toHaveCount(0);
+  // A chip nothing would match is disabled: no static look is placed in the room.
+  await chip('Static').click();
+  expect(rows.some((row) => has(row, ['static']) && has(row, ['room']))).toBe(false);
+  await expect(chip('Room-placed')).toBeDisabled();
+  await expect(chip('Whole rig')).toBeEnabled();
+  await filters.getByRole('button', { name: 'Clear' }).click();
+
+  // Reactive folds the four narrow reactions; each row still says which, and from where.
+  await chip('Reactive').click();
+  const reactive = await listed();
+  expect(reactive).toEqual(all.filter((id) => has(rows.find((row) => row.id === id), REACTIVE)));
+  await expect(page.locator('.effects-catalogue .pattern-btn[data-id="v2.neural"] .effect-tag').first()).toHaveText('Bands & drums · live');
+  await expect(page.locator('.effects-catalogue .pattern-btn[data-id="v2.visualizerFlow"] .effect-tag').first()).toHaveText('Screen · screen');
+  await expect(page.locator('.effects-catalogue .pattern-btn[data-id="radial-pulse"] .effect-tag').first()).toHaveText('Bands & drums · track');
+  // The search also reads tag names.
+  await filters.getByRole('button', { name: 'Clear' }).click();
+  await page.getByLabel('Search effects').fill('song sections');
+  expect((await listed()).sort()).toEqual(rows.filter((row) => row.tags.includes('sections')).map((row) => row.id).sort());
 });
 
+test.describe('on a phone', () => {
+  test.use({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
+
+  test('the chips wrap inside the card, nothing scrolls sideways, and the list stays usable', async ({ page, request }) => {
+    await open(page, 'effects');
+    const filters = page.locator('.effects-filters');
+    const card = await page.locator('.card.effects').boundingBox();
+    const chips = await filters.locator('.effects-chip').evaluateAll((els) => els.map((el) => el.getBoundingClientRect().toJSON()));
+    expect(chips.length).toBeGreaterThanOrEqual(9);
+    expect(new Set(chips.map((box) => Math.round(box.top))).size, 'the chips wrap onto several rows').toBeGreaterThan(2);
+    for (const box of chips) {
+      expect(box.left).toBeGreaterThanOrEqual(card.x - 0.5);
+      expect(box.right).toBeLessThanOrEqual(card.x + card.width + 0.5);
+      expect(box.height).toBeGreaterThanOrEqual(44);
+    }
+    // Nothing in the view is wider than the screen, and the page does not scroll sideways.
+    expect(await page.evaluate(() => [...document.querySelectorAll('.card.effects *')]
+      .filter((el) => el.getClientRects().length && el.getBoundingClientRect().right > window.innerWidth + 0.5).map((el) => el.className))).toEqual([]);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
+    // The filters scroll away with the page; the search stays, and a row brought up sits clear of it, whole and tappable.
+    await page.locator('.effects-chip[data-chip="reactive"]').click();
+    const row = page.locator('.effects-catalogue .pattern-btn').nth(5);
+    await row.evaluate((el) => el.scrollIntoView({ block: 'start' }));
+    const tools = await page.locator('.effects-tools').boundingBox();
+    const box = await row.boundingBox();
+    expect(box.y).toBeGreaterThanOrEqual(tools.y + tools.height - 0.5);
+    expect(box.width).toBeGreaterThan(200);
+    expect(tools.height).toBeLessThan(844 / 4);
+    await expect(row.locator('.effect-tag').first()).toBeVisible();
+    const id = await row.getAttribute('data-id');
+    const reacting = (await state(request)).patterns.find((p) => p.id === id);
+    expect(reacting.tags.some((tag) => ['bands', 'level', 'sections', 'screen'].includes(tag))).toBe(true);
+    await row.click();
+    if (!reacting.rapidFlash) await until(request, (s) => s.pattern === id);
+  });
+});

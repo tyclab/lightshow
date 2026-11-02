@@ -8,31 +8,36 @@ import { useFocusTrap } from '../focus-trap.js';
 import { Inspector, familyOf } from './Inspector.jsx';
 import { Photosensitivity as PhotosensitivityConfirm, acknowledgeThen } from './Photosensitivity.jsx';
 import { mappingOf, MAPPING_LABELS } from '../../src/shared/effects/mapping.ts';
+import { REACTIVE_TAGS, SOURCES, TAG_AXES, TAGS } from '../../src/shared/effects/tags.ts';
 
 /**
  * The Effects view: an instrument first, an editor second. At the top a deck
  * of big pads — the favourites, the presets saved here and the party looks —
- * with the one on stage marked; under a sticky search and the filter chips,
- * the whole catalogue by family (Party & Disco, Entertainment, the
- * fork's own, the upstream patterns), each group folded until opened. A plain tap
- * puts a row on stage and nothing else; its pencil, or a long press, opens
+ * with the one on stage marked; under a sticky search, the tag filters, then
+ * every look in one list, A to Z, each with the tags its code states. A plain
+ * tap puts a row on stage and nothing else; its pencil, or a long press, opens
  * the inspector for it, in a sheet over the page.
  */
 
-// Spatial leads; coordinate variants share one entry.
-const APP_NAMES = { spatial: 'Spatial', hd: 'Party & Disco', ldj: 'Entertainment', own: 'Own', upstream: 'Classic effects' };
-const APP_BADGES = { spatial: 'Spatial', hd: 'Party & Disco', ldj: 'Entertainment', own: 'Own', upstream: 'Classic' };
-const APP_ORDER = ['spatial', 'hd', 'ldj', 'own', 'upstream'];
-const APP_ICONS = { spatial: '◎', hd: '◆', ldj: '♪', own: '◉', upstream: '·' };
-const FAMILY_CHIPS = [
-  ['all', 'All', 'Every look'], ['spatial', 'Spatial', 'Waves, washes, chases and room effects'],
-  ['own', 'Own', "The fork's own looks and the presets saved here"], ['classic', 'Classic', 'Hue Dynamics, Light DJ and the upstream patterns'],
-];
+// One chip per tag, but the four narrow reactions fold into Reactive; each stays a badge on its rows.
+const REACTIVE_CHIP = { id: 'reactive', name: 'Reactive', tags: [...REACTIVE_TAGS],
+  desc: `Any of ${[...REACTIVE_TAGS].map((tag) => TAGS[tag].name).join(', ')}` };
+export const FILTER_AXES = TAG_AXES.map((axis) => {
+  const own = axis.tags.filter((tag) => !REACTIVE_TAGS.has(tag)).map((tag) => ({ id: tag, name: TAGS[tag].name, tags: [tag], desc: TAGS[tag].desc }));
+  const folded = axis.tags.some((tag) => REACTIVE_TAGS.has(tag)) ? [REACTIVE_CHIP] : [];
+  return { id: axis.id, name: axis.name, chips: [...own, ...folded].map((chip) => ({ ...chip, axis: axis.id })) };
+});
+const FILTER_CHIPS = FILTER_AXES.flatMap((axis) => axis.chips);
+// A fallback glyph for a row without its own, from what it is.
+const TAG_ICONS = [['energy', '◉'], ['room', '◎'], ['bars', '▤'], ['rig', '●']];
+const BY_NAME = new Intl.Collator('en', { sensitivity: 'base', numeric: true });
 const FAVOURITES_KEY = 'lightshow.effects.favourites';
 const LONG_PRESS_MS = 500;
 
 /** The preset the inspector is open on, or null: one editor for the page, so a pad elsewhere can open it too. */
 export const editingSig = signal(null);
+/** The filter chips switched on, by id; kept while the view is away. */
+export const filtersSig = signal([]);
 
 // Map pattern ids to a unicode glyph; a preset takes its group's.
 const PATTERN_ICONS = {
@@ -73,18 +78,24 @@ function hasPanels(s) {
   });
 }
 
-/** Which group a row belongs to: a saved preset and a party look are the fork's own; a row with no app is upstream. */
-export function appOf(row) {
-  if (row.user) return 'own';
-  if (row.family === 'spatial') return 'spatial';
-  if (row.app) return row.app;
-  return row.party ? 'own' : 'upstream';
+const tagsOf = (row) => (row.rapidFlash && !row.tags?.includes('rapid') ? [...(row.tags ?? []), 'rapid'] : row.tags ?? []);
+const chipMatches = (row, chip) => chip.tags.some((tag) => tagsOf(row).includes(tag));
+
+/** The rows the chips let through: any chip within an axis, and every axis with a chip on (one axis can be left out). */
+export function filterByChips(rows, active, skipAxis = null) {
+  const axes = FILTER_AXES.filter((axis) => axis.id !== skipAxis)
+    .map((axis) => axis.chips.filter((chip) => active.includes(chip.id))).filter((chips) => chips.length);
+  return rows.filter((row) => axes.every((chips) => chips.some((chip) => chipMatches(row, chip))));
 }
 
-/** The family chip: Spatial and Own are apps of their own, everything else is a classic engine. */
-export function filterByFamily(rows, family) {
-  if (family === 'all') return rows;
-  return rows.filter((r) => { const app = appOf(r); return family === 'classic' ? app !== 'spatial' && app !== 'own' : app === family; });
+/** Each chip's count: the rows it would list with the other axes' chips as they are. */
+export function chipCounts(rows, active) {
+  return new Map(FILTER_CHIPS.map((chip) => [chip.id, filterByChips(rows, active, chip.axis).filter((row) => chipMatches(row, chip)).length]));
+}
+
+/** The list A to Z by name; looks of one name keep the order the server sends. */
+export function byName(rows) {
+  return [...rows].sort((a, b) => BY_NAME.compare(a.name || a.id, b.name || b.id));
 }
 
 /** One card per look, retaining the playing or pinned variant's playback id. */
@@ -99,27 +110,6 @@ export function catalogueRows(rows, playingId, favourites = []) {
     const selected = preferred.get(row.id);
     return selected?.variantOf === row.id ? { ...selected, name: row.name } : row;
   });
-}
-
-/** The rows by app, each app by family, in the catalogue's order; the saved presets lead the fork's own. */
-export function groupRows(rows, families = []) {
-  const rank = new Map(families.map((f, i) => [f.id, i]));
-  const nameOf = (id) => families.find((f) => f.id === id)?.name || id;
-  const groups = new Map();
-  for (const row of rows) {
-    const app = appOf(row);
-    const fam = row.user ? { id: 'user', name: 'Your presets', rank: -1 }
-      : app === 'upstream' ? (row.pixel ? { id: 'pixel', name: 'Pixel effects', rank: 1 } : { id: 'patterns', name: 'Effects', rank: 0 })
-        : row.app ? { id: row.family, name: nameOf(row.family), rank: rank.get(row.family) ?? 999 }
-          : { id: 'own.party', name: nameOf('own.party'), rank: rank.get('own.party') ?? 999 };
-    if (!groups.has(app)) groups.set(app, new Map());
-    const group = groups.get(app);
-    if (!group.has(fam.id)) group.set(fam.id, { ...fam, rows: [] });
-    group.get(fam.id).rows.push(row);
-  }
-  return APP_ORDER.filter((app) => groups.has(app)).map((app) => ({
-    app, name: APP_NAMES[app], families: [...groups.get(app).values()].sort((a, b) => a.rank - b.rank),
-  }));
 }
 
 /** The deck: the favourites in the order they were starred, then the presets saved here, then the party looks. */
@@ -152,10 +142,14 @@ function writeFavourites(ids) {
   try { localStorage.setItem(FAVOURITES_KEY, JSON.stringify(ids)); } catch { /* private mode */ }
 }
 
-function matches(row, q, families) {
+/** Does a row match the search: its name, description, id or family as before, or its tags and where it reacts from. */
+export function matchesSearch(row, q, families) {
   if (!q) return true;
   const family = row.family ? families.find((f) => f.id === row.family) : null;
-  return [row.name, row.desc, row.id, family && family.name].some((text) => text && text.toLowerCase().includes(q));
+  const tags = tagsOf(row);
+  const words = [...tags.map((tag) => TAGS[tag]?.name), ...(tags.some((tag) => REACTIVE_TAGS.has(tag)) ? [REACTIVE_CHIP.name] : []),
+    ...(row.via ?? []).map((source) => SOURCES[source]?.name)];
+  return [row.name, row.desc, row.id, family && family.name, ...words].some((text) => text && text.toLowerCase().includes(q));
 }
 
 // The warning before the first rapid flash, shared with the strobe pad and the matrix.
@@ -204,6 +198,37 @@ const Rapid = () => (
   <span class="badge-rapid" role="img" aria-label="rapid flash" title="Rapid flash: plays only after the photosensitivity acknowledgement">⚡</span>
 );
 
+/** A tag's name with its ⚡ kept from screen readers, which would read it out as a word. */
+function TagName({ tag }) {
+  const name = TAGS[tag].name;
+  return name.endsWith(' ⚡') ? <>{name.slice(0, -2)} <span aria-hidden="true">⚡</span></> : name;
+}
+
+/** A row's tags as badges; a reaction says where its input comes from. */
+function TagBadges({ row, without = [] }) {
+  const tags = tagsOf(row).filter((tag) => TAGS[tag] && !without.includes(tag));
+  if (!tags.length && !row.user) return null;
+  return (
+    <span class="effect-tags">
+      {tags.map((tag) => {
+        const sources = REACTIVE_TAGS.has(tag) ? (row.via ?? []).filter((source) => SOURCES[source]) : [];
+        const title = [TAGS[tag].desc, ...sources.map((source) => SOURCES[source].desc)].join('. ');
+        return (
+          <span key={tag} class={`effect-tag${tag === 'rapid' ? ' badge-rapid' : ''}`} data-tag={tag} title={title}>
+            <TagName tag={tag} />{sources.length > 0 && <span class="effect-tag-via"> · {sources.map((source) => SOURCES[source].name).join(' + ')}</span>}
+          </span>
+        );
+      })}
+      {row.user && <span class="effect-tag effect-pad-yours">Yours</span>}
+    </span>
+  );
+}
+
+/** The layout mapping, when it is not already said by the Room-placed badge. */
+const Mapping = ({ row }) => (row.mapping && row.mapping !== 'room' ? <span class="effect-mapping">{MAPPING_LABELS[row.mapping]}</span> : null);
+
+const iconOf = (row) => PATTERN_ICONS[row.id] || TAG_ICONS.find(([tag]) => tagsOf(row).includes(tag))?.[1] || '·';
+
 function Star({ row, on, onToggle }) {
   return (
     <button type="button" class={`effect-star ${on ? 'on' : ''}`} aria-pressed={on} aria-label={`Favourite ${row.name}`}
@@ -217,17 +242,17 @@ function EditButton({ row, onEdit }) {
   );
 }
 
-/** A deck pad: the name large, the group under it, the one on stage marked. */
+/** A deck pad: the name large, its tags under it, the one on stage marked. */
 function Pad({ row, active, favourite, onTap, onEdit, onToggleFavourite }) {
   const press = usePress(() => onTap(row), () => onEdit(row.id));
   return (
     <div class={`effect-pad ${active ? 'active' : ''}`} data-id={row.id} data-layer={active ? 'base' : undefined}>
       <button type="button" class="effect-pad-tap" aria-pressed={active} title={row.desc || row.name} {...press}>
         <span class="effect-pad-name">{row.name}</span>
-        {row.mapping && <span class="effect-mapping">{MAPPING_LABELS[row.mapping]}</span>}
-        <span class="effect-pad-app">{APP_BADGES[row.user ? row.kindApp || 'own' : appOf(row)]}{row.user && <span class="effect-pad-yours"> · Yours</span>}</span>
+        <Mapping row={row} />
+        <TagBadges row={row} without={['rapid']} />
         {active && <span class="effect-pad-now">Main effect</span>}
-        {row.rapidFlash && <Rapid />}
+        {tagsOf(row).includes('rapid') && <Rapid />}
       </button>
       <div class="effect-pad-tools">
         <Star row={row} on={favourite} onToggle={onToggleFavourite} />
@@ -245,13 +270,13 @@ function Row({ row, active, onBars, onPanels, favourite, onTap, onEdit, onToggle
     <div class="effect-row">
       <button type="button" class={`pattern-btn ${active ? 'active' : ''} ${where ? 'on-bars' : ''}`} data-id={row.id}
         aria-pressed={active} title={row.desc || row.name} {...press}>
-        <span class="icon" aria-hidden="true">{PATTERN_ICONS[row.id] || APP_ICONS[appOf(row)]}</span>
+        <span class="icon" aria-hidden="true">{iconOf(row)}</span>
         <span class="body">
           <span class="name">{row.name}{active && <span class="layer-tag" data-layer="base"> · Main effect</span>}{where && <span class="layer-tag"> · on {where}</span>}</span>
-          {row.mapping && <span class="effect-mapping">{MAPPING_LABELS[row.mapping]}</span>}
+          <Mapping row={row} />
           {row.desc && <span class="effect-row-desc">{row.desc}</span>}
+          <TagBadges row={row} />
         </span>
-        {row.rapidFlash && <Rapid />}
       </button>
       <Star row={row} on={favourite} onToggle={onToggleFavourite} />
       <EditButton row={row} onEdit={onEdit} />
@@ -265,7 +290,7 @@ export function Effects() {
   const editing = editingSig.value;
   const families = s.families || lib.families || [];
   const [q, setQ] = useState('');
-  const [family, setFamily] = useState('all');
+  const filters = filtersSig.value;
   const [favourites, setFavourites] = useState(readFavourites);
   const [confirm, setConfirm] = useState(null);
   const acknowledged = !!(s.safety && s.safety.photosensitivityAcknowledged);
@@ -274,7 +299,7 @@ export function Effects() {
   const userRows = (s.effects || []).map((e) => {
     const family = familyOf(e.kind, families);
     const spec = lib.user?.find((p) => p.id === e.id)?.spec;
-    return { ...e, user: true, app: 'own', kindApp: family?.app, family: family?.id || 'user', mapping: spec ? mappingOf(spec) : null, desc: 'A preset saved on this server' };
+    return { ...e, user: true, family: family?.id || 'user', mapping: spec ? mappingOf(spec) : null, desc: 'A preset saved on this server' };
   });
   const allRows = [...userRows, ...(s.patterns || [])];
   const canonicalId = (id) => allRows.some((row) => row.id === id) ? id : (lib.builtin || []).find((row) => row.aliases?.includes(id))?.id || id;
@@ -287,9 +312,12 @@ export function Effects() {
     return row ? [row.id] : [];
   }))];
   const query = q.trim().toLowerCase();
-  const visible = filterByFamily(rows, family).filter((r) => matches(r, query, families));
+  const found = rows.filter((r) => matchesSearch(r, query, families));
+  const visible = filterByChips(found, filters);
+  const counts = chipCounts(found, filters);
   const deck = quickDeck(visible, pins);
-  const groups = groupRows(visible, families);
+  const list = byName(visible);
+  const toggleChip = (id) => { filtersSig.value = filters.includes(id) ? filters.filter((x) => x !== id) : [...filters, id]; };
 
   const tap = (row) => tapRow(row, acknowledged, setConfirm);
   const confirmPlay = async () => {
@@ -335,37 +363,38 @@ export function Effects() {
         </div>
         <PictureLayers />
         <input class="effects-search" type="search" aria-label="Search effects" placeholder="Search effects" value={q} onInput={(e) => setQ(e.target.value)} />
-        <div class="effects-chips" role="group" aria-label="Filters">
-          <div class="effects-chip-set" role="group" aria-label="Family">
-            {FAMILY_CHIPS.map(([id, label, desc]) => (
-              <button key={id} class={`effects-chip family ${family === id ? 'active' : ''}`} aria-pressed={family === id} type="button" title={desc}
-                onClick={() => setFamily(id)}>{label}</button>
-            ))}
+      </div>
+      <div class="effects-filters effects-chips" role="group" aria-label="Filters">
+        {FILTER_AXES.map((axis) => (
+          <div key={axis.id} class="effects-chip-set" role="group" aria-label={axis.name}>
+            <span class="effects-chip-axis" aria-hidden="true">{axis.name}</span>
+            {axis.chips.map((chip) => {
+              const on = filters.includes(chip.id);
+              const n = counts.get(chip.id);
+              return (
+                <button key={chip.id} type="button" class={`effects-chip ${on ? 'active' : ''}`} data-chip={chip.id} aria-pressed={on}
+                  disabled={!on && n === 0} title={chip.desc} onClick={() => toggleChip(chip.id)}>
+                  {chip.id in TAGS ? <TagName tag={chip.id} /> : chip.name}<span class="effects-chip-count">{n}</span>
+                </button>
+              );
+            })}
           </div>
-        </div>
+        ))}
+        {filters.length > 0 && <button type="button" class="effects-chip effects-chip-clear" onClick={() => { filtersSig.value = []; }}>Clear</button>}
       </div>
       <PlayingVoices stopAll />
       <div class="effects-deck" role="group" aria-label="Favourites, your presets and party effects">
-        {deck.length === 0 && <p class="effects-empty">{query ? 'No featured effects match.' : 'Star an effect to pin it here.'}</p>}
+        {deck.length === 0 && <p class="effects-empty">{query || filters.length ? 'No featured effects match.' : 'Star an effect to pin it here.'}</p>}
         {deck.map((row) => <Pad key={row.id} {...rowProps(row)} />)}
       </div>
       <div class="effects-catalogue">
-        {groups.length === 0 && <p class="effects-empty">Nothing matches.</p>}
-        {groups.map((group) => (
-          <details key={group.app} class="effects-group" open={!!query}>
-            <summary class="effects-group-title">{group.name}</summary>
-            {group.families.map((family) => (
-              <div key={family.id} class="effects-family">
-                {family.name !== group.name && <div class="effects-family-title">{family.name}</div>}
-                <div class="pattern-grid">
-                  {family.rows.map((row) => (
-                    <Row key={row.id} {...rowProps(row)} onBars={onBars === row.id} onPanels={onPanels === row.id} />
-                  ))}
-                </div>
-              </div>
-            ))}
-          </details>
-        ))}
+        <div class="effects-list-title">All effects <span class="effects-list-count">{list.length === rows.length ? rows.length : `${list.length} of ${rows.length}`}</span></div>
+        {list.length === 0 && <p class="effects-empty">Nothing matches.</p>}
+        <div class="pattern-grid">
+          {list.map((row) => (
+            <Row key={row.id} {...rowProps(row)} onBars={onBars === row.id} onPanels={onPanels === row.id} />
+          ))}
+        </div>
       </div>
       {panels && pixel.length > 0 && (
         <label class="panel-pattern">

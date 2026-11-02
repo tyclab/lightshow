@@ -50,7 +50,7 @@ test('no Spatial id collides with an existing id or alias', () => {
   for (const p of V2_PRESETS) assert.equal(presetById(p.id).spec, p.spec, 'the catalogue resolves it');
 });
 
-test('the catalogue lists them under Spatial for the Effects view', () => {
+test('their family is Spatial, which the inspector and the search still read', () => {
   const spatial = FAMILIES.find((f) => f.id === 'spatial');
   assert.equal(spatial.name, 'Spatial');
   for (const p of V2_PRESETS) assert.ok(spatial.kinds.some((k) => k.kind === p.spec.kind), p.spec.kind);

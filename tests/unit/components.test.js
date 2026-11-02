@@ -29,7 +29,9 @@ async function load() {
         export { SHORTCUTS } from './public-src/components/Shortcuts.jsx';
         export { VIEWS } from './public-src/views.js';
         export { CommandBar } from './public-src/components/CommandBar.jsx';
-        export { Effects, PhotosensitivityConfirm, editingSig, filterByFamily, catalogueRows, groupRows, quickDeck, tapRow, usePress } from './public-src/components/Effects.jsx';
+        export { Effects, PhotosensitivityConfirm, editingSig, filtersSig, FILTER_AXES, filterByChips, chipCounts, byName, matchesSearch, catalogueRows, quickDeck, tapRow, usePress } from './public-src/components/Effects.jsx';
+        export { TAGS, legacyTags, specTags, tagFields } from './src/shared/effects/tags.ts';
+        export { mappingOf } from './src/shared/effects/mapping.ts';
         export { Inspector, SingleColourField, readRecommendedPreference, savePreset, withRecommended } from './public-src/components/Inspector.jsx';
         export { PaletteEditor, isHexColour, normaliseHex, savePalette } from './public-src/components/PaletteEditor.jsx';
         export { librarySig, socket, followMusic } from './public-src/state.js';
@@ -254,13 +256,14 @@ test('following the music again is POST /api/tempo/auto', async () => {
 // A pre-migration library snapshot exercises the retained rich editors; current picker retirement is checked separately.
 const PRESET_ROWS = ui.CATALOGUE.filter((p) => !p.legacy).map((p) => ({
   id: p.id, name: p.name, desc: p.desc, ...(p.party ? { party: true } : {}), ...(p.pixel ? { pixel: true } : {}),
-  app: p.app, family: p.family, rapidFlash: ui.requiresAcknowledgement(p.spec), scope: p.spec.scope ?? null,
+  mapping: ui.mappingOf(p.spec), app: p.app, family: p.family, rapidFlash: ui.requiresAcknowledgement(p.spec), scope: p.spec.scope ?? null,
+  ...ui.tagFields(ui.specTags(p.spec, { pixel: !!p.pixel })),
 }));
 const LEGACY_ROWS = ui.CATALOGUE.filter((p) => p.legacy)
-  .map(({ id, name, desc, party, preset }) => ({ id, name, desc, party, ...(preset ? { preset } : {}), legacy: true }));
+  .map(({ id, name, desc, party, preset }) => ({ id, name, desc, party, ...(preset ? { preset } : {}), legacy: true, ...ui.tagFields(ui.legacyTags(id)) }));
 const UPSTREAM_ROWS = [
-  { id: 'chase', name: 'Chase →', desc: 'One fixture at a time, forward', legacy: true },
-  { id: 'gradient', name: 'Gradient', desc: 'The look\'s colours as a gradient scrolling across the rig', pixel: true, legacy: true },
+  { id: 'chase', name: 'Chase →', desc: 'One fixture at a time, forward', legacy: true, ...ui.tagFields(ui.legacyTags('chase')) },
+  { id: 'gradient', name: 'Gradient', desc: 'The look\'s colours as a gradient scrolling across the rig', pixel: true, legacy: true, ...ui.tagFields(ui.legacyTags('gradient')) },
 ];
 const PATTERN_ROWS = [...UPSTREAM_ROWS, ...LEGACY_ROWS, ...PRESET_ROWS];
 const domino = ui.CATALOGUE.find((p) => p.id === 'hd.neonDomino');
@@ -277,7 +280,8 @@ function givenLibrary(state) {
   };
   given({
     pattern: 'hd.neonDomino', patterns: PATTERN_ROWS, families: ui.FAMILIES, builtinPalettes: ui.BUILTIN_PALETTES,
-    effects: [{ id: 'u1', name: 'My Domino', kind: 'hd.positionChase', rapidFlash: false, scope: 'measure', updatedAt: USER_PRESET.updatedAt }],
+    effects: [{ id: 'u1', name: 'My Domino', kind: 'hd.positionChase', rapidFlash: false, scope: 'measure', updatedAt: USER_PRESET.updatedAt,
+      ...ui.tagFields(ui.specTags(USER_PRESET.spec)) }],
     userPalettes: [USER_PALETTE], safety: { photosensitivityAcknowledged: false, hdFlashIntervalMs: 350, strobeMaxLatchSec: 60 },
     fixtures: [{ id: 1, label: 'Par 1' }, { id: 2, label: 'Par 2' }], profiles: {},
     ...state,
@@ -290,81 +294,133 @@ const rowOf = (html, id) => {
   return m ? m[0] : null;
 };
 
-test('Effects groups presets by source and family', () => {
+/** The catalogue's rows, in order, as rendered. */
+const listOf = (html) => [...(/<div class="effects-catalogue">(.*)$/s.exec(html)?.[1] ?? '').matchAll(/class="pattern-btn[^"]*" data-id="([^"]+)"/g)].map((m) => m[1]);
+/** A row's tag badges, as text. */
+const badgesOf = (row) => [...row.matchAll(/class="effect-tag[^"]*" data-tag="[^"]+"[^>]*>(.*?)<\/span>(?=<span class="effect-tag|<\/span>)/gs)]
+  .map((m) => m[1].replace(/<[^>]+>/g, '').replace(/&amp;/g, '&').trim());
+
+test('Effects lists every look once, A to Z, each with the tags its code states', () => {
+  ui.filtersSig.value = [];
   givenLibrary({});
   const html = ui.html(ui.h(ui.Effects, {}));
-  const groups = [...html.matchAll(/class="effects-group-title">([^<]+)</g)].map((m) => m[1]);
-  assert.deepStrictEqual(groups, ['Spatial', 'Party &amp; Disco', 'Entertainment', 'Own', 'Classic effects']);
-  // A family heads its presets.
-  assert.match(html, /Position Chase<\/[^>]+>(?:(?!effects-family-title).)*data-id="hd\.neonDomino"/s);
-  assert.match(html, /effects-family-title">Disco<\/[^>]+>(?:(?!effects-family-title).)*data-id="hd\.disco\.pop"/s);
-  assert.match(html, /effects-family-title">Channel<\/[^>]+>(?:(?!effects-family-title).)*data-id="ldj\.StrobeCycle"/s);
-  // The fork's own: the presets saved here, the party looks, the energy controls.
-  assert.match(html, /effects-family-title">Your presets<\/[^>]+>(?:(?!effects-family-title).)*data-id="u1"/s);
-  assert.match(html, /effects-family-title">Party Looks<\/[^>]+>(?:(?!effects-family-title).)*data-id="position-chase"/s);
-  assert.match(html, /effects-family-title">Energy<\/[^>]+>(?:(?!effects-family-title).)*data-id="energy\.blinder"/s);
-  assert.ok(rowOf(html, 'chase') && rowOf(html, 'gradient'), 'the upstream patterns are listed');
-  // The one playing is pressed, and only it.
-  assert.strictEqual(count(html, 'aria-pressed="true"'), 2, 'the row on stage and the All chip');
-  assert.match(rowOf(html, 'hd.neonDomino'), /class="pattern-btn active/);
-  // Every group is folded until opened; a search opens them.
-  assert.strictEqual(count(html, '<details class="effects-group" open'), 0);
-  assert.strictEqual(count(html, '<details class="effects-group"'), 5);
-  // A rapid flash carries its warning; a slow one does not.
-  assert.match(rowOf(html, 'hd.voltageConfetti'), /badge-rapid/);
+  assert.strictEqual(count(html, '<details'), 0, 'no folded sections');
+  assert.doesNotMatch(html, /effects-group|effects-family|Classic effects|Party &amp; Disco|Entertainment/);
+  const list = listOf(html);
+  const rows = ui.catalogueRows([...PATTERN_ROWS], 'hd.neonDomino');
+  assert.strictEqual(list.length, rows.length + 1, 'every look and the preset saved here, once each');
+  assert.deepStrictEqual(list, ui.byName([{ id: 'u1', name: 'My Domino' }, ...rows]).map((r) => r.id));
+  const names = list.map((id) => [{ id: 'u1', name: 'My Domino' }, ...rows].find((r) => r.id === id).name.toLowerCase());
+  assert.ok(names.every((name, i) => i === 0 || names[i - 1].localeCompare(name, 'en', { sensitivity: 'base', numeric: true }) <= 0), 'A to Z');
+  assert.match(html, /class="effects-list-title">All effects <span class="effects-list-count">/);
+  // The badges: what a look reacts to and from where, its surface, colours and use.
+  assert.deepStrictEqual(badgesOf(rowOf(html, 'v2.impact')), ['Bands & drums · live', 'Room-placed']);
+  assert.deepStrictEqual(badgesOf(rowOf(html, 'v2.stemsSpace')), ['Bands & drums · track + live', 'Room-placed']);
+  assert.deepStrictEqual(badgesOf(rowOf(html, 'volume-gate')), ['Audio level · track']);
+  assert.deepStrictEqual(badgesOf(rowOf(html, 'gradient')), ['Beat only', 'Bars & panels']);
+  assert.deepStrictEqual(badgesOf(rowOf(html, 'v2.visualizerFlow')), ['Screen · screen', 'Room-placed']);
+  assert.deepStrictEqual(badgesOf(rowOf(html, 'chase')), ['Beat only']);
+  assert.deepStrictEqual(badgesOf(rowOf(html, 'energy.whiteStrobe')), ['Beat only', 'Whole rig', 'Own colours', 'Energy', 'Rapid ⚡']);
+  assert.match(rowOf(html, 'v2.impact'), /title="Follows stems, drum hits or frequency bands\. Reacts in the reactive audio mode with live input"/);
+  assert.match(rowOf(html, 'radial-pulse'), /title="[^"]*Reacts only while the auto show plays an analysed track; picked by hand it runs on its clock"/);
+  // A rapid flash carries its warning, its ⚡ hidden from screen readers; a slow one does not.
+  assert.match(rowOf(html, 'hd.voltageConfetti'), /class="effect-tag badge-rapid" data-tag="rapid"[^>]*>Rapid <span aria-hidden="true">⚡<\/span>/);
   assert.match(rowOf(html, 'ldj.TrueStrobe'), /badge-rapid/);
   assert.doesNotMatch(rowOf(html, 'hd.neonDomino'), /badge-rapid/);
+  // The one playing is pressed, and only it.
+  assert.strictEqual(count(html, 'aria-pressed="true"'), 1, 'the row on stage');
+  assert.match(rowOf(html, 'hd.neonDomino'), /class="pattern-btn active/);
   assert.match(html, /type="search"[^>]*aria-label="Search effects"/);
+  // The room mapping is said by its badge; a plot variant still says Across layout.
+  assert.doesNotMatch(rowOf(html, 'v2.grooveWave'), /Through room|effect-mapping/);
+  assert.match(rowOf(html, 'v2.grooveWave.2d'), /class="effect-mapping">Across layout</);
+  assert.deepStrictEqual(badgesOf(rowOf(html, 'v2.grooveWave.2d')), ['Beat only']);
 });
 
-test("The family chip splits Spatial, Own and Classic by app", () => {
-  const rows = [
-    { id: 'v2.wave', family: 'spatial' }, { id: 'u', user: true }, { id: 'p', party: true }, { id: 'hd.x', app: 'hd' }, { id: 'up' },
-  ];
-  const ids = (family) => ui.filterByFamily(rows, family).map((r) => r.id);
-  assert.deepStrictEqual(ids('all'), ['v2.wave', 'u', 'p', 'hd.x', 'up']);
-  assert.deepStrictEqual(ids('spatial'), ['v2.wave']);
-  assert.deepStrictEqual(ids('own'), ['u', 'p']);
-  assert.deepStrictEqual(ids('classic'), ['hd.x', 'up']);
-});
-
-test('one catalogue card retains the playing or pinned mapping without merging user presets', () => {
-  const rows = [
-    { id: 'v2.wave', name: 'Wave' }, { id: 'v2.wave.2d', name: 'Wave 2D', variantOf: 'v2.wave', retired: true },
-    { id: 'u', user: true }, { id: 'old', retired: true },
-  ];
-  const ids = (playing, pins) => ui.catalogueRows(rows, playing, pins).map((r) => r.id);
-  assert.deepStrictEqual(ids(), ['v2.wave', 'u']);
-  assert.deepStrictEqual(ids(null, ['v2.wave.2d']), ['v2.wave.2d', 'u']);
-  assert.deepStrictEqual(ids('v2.wave', ['v2.wave.2d']), ['v2.wave', 'u']);
-  assert.deepStrictEqual(ids('v2.wave.2d', ['v2.wave', 'v2.wave.2d']), ['v2.wave.2d', 'u']);
-  assert.equal(ui.catalogueRows(rows, 'v2.wave.2d')[0].name, 'Wave');
-});
-
-test('the deck offers family filters without a duplicate space category', () => {
+test('a preset saved here lists among the built-ins, marked Yours, with the tags of its own spec', () => {
+  ui.filtersSig.value = [];
   givenLibrary({});
   const html = ui.html(ui.h(ui.Effects, {}));
-  const chips = (kind) => [...html.matchAll(new RegExp(`class="effects-chip ${kind}[^"]*"[^>]*aria-pressed="(true|false)"[^>]*>([^<]+)<`, 'g'))].map((m) => `${m[2]}:${m[1]}`);
-  assert.deepStrictEqual(chips('family'), ['All:true', 'Spatial:false', 'Own:false', 'Classic:false']);
-  assert.deepStrictEqual(chips('space'), []);
+  assert.deepStrictEqual(badgesOf(rowOf(html, 'u1')), ['Beat only', 'Own colours']);
+  assert.match(rowOf(html, 'u1'), /<span class="effect-tag effect-pad-yours">Yours<\/span>/);
+  assert.doesNotMatch(rowOf(html, 'hd.neonDomino'), /Yours/);
 });
 
-test("Library groups saved presets before the other custom families", () => {
-  const grouped = ui.groupRows([{ id: 'u1', name: 'Mine', user: true, scope: 'measure' }, ...PATTERN_ROWS], ui.FAMILIES);
-  assert.deepStrictEqual(grouped.map((g) => g.app), ['spatial', 'hd', 'ldj', 'own', 'upstream']);
-  assert.deepStrictEqual(grouped[3].families.map((f) => f.name), ['Your presets', 'Party Looks', 'Energy']);
-  assert.deepStrictEqual(grouped[4].families.map((f) => f.name), ['Effects', 'Pixel effects']);
+test('chips: any chip within an axis, every axis with one on, and counts as the other axes leave them', () => {
+  const t = (id, tags) => ({ id, name: id, tags });
+  const rows = [
+    t('wash', ['static', 'rig']), t('wave', ['beat', 'room']), t('bars', ['bands', 'bars']),
+    t('gate', ['level', 'room']), t('strobe', ['beat', 'rig', 'energy', 'rapid']), t('wall', ['sections', 'room']),
+    { id: 'old', name: 'old', rapidFlash: true },
+  ];
+  const ids = (active) => ui.filterByChips(rows, active).map((r) => r.id);
+  assert.deepStrictEqual(ids([]), rows.map((r) => r.id), 'no chip: everything');
+  assert.deepStrictEqual(ids(['beat', 'static']), ['wash', 'wave', 'strobe'], 'OR within an axis');
+  assert.deepStrictEqual(ids(['reactive']), ['bars', 'gate', 'wall'], 'Reactive is any of the four reactions');
+  assert.deepStrictEqual(ids(['reactive', 'room']), ['gate', 'wall'], 'AND across axes');
+  assert.deepStrictEqual(ids(['beat', 'static', 'rig']), ['wash', 'strobe']);
+  assert.deepStrictEqual(ids(['rig', 'room']), ['wash', 'wave', 'gate', 'strobe', 'wall'], 'two surfaces: either, not both');
+  assert.deepStrictEqual(ids(['rapid']), ['strobe', 'old'], 'a row flagged rapid without tags still counts');
+  const counts = (active) => Object.fromEntries(ui.chipCounts(rows, active));
+  assert.deepStrictEqual(counts([]), { beat: 2, static: 1, reactive: 3, rig: 2, room: 3, bars: 1, ownColours: 0, energy: 1, rapid: 2 });
+  // A chip's own axis does not narrow its count: Static still says 1 with Beat only on; the other axes narrow by Beat only.
+  assert.deepStrictEqual(counts(['beat']), { beat: 2, static: 1, reactive: 3, rig: 1, room: 1, bars: 0, ownColours: 0, energy: 1, rapid: 1 });
+  assert.deepStrictEqual(counts(['room', 'reactive']), { beat: 1, static: 0, reactive: 2, rig: 0, room: 2, bars: 1, ownColours: 0, energy: 0, rapid: 0 });
+  assert.deepStrictEqual(ui.byName([t('b', []), { id: 'A2', name: 'a' }, t('a', []), { id: 'c10', name: 'c10' }, { id: 'c9', name: 'c9' }]).map((r) => r.id),
+    ['A2', 'a', 'b', 'c9', 'c10'], 'A to Z, numbers in order, one name in the order given');
 });
 
-test("Spatial leads the catalogue with every preset in the room and in 2D side by side", () => {
-  const grouped = ui.groupRows(PATTERN_ROWS, ui.FAMILIES);
-  assert.equal(grouped[0].name, 'Spatial');
-  const names = grouped[0].families.flatMap((f) => f.rows.map((r) => r.name));
-  assert.deepStrictEqual(names.slice(0, 4), ['Scatter Strobe', 'Scatter Strobe 2D', 'Scatter Fade', 'Scatter Fade 2D']);
-  assert.ok(names.includes('Speaker Shockwave') && names.includes('Speaker Shockwave 2D'));
+test('the filters: four axes, Reactive folding the four reactions, a live count on each, Clear only while one is on', () => {
   givenLibrary({});
-  const html = ui.html(ui.h(ui.Effects, {}));
-  assert.match(html, /<summary class="effects-group-title">Spatial<\/summary>/);
+  const chipsOf = (html) => [...html.matchAll(/class="effects-chip ?(active)?" data-chip="([^"]+)" aria-pressed="(true|false)"([^>]*)>(.*?)<span class="effects-chip-count">(\d+)<\/span>/g)]
+    .map((m) => ({ id: m[2], on: m[3] === 'true', disabled: /disabled/.test(m[4]), name: m[5].replace(/<[^>]+>/g, '').replace(/&amp;/g, '&').trim(), n: Number(m[6]) }));
+  ui.filtersSig.value = [];
+  let html = ui.html(ui.h(ui.Effects, {}));
+  assert.deepStrictEqual(ui.FILTER_AXES.map((axis) => [axis.name, axis.chips.map((c) => c.id)]), [
+    ['Reacts to', ['beat', 'static', 'reactive']], ['Surface', ['rig', 'room', 'bars']], ['Colour', ['ownColours']], ['Use & safety', ['energy', 'rapid']],
+  ]);
+  assert.match(html, /<div class="effects-filters effects-chips" role="group" aria-label="Filters">/);
+  for (const axis of ['Reacts to', 'Surface', 'Colour', 'Use &amp; safety']) assert.match(html, new RegExp(`role="group" aria-label="${axis}"`));
+  const rows = [{ id: 'u1', tags: ui.specTags(USER_PRESET.spec).tags }, ...ui.catalogueRows(PATTERN_ROWS, 'hd.neonDomino')];
+  const has = (tags) => rows.filter((r) => tags.some((tag) => r.tags.includes(tag))).length;
+  let chips = chipsOf(html);
+  assert.deepStrictEqual(chips.map((c) => c.name), ['Beat only', 'Static', 'Reactive', 'Whole rig', 'Room-placed', 'Bars & panels', 'Own colours', 'Energy', 'Rapid ⚡']);
+  assert.deepStrictEqual(chips.map((c) => c.n), [['beat'], ['static'], ['bands', 'level', 'sections', 'screen'], ['rig'], ['room'], ['bars'], ['ownColours'], ['energy'], ['rapid']].map(has));
+  assert.ok(chips.every((c) => !c.on && !c.disabled));
+  assert.doesNotMatch(html, /effects-chip-clear/, 'nothing to clear');
+  const titles = [...html.matchAll(/data-chip="[^"]+"[^>]*title="([^"]+)"/g)].map((m) => m[1].replace(/&amp;/g, '&').replace(/&#39;|&#x27;/g, "'"));
+  assert.deepStrictEqual(titles, ui.FILTER_AXES.flatMap((axis) => axis.chips.map((chip) => chip.desc)), 'each chip explains its tag, nothing else');
+  assert.deepStrictEqual(titles.filter((t) => !Object.values(ui.TAGS).some((tag) => tag.desc === t)), ['Any of Bands & drums, Audio level, Song sections, Screen']);
+
+  ui.filtersSig.value = ['reactive', 'bars'];
+  try {
+    html = ui.html(ui.h(ui.Effects, {}));
+    chips = chipsOf(html);
+    assert.deepStrictEqual(chips.filter((c) => c.on).map((c) => c.id), ['reactive', 'bars']);
+    const list = listOf(html);
+    const expected = rows.filter((r) => r.tags.includes('bars') && r.tags.some((t) => ['bands', 'level', 'sections', 'screen'].includes(t))).map((r) => r.id);
+    assert.deepStrictEqual([...list].sort(), [...expected].sort());
+    assert.strictEqual(chips.find((c) => c.id === 'bars').n, list.length);
+    assert.ok(chips.find((c) => c.id === 'static').disabled, 'a chip with no matches is off and disabled');
+    assert.match(html, /<button type="button" class="effects-chip effects-chip-clear">Clear<\/button>/);
+    assert.match(html, new RegExp(`class="effects-list-count">${list.length} of ${rows.length}<`));
+  } finally {
+    ui.filtersSig.value = [];
+  }
+});
+
+test('the search finds a look by name, description, id and family as before, and now by its tags and where it reacts from', () => {
+  const rows = ui.catalogueRows(PATTERN_ROWS, null);
+  const find = (q) => rows.filter((r) => ui.matchesSearch(r, q, ui.FAMILIES)).map((r) => r.id);
+  const tagged = (tag) => rows.filter((r) => r.tags.includes(tag)).map((r) => r.id);
+  assert.deepStrictEqual(find('song sections'), tagged('sections'));
+  assert.deepStrictEqual(find('room-placed'), tagged('room'));
+  assert.ok(find('reactive').includes('v2.neural') && find('reactive').includes('volume-gate') && !find('reactive').includes('chase'));
+  assert.ok(tagged('rapid').every((id) => find('rapid').includes(id)));
+  assert.ok(find('live').includes('v2.impact') && find('track').includes('radial-pulse'));
+  assert.ok(find('chase').includes('chase') && find('v2.neural').includes('v2.neural'), 'by name and id');
+  assert.ok(find('spatial').includes('v2.grooveWave'), 'by family name');
+  assert.deepStrictEqual(find(''), rows.map((r) => r.id));
 });
 
 test("a Spatial preset opens in the inspector", () => {
@@ -568,9 +624,10 @@ test('the deck marks the base among saved and party presets', () => {
   const deck = deckOf(html);
   assert.deepStrictEqual(deck.slice(0, 2), ['u1', 'position-chase'], 'the saved preset, then the party looks in catalogue order');
   assert.ok(deck.includes('swirl') && !deck.includes('hd.neonDomino') && !deck.includes('chase'), 'party looks only, no built-in or upstream row');
-  // The badge names the scope; a preset saved here carries its kind's app and says it is yours.
-  assert.match(html, /data-id="u1">(?:(?!<\/div>).)*effect-pad-app">Party &amp; Disco<span class="effect-pad-yours"> · Yours</s);
-  assert.match(html, /data-id="position-chase"[^>]*>(?:(?!<\/div>).)*effect-pad-app">Own</s);
+  // A pad carries its tags; a preset saved here says it is yours. Its ⚡ stays in the corner.
+  assert.match(html, /data-id="u1">(?:(?!<\/div>).)*class="effect-tags">(?:(?!<\/div>).)*>Beat only<(?:(?!<\/div>).)*class="effect-tag effect-pad-yours">Yours</s);
+  assert.match(html, /data-id="position-chase"[^>]*>(?:(?!<\/div>).)*data-tag="beat"[^>]*>Beat only</s);
+  assert.doesNotMatch(html, /effect-pad-app/);
   assert.match(html, /<div class="effect-pad active" data-id="position-chase" data-layer="base">/);
   assert.strictEqual(count(html, 'class="effect-pad-now"'), 1);
   assert.match(html, /class="effect-pad-now">Main effect</, 'the pad on stage is the main effect, not "Base"');
@@ -589,7 +646,8 @@ test('shared status stays above the effect search', () => {
   assert.match(bar[1], /aria-label="Edit Neon Domino"/, 'its own pencil');
   assert.ok(html.indexOf('class="effects-now"') < html.indexOf('class="effects-search"'), 'above the search');
   assert.ok(html.indexOf('class="effects-tools"') < html.indexOf('class="effects-now"'), 'inside the sticky tools');
-  assert.strictEqual(count(html, '<details class="effects-group" open'), 0, 'while every group is folded');
+  assert.ok(html.indexOf('class="effects-search"') < html.indexOf('class="effects-filters'), 'the filters under the search');
+  assert.ok(html.indexOf('class="effects-filters') < html.indexOf('class="effects-deck"'), 'and over the deck they filter');
   givenLibrary({ pattern: null });
   assert.match(ui.html(ui.h(ui.Effects, {})), /class="effects-now"/);
 });
