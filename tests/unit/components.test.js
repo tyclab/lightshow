@@ -103,33 +103,33 @@ const STROBE = {
 };
 const padLabels = (html) => [...html.matchAll(/class="pad-label">([^<]*)</g)].map((m) => m[1]);
 
-test('the Perform view has the bank, the strobe, tap and stop all, and leaves the masters to the strip', () => {
+test('the Perform view has the bank, the strobe, tap and stop all, and leaves the masters to the header', () => {
   given({});
   const html = ui.html(ui.h(ui.Perform, {}));
   const names = [...html.matchAll(/class="perform-pad-name">([^<]+)</g)].map((m) => m[1]);
   assert.deepStrictEqual(names, ['Tap', 'Stop all voices']);
   assert.deepStrictEqual(padLabels(html), ['Kill', 'Blinder', 'Strobe', 'Colour strobe', 'UV', 'Glow', 'Domino', 'Empty']);
   assert.match(html, /class="strobe-hold"/);
-  assert.strictEqual(count(html, 'aria-pressed="true"'), 3, 'the Override destination, Off and the Play look are pressed');
+  assert.strictEqual(count(html, 'aria-pressed="true"'), 2, 'the Override destination and Off are pressed');
   assert.match(html, /aria-pressed="true" data-override="off"/, 'no palette override: Off is pressed');
   assert.match(html, /aria-label="Palette destination"/);
   assert.match(html, />Base<.*>Override</);
-  assert.strictEqual(count(html, 'role="switch"'), 0, 'arm, blackout and the master live on the strip');
+  assert.strictEqual(count(html, 'role="switch"'), 0, 'arm, blackout and the master live in the header');
   assert.doesNotMatch(html, /Master dimmer|Picture source/);
   assert.match(html, /aria-valuetext="70 percent"/, 'the show\'s intensity');
   assert.match(html, /Nothing loaded/);
   assert.doesNotMatch(html, /Latch effects/, 'a pad\'s launch mode says how it plays');
 });
 
-test('the strip has the outputs switch, saying what disarmed means', () => {
-  given({ armed: false });
-  let html = ui.html(ui.h(ui.Strip, {}));
-  assert.match(html, /class="perform-arm-switch" role="switch" aria-checked="false"/);
-  assert.match(html, /Disarmed.*nothing goes out to the rig — tap to arm/s);
-  given({ armed: true });
-  html = ui.html(ui.h(ui.Strip, {}));
-  assert.match(html, /class="perform-arm-switch armed" role="switch" aria-checked="true"/);
-  assert.match(html, /Armed.*frames go out to the rig — tap to disarm/s);
+test('the header owns output permission and the picture strip never duplicates it', () => {
+  for (const armed of [false, true]) {
+    given({ armed, control: { version: 1, programme: 'look', playing: false, frozen: false, blackout: false, armed } });
+    const header = ui.html(ui.h(ui.Header, {}));
+    assert.strictEqual(count(header, 'aria-label="Global show controls"'), 1);
+    assert.match(header, new RegExp(`<button[^>]*aria-pressed="${armed}"[^>]*>${armed ? 'Disarm' : 'Arm'}</button>`));
+    assert.match(header, /Disarm ends output streams without changing playback, Freeze or Blackout/);
+    assert.doesNotMatch(ui.html(ui.h(ui.Strip, {})), /role="switch"|>Arm<|>Disarm<|Global show controls/);
+  }
 });
 
 test('unacknowledged strobe notices follow server safety state', () => {
@@ -145,22 +145,8 @@ test('unacknowledged strobe notices follow server safety state', () => {
   for (const html of views()) assert.doesNotMatch(html, /Strobes off/);
 });
 
-test('the header shows the look\'s playback whatever drives the room', () => {
-  given({ running: false });
-  assert.match(ui.html(ui.h(ui.Header, {})),
-    /<button[^>]*aria-label="Look playback"[^>]*aria-pressed="false"[^>]*title="Play look:[^"]*"><span class="label">Look<\/span><span>Frozen<\/span><\/button>/);
-  given({ running: true });
-  assert.doesNotMatch(ui.html(ui.h(ui.Header, {})), /Frozen/);
-  assert.match(ui.html(ui.h(ui.Header, {})), /<span class="label">Look<\/span><span>Playing<\/span>/);
-  // A sequence or the auto show over a frozen base: the pill stays, says so and still answers a click.
-  given({ running: false, sequence: { loaded: { id: 'set', name: 'Set' }, playing: true, lanes: [] } });
-  assert.match(ui.html(ui.h(ui.Header, {})), /aria-label="Look playback"[^>]*title="Play look:[^"]*the main effect under the sequence"><span class="label">Look<\/span><span>Frozen<\/span>/);
-  given({ running: false, showOn: true });
-  assert.match(ui.html(ui.h(ui.Header, {})), /aria-label="Look playback"[^>]*title="Play look:[^"]*the main effect under the auto show"><span class="label">Look<\/span><span>Frozen<\/span>/);
-});
-
 test('every header pill keeps its place in every state', () => {
-  const LABELS = ['Outputs', 'Look', 'BPM', 'Master', 'Blackout', 'Energy', 'Flash', 'Auto'];
+  const LABELS = ['BPM', 'Master', 'Energy', 'Flash', 'Auto'];
   const STATES = {
     'nothing known yet': { bpm: null, masterDimmer: undefined, autoShow: undefined },
     'disarmed, idle': { armed: false },
@@ -182,18 +168,33 @@ test('every header pill keeps its place in every state', () => {
   }
   given({ masterBlackout: true, masterDimmer: 128 });
   assert.match(ui.html(ui.h(ui.Header, {})), /<span class="label">Master<\/span><span>50%<\/span>/, 'the master reads through a blackout');
-  given({});
-  assert.match(ui.html(ui.h(ui.Header, {})), /<span class="label">Outputs<\/span><span>—<\/span>/, 'unknown arming reads —');
-  assert.match(ui.html(ui.h(ui.Header, {})), /aria-label="Arm outputs"[^>]*disabled|disabled[^>]*aria-label="Arm outputs"/, 'and cannot be pressed');
 });
 
-test('blackout on the strip and a running voice\'s pad show as pressed', () => {
+test('the header reports whole-picture Freeze independently of programme and playback', () => {
+  for (const programme of ['look', 'auto', 'sequence']) {
+    for (const playing of [false, true]) {
+      given({ running: playing, control: { version: 1, programme, playing, frozen: true, blackout: false, armed: false } });
+      const header = ui.html(ui.h(ui.Header, {}));
+      assert.strictEqual(count(header, 'aria-label="Global show controls"'), 1);
+      assert.match(header, /<button[^>]*aria-pressed="true"[^>]*>Resume<\/button>/);
+      assert.doesNotMatch(header, /aria-label="Look playback"/);
+    }
+  }
+  given({ running: false });
+  const unavailable = ui.html(ui.h(ui.Header, {}));
+  assert.match(unavailable, /Global controls unavailable/);
+  assert.match(unavailable, /<button[^>]*disabled[^>]*aria-pressed="false"[^>]*>Freeze<\/button>/);
+  assert.doesNotMatch(unavailable, />Resume<\/button>/, 'legacy running=false must not masquerade as a whole-picture hold');
+});
+
+test('global blackout and a running voice\'s pad show their independent pressed states', () => {
   const lit = Array(16).fill(null);
   lit[4] = 'v7';
-  given({ masterBlackout: true, pads: { layout: LAYOUT, lit } });
-  const strip = ui.html(ui.h(ui.Strip, {}));
-  assert.match(strip, /class="show-switch blackout on" role="switch" aria-checked="true"/);
-  assert.match(strip, /the rig is dark — tap to restore/);
+  given({ masterBlackout: true, control: { version: 1, programme: 'look', playing: true, frozen: false, blackout: true, armed: false }, pads: { layout: LAYOUT, lit } });
+  const header = ui.html(ui.h(ui.Header, {}));
+  assert.match(header, /<button[^>]*aria-pressed="true"[^>]*>Restore<\/button>/);
+  assert.match(header, /Restore reveals the current picture without changing playback or Freeze/);
+  assert.doesNotMatch(ui.html(ui.h(ui.Strip, {})), /Blackout|Restore/);
   assert.match(ui.html(ui.h(ui.Perform, {})), /class="pad-cell lit"[^>]*data-slot="4"[^>]*aria-pressed="true"/);
 });
 
@@ -212,14 +213,15 @@ test('sync health says when the source the show follows is not working', () => {
   assert.match(html, /chip-warn" title="no beats"/, 'a failed analysis is flagged, with why');
 });
 
-test('command bar exposes tempo and division; the master is the strip\'s', () => {
+test('command bar exposes tempo and division; the master stays in the header', () => {
   given({});
   const html = ui.html(ui.h(ui.CommandBar, {}));
   const divisions = [...html.matchAll(/title="Beat division 1\/(\d+)"/g)].map((m) => Number(m[1]));
   assert.deepStrictEqual(divisions, [1, 2, 4, 8, 16]);
   assert.match(html, /aria-label="Tempo 124.5 BPM. Press to type a tempo."/);
-  assert.doesNotMatch(html, /Master dimmer|BLACKOUT/, 'blackout and the master sit on the strip above every live view');
-  assert.match(ui.html(ui.h(ui.Strip, {})), /aria-label="Master dimmer" aria-valuetext="50 percent"/);
+  assert.doesNotMatch(html, /Master dimmer|BLACKOUT/, 'blackout and the master sit in the header above every view');
+  assert.match(ui.html(ui.h(ui.Header, {})), /aria-label="Master dimmer" aria-valuetext="50 percent"/);
+  assert.doesNotMatch(ui.html(ui.h(ui.Strip, {})), /Master dimmer/);
   assert.match(html, /<section class="command-bar" aria-label="Live controls">/);
   assert.doesNotMatch(ui.html(ui.h(ui.CommandBar, { transport: false })), /cb-transport/, 'no empty transport block without a transport');
 });
@@ -968,21 +970,28 @@ test('pad labels agree between the deck and command bar', () => {
   assert.strictEqual(labels[0], ui.CATALOGUE.find((row) => row.id === entry.content.id).name);
 });
 
-test('the strip carries the arm, picture, auto show and blackout switches and the master; Show the room and the looks', () => {
+test('the strip selects the picture, the header owns global controls, and Show keeps the room and looks', () => {
   given({ armed: false, picture: { source: 'effects', input: null }, fixtures: [], profiles: {}, patterns: [], families: [],
+    control: { version: 1, programme: 'look', playing: false, frozen: false, blackout: false, armed: false },
     safety: { photosensitivityAcknowledged: true }, showOn: false, autoShow: { status: 'idle', intensity: 70 } });
   const strip = ui.html(ui.h(ui.Strip));
-  assert.strictEqual(count(strip, 'role="switch"'), 3);
-  for (const text of ['Disarmed', 'Picture source', 'Auto show', 'off — the look stays as picked', 'Blackout', 'Master dimmer']) {
-    assert.ok(strip.includes(text), text);
-  }
+  assert.match(strip, /aria-label="Picture settings"/);
+  assert.match(strip, /aria-label="Picture source"/);
+  for (const text of ['Effects', 'Colour + motion', 'Visualizer']) assert.ok(strip.includes(text), text);
+  assert.strictEqual(count(strip, 'role="switch"'), 0);
+  assert.doesNotMatch(strip, /Global show controls|Auto show|>Start<|>Stop<|>Freeze<|>Blackout<|>Arm<|Master dimmer/);
+  const header = ui.html(ui.h(ui.Header));
+  assert.strictEqual(count(header, 'aria-label="Global show controls"'), 1);
+  for (const label of ['Start', 'Stop', 'Freeze', 'Blackout', 'Arm']) assert.match(header, new RegExp(`>${label}</button>`));
+  assert.strictEqual(count(header, 'aria-label="Master dimmer"'), 1);
   const show = ui.html(ui.h(ui.Show));
   for (const text of ['stage3d-host', 'effects-deck']) assert.ok(show.includes(text), text);
-  assert.strictEqual(count(show, 'role="switch"'), 0, 'the switches are the strip\'s, not the view\'s');
+  assert.strictEqual(count(show, 'role="switch"'), 0, 'global controls stay in the header');
+  assert.doesNotMatch(show, /Global show controls|Master dimmer/);
   assert.ok(!show.includes('stage-room-panel'), 'the room panel stays in Stage');
 
   given({ showOn: true, autoShow: { status: 'playing', intensity: 70, track: { name: 'Levels', artist: 'Avicii' } } });
-  assert.ok(ui.html(ui.h(ui.Strip)).includes('Avicii — Levels'));
+  assert.doesNotMatch(ui.html(ui.h(ui.Strip)), /Auto show|Avicii|Levels/, 'picture selection does not become a second auto transport');
 });
 
 test('Perform lifts and grades the visualizer picture while it paints the room, and only then', () => {

@@ -279,15 +279,11 @@ export function UpdateActions(self) {
 		master_blackout: {
 			name: 'Master Blackout',
 			options: [{ type: 'dropdown', id: 'mode', label: 'Mode', default: 'toggle', choices: MODE_TOGGLE }],
-			callback: ({ options }) => {
-				const cur = self.liveState.masterBlackout
-				const next = options.mode === 'toggle' ? !cur : options.mode === 'on'
-				self.sendSet({ masterBlackout: next })
-			},
+			callback: ({ options }) => self.connection?.blackout(options.mode),
 		},
 
 		play_stop: {
-			name: 'Play / Stop',
+			name: 'Programme Start / Stop',
 			options: [
 				{
 					type: 'dropdown',
@@ -296,16 +292,22 @@ export function UpdateActions(self) {
 					default: 'toggle',
 					choices: [
 						{ id: 'toggle', label: 'Toggle' },
-						{ id: 'play', label: 'Play' },
+						{ id: 'play', label: 'Start / resume programme' },
 						{ id: 'stop', label: 'Stop' },
 					],
 				},
 			],
-			callback: ({ options }) => {
-				const cur = self.liveState.running
-				const next = options.mode === 'toggle' ? !cur : options.mode === 'play'
-				self.sendSet({ running: next })
-			},
+			callback: ({ options }) => self.connection?.programmeTransport(options.mode),
+		},
+
+		picture_freeze: {
+			name: 'Picture Freeze / Resume (whole composition)',
+			options: [{ type: 'dropdown', id: 'mode', label: 'Action', default: 'freeze', choices: [
+				{ id: 'freeze', label: 'Freeze picture' },
+				{ id: 'resume', label: 'Resume picture' },
+				{ id: 'toggle', label: 'Toggle' },
+			] }],
+			callback: ({ options }) => self.connection?.freezePicture(options.mode),
 		},
 
 		// Whether anything leaves the machine at all. The server starts
@@ -469,14 +471,13 @@ export function UpdateActions(self) {
 		},
 
 		sequence_transport: {
-			name: 'Sequence: play / resume, pause or stop',
+			name: 'Sequence: Start, pause timeline, or Stop programme',
 			options: [{
 				type: 'dropdown', id: 'mode', label: 'Control', default: 'play',
 				choices: [
 					{ id: 'play', label: 'Play / resume the loaded sequence' },
 					{ id: 'pause', label: 'Pause (clips keep running)' },
-					{ id: 'stop', label: 'Stop (hold the last picture)' },
-					{ id: 'blackout', label: 'Stop (black sequence base)' },
+					{ id: 'stop', label: 'Stop programme' },
 				],
 			}],
 			callback: ({ options }) => self.connection?.sequenceTransport(options.mode),
@@ -548,7 +549,7 @@ export function UpdateActions(self) {
 		},
 
 		auto_show: {
-			name: 'Auto Show Start / Stop',
+			name: 'Start Auto / Stop programme',
 			options: [
 				{
 					type: 'dropdown',

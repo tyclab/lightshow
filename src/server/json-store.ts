@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import { createHash, randomUUID } from 'node:crypto';
 import type { z } from 'zod';
 import { codeOf, messageOf } from '../errors.ts';
 
@@ -66,12 +67,29 @@ export class JsonStore {
 
   write(body: string): void {
     fs.mkdirSync(path.dirname(this.file), { recursive: true });
-    const tmp = `${this.file}.tmp`;
-    fs.writeFileSync(tmp, body, this._mode === undefined ? undefined : { mode: this._mode });
-    fs.renameSync(tmp, this.file);
+    const tmp = `${this.file}.${randomUUID()}.tmp`;
+    try {
+      fs.writeFileSync(tmp, body, { mode: this._mode, flag: 'wx', flush: true });
+      fs.renameSync(tmp, this.file);
+    } finally {
+      try { fs.unlinkSync(tmp); }
+      catch (err) { if (codeOf(err) !== 'ENOENT') console.warn(`[${this._tag}] could not remove temporary file: ${messageOf(err)}`); }
+    }
     if (this._mode !== undefined) {
       try { fs.chmodSync(this.file, this._mode); } catch (_) { /* best effort on Windows */ }
     }
+  }
+
+  // Keep the exact old document privately, once per content, before a format change.
+  backupBefore(version: number): string | null {
+    let bytes: Buffer;
+    try { bytes = fs.readFileSync(this.file); }
+    catch (err) { if (codeOf(err) === 'ENOENT') return null; throw err; }
+    const digest = createHash('sha256').update(bytes).digest('hex').slice(0, 16);
+    const backup = `${this.file}.pre-v${version}-${digest}`;
+    try { fs.writeFileSync(backup, bytes, { mode: 0o600, flag: 'wx', flush: true }); }
+    catch (err) { if (codeOf(err) !== 'EEXIST') throw err; }
+    return backup;
   }
 
   writeJson(value: unknown): void {

@@ -1,3 +1,4 @@
+import { control, requireExplicitTransport } from '../control.ts';
 import crypto from 'node:crypto';
 import path from 'node:path';
 import fsp from 'node:fs/promises';
@@ -82,36 +83,15 @@ export function attachAutoRoutes(app: Express, ctx: RouteContext): void {
 
   // ─── Auto-show ────────────────────────────────────────────────────────────
 
-  /**
-   * `start: true` on an analyse request: start the show once the analysis is
-   * in. Held on the server, so it happens whether or not the page that asked
-   * is still open or on the same tab — it used to wait in the page, and a
-   * tab switch mid-analysis lost it. A stop or a cancel in between calls it
-   * off, and so does a newer request.
-   */
-  function wantStart(req: Request): symbol | null {
-    const start = req.body && (req.body.start === true || req.body.start === 'true');
-    if (!start) return null;
-    const token = Symbol('start');
-    autoShow.startPending = token;
-    integrations.broadcast();
-    return token;
-  }
-
-  /** Start the show if the start that `token` asked for still stands. */
-  function startIfWanted(token: symbol | null): boolean {
-    if (!token || autoShow.startPending !== token) return false;
-    autoShow.startPending = null;
-    integrations.startAutoShow();
-    return true;
+  function rejectImplicitStart(req: Request): void {
+    if (req.body?.start === true || req.body?.start === 'true') requireExplicitTransport();
   }
 
   /**
    * An analysis that did not finish. One the operator called off, or a
    * newer track overtook, is not an error to show them.
    */
-  function analysisFailed(res: Response, err: unknown, token: symbol | null): void {
-    if (token && autoShow.startPending === token) autoShow.startPending = null;
+  function analysisFailed(res: Response, err: unknown): void {
     integrations.broadcast();
     const overtaken = !!err && typeof err === 'object' && (err as { superseded?: unknown }).superseded === true;
     if (isCancelled(err) || overtaken) {
@@ -125,7 +105,7 @@ export function attachAutoRoutes(app: Express, ctx: RouteContext): void {
     const { source } = req.body || {};
     if (!source) return res.status(400).json({ ok: false, error: 'Provide a source (file path, URL, or YouTube search)' });
 
-    const start = wantStart(req);
+    rejectImplicitStart(req);
     try {
       const input = classifyAnalyzeSource(source);
       if (input.kind === 'local') {
@@ -141,11 +121,10 @@ export function attachAutoRoutes(app: Express, ctx: RouteContext): void {
         const cacheKey = keyForYouTube(input.source) || keyForQuery(input.source);
         await autoShow.downloadAndAnalyze(input.source, null, cacheKey);
       }
-      const started = startIfWanted(start);
       integrations.broadcast();
-      res.json({ ok: true, started, analysis: autoShow.getClientState().analysis });
+      res.json({ ok: true, started: false, analysis: autoShow.getClientState().analysis });
     } catch (err) {
-      analysisFailed(res, err, start);
+      analysisFailed(res, err);
     }
   }));
 
@@ -166,7 +145,7 @@ export function attachAutoRoutes(app: Express, ctx: RouteContext): void {
   }): RequestHandler {
     return asyncHandler(async (req, res) => {
       if (!source.authenticated) return res.status(400).json({ ok: false, error: notConnected });
-      const start = wantStart(req);
+      rejectImplicitStart(req);
       try {
         const playing = await source.getCurrentlyPlaying();
         if (!playing) return res.status(400).json({ ok: false, error: nothingPlaying });
@@ -181,12 +160,11 @@ export function attachAutoRoutes(app: Express, ctx: RouteContext): void {
         const cacheKey = keyFor(playing) || keyForQuery(query);
         await autoShow.downloadAndAnalyze(query, playing.durationMs / 1000, cacheKey, playing.isrc);
 
-        const started = startIfWanted(start);
         integrations.broadcast();
-        res.json({ ok: true, started, track: autoShow.track, analysis: autoShow.getClientState().analysis });
+        res.json({ ok: true, started: false, track: autoShow.track, analysis: autoShow.getClientState().analysis });
         if (after) after();
       } catch (err) {
-        analysisFailed(res, err, start);
+        analysisFailed(res, err);
       }
     });
   }
@@ -214,17 +192,16 @@ export function attachAutoRoutes(app: Express, ctx: RouteContext): void {
   app.post('/api/auto/download-analyze', asyncHandler(async (req, res) => {
     const { query } = req.body || {};
     if (!query) return res.status(400).json({ ok: false, error: 'Provide a query (YouTube URL or search terms)' });
-    const start = wantStart(req);
+    rejectImplicitStart(req);
     try {
       autoShow.track = { name: query, artist: '', album: '', albumArt: null };
       integrations.broadcast();
       const cacheKey = keyForYouTube(query) || keyForQuery(query);
       await autoShow.downloadAndAnalyze(query, null, cacheKey);
-      const started = startIfWanted(start);
       integrations.broadcast();
-      res.json({ ok: true, started, analysis: autoShow.getClientState().analysis });
+      res.json({ ok: true, started: false, analysis: autoShow.getClientState().analysis });
     } catch (err) {
-      analysisFailed(res, err, start);
+      analysisFailed(res, err);
     }
   }));
 
@@ -238,7 +215,7 @@ export function attachAutoRoutes(app: Express, ctx: RouteContext): void {
       return res.status(400).json({ ok: false, error: `Not an audio file (${AUDIO_EXTENSIONS.join(', ')})` });
     }
     const tmpPath = path.join(os.tmpdir(), `auto-analyze-${crypto.randomUUID()}${ext}`);
-    const start = wantStart(req);
+    rejectImplicitStart(req);
     try {
       // Async on purpose: this buffer can be 50 MB, and a synchronous write of
       // that size stalls the event loop — which here means the 44 Hz Art-Net
@@ -247,11 +224,10 @@ export function attachAutoRoutes(app: Express, ctx: RouteContext): void {
       autoShow.track = { name: req.file.originalname, artist: 'Local file', album: '', albumArt: null };
       const cacheKey = keyForBuffer(req.file.buffer);
       await autoShow.analyze(tmpPath, cacheKey);
-      const started = startIfWanted(start);
       integrations.broadcast();
-      res.json({ ok: true, started, track: autoShow.track, analysis: autoShow.getClientState().analysis });
+      res.json({ ok: true, started: false, track: autoShow.track, analysis: autoShow.getClientState().analysis });
     } catch (err) {
-      analysisFailed(res, err, start);
+      analysisFailed(res, err);
     } finally {
       await fsp.unlink(tmpPath).catch(() => { /* already gone */ });
     }
@@ -262,7 +238,7 @@ export function attachAutoRoutes(app: Express, ctx: RouteContext): void {
     const track = prolink.getTrack();
     if (!track) return res.status(400).json({ ok: false, error: 'No track on the deck the show follows' });
 
-    const start = wantStart(req);
+    rejectImplicitStart(req);
     try {
       autoShow.track = {
         name: track.title || `Track ${track.trackId}`, artist: track.artist || 'PRO DJ LINK', album: track.album || '',
@@ -272,23 +248,12 @@ export function attachAutoRoutes(app: Express, ctx: RouteContext): void {
 
       await integrations.analyseCdjTrack(track);
 
-      const started = startIfWanted(start);
       integrations.broadcast();
-      res.json({ ok: true, started, track: autoShow.track, analysis: autoShow.getClientState().analysis });
+      res.json({ ok: true, started: false, track: autoShow.track, analysis: autoShow.getClientState().analysis });
     } catch (err) {
-      analysisFailed(res, err, start);
+      analysisFailed(res, err);
     }
   }));
-
-  app.post('/api/auto/start', (_req, res) => {
-    // Playing by ear needs no analysis: that is what it is for.
-    if (!autoShow.analysis && integrations.resolveAutoSource() !== 'live') {
-      return res.status(400).json({ ok: false, error: 'No analysis loaded. Analyze a track first, or turn on the live input to play by ear.' });
-    }
-    const source = integrations.startAutoShow();
-    integrations.broadcast();
-    res.json({ ok: true, source });
-  });
 
   // Call off the analysis the page is waiting on (AutoShow.cancelAnalysis).
   app.post('/api/auto/cancel', (_req, res) => {
@@ -297,14 +262,8 @@ export function attachAutoRoutes(app: Express, ctx: RouteContext): void {
     res.json({ ok: true, cancelled });
   });
 
-  app.post('/api/auto/stop', (_req, res) => {
-    autoShow.startPending = null;
-    integrations.stopAutoShow();
-    integrations.broadcast();
-    res.json({ ok: true });
-  });
-
   app.post('/api/auto/reset', (_req, res) => {
+    if (control.playing && control.programme === 'auto') throw new HttpError(409, 'Stop the auto programme before clearing its analysis');
     autoShow.reset();
     integrations.broadcast();
     res.json({ ok: true });

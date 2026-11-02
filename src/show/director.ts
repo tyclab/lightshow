@@ -540,7 +540,6 @@ class ShowDirector {
     return [scene(0, {
       bpm: context.baseBpm,
       beatDivision: 1,
-      running: true,
       strobeSpeed: 0,
       strobeFunction: 'standard',
       opening: true,

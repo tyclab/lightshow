@@ -13,6 +13,7 @@ export type Domain = 'look' | 'rig' | 'show' | 'sources' | 'audio' | 'sequence' 
 export const DOMAINS: readonly Domain[] = ['look', 'rig', 'show', 'sources', 'audio', 'sequence', 'catalogs', 'library', 'voices', 'pads', 'system'];
 
 const DOMAIN_OF: Readonly<Record<string, Domain>> = {
+  control: 'system',
   bpm: 'look', clock: 'look', tempoMode: 'look', beatDivision: 'look', running: 'look', pattern: 'look',
   colorA: 'look', colorB: 'look', colorC: 'look', colorD: 'look', palette: 'look',
   masterDimmer: 'look', masterBlackout: 'look', flashLimit: 'look',

@@ -5,6 +5,7 @@
 // pre-show check carry it.
 
 import test from 'node:test';
+import { installControlRuntime, sendControl } from './control-runtime-helpers.js';
 import assert from 'node:assert/strict';
 import express from 'express';
 
@@ -22,6 +23,7 @@ import { checkOutputsArmed } from '../../src/server/preflight.ts';
 import { domainOf } from '../../src/server/protocol.ts';
 import { HUE_COLOR_PROFILE_ID } from '../../src/server/profiles.ts';
 import { buffer } from '../../src/server/log.ts';
+import { Sequencer } from '../../src/server/sequencer.ts';
 
 showStore.scheduleSave = () => {};   // never the real show file
 
@@ -213,6 +215,10 @@ function withSettings(fn) {
 
 /** What the outputs logged since `mark`: the arming lines, with their fields. */
 const armingLines = (mark) => buffer.since(mark).filter((e) => e.component === 'outputs').map((e) => ({ msg: e.msg, ...e.data }));
+const controlDeps = (applier) => ({
+  applier, autoShow: { analysis: null },
+  integrations: { broadcast() {}, sequence: { sequencer: new Sequencer({ resolve: () => null }) } },
+});
 
 test('startup ignores stored arming and subsequent saves toggle output', (t) => withSettings(() => {
   settings._values.outputs.armed = true;
@@ -237,69 +243,85 @@ test('startup ignores stored arming and subsequent saves toggle output', (t) => 
     state.heldEnergy = 'blinder';
     applier.applyChanged(settings.update({ outputs: { armed: false } }));
     assert.equal(isArmed(), false);
-    assert.deepEqual(applied, [{ energyOverride: null }], 'disarming clears the effect and leaves the look playing');
+    assert.deepEqual(applied, [{ energyOverride: null }], 'disarming clears the effect without changing programme playback');
     assert.equal(state.heldEnergy, null);
   } finally {
     log.mock.restore();
   }
 }));
 
-test('the routes arm, disarm and toggle; the state and the health report carry it', (t) => withSettings(async () => {
+test('explicit controls arm and disarm; legacy arm/toggle/settings writes are rejected', (t) => withSettings(async () => {
   const applied = [];
   const app = express();
   app.use(express.json());
-  attachRoutes(app, { integrations: { broadcast() {} }, applier: createApplier(subsystems(applied)) });
+  const deps = controlDeps(createApplier(subsystems(applied)));
+  installControlRuntime(t, deps);
+  attachRoutes(app, deps);
   const server = await new Promise((r) => { const s = app.listen(0, '127.0.0.1', () => r(s)); });
   t.after(() => new Promise((r) => server.close(r)));
-  const call = (method, path) => fetch(`http://127.0.0.1:${server.address().port}${path}`, { method })
+  const call = (method, path, body) => fetch(`http://127.0.0.1:${server.address().port}${path}`, {
+    method, headers: { 'Content-Type': 'application/json' }, body: body === undefined ? undefined : JSON.stringify(body),
+  })
     .then(async (res) => ({ status: res.status, body: await res.json() }));
 
   assert.equal((await call('GET', '/api/state')).body.armed, false);
-  assert.deepEqual((await call('POST', '/api/outputs/arm')).body, { ok: true, armed: true });
+  for (const route of ['/api/outputs/arm', '/api/outputs/toggle']) {
+    assert.equal((await call('POST', route)).status, 409, route);
+    assert.equal(isArmed(), false, 'a legacy control cannot arm');
+  }
+  assert.equal((await call('PUT', '/api/settings', { outputs: { armed: true } })).status, 409);
+  assert.equal((await sendControl(call, 'arm')).body.control.armed, true);
   assert.equal(isArmed(), true);
   assert.equal(settings.get('outputs.armed'), true, 'stored');
   assert.equal((await call('GET', '/api/state')).body.armed, true);
   assert.equal((await call('GET', '/api/health')).body.outputs.armed, true);
 
-  assert.deepEqual((await call('POST', '/api/outputs/disarm')).body, { ok: true, armed: false });
-  assert.deepEqual(applied, [{ energyOverride: null }], 'a disarm does not freeze the look');
+  const protective = await call('POST', '/api/outputs/disarm');
+  assert.equal(protective.status, 200, 'legacy protective Disarm remains available');
+  assert.equal(protective.body.armed, false);
+  assert.equal(protective.body.control.armed, false);
+  assert.deepEqual(applied, [{ energyOverride: null }]);
   const quiet = (await call('GET', '/api/health')).body;
   assert.equal(quiet.outputs.armed, false);
   assert.ok(quiet.problems.some((p) => p.level === 'info' && /outputs are disarmed/.test(p.what)), 'said among the problems, as information');
 
-  assert.deepEqual((await call('POST', '/api/outputs/toggle')).body, { ok: true, armed: true });
-  assert.deepEqual((await call('POST', '/api/outputs/toggle')).body, { ok: true, armed: false });
-  assert.deepEqual((await call('POST', '/api/outputs/disarm')).body, { ok: true, armed: false }, 'already off: nothing to do');
-  assert.equal(applied.length, 2, 'stopped once per disarming, not per request');
+  assert.equal((await sendControl(call, 'arm')).body.control.armed, true);
+  assert.equal((await sendControl(call, 'disarm')).body.control.armed, false);
+  assert.equal((await sendControl(call, 'disarm')).body.control.armed, false, 'already off: remains off');
+  assert.equal(applied.length, 2, 'content is cleared once per output transition');
 }));
 
 test('each arm and disarm is logged once, with where it came from and never a token', (t) => withSettings(async () => {
   const app = express();
   app.use(express.json());
   const applier = createApplier(subsystems([]));
-  attachRoutes(app, { integrations: { broadcast() {} }, applier });
+  const deps = controlDeps(applier);
+  installControlRuntime(t, deps);
+  attachRoutes(app, deps);
   const server = await new Promise((r) => { const s = app.listen(0, '127.0.0.1', () => r(s)); });
   t.after(() => new Promise((r) => server.close(r)));
   const call = (method, path, headers = {}, body) => fetch(`http://127.0.0.1:${server.address().port}${path}`, {
     method, headers: { 'X-Lightshow-Token': 'header-secret', authorization: 'Bearer auth-secret', ...headers, ...(body ? { 'content-type': 'application/json' } : {}) },
     ...(body ? { body: JSON.stringify(body) } : {}),
-  }).then((res) => res.json());
+  }).then(async (res) => ({ status: res.status, body: await res.json() }));
+  const explicit = (action, headers, query = '') => sendControl(
+    (method, route, body) => call(method, route + (method === 'POST' ? query : ''), headers, body), action);
   const mark = buffer.last;
 
-  await call('POST', '/api/outputs/arm?token=query-secret', { 'user-agent': 'HomeAssistant/2026.10.1 aiohttp/3.12', 'x-forwarded-for': '10.27.2.140' });
-  await call('POST', '/api/outputs/arm', { 'user-agent': 'HomeAssistant/2026.10.1 aiohttp/3.12' });
+  await explicit('arm', { 'user-agent': 'HomeAssistant/2026.10.1 aiohttp/3.12', 'x-forwarded-for': '10.27.2.140' }, '?token=query-secret');
+  await explicit('arm', { 'user-agent': 'HomeAssistant/2026.10.1 aiohttp/3.12' });
   await call('POST', '/api/outputs/disarm', { 'user-agent': 'node', 'x-lightshow-client': 'companion/2.1.0' });
-  await call('PUT', '/api/settings', { 'user-agent': 'Mozilla/5.0 (Windows NT 10.0)' }, { outputs: { armed: true } });
-  await call('POST', '/api/outputs/toggle', { 'user-agent': 'curl/8.9' });
+  await explicit('arm', { 'user-agent': 'Mozilla/5.0 (Windows NT 10.0)' });
+  await explicit('disarm', { 'user-agent': 'curl/8.9' });
   applier.applyChanged(settings.update({ outputs: { armed: true } }), { via: 'schedule', reason: 'a test' });
   applier.applyChanged(settings.update({ outputs: { armed: false } }));
 
   const lines = armingLines(mark);
   assert.deepEqual(lines.map((l) => [l.armed, l.via, l.route ?? null]), [
-    [true, 'rest', 'POST /api/outputs/arm'],
+    [true, 'rest', 'POST /api/control'],
     [false, 'companion', 'POST /api/outputs/disarm'],
-    [true, 'rest', 'PUT /api/settings'],
-    [false, 'rest', 'POST /api/outputs/toggle'],
+    [true, 'rest', 'POST /api/control'],
+    [false, 'rest', 'POST /api/control'],
     [true, 'schedule', null],
     [false, 'unknown', null],
   ], 'one line per transition: the second arm changed nothing');

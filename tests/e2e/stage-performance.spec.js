@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { open, previewLook, set, state } from './helpers.js';
+import { open, previewLook, set, state, reset } from './helpers.js';
 import { stageImage } from './stage-image.js';
 
 for (const frameInterval of [0, 100]) test(`Stage idles between visible changes and redraws lights and camera input${frameInterval ? ' at 10 Hz' : ''}`, async ({ page, request }) => {
@@ -18,6 +18,7 @@ for (const frameInterval of [0, 100]) test(`Stage idles between visible changes 
       window.WebGL2RenderingContext.prototype[name] = function (...args) { window.stageWork[key]++; return original.apply(this, args); };
     }
   }, frameInterval);
+  await reset(request);
   const before = await state(request);
   const profileId = 'e2e-stage-performance';
   let added = [];
@@ -35,7 +36,7 @@ for (const frameInterval of [0, 100]) test(`Stage idles between visible changes 
     const fixtures = await request.post('/api/fixtures', { data: { profileId, count: 1, universe: 7 } });
     expect(fixtures.ok()).toBe(true);
     added = (await fixtures.json()).fixtures;
-    await set(request, { pattern: 'solid', basePalette: { colours: ['#FF0000'] }, overridePalette: null, masterBlackout: false });
+    await set(request, { pattern: 'solid', basePalette: { colours: ['#FF0000'] }, overridePalette: null });
     await open(page, 'stage');
     await previewLook(page);
     await expect.poll(async () => (await counters()).draws).toBeGreaterThan(0);
@@ -69,7 +70,6 @@ for (const frameInterval of [0, 100]) test(`Stage idles between visible changes 
   } finally {
     for (const id of added) await request.delete(`/api/fixtures/${id}`);
     await request.delete(`/api/profiles/${profileId}`);
-    await set(request, { pattern: before.pattern, basePalette: before.basePalette, overridePalette: before.overridePalette,
-      masterBlackout: before.masterBlackout });
+    await set(request, { pattern: before.pattern, basePalette: before.basePalette, overridePalette: before.overridePalette });
   }
 });

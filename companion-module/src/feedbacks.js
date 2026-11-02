@@ -139,10 +139,21 @@ export function UpdateFeedbacks(self) {
 
 		playing: {
 			type: 'boolean',
-			name: 'Show is playing',
+			name: 'Programme is playing',
 			defaultStyle: { bgcolor: combineRgb(0, 180, 60), color: WHITE },
 			options: [],
-			callback: () => !!self.liveState.running,
+			callback: () => !!self.liveState.control?.playing && !self.liveState.control?.paused,
+		},
+
+		picture_frozen: {
+			type: 'boolean', name: 'Whole picture is frozen',
+			defaultStyle: { bgcolor: combineRgb(170, 120, 0), color: WHITE }, options: [],
+			callback: () => self.liveState.control?.version === 1 && !!self.liveState.control.frozen,
+		},
+		control_available: {
+			type: 'boolean', name: 'Explicit global controls are available',
+			defaultStyle: { bgcolor: combineRgb(0, 100, 90), color: WHITE }, options: [],
+			callback: () => self.liveState.control?.version === 1,
 		},
 
 		outputs_armed: {

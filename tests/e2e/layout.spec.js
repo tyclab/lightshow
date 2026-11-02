@@ -49,10 +49,10 @@ test('phone controls leave the Matrix colours on the first screen', async ({ pag
   await expect(page.locator('.command-bar')).toHaveCount(0);
 });
 
-test('phone transport stays within the viewport', async ({ page }) => {
+test('phone global controls stay within the viewport', async ({ page }) => {
   await page.setViewportSize({ width: 400, height: 800 });
   await open(page, 'perform');
-  const transport = await page.locator('.perform-transport').boundingBox();
+  const transport = await page.getByRole('group', { name: 'Global show controls' }).boundingBox();
   expect(transport.x + transport.width).toBeLessThanOrEqual(400);
 });
 

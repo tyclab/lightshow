@@ -5,6 +5,7 @@
 // and the photosensitivity gate at play.
 
 import test from 'node:test';
+import { installControlRuntime, sendControl } from './control-runtime-helpers.js';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
@@ -18,6 +19,7 @@ import { UpdateFeedbacks } from '../../companion-module/src/feedbacks.js';
 import { UpdatePresets } from '../../companion-module/src/presets.js';
 import { attachSockets } from '../../src/server/sockets.ts';
 
+import { createApplier } from '../../src/server/apply.ts';
 import { attachRoutes } from '../../src/server/routes.ts';
 import { setupIntegrations } from '../../src/server/integrations.ts';
 import { EffectLibrary } from '../../src/server/effect-library.ts';
@@ -39,6 +41,7 @@ test.after(() => stopEngine());
 
 /** The routes on stand-in sources, with a library, palettes and a shelf of their own in a throwaway directory. */
 async function serve(t) {
+  applyPatch({ running: false, masterBlackout: false });
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'sequence-routes-'));
   const effectLibrary = new EffectLibrary(path.join(dir, 'effects.json')).load();
   const paletteStore = new PaletteStore(path.join(dir, 'palettes.json'), { seed: () => [1, 2, 3, 4] }).load();
@@ -67,7 +70,12 @@ async function serve(t) {
     deezerSource: { ...idle, getQueue: () => [], updatePlayback() {}, updateQueue() {}, disconnect() {} },
     prolink, autoShow, effectLibrary, paletteStore, sequenceStore,
   });
-  attachRoutes(app, { integrations, applier: { applyChanged() {} } });
+  const applier = createApplier({
+    midi, spotify: { localCallbackUrl: '', setLoopbackPort() {}, configure() {} }, smtc: { start() {}, stop() {} },
+    deezer: { init: async () => {} }, applyPatch, broadcast: () => integrations.broadcast(),
+  });
+  installControlRuntime(t, { integrations, applier, autoShow });
+  attachRoutes(app, { integrations, applier, autoShow });
   await new Promise((r) => server.listen(0, '127.0.0.1', r));
   const url = `http://127.0.0.1:${server.address().port}`;
   const look = { pattern: state.pattern, masterDimmer: state.masterDimmer, bpm: state.bpm };
@@ -101,6 +109,9 @@ const SET = { id: 'set-1', name: 'Set one', lanes: [lane('a')], clips: [clip('A'
 
 test('Companion sequence presets drive transport and follow tempo commands and feedback over protocol 2', async (t) => {
   const s = await serve(t);
+  let currentBeat = 100;
+  t.mock.method(conductor, 'now', () => ({ beatPos: currentBeat, bpm: state.bpm, epoch: 0 }));
+  startEngine({ thread: 'main' });
   attachSockets(s.io, { midi: s.midi, integrations: s.integrations });
   const errors = [];
   const connection = new LightshowConnection({ host: '127.0.0.1', port: s.port, log: (_level, message) => errors.push(message) });
@@ -127,6 +138,7 @@ test('Companion sequence presets drive transport and follow tempo commands and f
   };
   const lit = (state) => feedbacks.sequence_state.callback({ options: { state } });
   const frame = async (beatPos) => {
+    currentBeat = beatPos;
     s.integrations.sequence.sequencer.frame({ beatPos, bpm: state.bpm, epoch: 0 });
     const expected = JSON.stringify(s.integrations.sequence.sequencer.status());
     s.integrations.broadcast();
@@ -136,7 +148,7 @@ test('Companion sequence presets drive transport and follow tempo commands and f
   await waitFor(() => connection.state.sequence !== undefined);
   assert.equal(lit('playing'), false);
   assert.equal((await press('play')).ok, false, 'the server refuses an unloaded transport');
-  assert.ok(errors.some((message) => message.includes('/api/sequence/play')));
+  assert.ok(errors.some((message) => message.includes('/api/control')));
   assert.equal((await connection.sequenceTransport('arm')).ok, false, 'unknown controls cannot become arbitrary API paths');
   await s.call('PUT', '/api/sequence', {
     ...SET, bpm: 124, lanes: [lane('a'), lane('b')],
@@ -154,6 +166,7 @@ test('Companion sequence presets drive transport and follow tempo commands and f
   await waitFor(() => lit('paused'));
   const pausedBeat = connection.state.sequence.beat;
   assert.equal(lit('playing'), false);
+  currentBeat = 200; // Resume's acknowledged renderer frame anchors at the new clock reading.
   assert.equal((await press('play')).ok, true);
   await frame(200);
   await waitFor(() => lit('playing'));
@@ -167,8 +180,10 @@ test('Companion sequence presets drive transport and follow tempo commands and f
   await frame(201);
   await waitFor(() => lit('stopped'));
   assert.equal(connection.state.sequence.stopped, 'hold');
-  assert.equal((await actions.sequence_transport.callback({ options: { mode: 'blackout' } })).ok, true);
-  await waitFor(() => connection.state.sequence.stopped === 'black');
+  assert.equal((await actions.sequence_transport.callback({ options: { mode: 'blackout' } })).ok, false, 'combined black-stop is retired');
+  assert.equal((await sendControl(s.call, 'blackout')).status, 200);
+  await waitFor(() => connection.state.control.blackout === true);
+  assert.equal(connection.state.sequence.stopped, 'hold', 'Blackout does not change sequence transport');
   assert.equal(connection.state.armed, false, 'sequence controls never arm outputs');
 });
 
@@ -205,8 +220,9 @@ test('routes: CRUD + transport + status', async (t) => {
   // ── The sequence loaded ──
   res = await s.call('GET', '/api/sequence');
   assert.deepEqual([res.body.sequence, res.body.status.loaded], [null, null]);
+  assert.equal((await s.call('POST', '/api/sequence/play')).status, 409, 'legacy Play is rejected explicitly');
   // Nothing loaded: the transport has nothing to play.
-  assert.equal((await s.call('POST', '/api/sequence/play')).status, 409);
+  assert.equal((await sendControl(s.call, 'start', 'sequence')).status, 409);
   // Loaded from the shelf by its id; an id nothing has is a 404.
   assert.equal((await s.call('PUT', '/api/sequence', { id: 'nope' })).status, 404);
   res = await s.call('PUT', '/api/sequence', { id: 'set-1' });
@@ -221,8 +237,8 @@ test('routes: CRUD + transport + status', async (t) => {
   assert.equal((await s.call('PUT', '/api/sequence', { ...SET, clips: [clip('A', 0, 0)] })).status, 400);
 
   // ── The transport ──
-  res = await s.call('POST', '/api/sequence/play');
-  assert.deepEqual([res.status, res.body.status.playing], [200, true]);
+  res = await sendControl(s.call, 'start', 'sequence');
+  assert.deepEqual([res.status, res.body.control.playing], [200, true]);
   s.frame();
   res = await s.call('GET', '/api/sequence/status');
   assert.deepEqual(res.body.status.lanes, [{ id: 'a', clip: 'A' }]);
@@ -254,12 +270,18 @@ test('routes: CRUD + transport + status', async (t) => {
   assert.equal((await s.call('POST', '/api/sequence/loop', { on: true, startBeat: 4, endBeat: 2 })).status, 400);
   res = await s.call('POST', '/api/sequence/pause');
   assert.deepEqual([res.body.status.playing, res.body.status.paused], [false, true]);
-  res = await s.call('POST', '/api/sequence/play');
-  assert.deepEqual([res.body.status.playing, res.body.status.paused], [true, false]);
-  res = await s.call('POST', '/api/sequence/stop');
-  assert.deepEqual([res.body.status.playing, res.body.status.stopped], [false, 'hold']);
-  res = await s.call('POST', '/api/sequence/stop?blackout=1');
-  assert.equal(res.body.status.stopped, 'black');
+  res = await sendControl(s.call, 'start', 'sequence');
+  assert.deepEqual([res.body.control.playing, res.body.control.paused], [true, false]);
+  assert.equal((await s.call('DELETE', '/api/sequence')).status, 409, 'Stop before unloading an active sequence');
+  assert.equal((await s.call('PUT', '/api/sequence', SET)).status, 409, 'content replacement cannot reset active playback');
+  res = await sendControl(s.call, 'stop');
+  assert.equal(res.body.control.playing, false);
+  assert.equal((await s.call('GET', '/api/sequence/status')).body.status.stopped, 'hold');
+  assert.equal((await s.call('POST', '/api/sequence/stop?blackout=1')).status, 409, 'no implicit Blackout through legacy Stop');
+  assert.equal((await s.call('GET', '/api/control')).body.control.blackout, false);
+  res = await sendControl(s.call, 'blackout');
+  assert.equal(res.body.control.blackout, true);
+  assert.equal((await s.call('GET', '/api/sequence/status')).body.status.stopped, 'hold');
   // The live state carries the same status, in its own domain.
   assert.deepEqual(getLiveState().sequence, s.integrations.sequence.sequencer.status());
 });
@@ -310,35 +332,39 @@ test('the engine plays the loaded sequence from the sequencer the server registe
   await wait(100);
   assert.equal(renderInput().sequenceTransport, null, 'loaded is not playing');
   assert.equal(green(), false);
-  await s.call('POST', '/api/sequence/play');
+  await sendControl(s.call, 'start', 'sequence');
   assert.ok(await until(green, 1000), 'playing: the clip is the rig\'s base');
   assert.ok(renderInput().sequenceTransport, 'the engine hands the renderer a transport');
   assert.equal(renderInput().sequenceRevision, s.integrations.sequence.sequencer.revision());
   assert.equal(getLiveState().sequence.playing, true);
 
-  // Stopped, the sequence holds its picture: the look stays under it until the sequence is unloaded.
+  // Global Stop suppresses all programme foreground, including the sequencer's held table.
   const red = () => {
     const ch = getProfile(first).channelMap;
     const dmx = universes.getBuffer(first.universe ?? state.artnet.universe);
     return dmx[first.address - 1 + ch.red] === 255 && dmx[first.address - 1 + ch.green] === 0;
   };
-  await s.call('POST', '/api/sequence/stop');
+  await sendControl(s.call, 'stop');
   await wait(100);
-  assert.equal(red(), false, 'stopped: not the look yet');
+  assert.equal(red(), false, 'Stop does not reveal the look');
+  assert.equal(green(), false, 'Stop suppresses the sequence hold');
   const revision = s.integrations.sequence.sequencer.revision();
   let res = await s.call('DELETE', '/api/sequence');
   assert.deepEqual([res.status, res.body.ok, res.body.status.loaded, res.body.status.playing], [200, true, null, false]);
   assert.ok(res.body.status.revision > revision, 'a new revision: the pages and the engine drop the table');
-  assert.ok(await until(red, 1000), 'unloaded: the look is back on the rig');
+  assert.equal(red(), false, 'unloading cannot start the look');
+  assert.equal((await sendControl(s.call, 'start', 'look')).status, 200);
+  assert.ok(await until(red, 1000), 'explicit Look Start reveals the look');
+  await sendControl(s.call, 'stop');
   assert.equal((await s.call('GET', '/api/sequence')).body.sequence, null);
   assert.equal(getLiveState().sequence.loaded, null);
   // Nothing loaded: unloading again is no error, and the transport answers as it does with none.
   res = await s.call('DELETE', '/api/sequence');
   assert.deepEqual([res.status, res.body.status.loaded], [200, null]);
-  assert.equal((await s.call('POST', '/api/sequence/play')).status, 409);
+  assert.equal((await sendControl(s.call, 'start', 'sequence')).status, 409);
 });
 
-test('sequence playback owns the free clock while the look is stopped', async (t) => {
+test('explicit sequence Start and Stop own the free clock', async (t) => {
   const s = await serve(t);
   t.after(() => applyPatch({ running: true }));
   applyPatch({ running: false });
@@ -348,10 +374,11 @@ test('sequence playback owns the free clock while the look is stopped', async (t
   const still = conductor.phase().beatPos;
   await wait(60);
   assert.equal(conductor.phase().beatPos, still, 'loaded is not playing: the clock stands');
-  let res = await s.call('POST', '/api/sequence/play');
-  assert.equal(res.body.status.playing, true);
+  let res = await sendControl(s.call, 'start', 'sequence');
+  assert.equal(res.body.control.playing, true);
   assert.equal(freeClockRuns(), true);
-  assert.equal(state.running, false, 'the sequence starts nothing else');
+  assert.equal(state.running, true, 'the global programme is playing');
+  assert.equal(res.body.control.programme, 'sequence');
   s.frame();
   await wait(120);
   s.frame();
@@ -365,20 +392,23 @@ test('sequence playback owns the free clock while the look is stopped', async (t
   let from = conductor.phase().beatPos;
   await wait(60);
   assert.ok(conductor.phase().beatPos > from, 'paused: the clock runs');
-  // Stopped, its picture holds and the clock stands.
-  await s.call('POST', '/api/sequence/stop');
+  // Global Stop suppresses its foreground and the clock stands.
+  await sendControl(s.call, 'stop');
   s.frame();
   assert.equal(freeClockRuns(), false);
   from = conductor.phase().beatPos;
   await wait(60);
   assert.equal(conductor.phase().beatPos, from, 'stopped: the clock stands');
-  // Played from the top again, it counts on; unloaded, the clock stands.
-  await s.call('POST', '/api/sequence/play');
+  // Played from the top again, it counts on; unloading requires Stop first.
+  await sendControl(s.call, 'start', 'sequence');
   s.frame();
   await wait(120);
   s.frame();
   assert.ok((await s.call('GET', '/api/sequence/status')).body.status.beat > 0.1);
-  await s.call('DELETE', '/api/sequence');
+  assert.equal((await s.call('DELETE', '/api/sequence')).status, 409);
+  assert.equal(freeClockRuns(), true, 'a refused unload leaves playback running');
+  assert.equal((await sendControl(s.call, 'stop')).status, 200);
+  assert.equal((await s.call('DELETE', '/api/sequence')).status, 200);
   assert.equal(freeClockRuns(), false);
   from = conductor.phase().beatPos;
   await wait(60);
@@ -395,7 +425,7 @@ test('quantised voices follow the active sequence clock', async (t) => {
   let v = launch();
   assert.ok(v.startedAtMs <= performance.now() && v.startedAtMs >= before, 'primed: now');
   voices.stopAll();
-  await s.call('POST', '/api/sequence/play');
+  await sendControl(s.call, 'start', 'sequence');
   s.frame();
   await wait(20);
   const beat = conductor.peek().beatPos;
@@ -419,14 +449,14 @@ test('the audio detectors run on the settings of a Disco playing as a clip', asy
   const { bands } = presetById('hd.disco.rock').spec.params;
   await s.call('PUT', '/api/sequence', { ...SET, clips: [clip('D', 0, 1e6, presetById('hd.disco.rock').spec)] });
   assert.equal(s.integrations.audio.detectors().disco.owner.from, 'fallback', 'loaded is not playing');
-  await s.call('POST', '/api/sequence/play');
+  await sendControl(s.call, 'start', 'sequence');
   s.frame();
   const { disco } = s.integrations.audio.detectors();
   assert.equal(disco.owner.from, 'clip');
   assert.match(disco.owner.id, /^clip:D:/);
   assert.deepEqual(disco.bands, bands);
   // Stopped, its picture holds but nothing of it plays: the settings again.
-  await s.call('POST', '/api/sequence/stop');
+  await sendControl(s.call, 'stop');
   s.frame();
   assert.equal(s.integrations.audio.detectors().disco.owner.from, 'fallback');
 });
@@ -436,14 +466,14 @@ test('rapid sequence playback requires acknowledgement', async (t) => {
   const fast = { kind: 'ldj.StrobeCycle', params: { cadence: 0.25 } };
   await s.call('PUT', '/api/sequence', { ...SET, clips: [clip('A', 0, 4), clip('F', 4, 4, fast)], options: { initialPalette: 'redCyan' } });
   const before = state.paletteOverride;
-  let res = await s.call('POST', '/api/sequence/play');
+  let res = await sendControl(s.call, 'start', 'sequence');
   assert.deepEqual([res.status, res.body.error], [409, 'photosensitivity acknowledgement required']);
   assert.equal(s.integrations.sequence.sequencer.status().playing, false);
   assert.equal(state.paletteOverride, before, 'a refused start puts nothing on');
   res = await s.call('POST', '/api/safety/acknowledge');
   assert.equal(res.status, 200);
-  res = await s.call('POST', '/api/sequence/play');
-  assert.deepEqual([res.status, res.body.status.playing], [200, true]);
+  res = await sendControl(s.call, 'start', 'sequence');
+  assert.deepEqual([res.status, res.body.control.playing], [200, true]);
   assert.deepEqual(state.paletteOverride.map((c) => [c.r, c.g, c.b]), [[255, 0, 0], [0, 191, 255]], 'its first palette on');
 });
 
@@ -457,7 +487,7 @@ test('manual property edits cancel matching automation', async (t) => {
       tempo: { mode: 'triangle', period: 1, min: 100, max: 140, growing: true },
     },
   });
-  await s.call('POST', '/api/sequence/play');
+  await sendControl(s.call, 'start', 'sequence');
   s.frame();
   const automation = () => s.integrations.sequence.sequencer._automation;
   // Its own samples go through the patch as the sequence's: nothing ends.
@@ -487,8 +517,8 @@ test('failed audio-mode persistence leaves sequence playback available', async (
   const mode = settings.get('audio.mode');
   settings.save = () => { throw new Error('read-only disk'); };
   await s.call('PUT', '/api/sequence', { ...SET, musicMode: mode === 'reactive' ? 'tempo' : 'reactive' });
-  const res = await s.call('POST', '/api/sequence/play');
-  assert.deepEqual([res.status, res.body.status.playing], [200, true]);
+  const res = await sendControl(s.call, 'start', 'sequence');
+  assert.deepEqual([res.status, res.body.control.playing], [200, true]);
   assert.equal(settings.get('audio.mode'), mode);
 });
 
@@ -510,10 +540,10 @@ for (const manual of [false, true]) {
     const s = await serve(t);
     await s.call('PUT', '/api/palette-override', { paletteId: 'greenPink' });
     await s.call('PUT', '/api/sequence', { ...SET, options: { initialPalette: 'redCyan' } });
-    await s.call('POST', '/api/sequence/play');
+    await sendControl(s.call, 'start', 'sequence');
     s.frame();
     if (manual) await s.call('PUT', '/api/palette-override', { paletteId: 'redCyan' });
-    await s.call('POST', '/api/sequence/stop');
+    await sendControl(s.call, 'stop');
     s.frame();
     assert.equal(getLiveState().paletteOverrideId, manual ? 'redCyan' : 'greenPink');
   });
@@ -521,6 +551,8 @@ for (const manual of [false, true]) {
 
 test('live active clips resolve saved preset names across clip changes', async (t) => {
   const s = await serve(t);
+  let currentBeat = 100;
+  t.mock.method(conductor, 'now', () => ({ beatPos: currentBeat, bpm: 120, epoch: 0 }));
   const saved = s.integrations.library.effects.create({ name: 'Closing glow', spec: GLOW });
   await s.call('PUT', '/api/sequence', {
     ...SET, clips: [
@@ -528,13 +560,14 @@ test('live active clips resolve saved preset names across clip changes', async (
       { ...clip('B', 4, 4), effect: undefined, presetId: 'ldj.FadeCycle' },
     ],
   });
-  await s.call('POST', '/api/sequence/play');
+  await sendControl(s.call, 'start', 'sequence');
   const sequencer = s.integrations.sequence.sequencer;
   sequencer.frame({ beatPos: 100, bpm: 120, epoch: 0 });
   assert.deepEqual(getLiveState().sequence.activeClips, [{
     id: 'A', laneId: 'a', lane: 'a', name: saved.name,
   }]);
-  sequencer.frame({ beatPos: 104, bpm: 120, epoch: 0 });
+  currentBeat = 104;
+  sequencer.frame({ beatPos: currentBeat, bpm: 120, epoch: 0 });
   const res = await s.call('GET', '/api/sequence/status');
   assert.deepEqual(res.body.status.activeClips, [{
     id: 'B', laneId: 'a', lane: 'a', name: presetById('ldj.FadeCycle').name,

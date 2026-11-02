@@ -27,6 +27,10 @@ import { effectContentKey } from '../shared/effects/layer.ts';
 import { pixelInputs } from './pixel-input-live.ts';
 import { pictureInput } from './picture-live.ts';
 import { PictureFeatureExtractor } from '../shared/picture-features.ts';
+import { FrameBarrier } from './frame-barrier.ts';
+import { control } from './control.ts';
+import { ArtnetLedger } from './transmit.ts';
+import type { TransmitConfig } from './transmit.ts';
 
 export type EngineThread = 'worker' | 'main';
 
@@ -52,6 +56,60 @@ let clock = () => performance.now();
 
 const renderer = createRenderer({ profileOf: getProfile, profilesRevision, now: clock() });
 const pictureFeatures = new PictureFeatureExtractor();
+const frames = new FrameBarrier();
+// Physical Art-Net destinations issued to the renderer and not yet acknowledged as applied. Kept here, outside
+// any engine thread, so a thread that dies mid-retirement hands those routes to whatever renders next.
+const routes = new ArtnetLedger();
+
+let ready = false;
+const readyWaiters = new Set<{ resolve: () => void; reject: (error: Error) => void }>();
+
+export function isEngineReady(): boolean { return ready; }
+
+function markReady(): void {
+  ready = true;
+  for (const waiter of readyWaiters) waiter.resolve();
+  readyWaiters.clear();
+}
+
+export function waitForEngineReady(timeoutMs = 10_000): Promise<void> {
+  if (!thread) return Promise.reject(new Error('The renderer is stopped'));
+  if (ready) return Promise.resolve();
+  return new Promise((resolve, reject) => {
+    const waiter = { resolve: () => { clearTimeout(timer); resolve(); },
+      reject: (error: Error) => { clearTimeout(timer); reject(error); } };
+    const timer = setTimeout(() => {
+      readyWaiters.delete(waiter);
+      reject(new Error('The renderer did not finish starting. Outputs remain disarmed; check the engine log before restarting.'));
+    }, timeoutMs);
+    readyWaiters.add(waiter);
+  });
+}
+
+function issueOutputs(): { outputs: TransmitConfig; outputSeq: number } {
+  const outputs = output.transmitConfig();
+  return { outputs, outputSeq: routes.issue(outputs) };
+}
+
+// A blackout the engine thread could not fully apply may still darken Hue: only for the current picture, and
+// only once the shared output it would be read from is dark, so no newer lit frame slips through with it.
+function protectiveDark(revision: number | undefined): boolean {
+  if (revision !== frames.revision || !state.masterBlackout || !output.isArmed()) return false;
+  return universes.list().every((universe) => !universes.getBuffer(universe).some((v) => v !== 0));
+}
+
+export function awaitFrameApplied(): Promise<void> {
+  if (!thread) return Promise.reject(new Error('The renderer is stopped'));
+  const done = frames.wait();
+  if (thread === 'worker') controlTick();
+  else safeRender();
+  return done;
+}
+
+export function publishRigRevision(revision: number): Promise<void> {
+  output.setRigRevision(revision);
+  return awaitFrameApplied();
+}
 
 // Translate performance.now() into the process clock once so voice and worker lifetimes align.
 const WORKER_CLOCK_SHIFT = hrtimeMs() - performance.now();
@@ -174,6 +232,9 @@ function renderInput(): RenderInput {
     clock() + (thread === 'worker' ? WORKER_CLOCK_SHIFT : 0));
   return {
     running: state.running,
+    programmePlaying: state.running,
+    frozen: control.frozen,
+    heldUnavailable: !!control.heldUnavailable,
     pattern: state.pattern,
     colorA: state.colorA,
     colorB: state.colorB,
@@ -309,15 +370,16 @@ function resizeFixtureBuffers(): void {
   renderer.invalidateRig();
 }
 
-function transmitFrame(): void {
+function transmitFrame(): boolean {
+  const protective = state.masterBlackout || !output.isArmed();
   for (const universe of universes.list()) {
-    output.sendUniverse(universe, universes.getBuffer(universe));
+    output.sendUniverse(universe, universes.getBuffer(universe), protective ? { immediate: true, terminate: true } : undefined);
   }
   // Send retired universes one zero frame so receivers cannot latch the previous look.
   for (const [universe, frame] of universes.drainRetired()) {
     output.sendUniverse(universe, frame, { immediate: true, terminate: true });
   }
-  output.endFrame();
+  return output.endFrame();
 }
 
 let mainGridOrigin: number | undefined;
@@ -340,9 +402,14 @@ function renderDmx(): void {
   }
   renderer.frame(renderInput(), reading, now, universes, mainGridOrigin);
   settleCommands(renderer.takeCommandResults(), renderer.commandStatus());
-  transmitFrame();
-  // Feed Hue once per frame because one Entertainment message covers the whole area.
-  output.sendHue();
+  const outputSeq = routes.issue(output.transmitConfig());
+  if (transmitFrame()) {
+    routes.acknowledge(outputSeq);
+    output.sendHue();
+    frames.acknowledge(frames.revision);
+  } else if (state.masterBlackout) {
+    output.sendHue();                   // this thread rendered the blackout it is reading: dark, and current
+  }
 }
 
 const safeRender = guarded('render', renderDmx);
@@ -356,7 +423,7 @@ let crashes: number[] = [];
 let postedRevision = -1;
 let postedSequence: number | null | undefined;
 let postedSpace: ReturnType<typeof currentSpace> | undefined;
-let stopping: (() => void) | null = null;       // resolves when the worker has blacked out
+let stopping: ((applied: boolean) => void) | null = null;   // resolves when the worker has blacked out
 let restartTimer: ReturnType<typeof setTimeout> | null = null;
 let workerFile = path.join(import.meta.dirname, 'engine-worker.ts');
 let lastPosted: { at: number; reading: ReturnType<typeof conductor.now> } | null = null;
@@ -396,7 +463,7 @@ function effectCommand(cmd: string, arg?: unknown): Promise<CommandResult> {
       // Post the intended base snapshot first so the worker command targets that look.
       if (lastPosted) {
         postSequence(worker);
-        post(worker, { type: 'snapshot', at: lastPosted.at, input, reading: { ...lastPosted.reading, moving: freeClockRuns() }, outputs: output.transmitConfig() });
+        post(worker, { type: 'snapshot', at: lastPosted.at, input, reading: { ...lastPosted.reading, moving: freeClockRuns() }, ...issueOutputs(), barrierRevision: frames.revision });
       }
       post(worker, { type: 'command', seq, cmd, arg, intent });
     } else {
@@ -419,8 +486,10 @@ function postSequence(w: Worker): void {
 
 function startMainDriver(): void {
   thread = 'main';
+  markReady();
   clock = () => performance.now();
   universes.setWritable(true);
+  output.seedArtnet(routes.outstanding());   // whatever a lost thread left lit is retired before new light
   // Record the grid origin in both clocks so worker and main rendering use the same frame boundaries.
   const epochMs = hrtimeMs();
   mainGridOrigin = clock();
@@ -459,7 +528,8 @@ function controlTick(): void {
     input: renderInput(),
     // Keep the free clock stopped when no pattern, voice or sequence needs it.
     reading: { ...reading, moving: freeClockRuns() },
-    outputs: output.transmitConfig(),
+    ...issueOutputs(),
+    barrierRevision: frames.revision,
   });
 }
 
@@ -467,7 +537,12 @@ function onWorkerMessage(msg: FromWorker | null): void {
   if (!msg) return;
   switch (msg.type) {
     case 'frame':
-      output.sendHue();
+      if (msg.applied === false) {
+        if (msg.dark && protectiveDark(msg.barrierRevision)) output.sendHue();
+        break;
+      }
+      if (msg.outputSeq !== undefined) routes.acknowledge(msg.outputSeq);
+      if (frames.acknowledge(msg.barrierRevision ?? 0)) output.sendHue();
       break;
     case 'stats':
       workerStats = msg.stats;
@@ -476,7 +551,7 @@ function onWorkerMessage(msg: FromWorker | null): void {
       settleCommands(msg.results, { processed: msg.processed, applied: msg.applied });
       break;
     case 'stopped':
-      if (stopping) stopping();
+      if (stopping) stopping(msg.applied !== false);
       break;
     default:
       break;
@@ -484,16 +559,18 @@ function onWorkerMessage(msg: FromWorker | null): void {
 }
 
 function spawnWorker(epochMs: number): void {
-  let ready = false;
+  ready = false;
+  let started = false;
   const w = new Worker(workerFile, {
-    workerData: { shared: universes.shared, epochMs, periodMs: FRAME_MS },
+    workerData: { shared: universes.shared, epochMs, periodMs: FRAME_MS, retire: routes.outstanding() },
   });
   worker = w;
   postedRevision = -1;
   postedSequence = undefined;
   postedSpace = undefined;
   w.on('message', (msg: FromWorker | null) => {
-    if (msg && msg.type === 'ready') ready = true;
+    if (worker !== w && msg?.type !== 'stopped') return;
+    if (msg && msg.type === 'ready') { started = true; markReady(); }
     if (msg && msg.type === 'commands' && worker !== w) return;
     guarded('engine', onWorkerMessage)(msg);
   });
@@ -501,12 +578,15 @@ function spawnWorker(epochMs: number): void {
   w.on('exit', (code) => {
     if (worker !== w) return;           // a worker already replaced or stopped
     worker = null;
+    ready = false;
+    control.rendererLost();
+    frames.fail('The renderer restarted before acknowledging this change');
     failPendingCommands();
     if (thread !== 'worker') return;
     const now = Date.now();
     crashes = crashes.filter((at) => now - at < CRASH_WINDOW_MS).concat(now);
-    if (!ready || crashes.length >= MAX_CRASHES) {
-      fellBack = !ready
+    if (!started || crashes.length >= MAX_CRASHES) {
+      fellBack = !started
         ? `the engine thread could not start (exit ${code})`
         : `the engine thread stopped ${crashes.length} times in a minute`;
       console.warn(`[engine] ${fellBack} — rendering on the main thread instead`);
@@ -556,7 +636,9 @@ function startEngine({ thread: where = 'main', file = null }: { thread?: EngineT
   startMainDriver();
 }
 
-function blackout(): void {
+// Darken from this thread, retiring what any engine thread left outstanding; true once every route is dark.
+function blackout(): boolean {
+  output.seedArtnet(routes.outstanding());
   universes.setWritable(true);
   universes.sync(activeUniverses());
   universes.clearAll();
@@ -566,7 +648,9 @@ function blackout(): void {
   for (const [universe, frame] of universes.drainRetired()) {
     output.sendUniverse(universe, frame, { immediate: true, terminate: true });
   }
-  output.endFrame();
+  const applied = output.endFrame();
+  if (applied) routes.clear();
+  return applied;
 }
 
 function hueOut(): void {
@@ -576,6 +660,10 @@ function hueOut(): void {
 }
 
 function stopEngine(): Promise<void> {
+  ready = false;
+  for (const waiter of readyWaiters) waiter.reject(new Error('The renderer stopped before it was ready'));
+  readyWaiters.clear();
+  control.rendererLost();
   if (ticker) ticker.stop();
   ticker = null;
   if (restartTimer) clearTimeout(restartTimer);
@@ -587,6 +675,7 @@ function stopEngine(): Promise<void> {
   lastPosted = null;
   mainGridOrigin = undefined;
   failPendingCommands();
+  frames.fail('The renderer stopped before acknowledging this change');
   // Discard commands already reported unavailable so a replacement driver cannot apply them later.
   renderer.rejectCommands('unavailable');
   renderer.takeCommandResults();
@@ -602,14 +691,15 @@ function stopEngine(): Promise<void> {
     const finish = (blackedOut: boolean) => {
       clearTimeout(timer);
       stopping = null;
-      if (!blackedOut) blackout();
+      if (blackedOut) routes.clear();
+      else blackout();
       universes.setWritable(true);
       hueOut();
       w.terminate().catch(() => {});
       resolve();
     };
     const timer = setTimeout(() => finish(false), STOP_TIMEOUT_MS);
-    stopping = () => finish(true);
+    stopping = (applied: boolean) => finish(applied);
     try {
       post(w, { type: 'stop' });
     } catch (_) {

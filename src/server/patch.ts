@@ -1,4 +1,4 @@
-import { state, getFixture, setDefaultUniverse, latchEnergy, reconcileFreeClock } from './state.ts';
+import { state, getFixture, latchEnergy, reconcileFreeClock } from './state.ts';
 import { beginFade, resolveEffect } from './engine.ts';
 import { conductor } from './conductor.ts';
 import { safety } from './safety.ts';
@@ -90,6 +90,7 @@ export interface PatchOptions {
 // Admission comes first: an effect awaiting the photosensitivity acknowledgement refuses it all (409).
 function applyPatch(rawData: unknown, { beforeCommit, origin = 'hand', paletteOverrideId = null }: PatchOptions = {}): Patch {
   const data = validate(patchSchema, rawData || {}, 'patch');
+  if (data.artnet !== undefined) throw Object.assign(new HttpError(409, 'Art-Net routing requires the rig coordinator'), { code: 'routing_coordinator_required' });
   const selected = data.palette ? hooks.palette(data.palette) : null;
   if (data.palette && !selected) throw new HttpError(400, `is not a known palette: ${data.palette}`);
   const baseBody = data.basePalette ? materializePalette(data.basePalette) : data.basePalette;
@@ -214,15 +215,6 @@ function applyPatch(rawData: unknown, { beforeCommit, origin = 'hand', paletteOv
   }
   // An id that is no energy effect takes the latched one off.
   if (data.energyOverride !== undefined) latchEnergy(data.energyOverride);
-  if (data.artnet !== undefined) {
-    // Through setDefaultUniverse, so fixtures on the default universe move with it.
-    const { universe, ...rest } = data.artnet;
-    Object.assign(state.artnet, rest);
-    if (universe !== undefined) setDefaultUniverse(universe);
-    persist({ artnet: { ...state.artnet } });
-    // Its fixtures moved, so the saved patch follows.
-    if (universe !== undefined) hooks.showChanged();
-  }
   if (data.autoSource !== undefined) state.autoSource = data.autoSource;
 
   if (data.prolinkEnabled !== undefined) {

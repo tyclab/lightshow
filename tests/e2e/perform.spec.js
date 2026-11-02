@@ -168,10 +168,10 @@ test('a loop pad starts on a tap and stops on the next', async ({ page, request 
 
 test('blackout, palettes and the master', async ({ page, request }) => {
   await open(page, 'perform');
-  // Blackout and the master are the strip's above the view.
-  await page.getByRole('switch', { name: /^Blackout/ }).click();
+  // Global controls stay in the header above every view.
+  await page.getByRole('group', { name: 'Global show controls' }).getByRole('button', { name: 'Blackout', exact: true }).click();
   await until(request, (s) => s.masterBlackout === true);
-  await page.getByRole('switch', { name: /^Blackout/ }).click();
+  await page.getByRole('group', { name: 'Global show controls' }).getByRole('button', { name: 'Restore', exact: true }).click();
   await until(request, (s) => s.masterBlackout === false);
 
   await page.locator('.palette-strip').getByRole('button', { name: 'Base', exact: true }).click();

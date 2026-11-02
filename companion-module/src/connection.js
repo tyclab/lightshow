@@ -24,6 +24,7 @@ export class LightshowConnection {
 	#hold = null
 	#holdTimer = null
 	#holdCount = 0
+	#controlFresh = false
 
 	#pads = new Map()
 
@@ -51,8 +52,9 @@ export class LightshowConnection {
 			// Protocol 2: a snapshot, then only what changed.
 			auth: { token: this.token, protocol: 2 },
 		})
-		this.socket.on('connect', () => this.onStatus('ok'))
+		this.socket.on('connect', () => { this.#invalidateControl(); this.onStatus('ok') })
 		this.socket.on('disconnect', (reason) => {
+			this.#invalidateControl()
 			this.#stopRenewing()
 			this.#releaseAllPads()
 			this.onStatus('disconnected', reason)
@@ -67,18 +69,72 @@ export class LightshowConnection {
 		this.socket.on('error-msg', ({ source, message } = {}) => {
 			this.log('warn', `Server rejected ${source || 'message'}: ${message}`)
 		})
-		this.socket.on('snapshot', (snapshot) => this.onChange(this.store.applySnapshot(snapshot)))
+		this.socket.on('snapshot', (snapshot) => this.#snapshot(snapshot))
 		this.socket.on('patch', (patch) => {
 			const keys = this.store.applyPatch(patch)
 			if (keys === 'stale') return
 			if (keys === 'gap') {
-				this.socket.emit('sync', (snapshot) => this.onChange(this.store.applySnapshot(snapshot)))
+				this.#invalidateControl()
+				this.socket.emit('sync', (snapshot) => this.#snapshot(snapshot))
 				return
 			}
 			this.onChange(keys)
 		})
 		// A server from before protocol 2 sends the whole state instead.
-		this.socket.on('state', (state) => this.onChange(this.store.merge(state)))
+		this.socket.on('state', (state) => {
+			this.#controlFresh = validControl(state?.control)
+			this.onChange(this.store.merge({ ...state, control: state?.control }))
+		})
+	}
+
+	#invalidateControl() {
+		this.#controlFresh = false
+		delete this.store.state.control
+		this.onChange(new Set(['control']))
+	}
+
+	#snapshot(snapshot) {
+		const keys = this.store.applySnapshot(snapshot)
+		this.#controlFresh = validControl(this.state.control)
+		this.onChange(keys)
+	}
+
+	globalControl(action, programme) {
+		const control = this.state.control
+		if (!this.connected || !this.#controlFresh || !validControl(control)) {
+			return this.#controlRefusal('Explicit controls unavailable. Connect to an updated server and wait for its control snapshot.')
+		}
+		if (control.pending && !['stop', 'disarm', 'blackout'].includes(action)) {
+			return this.#controlRefusal('A control is still being applied. Wait for its displayed result before acting again.')
+		}
+		const body = { version: 1, session: control.session, revision: control.revision, action }
+		if (programme !== undefined) body.programme = programme
+		return this.post('/api/control', body)
+	}
+
+	#controlRefusal(error) {
+		this.log('warn', error)
+		return Promise.resolve({ ok: false, error })
+	}
+
+	programmeTransport(mode, programme) {
+		if (!['toggle', 'play', 'start', 'stop'].includes(mode)) return this.#controlRefusal('Unknown programme control')
+		const c = this.state.control
+		const playing = !!c?.playing && !c?.paused && (!programme || c.programme === programme)
+		const start = mode === 'toggle' ? !playing : mode === 'play' || mode === 'start'
+		return this.globalControl(start ? 'start' : 'stop', start ? programme : undefined)
+	}
+
+	freezePicture(mode) {
+		if (!['toggle', 'freeze', 'resume'].includes(mode)) return this.#controlRefusal('Unknown picture control')
+		const freeze = mode === 'toggle' ? !this.state.control?.frozen : mode === 'freeze'
+		return this.globalControl(freeze ? 'freeze' : 'resume')
+	}
+
+	blackout(mode) {
+		if (!['toggle', 'on', 'off'].includes(mode)) return this.#controlRefusal('Unknown blackout control')
+		const black = mode === 'toggle' ? !this.state.control?.blackout : mode === 'on'
+		return this.globalControl(black ? 'blackout' : 'restore')
 	}
 
 	// A pad held over REST: pressed once, then renewed within its 1200 ms
@@ -122,8 +178,9 @@ export class LightshowConnection {
 	}
 
 	sequenceTransport(mode) {
-		if (!['play', 'pause', 'stop', 'blackout'].includes(mode)) return Promise.resolve({ ok: false, error: 'Unknown sequence control' })
-		return this.post(`/api/sequence/${mode === 'blackout' ? 'stop' : mode}`, { blackout: mode === 'blackout' })
+		if (mode === 'pause') return this.post('/api/sequence/pause', {})
+		if (mode === 'play' || mode === 'stop') return this.programmeTransport(mode, 'sequence')
+		return this.#controlRefusal('Use explicit programme Stop and Blackout actions; the combined sequence black-stop action is retired.')
 	}
 
 	#releaseAllPads() {
@@ -132,6 +189,7 @@ export class LightshowConnection {
 	}
 
 	disconnect() {
+		this.#invalidateControl()
 		this.#releaseAllPads()
 		this.#stopRenewing()
 		if (this.socket) {
@@ -239,14 +297,14 @@ export class LightshowConnection {
 
 	/** Start or stop the auto show; 'toggle' asks the state which. */
 	autoShow(mode) {
-		const on = mode === 'toggle' ? !this.state.showOn : mode === 'start'
-		return this.post(on ? '/api/auto/start' : '/api/auto/stop')
+		return this.programmeTransport(mode, 'auto')
 	}
 
 	/** Arm or disarm the outputs — whether anything leaves the machine; 'toggle' asks the state which. */
 	armOutputs(mode) {
-		const on = mode === 'toggle' ? !this.state.armed : mode === 'arm'
-		return this.post(on ? '/api/outputs/arm' : '/api/outputs/disarm')
+		if (!['toggle', 'arm', 'disarm'].includes(mode)) return this.#controlRefusal('Unknown output control')
+		const on = mode === 'toggle' ? !this.state.control?.armed : mode === 'arm'
+		return this.globalControl(on ? 'arm' : 'disarm')
 	}
 }
 
@@ -256,4 +314,9 @@ const PAD_RENEW_MS = 400
 /** The server's handshake refusal: the code in the error's data, or the bare word older servers sent. */
 export function isUnauthorized(err) {
 	return (err && err.data && err.data.code === 'unauthorized') || (err && err.message === 'unauthorized')
+}
+
+export function validControl(control) {
+	return control?.version === 1 && typeof control.session === 'string' && control.session.length > 0
+		&& Number.isSafeInteger(control.revision) && control.revision >= 0
 }

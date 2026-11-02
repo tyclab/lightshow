@@ -232,6 +232,7 @@ for (const kind of ['hd.frequencyBurst', 'hd.positionChase', 'hd.simpleAdsr']) {
     const e = engine({ effect, background: fixed });
     assert.ok(lit(e.draw(20)), 'negative control: the admitted foreground can emit light');
     assert.ok(dark(e.draw(900)), 'Fixed cannot fill an owned rapid rest');
+    assert.ok(lit(e.draw(1000, { programmePlaying: false })), 'explicit Stop releases programme coverage');
   });
 }
 

@@ -1,6 +1,6 @@
 // Identify: a fixture shows itself on the rig — a par blinks, a bar marks its
 // first cell green and its last red with a dot running between — over the
-// look, the master and a blackout, and a device not yet patched gets the same
+// look, below the live master and Blackout, and a device not yet patched gets the same
 // picture streamed to it.
 
 import test from 'node:test';
@@ -157,14 +157,14 @@ function renderAt(fixtures, patch, times) {
   }
 }
 
-test('identified pars bypass blackout and master without changing other lamps', () => {
+test('identified pars obey Blackout and master without changing other lamps', () => {
   const par = fixture(1, 1, BUILTIN_PROFILE_ID);
   const other = fixture(2, 13, BUILTIN_PROFILE_ID);
   const ch = getProfile(par).channelMap;
   const request = { seq: 1, ids: [1], at: 0, ms: 5000 };
   const [lit, dark] = renderAt([par, other], { masterBlackout: true, masterDimmer: 0, identify: request }, [100, 500]);
-  assert.strictEqual(lit[ch.dimmer], 255, 'at full through the blackout');
-  assert.strictEqual(lit[ch.red], 255);
+  assert.ok(lit.every(value => value === 0), 'Identify cannot bypass Blackout');
+  assert.strictEqual(lit[ch.red], 0);
   assert.strictEqual(lit[12 + ch.dimmer], 0, 'the other fixture stays blacked out');
   assert.strictEqual(dark[ch.dimmer], 0, 'and blinks');
 
@@ -180,9 +180,9 @@ test('bar identification marks endpoints until expiry', () => {
   const cells = BAR.cells.map((c) => c.channelMap);
   const request = { seq: 1, ids: [3], at: 0, ms: 1000 };
   const [during, after] = renderAt([bar], { identify: request, masterDimmer: 40 }, [100, 1200]);
-  assert.deepStrictEqual([during[cells[0].red], during[cells[0].green]], [0, 255]);
-  assert.deepStrictEqual([during[cells[7].red], during[cells[7].green]], [255, 0]);
-  assert.strictEqual(during[BAR.channelMap.dimmer], 255, 'its dimmer open, master or not');
+  assert.deepStrictEqual([during[cells[0].red], during[cells[0].green]], [0, 40]);
+  assert.deepStrictEqual([during[cells[7].red], during[cells[7].green]], [40, 0]);
+  assert.strictEqual(during[BAR.channelMap.dimmer], 40, 'Identify respects the live master');
   assert.notDeepStrictEqual([after[cells[0].red], after[cells[0].green]], [0, 255], 'back to the look after');
 });
 
@@ -194,7 +194,7 @@ test('a stop request lets go on the next frame', () => {
     const store = universes.createUniverseStore(universes.allocateShared());
     const renderer = createRenderer({ profileOf: getProfile, profilesRevision, now: 0 });
     const reading = { beatPos: 0, bpm: 120, epoch: 0 };
-    renderer.frame(input([par], { masterBlackout: true, identify: { seq: 1, ids: [1], at: 0, ms: 9000 } }), reading, 100, store);
+    renderer.frame(input([par], { masterBlackout: false, colorA: 14, identify: { seq: 1, ids: [1], at: 0, ms: 9000 } }), reading, 100, store);
     assert.strictEqual(store.getBuffer(0)[ch.dimmer], 255);
     renderer.frame(input([par], { masterBlackout: true, identify: { seq: 2, ids: [], at: 110, ms: 0 } }), reading, 120, store);
     assert.strictEqual(store.getBuffer(0)[ch.dimmer], 0);

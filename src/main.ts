@@ -24,7 +24,7 @@ import { analysisVersion } from './analysis-version.ts';
 import { HTTP_BASE as REMOTE_ANALYSIS_HTTP, RemoteAnalysisPool } from './remote-analysis.ts';
 
 import { state, voices } from './server/state.ts';
-import { startEngine, stopEngine, setFrameHook, setPulseSource, setModulationSource } from './server/engine.ts';
+import { startEngine, stopEngine, setFrameHook, setPulseSource, setModulationSource, publishRigRevision, waitForEngineReady } from './server/engine.ts';
 import { artnetDiscovery } from './server/output.ts';
 import { conductor } from './server/conductor.ts';
 import { applyPatch, applyOverride, setFixtureMaxBrightness, processTap, setPersist, setHooks, flushPendingPersist } from './server/patch.ts';
@@ -51,9 +51,11 @@ import * as pythonEnv from './python-env.ts';
 import { installProcessSafetyNet } from './server/guard.ts';
 import { startHealthMonitor } from './server/health.ts';
 import { supervision, startHeartbeat, listenToSupervisor, EXIT_CONFIG, EXIT_RESTART } from './server/supervised.ts';
-import { LookStore, currentLook, putBack, resumeAt } from './server/look-store.ts';
+import { LookStore, currentLook, putBack } from './server/look-store.ts';
 import { configFile } from './server/config-dir.ts';
 import { messageOf } from './errors.ts';
+import { configureControls } from './server/control-runtime.ts';
+import { control } from './server/control.ts';
 
 // Install fault handlers first so module startup failures are reported before the show begins.
 installProcessSafetyNet();
@@ -107,6 +109,9 @@ io.use(auth.socketMiddleware);
 remoteAnalysis.attach(io);
 
 const midi = new MidiController(state, applyPatch, processTap);
+midi.control = (action) => {
+  void control.execute({ ...control.snapshot(), action }).catch((err) => console.warn(`[MIDI] ${messageOf(err)}`));
+};
 midi.overrideFixture = applyOverride;
 midi.setFixtureMax = setFixtureMaxBrightness;
 
@@ -124,7 +129,10 @@ const nowPlaying = new NowPlayingSource();
 const deezerSource = new DeezerSource();
 
 const analysisCache = new AnalysisCache(path.join(cacheDir(), 'analysis'));
-const autoShow = new AutoShow(applyPatch, COLOR_PRESETS, [...PATTERNS, ...SPATIAL_AUTO_PATTERNS], analysisCache);
+const autoShow = new AutoShow((patch) => {
+  const { running: _running, masterBlackout: _blackout, ...content } = patch as Record<string, unknown>;
+  return applyPatch(content);
+}, COLOR_PRESETS, [...PATTERNS, ...SPATIAL_AUTO_PATTERNS], analysisCache);
 autoShow.useRemoteAnalysis(remoteAnalysis);
 settings.onChange((changed) => {
   if (changed.includes('analysis.workerToken')) remoteAnalysis.disconnectAll('the worker token changed');
@@ -183,7 +191,7 @@ setPersist((patch) => {
 setHooks({ showChanged: () => showStore.scheduleSave() });
 
 const lookStore = new LookStore(configFile('look.json'));
-const savedLook = supervised.recovering ? lookStore.load() : undefined;
+const savedLook = lookStore.load();
 if (savedLook && putBack(savedLook)) {
   console.log(`[look] put back the look from ${savedLook.savedAt}, before the restart`);
 }
@@ -194,28 +202,18 @@ spotify.onTokens((refreshToken) => {
   catch (err) { console.warn(`[spotify] could not save the session: ${messageOf(err)}`); }
 });
 
+configureControls({ integrations, applier, autoShow }, () => { lookStore.save(currentLook(autoShow, integrations.resolveAutoSource())); });
+
 remoteAnalysis.attachStatusRoute(app, () => ({ queue: autoShow.analysisCounts() }));
 attachRoutes(app, { midi, autoShow, spotify, nowPlaying, deezerSource, prolink, analysisCache, integrations, applier, restart: restartServer });
 attachSockets(io, { midi, integrations });
 
 // On a thread of its own unless the settings say otherwise (engine.thread).
+showStore.setPublisher(publishRigRevision);
 startEngine({ thread: settings.get('engine.thread') });
-
-// Wait for the playback source on recovery so a resumed show follows the music rather than a stopwatch.
-async function resumeAutoShow(auto: NonNullable<NonNullable<typeof savedLook>['auto']>): Promise<void> {
-  const saved = savedLook as NonNullable<typeof savedLook>;
-  if (!auto.key || !(await autoShow.resume(auto.key, auto.track as typeof autoShow.track))) {
-    console.warn('[look] the auto show was running, but its track is no longer in the analysis cache');
-    return;
-  }
-  for (let waited = 0; auto.source !== 'timer' && integrations.resolveAutoSource() !== auto.source && waited < 30_000; waited += 1000) {
-    await new Promise((resolve) => setTimeout(resolve, 1000));
-  }
-  const source = integrations.startAutoShow({ fromMs: resumeAt(saved) ?? 0 });
-  integrations.broadcast();
-  console.log(`[look] took the auto show up again, following ${source}`);
-}
-if (savedLook?.auto?.running) resumeAutoShow(savedLook.auto).catch((err) => console.warn(`[look] could not resume the auto show: ${messageOf(err)}`));
+try { await waitForEngineReady(); }
+catch (err) { console.error(`[engine] ${messageOf(err)}`); process.exit(1); }
+void showStore.applyCurrent().then(() => integrations.broadcast());
 
 setInterval(() => lookStore.save(currentLook(autoShow, integrations.resolveAutoSource())), 2000).unref();
 artnetDiscovery.start();
@@ -228,8 +226,7 @@ const idleDisarm = createIdleDisarm({
     || autoShow.running || pixelInputs.status().length > 0,
   minutes: () => settings.get('outputs.idleDisarmMin'),
   disarm: (minutes) => {
-    applier.applyChanged(settings.update({ outputs: { armed: false } }), { via: 'schedule', reason: `armed with nothing playing for ${minutes} min` });
-    applier.disarmed();
+    void control.execute({ action: 'disarm' }).catch((err) => console.warn(`[outputs] idle disarm after ${minutes} min: ${messageOf(err)}`));
   },
 });
 setInterval(() => idleDisarm.tick(), 10_000).unref();

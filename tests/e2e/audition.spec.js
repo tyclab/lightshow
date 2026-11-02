@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { open, state } from './helpers.js';
+import { control, open, state } from './helpers.js';
 import { stageImage } from './stage-image.js';
 import { protectedState, watchControlWrites } from './audition-isolation.js';
 
@@ -119,25 +119,29 @@ test('saved effect and its edited palette audition without updating the library 
 
 test('arming ends Audition even after navigating away, and disarming never resumes it', async ({ page, request }) => {
   const original = await state(request);
-  await request.post('/api/set', { data: { running: false } });
+  await control(request, 'stop');
   try {
     const before = await protectedState(request), writes = watchControlWrites(page);
     await open(page, 'stage');
     for (const away of [false, true]) {
       await page.getByRole('button', { name: 'Audition effects', exact: true }).click();
       if (away) { await page.evaluate(() => { window.location.hash = 'effects'; }); await page.locator('#panel-effects').waitFor(); }
-      expect((await request.post('/api/outputs/arm')).ok()).toBe(true);
+      await control(request, 'arm');
       if (away) { await page.evaluate(() => { window.location.hash = 'stage'; }); }
       await expect(page.getByRole('button', { name: 'Audition effects', exact: true })).toBeDisabled();
       await expect(page.getByLabel('Audition effect', { exact: true })).toHaveCount(0);
-      expect((await request.post('/api/outputs/disarm')).ok()).toBe(true);
+      await control(request, 'disarm');
       await expect(page.getByRole('button', { name: 'Audition effects', exact: true })).toBeEnabled();
       await expect(page.getByLabel('Audition effect', { exact: true })).toHaveCount(0);
     }
-    expect(await protectedState(request)).toEqual(before);
+    const after = await protectedState(request);
+    expect(after.state.control.revision).toBeGreaterThan(before.state.control.revision);
+    expect(after.state.control.appliedRevision).toBe(after.state.control.revision);
+    expect(after).toEqual({ ...before, state: { ...before.state, control: { ...before.state.control,
+      revision: after.state.control.revision, appliedRevision: after.state.control.appliedRevision } } });
     expect(writes).toEqual([]);
   } finally {
-    await request.post('/api/outputs/disarm');
-    await request.post('/api/set', { data: { running: original.running } });
+    await control(request, 'disarm');
+    await control(request, original.control.playing ? 'start' : 'stop', original.control.programme);
   }
 });

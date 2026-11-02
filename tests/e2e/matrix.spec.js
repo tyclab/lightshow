@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { open, reset, state, until } from './helpers.js';
+import { control, open, reset, state, until } from './helpers.js';
 
 let paletteId;
 test.beforeEach(async ({ request, page }) => {
@@ -14,19 +14,19 @@ test.beforeEach(async ({ request, page }) => {
 });
 
 test.afterEach(async ({ request }) => {
-  await request.post('/api/outputs/disarm');
+  await control(request, 'disarm');
   await request.delete('/api/voices');
   if (paletteId) await request.delete(`/api/palettes/${paletteId}`);
 });
 
 test('Disarming an idle Matrix clears its lock', async ({ page, request }) => {
-  await request.post('/api/set', { data: { running: false } });
-  await request.post('/api/outputs/arm');
+  await control(request, 'stop');
+  await control(request, 'arm');
   await until(request, (s) => s.armed && !s.running && !s.matrix.voice);
   const lock = page.getByRole('button', { name: 'Lock colours', exact: true });
   await lock.click();
   await expect(lock).toHaveAttribute('aria-pressed', 'true');
-  await request.post('/api/outputs/disarm');
+  await control(request, 'disarm');
   await expect(lock).toHaveAttribute('aria-pressed', 'false');
 });
 

@@ -126,16 +126,17 @@ test('a cue saved while the show was frozen does not freeze a running show', () 
   assert.strictEqual(state.running, true, 'the show keeps running');
 });
 
-test('recalling a cue starts a stopped show, so the cue is seen', () => {
+test('recalling a cue changes content without starting a stopped programme', () => {
   applyPatch({ pattern: 'chase', running: true });
   const saved = captureLook();
   assert.strictEqual(saved.running, undefined, 'a cue carries no transport');
 
-  applyPatch({ pattern: 'rainbow', running: false });
+  applyPatch({ pattern: 'rainbow', running: false, masterBlackout: true });
   recallLook(saved);
 
   assert.strictEqual(state.pattern, 'chase');
-  assert.strictEqual(state.running, true);
+  assert.strictEqual(state.running, false);
+  assert.strictEqual(state.masterBlackout, true, 'cue recall cannot release Blackout');
 });
 
 test('a look with the bars on a picture of their own comes back that way', () => {

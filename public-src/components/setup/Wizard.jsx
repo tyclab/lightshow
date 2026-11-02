@@ -1,6 +1,6 @@
 import { signal } from '@preact/signals';
 import { useEffect, useRef, useState } from 'preact/hooks';
-import { pick, send, connectedSig, toast, api, emitFixture } from '../../state.js';
+import { pick, connectedSig, toast, api, emitFixture } from '../../state.js';
 import { settingsSig, loadSettings, saveSettings, networkInterfaces, post, at } from '../../setup-state.js';
 import { useFocusTrap } from '../../focus-trap.js';
 import { identifyFixtures } from '../../rig-ui.js';
@@ -85,8 +85,10 @@ function Outputs({ register }) {
   const [status, setStatus] = useState('');
 
   register(async () => {
-    send({ artnet: { enabled: artnet, host } });
+    const routing = await saveSettings({ artnet: { enabled: artnet, host } });
+    if (!routing.ok) { setStatus(routing.error || 'Art-Net routing was not applied'); return false; }
     const res = await saveSettings({ sacn: { enabled: sacn } });
+    if (!res.ok) setStatus(res.error || 'sACN settings were not saved');
     return res.ok;
   });
 

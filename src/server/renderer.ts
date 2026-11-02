@@ -1,3 +1,5 @@
+import { PictureHold } from './picture-hold.ts';
+import type { CellOwnership } from './picture-hold.ts';
 import { ambient, backgroundScope, blendBackground, composeBackground } from '../shared/background.ts';
 import type { BackgroundField, BackgroundSettings } from '../shared/background.ts';
 import { fixedColours, colourSlots, resolveGradient } from '../shared/palette-model.ts';
@@ -78,6 +80,9 @@ export interface SyncTestRequest {
 
 export interface RenderInput {
   background?: BackgroundSettings;
+  programmePlaying?: boolean;
+  frozen?: boolean;
+  heldUnavailable?: boolean;
   hardware?: HardwareSettings;
   running: boolean;
   pattern: string;
@@ -273,6 +278,10 @@ function createRenderer({ profileOf, profilesRevision = () => 0, now = performan
   profilesRevision?: () => number;
   now?: number;
 }): Renderer {
+  const pictureHold = new PictureHold();
+  let holdKeys: string[] = [];
+  const holdProfiles = new Map<string, { signature: string; revision: number }>();
+  let holdProfileRevision = 0;
   const unitColors = Array.from({ length: 4 }, blankUnit);
   const twinkle = new Array(4).fill(0);
   const pixelTwinkle = new Array(4).fill(0);
@@ -335,6 +344,7 @@ function createRenderer({ profileOf, profilesRevision = () => 0, now = performan
   const seqLight: (UnitLight | null)[] = [];
   const baseBackground: (BackgroundField | undefined)[] = [];
   const seqBackground: (BackgroundField | undefined)[] = [];
+  const lastBackground: (BackgroundField | undefined)[] = [];
   const shownBackground: (BackgroundField | undefined)[] = [];
   let fadeBackground: (BackgroundField | undefined)[] = [];
   const seqKind: (string | null)[] = [];
@@ -546,6 +556,18 @@ function createRenderer({ profileOf, profilesRevision = () => 0, now = performan
     if (!rig || key !== rigKey) {
       rig = buildRig(fixtures, profileOf);
       rigKey = key;
+      const profiles = new Map<string, number>();
+      for (const fix of fixtures) {
+        if (profiles.has(fix.profileId)) continue;
+        const signature = JSON.stringify(profileOf(fix));
+        let compatibility = holdProfiles.get(fix.profileId);
+        if (compatibility?.signature !== signature) {
+          compatibility = { signature, revision: ++holdProfileRevision };
+          holdProfiles.set(fix.profileId, compatibility);
+        }
+        profiles.set(fix.profileId, compatibility.revision);
+      }
+      holdKeys = rig.units.map(({ fixture, cell }) => `${fixtures[fixture].id}:${profiles.get(fixtures[fixture].profileId)}:${cell}`);
     }
     const unitsKey = fixtures.map((fixture, i) => `${fixture.id}:${rig!.ranges[i].count}`).join('|');
     if (unitsKey !== guardUnitsKey) {
@@ -570,7 +592,7 @@ function createRenderer({ profileOf, profilesRevision = () => 0, now = performan
     seqLight.length = count;
     while (seqKind.length < count) seqKind.push(null);
     seqKind.length = count;
-    baseBackground.length = seqBackground.length = shownBackground.length = count;
+    baseBackground.length = seqBackground.length = lastBackground.length = shownBackground.length = count;
   }
 
   function setUnitColor(u: number, color: Colour, dim: number, strobe: number, background?: BackgroundField): void {
@@ -609,14 +631,6 @@ function createRenderer({ profileOf, profilesRevision = () => 0, now = performan
   function identifying(now: number): { ids: Set<number>; start: number } | null {
     if (identify && now >= identify.until) identify = null;
     return identify;
-  }
-
-  function writeIdentified(input: RenderInput, store: FrameStore, fix: RenderFixture, cells: ChannelMap[] | null,
-    elapsed: number, now: number): void {
-    const plain: RenderInput = { ...input, masterDimmer: 255, pattern: '', flashLimit: false };
-    const lights = identifyLights(cells ? cells.length : 1, elapsed).map(({ col, dim }) => ({ col, dim, strobe: 0 }));
-    if (cells) writeBar(plain, store, fix, cells, lights, null, now, false, true);
-    else writePar(plain, store, fix, lights[0], null, now, false, true);
   }
 
   // Re-anchor after clock epochs so patterns cannot keep an anchor from the old transport position.
@@ -788,7 +802,7 @@ function createRenderer({ profileOf, profilesRevision = () => 0, now = performan
   }
 
   function lightOf(u: number, fix: RenderFixture, energy: EnergyLook | null, fadeT: number,
-    target: ShowDynamics | null, pixel: Colour | null = null, background?: BackgroundSettings): LightValue {
+    target: ShowDynamics | null, pixel: Colour | null = null, background?: BackgroundSettings, stopped = false): LightValue {
     // Keep the shown base under bursts so later fades do not capture the burst.
     const raw = unitColors[u];
     const unchanged = !background || background.mode === 'follow' && background.level === 1;
@@ -799,7 +813,10 @@ function createRenderer({ profileOf, profilesRevision = () => 0, now = performan
     shownBackground[u] = fade ? blendBackground(fadeBackground[u], baseBackground[u], fadeT) : baseBackground[u];
     const clip = seqUnits ? seqLight[u] : null;
     const selected = clip && !unchanged ? composeBackground(clip, clip.dim / 255, seqBackground[u], background) : null;
-    const below = pixel ? { ...pixel, dim: 255, strobe: 0 } : selected ? { ...selected.colour, dim: selected.level * 255, strobe: clip!.strobe } : clip ?? layer;
+    if (!stopped || !lastBackground[u]) lastBackground[u] = clip ? seqBackground[u] : shownBackground[u];
+    const resting = stopped ? composeBackground(raw, 0, lastBackground[u], background, true) : null;
+    const below = resting ? { ...resting.colour, dim: resting.level * 255, strobe: 0 }
+      : pixel ? { ...pixel, dim: 255, strobe: 0 } : selected ? { ...selected.colour, dim: selected.level * 255, strobe: clip!.strobe } : clip ?? layer;
 
     let col: Colour; let dim: number; let strobe: number;
     if (energy) {
@@ -819,8 +836,8 @@ function createRenderer({ profileOf, profilesRevision = () => 0, now = performan
     }
 
     const pinned = fix.override && fix.override.enabled;
-    if (!pixel && !energy && !pinned && !ridesLevel(clip ? seqKind[u] : baseKind[u])) dim *= expression.level;
-    if (!pixel && target?.level === 0 && !energy && !pinned) dim = 0;
+    if (!stopped && !pixel && !energy && !pinned && !ridesLevel(clip ? seqKind[u] : baseKind[u])) dim *= expression.level;
+    if (!stopped && !pixel && target?.level === 0 && !energy && !pinned) dim = 0;
     return { col, dim, strobe };
   }
 
@@ -830,9 +847,10 @@ function createRenderer({ profileOf, profilesRevision = () => 0, now = performan
   }
 
   function strobeRequest(input: RenderInput, energy: EnergyLook | null, strobe: number, clip = false): StrobeRequest | null {
+    if (input.frozen) return null;
     // Force standard strobe for energies and clips so they cannot inherit a prior ramp or break function.
     const own = !!energy || clip;
-    let raw = own ? strobe : (input.pattern === 'strobe' ? input.strobeSpeed : strobe);
+    let raw = own ? strobe : (input.programmePlaying === false ? 0 : input.pattern === 'strobe' ? input.strobeSpeed : strobe);
     if (!(raw > 0)) return null;
     if (input.flashLimit && !capabilities.length) raw = Math.min(raw, FLASH_LIMIT_STROBE);
     return { raw, fnId: own ? 'standard' : input.strobeFunction,
@@ -892,6 +910,7 @@ function createRenderer({ profileOf, profilesRevision = () => 0, now = performan
     const ms = mastersOf(input, fix);
 
     writeDefaults(dmx, base, profile.defaults);
+    if (input.frozen && ch.strobe !== undefined) dmx[base + ch.strobe] = 0;
     const gate = strobe(dmx, base, fix, ch, strobeRequest(input, energy, flash, clip), now);
     const unit = emittedFixtures.get(fix.id)?.[0];
     if (unit) {
@@ -914,6 +933,7 @@ function createRenderer({ profileOf, profilesRevision = () => 0, now = performan
 
     if (strip) writeStripDefaults(store, fix, strip, profile.defaults);
     else writeDefaults(dmx, base, profile.defaults);
+    if (input.frozen && ch.strobe !== undefined) dmx[base + ch.strobe] = 0;
     let top = 0;
     let flash = 0;
     for (const light of lights) {
@@ -947,6 +967,7 @@ function createRenderer({ profileOf, profilesRevision = () => 0, now = performan
         at = place.shift;
       }
       if (cell.dimmer !== undefined) out[at + cell.dimmer] = cellDim;
+      if (input.frozen && cell.strobe !== undefined) out[at + cell.strobe] = 0;
       writeEmitters(out, at, cell, col, scale);
     }
   }
@@ -1024,19 +1045,6 @@ function createRenderer({ profileOf, profilesRevision = () => 0, now = performan
     const ident = identifying(now);
     const sync = syncTestEnergy(now);
 
-    if (input.masterBlackout) {
-      outputGuard.blackout();
-      for (const unit of emittedUnits) if (!ident?.ids.has(fixtures[unit.fixture].id)) {
-        outputGuard.measuredLight(unit.id, COLOR_PRESETS[14], 0, now, capabilities[unit.fixture], 'blackout', true, unit.measure);
-      }
-      if (input.flashLimit) outputGuard.commitRoom(0, now);
-      if (ident) {
-        for (let i = 0; i < fixtures.length; i++) {
-          if (ident.ids.has(fixtures[i].id)) writeIdentified(input, store, fixtures[i], rigNow.cellMaps[i], now - ident.start, now);
-        }
-      }
-      return rigNow;
-    }
     const all: LightValue[][] = [];
     const owned: (EnergyLook | null)[] = [];
     const clipped: boolean[] = [];
@@ -1047,19 +1055,22 @@ function createRenderer({ profileOf, profilesRevision = () => 0, now = performan
     const pixelOwners: (string | null)[] = new Array(rigNow.units.length).fill(null);
     // The room picture paints units without a live pixel stream, below voices and overrides.
     // Both come from a screen: their bytes are lifted off the black point, decoded first when asked.
-    const art = input.safety.acknowledged && input.picture && now < input.picture.expiresAt
+    const art = input.programmePlaying !== false && input.safety.acknowledged && input.picture && now < input.picture.expiresAt
       && input.picture.data instanceof Uint8Array && input.picture.data.length === rigNow.units.length * 3 ? input.picture : null;
     const { levels, gains } = liftFor(input);
     const watch = !!voiceTop || baseKinds || seqUnits;
     const scope = backgroundScope(input.background, rigNow.cellMaps, (i) => fixtures[i].id);
+    const ownership: CellOwnership[] = [];
+    const logical: LightValue[] = [];
     for (let i = 0; i < fixtures.length; i++) {
       const fix = fixtures[i];
       const background = !scope || scope[i] ? input.background : undefined;
       const { start, count } = rigNow.ranges[i];
       const overridden = !!fix.override && (fix.override.enabled || fix.override.blackout);
       const lights: LightValue[] = [];
+      const identifiedLights = ident?.ids.has(fix.id) ? identifyLights(count, now - ident.start) : null;
       const profile = profileOf(fix), stream = pixels.get(fix.id);
-      const pixel = stream && profile.grid?.columns === stream.width && profile.grid.rows === stream.height
+      const pixel = input.programmePlaying !== false && stream && profile.grid?.columns === stream.width && profile.grid.rows === stream.height
         && profile.cells?.length === stream.width * stream.height ? stream : null;
       const painted = art && !pixel ? art : null;
       const hueGraded = !!painted && !!input.pictureGrade?.enabled && hueLamp(fix);
@@ -1084,29 +1095,43 @@ function createRenderer({ profileOf, profilesRevision = () => 0, now = performan
           colour = { r, g, b, w: 0, a: 0, uv: 0 };
           pixelOwners[u] = `picture:${painted.leaseId}`;
         }
-        lights.push(lightOf(u, fix, top, fadeT, target, colour, background));
-        if (!watch) continue;
+        lights.push(lightOf(u, fix, top, fadeT, target, colour, background, input.programmePlaying === false));
         const kind = top ? (voice ? voice.kind ?? null : null) : overridden || pixelOwners[u] ? null : seqUnits && seqLight[u] ? seqKind[u] : baseKind[u];
-        topKind[u] = kind;
+        topKind[u] = watch ? kind : null;
+        const sequenceCell = input.programmePlaying !== false && seqUnits && seqLight[u];
+        const override = overridden;
+        const owner = sync ? 'sync' : voice?.owner ?? (override ? 'override' : pixelOwners[u] ?? (sequenceCell ? seqOwner[u] ?? 'sequence:black'
+          : input.programmePlaying === false ? 'background' : input.effect ? baseOwner[u] ?? 'base:excluded' : `legacy:${input.pattern}`));
+        const cut = kind === 'energy.kill' || !voice && !sync && (!!fix.override?.blackout
+          || input.programmePlaying !== false && !pixelOwners[u] && (target?.level === 0 && !fix.override?.enabled || !!sequenceCell && input.sequenceTransport?.stop?.mode === 'black'));
+        ownership[u] = { owner, kind: input.programmePlaying === false && !voice ? null : topKind[u], cut };
+        if (identifiedLights) {
+          const identified = identifiedLights[u - start];
+          lights[lights.length - 1] = { ...identified, strobe: 0 };
+          ownership[u] = { owner: 'identify', kind: null, cut: false };
+        }
+        logical[u] = lights[lights.length - 1];
       }
       owned.push(first);
       clipped.push(clip);
       all.push(lights);
     }
     drawStrobes(input, rigNow, all, owned, clipped, reading);
+    pictureHold.apply(!!input.frozen, !!input.heldUnavailable, holdKeys, logical, ownership);
+    if (input.masterBlackout) {
+      outputGuard.blackout();
+      for (const unit of emittedUnits) {
+        outputGuard.measuredLight(unit.id, COLOR_PRESETS[14], 0, now, capabilities[unit.fixture], 'blackout', true, unit.measure);
+      }
+      if (input.flashLimit) outputGuard.commitRoom(0, now);
+      return rigNow;
+    }
     if (capabilities.length) {
       const ids = new Set<string>();
       for (let i = 0; i < fixtures.length; i++) for (let c = 0; c < all[i].length; c++) {
         const id = `${fixtures[i].id}:${c}`; ids.add(id);
         const light = all[i][c];
-        const u = rigNow.ranges[i].start + c, fix = fixtures[i], voice = voiceTop?.[u];
-        const override = fix.override && (fix.override.enabled || fix.override.blackout);
-        const clip = seqUnits && seqLight[u];
-        const kind = watch ? topKind[u] : null;
-        const owner = sync ? 'sync' : voice?.owner ?? (override ? 'override' : pixelOwners[u] ?? (clip ? seqOwner[u] ?? 'sequence:black'
-          : input.effect ? baseOwner[u] ?? 'base:excluded' : `legacy:${input.pattern}`));
-        const cut = kind === 'energy.kill' || !voice && !sync && (!!fix.override?.blackout
-          || !pixelOwners[u] && (target?.level === 0 && !fix.override?.enabled || !!clip && input.sequenceTransport?.stop?.mode === 'black'));
+        const { owner, cut } = ownership[rigNow.ranges[i].start + c];
         const guardedLight = outputGuard.light(id, light.col, light.dim, now, capabilities[i], owner, cut);
         light.col = guardedLight.colour; light.dim = guardedLight.dim;
       }
@@ -1116,26 +1141,18 @@ function createRenderer({ profileOf, profilesRevision = () => 0, now = performan
       const scale = mastersOf(input, fixtures[i]), start = rigNow.ranges[i].start;
       for (let c = 0; c < all[i].length; c++) {
         const light = all[i][c], u = start + c;
-        light.dim = outputGuard.effectLevel(`${fixtures[i].id}:${c}`, light.dim, scale, watch ? topKind[u] : null, now);
+        light.dim = outputGuard.effectLevel(`${fixtures[i].id}:${c}`, light.dim, scale, ownership[u].kind, now);
       }
     }
     if (input.flashLimit) limitFlashes(input, all, now);
     else outputGuard.resetRoom();
     for (const unit of emittedUnits) {
-      const i = unit.fixture, c = unit.cell, fix = fixtures[i];
-      const u = rigNow.ranges[i].start + c, voice = voiceTop?.[u];
-      const override = fix.override && (fix.override.enabled || fix.override.blackout);
-      const clip = seqUnits && seqLight[u], kind = watch ? topKind[u] : null;
-      const owner = sync ? 'sync' : voice?.owner ?? (override ? 'override' : pixelOwners[u] ?? (clip ? seqOwner[u] ?? 'sequence:black'
-        : input.effect ? baseOwner[u] ?? 'base:excluded' : `legacy:${input.pattern}`));
-      const cut = kind === 'energy.kill' || !voice && !sync && (!!fix.override?.blackout
-        || !pixelOwners[u] && (target?.level === 0 && !fix.override?.enabled || !!clip && input.sequenceTransport?.stop?.mode === 'black'));
+      const { owner, cut } = ownership[rigNow.ranges[unit.fixture].start + unit.cell];
       unit.owner = owner; unit.cut = cut;
     }
     for (let i = 0; i < fixtures.length; i++) {
       const cells = rigNow.cellMaps[i];
-      if (ident && ident.ids.has(fixtures[i].id)) writeIdentified(input, store, fixtures[i], cells, now - ident.start, now);
-      else if (cells) writeBar(input, store, fixtures[i], cells, all[i], owned[i], now, clipped[i]);
+      if (cells) writeBar(input, store, fixtures[i], cells, all[i], owned[i], now, clipped[i]);
       else writePar(input, store, fixtures[i], all[i][0], owned[i], now, clipped[i]);
     }
     return rigNow;

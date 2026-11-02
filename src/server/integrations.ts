@@ -1,3 +1,4 @@
+import { control } from './control.ts';
 import { transitionFor } from '../show/transition.ts';
 import { presetById } from '../shared/effects/catalogue.ts';
 import { state, getLiveState, getCatalogs, getDmxSnapshot, getDmxUniverses, setExtrasProvider, setSequenceProvider, setSequenceRuns, reconcileFreeClock, voices, strobe } from './state.ts';
@@ -113,6 +114,7 @@ function setupIntegrations({ io, midi, spotify, nowPlaying, deezerSource, prolin
     palettes: paletteStore ?? new PaletteStore(configFile('palettes.json')).load(),
   };
   const pads = new Pads({
+    beforePress: () => control.requirePads(),
     voices, store: padStore ?? new PadStore(configFile('pads.json')).load(), lookup: () => presetLookup(library),
     pattern: (id): ReturnType<SequenceStore['getPattern']> => sequence.store.getPattern(id),
     fixtureIds: () => state.fixtures.map((f) => f.id), beat: () => conductor.peek().beatPos, strobe,
@@ -385,10 +387,12 @@ function setupIntegrations({ io, midi, spotify, nowPlaying, deezerSource, prolin
   }
 
   let showWanted = false;
+  let showGeneration = 0;
 
   function startAutoShow({ fromMs = 0 }: { fromMs?: number } = {}): AutoSource {
     const source = resolveAutoSource();
     showWanted = true;
+    showGeneration++;
     if (source === 'live') {
       syncLiveDirector();
       return source;
@@ -414,6 +418,7 @@ function setupIntegrations({ io, midi, spotify, nowPlaying, deezerSource, prolin
 
   function stopAutoShow(): void {
     showWanted = false;
+    showGeneration++;
     autoShow.stop();
     syncLiveDirector();
   }
@@ -444,18 +449,8 @@ function setupIntegrations({ io, midi, spotify, nowPlaying, deezerSource, prolin
     setStrobeRate: (hz) => { strobe.update({ flashesPerSecond: hz }); broadcast(); },
     strobeMaxRate: HOLD_STROBE_MAX_HZ,
     autoShowOn: () => showWanted,
-    toggleAutoShow: () => {
-      if (showWanted) {
-        autoShow.startPending = null;
-        stopAutoShow();
-      } else if (!autoShow.analysis && resolveAutoSource() !== 'live') {
-        console.warn('[MIDI] auto show: no analysis loaded. Analyze a track first, or turn on the live input to play by ear.');
-        return;
-      } else {
-        startAutoShow();
-      }
-      broadcast();
-    },
+    toggleAutoShow: () => control.execute({ ...control.snapshot(), action: control.playing ? 'stop' : 'start', programme: 'auto' })
+      .then(() => undefined, (err) => console.warn(`[MIDI] ${messageOf(err)}`)),
   };
 
   function detectors(): Detectors {
@@ -673,7 +668,8 @@ function setupIntegrations({ io, midi, spotify, nowPlaying, deezerSource, prolin
     if (resolveAutoSource() !== 'prolink') return;
 
     const generation = ++cdjGeneration;
-    const isCurrent = () => generation === cdjGeneration;
+    const wantedGeneration = showGeneration;
+    const isCurrent = () => generation === cdjGeneration && wantedGeneration === showGeneration && showWanted;
     const toPlayer = change?.toPlayer ?? prolink.getFollowed()?.deviceId ?? null;
     const setTrack = () => {
       autoShow.track = {
@@ -830,6 +826,7 @@ function setupIntegrations({ io, midi, spotify, nowPlaying, deezerSource, prolin
 
   async function restartShowFor(playing: NowPlaying,
     { cacheKey, clock, what }: { cacheKey?: string | null; clock: () => number; what: string }): Promise<void> {
+    const wantedGeneration = showGeneration;
     autoShow.stop();
     autoShow.track = {
       name: playing.name, artist: playing.artist, album: playing.album,
@@ -839,6 +836,7 @@ function setupIntegrations({ io, midi, spotify, nowPlaying, deezerSource, prolin
     try {
       const query = `${playing.artist} - ${playing.name}`;
       await autoShow.downloadAndAnalyze(query, playing.durationMs / 1000, cacheKey || keyForQuery(query), playing.isrc);
+      if (!showWanted || wantedGeneration !== showGeneration) return;
       autoShow.start(clock);
       console.log(`Auto show restarted for new ${what} track`);
     } catch (err) {

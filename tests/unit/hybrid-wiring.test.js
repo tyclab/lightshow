@@ -229,7 +229,8 @@ test('hybrid takes its content from Spotify, so a track change analyses', async 
   const rig = build();
   rig.spotify.authenticated = true;
   rig.nowPlaying.authenticated = true;
-  rig.autoShow.running = true;
+  rig.integrations.startAutoShow();
+  rig.started.length = 0;
 
   const analysed = [];
   rig.autoShow.downloadAndAnalyze = async (query, durationSec, key, isrc) => {
@@ -251,7 +252,8 @@ test('a track change in hybrid restarts the show on the hybrid clock', async () 
   const rig = build();
   rig.spotify.authenticated = true;
   rig.nowPlaying.authenticated = true;
-  rig.autoShow.running = true;
+  rig.integrations.startAutoShow();
+  rig.started.length = 0;
   rig.autoShow.downloadAndAnalyze = async () => {};
 
   await withSource('hybrid', async () => {
@@ -271,7 +273,8 @@ test('hybrid peeks the Spotify queue, which is what the OS session cannot see', 
   const rig = build();
   rig.spotify.authenticated = true;
   rig.nowPlaying.authenticated = true;
-  rig.autoShow.running = true;
+  rig.integrations.startAutoShow();
+  rig.started.length = 0;
 
   let peeked = 0;
   rig.spotify.getQueue = async () => { peeked++; return []; };
@@ -310,7 +313,8 @@ for (const [source, rigKey, expectedKey] of [
   test(`a ${source} track change restarts the show it is driving`, async () => {
     const rig = build();
     rig[rigKey].authenticated = true;
-    rig.autoShow.running = true;
+    rig.integrations.startAutoShow();
+  rig.started.length = 0;
     const analysed = [];
     rig.autoShow.downloadAndAnalyze = async (...args) => { analysed.push(args); };
 
@@ -333,7 +337,8 @@ for (const [source, rigKey, expectedKey] of [
     // back to this one, which would then really be driving.
     const [other, otherKey] = source === 'nowplaying' ? ['deezer', 'deezerSource'] : ['nowplaying', 'nowPlaying'];
     rig[otherKey].authenticated = true;
-    rig.autoShow.running = true;
+    rig.integrations.startAutoShow();
+  rig.started.length = 0;
     await withSource(other, async () => { rig[rigKey].emitTrack(SPOTIFY_TRACK); await settle(); });
 
     assert.deepStrictEqual(analysed, [], 'neither a stopped show nor another source\'s show');
@@ -344,7 +349,8 @@ for (const [source, rigKey, expectedKey] of [
 test('a failed analysis on a track change is reported, and the show stays stopped', async () => {
   const rig = build();
   rig.deezerSource.authenticated = true;
-  rig.autoShow.running = true;
+  rig.integrations.startAutoShow();
+  rig.started.length = 0;
   rig.autoShow.downloadAndAnalyze = async () => { throw new Error('no audio'); };
   const warn = console.warn; const error = console.error;
   console.warn = () => {}; console.error = () => {};
@@ -450,7 +456,8 @@ test('a running show shares its copy of the analysis with the track lock', async
   const cache = cacheOf({ [key]: { beats: beatsAt(128) } });
   const rig = build({ analysisCache: cache });
   rig.spotify.authenticated = true;
-  rig.autoShow.running = true;
+  rig.integrations.startAutoShow();
+  rig.started.length = 0;
   rig.autoShow.isCached = () => true;
   let loaded = null;
   rig.autoShow.downloadAndAnalyze = async (query, sec, cacheKey) => { loaded = cacheKey; };

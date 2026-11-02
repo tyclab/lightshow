@@ -24,6 +24,8 @@ export interface ArtnetOutput {
 export type SacnOutput = Settings['sacn'];
 
 export interface TransmitConfig {
+  rigRevision?: number;
+  universes?: readonly number[];
   artnet: ArtnetOutput;
   sacn: SacnOutput;
   delayMs: number;
@@ -57,9 +59,19 @@ export interface SendOptions {
 
 export type Wire = 'artnet' | 'sacn' | 'ddp' | 'openrgb';
 
+/** One physical Art-Net destination a universe may have been lit on. */
+export interface ArtnetDestination {
+  universe: number;
+  host: string;
+  port: number;
+  sync: boolean;
+}
+
 export interface Transmitter {
   send(universe: number, frame: Buffer, config: TransmitConfig, options?: SendOptions): Wire[];
-  endFrame(config: TransmitConfig | null | undefined): void;
+  endFrame(config: TransmitConfig | null | undefined): boolean;
+  /** Treat these destinations as possibly lit, so they are retired before any new light. */
+  seed(destinations: readonly ArtnetDestination[]): void;
 }
 
 const SACN_ACTIVE_MS = 3000;
@@ -127,7 +139,7 @@ function createTransmitter({ wires = DEFAULT_WIRES, now = () => performance.now(
   wires?: Wires;
   now?: () => number;
 } = {}): Transmitter {
-  const syncTargets = new Set<string>();
+  const syncTargets = new Map<string, { host: string; port: number }>();
   const sacnSent = new Map<number, number>();
   let sacnStream: { key: string; config: SacnOutput } | null = null;
   let lastDiscovery = -Infinity;
@@ -137,9 +149,69 @@ function createTransmitter({ wires = DEFAULT_WIRES, now = () => performance.now(
   const openrgbFrames = new Map<number, Buffer>();
   let openrgbSent = new Map<string, OpenRgbRoute>();
   let live = true;
-  const artnetSent = new Map<number, { hosts: string[]; port: number }>();
+  // Keyed by universe and port: a universe can wait on retirement at two old ports at once.
+  const artnetSent = new Map<string, { universe: number; hosts: string[]; port: number; sync: boolean }>();
+  const artnetKey = (universe: number, port: number) => `${universe}@${port}`;
+  let rigRevision: number | undefined;
+  let protectiveFrame = false;
+  let retirementReady = true;
+  let frameReady = true;
+  let lastConfig: TransmitConfig | null = null;
+  let routingKey = '';
 
   const delayLine = new Map<number, { at: number; frame: Buffer }[]>();
+
+  function queueSync(host: string, port: number): void { syncTargets.set(`${host}:${port}`, { host, port }); }
+  function flushSync(): boolean {
+    let ready = true;
+    for (const [key, target] of syncTargets) {
+      if (wires.artnetSync(target) === false) ready = false;
+      else syncTargets.delete(key);
+    }
+    return ready;
+  }
+  function clearPending(): void { delayLine.clear(); ddpFrames.clear(); openrgbFrames.clear(); }
+
+  function darken(universe: number, hosts: string[], port: number, sync: boolean): boolean {
+    if (!wires.artnet({ hosts, port, universe }, ZERO_FRAME)) return false;
+    let ready = true;
+    if (sync) for (const host of hosts) {
+      if (wires.artnetSync({ host, port }) === false) ready = false;
+      else syncTargets.delete(`${host}:${port}`);
+    }
+    return ready;
+  }
+
+  function syncRouting(config: TransmitConfig): boolean {
+    if (config !== lastConfig) {
+      const nextKey = JSON.stringify(config.artnet);
+      if (nextKey !== routingKey) clearPending();
+      routingKey = nextKey;
+      lastConfig = config;
+    }
+    if (config.rigRevision !== rigRevision) {
+      clearPending();
+      rigRevision = config.rigRevision;
+    }
+    let ready = true;
+    for (const [key, old] of artnetSent) {
+      const { universe } = old;
+      const current = config.artnet;
+      const claimed = current.routes?.[universe];
+      const hosts = current.enabled !== false && (!config.universes || config.universes.includes(universe))
+        ? claimed?.length ? claimed : [current.host] : [];
+      const removed = old.hosts.filter(host => old.port !== current.port || !hosts.includes(host));
+      if (!removed.length) continue;
+      clearPending();
+      // Retain the old route until both its dark DMX and required ArtSync queue.
+      if (!darken(universe, removed, old.port, old.sync)) { ready = false; continue; }
+      const kept = old.hosts.filter(host => !removed.includes(host));
+      if (kept.length) artnetSent.set(key, { ...old, hosts: kept });
+      else artnetSent.delete(key);
+    }
+    retirementReady = ready;
+    return ready;
+  }
 
   function delayedFrame(universe: number, frame: Buffer, delayMs: number): Buffer | null {
     const t = now();
@@ -157,13 +229,16 @@ function createTransmitter({ wires = DEFAULT_WIRES, now = () => performance.now(
     const sent: Wire[] = [];
 
     if (!syncArmed(config)) return sent;
+    if (!syncRouting(config)) { frameReady = false; return sent; }
+    if (immediate && !terminate && !protectiveFrame) { clearPending(); protectiveFrame = true; }
+    if (immediate || terminate) { delayLine.delete(universe); ddpFrames.delete(universe); openrgbFrames.delete(universe); }
 
     const toWled = ddpUniverses(config.ddp)?.has(universe) ?? false;
     const toOpenRgb = openrgbUniverses(config.openrgb)?.has(universe) ?? false;
     if (!toWled && !toOpenRgb && isInternalUniverse(universe)) return sent;
     if (!immediate && config.delayMs > 0) {
       const ready = delayedFrame(universe, frame, config.delayMs);
-      if (!ready) return sent;
+      if (!ready) { frameReady = false; return sent; }
       frame = ready;
     } else {
       delayLine.delete(universe);
@@ -182,19 +257,20 @@ function createTransmitter({ wires = DEFAULT_WIRES, now = () => performance.now(
     }
 
     const { artnet, sacn } = config;
-    syncSacnStream(sacn);
-    if (artnet && artnet.enabled !== false) {
+    const sacnReady = syncSacnStream(sacn);
+    if (artnet && artnet.enabled !== false && (!config.universes || config.universes.includes(universe))) {
       const claimed = artnet.routes && artnet.routes[universe];
       const hosts = claimed && claimed.length ? claimed : [artnet.host];
       if (wires.artnet({ hosts, port: artnet.port, universe }, frame)) {
         sent.push('artnet');
-        if (artnet.sync) for (const host of hosts) syncTargets.add(host);
-        if (terminate) artnetSent.delete(universe);
-        else artnetSent.set(universe, { hosts, port: artnet.port });
-      }
+        if (artnet.sync) for (const host of hosts) queueSync(host, artnet.port);
+        // Art-Net has no stream-termination bit. Even a zero frame can still be
+        // waiting for ArtSync, so keep its route until darken confirms both.
+        artnetSent.set(artnetKey(universe, artnet.port), { universe, hosts: [...hosts], port: artnet.port, sync: !!artnet.sync });
+      } else frameReady = false;
     }
 
-    if (sacn && sacn.enabled) {
+    if (sacn && sacn.enabled && sacnReady) {
       const mapped = sacnUniverseFor(universe, sacn.universeOffset);
       if (mapped !== null && sendSacnUniverse(sacn, mapped, frame, terminate)) sent.push('sacn');
     }
@@ -211,27 +287,29 @@ function createTransmitter({ wires = DEFAULT_WIRES, now = () => performance.now(
       iface: sacn.interface || '',
       terminate,
     }, frame);
-    if (terminate) sacnSent.delete(mapped);
+    if (!ok) frameReady = false;
+    if (terminate && ok) sacnSent.delete(mapped);
     else if (ok) sacnSent.set(mapped, now());
     return ok;
   }
 
   // Terminate streams with their old settings before sending under changed destinations or universes.
-  function syncSacnStream(sacn: SacnOutput | null | undefined): void {
+  function syncSacnStream(sacn: SacnOutput | null | undefined): boolean {
     const key = sacnStreamKey(sacn);
     if (sacnStream && sacnStream.key !== key) {
       const old = sacnStream.config;
-      sacnStream = null;
       for (const mapped of [...sacnSent.keys()]) sendSacnUniverse(old, mapped, ZERO_FRAME, true);
-      sacnSent.clear();
+      if (sacnSent.size) return false;
+      sacnStream = null;
       lastDiscovery = -Infinity;
     }
     sacnStream = key && sacn ? { key, config: { ...sacn } } : null;
+    return true;
   }
 
   function endSacnFrame(sacn: SacnOutput | null | undefined): void {
     const t = now();
-    syncSacnStream(sacn);
+    if (!syncSacnStream(sacn)) return;
     if (!sacnStream || !sacn) return;
 
     for (const [mapped, at] of sacnSent) if (t - at > SACN_ACTIVE_MS) sacnSent.delete(mapped);
@@ -245,53 +323,61 @@ function createTransmitter({ wires = DEFAULT_WIRES, now = () => performance.now(
 
   function syncArmed(config: TransmitConfig): boolean {
     const armed = config.armed !== false;
-    if (armed === live) return armed;
+    if (armed === live) {
+      if (!armed && (artnetSent.size || syncTargets.size || sacnSent.size || ddpSent.size || openrgbSent.size)) goDark();
+      return armed;
+    }
     live = armed;
-    if (!armed) goDark(config);
+    if (!armed) goDark();
     return armed;
   }
 
-  function goDark(config: TransmitConfig): void {
+  function goDark(): void {
     delayLine.clear();
     ddpFrames.clear();
     openrgbFrames.clear();
-    const { artnet } = config;
-    for (const [universe, { hosts, port }] of artnetSent) {
-      if (wires.artnet({ hosts, port, universe }, ZERO_FRAME) && artnet && artnet.sync) {
-        for (const host of hosts) syncTargets.add(host);
-      }
+    for (const [key, { universe, hosts, port, sync }] of artnetSent) {
+      if (darken(universe, hosts, port, sync)) {
+        artnetSent.delete(key);
+      } else frameReady = false;
     }
-    artnetSent.clear();
-    if (artnet && artnet.sync) for (const host of syncTargets) wires.artnetSync({ host, port: artnet.port });
-    syncTargets.clear();
+    if (!flushSync()) frameReady = false;
     if (sacnStream) {
       const old = sacnStream.config;
       for (const mapped of [...sacnSent.keys()]) sendSacnUniverse(old, mapped, ZERO_FRAME, true);
-      sacnSent.clear();
       lastDiscovery = -Infinity;
     }
-    for (const gone of ddpSent.values()) sendToWled(gone.route, new Uint8Array(gone.bytes), byteRuns(gone.route, 0));
-    ddpSent = new Map();
-    for (const gone of openrgbSent.values()) wires.openrgb(openrgbTarget(gone), new Uint8Array(gone.leds * 3));
-    hangUpOpenRgb(openrgbSent, new Map());
-    openrgbSent = new Map();
+    for (const [key, gone] of ddpSent) {
+      if (sendToWled(gone.route, new Uint8Array(gone.bytes), byteRuns(gone.route, 0))) ddpSent.delete(key);
+    }
+    const pendingRgb = new Map<string, OpenRgbRoute>();
+    for (const [key, gone] of openrgbSent) {
+      if (!wires.openrgb(openrgbTarget(gone), new Uint8Array(gone.leds * 3))) {
+        frameReady = false;
+        pendingRgb.set(key, gone);
+      }
+    }
+    hangUpOpenRgb(openrgbSent, pendingRgb);
+    openrgbSent = pendingRgb;
   }
 
-  function endFrame(config: TransmitConfig | null | undefined): void {
+  function endFrame(config: TransmitConfig | null | undefined): boolean {
+    protectiveFrame = false;
     if (config && !syncArmed(config)) {
       ddpFrames.clear();
       openrgbFrames.clear();
-      syncTargets.clear();
-      return;
+      const ready = frameReady && artnetSent.size === 0 && syncTargets.size === 0 && sacnSent.size === 0 && ddpSent.size === 0 && openrgbSent.size === 0;
+      frameReady = true;
+      return ready;
     }
+    if (config && !syncRouting(config)) { frameReady = true; return false; }
     endDdpFrame(config && config.ddp);
     endOpenRgbFrame(config && config.openrgb);
-    const artnet = config && config.artnet;
-    if (artnet && artnet.sync && artnet.enabled !== false) {
-      for (const host of syncTargets) wires.artnetSync({ host, port: artnet.port });
-    }
-    syncTargets.clear();
+    if (!flushSync()) frameReady = false;
     endSacnFrame(config && config.sacn);
+    const ready = retirementReady && frameReady;
+    frameReady = true;
+    return ready;
   }
 
   function endDdpFrame(routes: DdpRoute[] | null | undefined): void {
@@ -304,7 +390,7 @@ function createTransmitter({ wires = DEFAULT_WIRES, now = () => performance.now(
       byWled.set(ddpKey(route), list);
     }
     for (const group of byWled.values()) {
-      if (!group.every((route) => route.parts.every((part) => ddpFrames.has(part.universe)))) continue;
+      if (!group.every((route) => route.parts.every((part) => ddpFrames.has(part.universe)))) { frameReady = false; continue; }
       // One frame has one pixel format; RGB sections keep their colours with an unlit white die.
       const rgbw = group.some((route) => route.rgbw);
       const width = rgbw ? 4 : 3;
@@ -331,7 +417,7 @@ function createTransmitter({ wires = DEFAULT_WIRES, now = () => performance.now(
       sendToWled({ ...group[0], rgbw }, data, runs);
     }
     for (const [key, gone] of ddpSent) {
-      if (!now.has(key)) sendToWled(gone.route, new Uint8Array(gone.bytes), byteRuns(gone.route, 0));
+      if (!now.has(key) && !sendToWled(gone.route, new Uint8Array(gone.bytes), byteRuns(gone.route, 0))) now.set(key, gone);
     }
     ddpSent = now;
     ddpFrames.clear();
@@ -341,11 +427,14 @@ function createTransmitter({ wires = DEFAULT_WIRES, now = () => performance.now(
     const current = new Map<string, OpenRgbRoute>();
     for (const route of routes || []) {
       current.set(openrgbKey(route), route);
-      if (!route.parts.every((part) => openrgbFrames.has(part.universe))) continue;
-      wires.openrgb(openrgbTarget(route), openrgbPixels(route, (universe) => openrgbFrames.get(universe) as Buffer));
+      if (!route.parts.every((part) => openrgbFrames.has(part.universe))) { frameReady = false; continue; }
+      if (!wires.openrgb(openrgbTarget(route), openrgbPixels(route, (universe) => openrgbFrames.get(universe) as Buffer))) frameReady = false;
     }
     for (const [key, gone] of openrgbSent) {
-      if (!current.has(key)) wires.openrgb(openrgbTarget(gone), new Uint8Array(gone.leds * 3));
+      if (!current.has(key) && !wires.openrgb(openrgbTarget(gone), new Uint8Array(gone.leds * 3))) {
+        frameReady = false;
+        current.set(key, gone);
+      }
     }
     hangUpOpenRgb(openrgbSent, current);
     openrgbSent = current;
@@ -382,18 +471,100 @@ function createTransmitter({ wires = DEFAULT_WIRES, now = () => performance.now(
     return out;
   }
 
-  function sendToWled(route: DdpRoute, data: Uint8Array, runs: DdpRun[]): void {
+  function sendToWled(route: DdpRoute, data: Uint8Array, runs: DdpRun[]): boolean {
     const key = ddpKey(route);
     const sequence = (ddpSequence.get(key) || 0) % 15 + 1;
     ddpSequence.set(key, sequence);
     const whole = runs.length === 1 && runs[0].at === 0 && runs[0].from === 0 && runs[0].bytes === data.length;
-    wires.ddp({ host: route.host, port: route.port, sequence, rgbw: route.rgbw, ...(whole ? {} : { runs }) }, data);
+    const ok = wires.ddp({ host: route.host, port: route.port, sequence, rgbw: route.rgbw, ...(whole ? {} : { runs }) }, data);
+    if (!ok) frameReady = false;
+    return ok;
   }
 
-  return { send, endFrame };
+  function seed(destinations: readonly ArtnetDestination[]): void {
+    for (const { universe, host, port, sync } of destinations) {
+      const known = artnetSent.get(artnetKey(universe, port));
+      if (!known) artnetSent.set(artnetKey(universe, port), { universe, hosts: [host], port, sync });
+      else {
+        if (!known.hosts.includes(host)) known.hosts.push(host);
+        if (sync) known.sync = true;
+      }
+    }
+    if (destinations.length) clearPending();
+  }
+
+  return { send, endFrame, seed };
+}
+
+// Every physical Art-Net destination this config can light; what a sender holding it may have to retire.
+function artnetDestinations(config: TransmitConfig): ArtnetDestination[] {
+  const { artnet } = config;
+  if (config.armed === false || !artnet || artnet.enabled === false) return [];
+  const wled = ddpUniverses(config.ddp);
+  const openrgb = openrgbUniverses(config.openrgb);
+  const out: ArtnetDestination[] = [];
+  for (const universe of config.universes ?? []) {
+    if (isInternalUniverse(universe) || wled?.has(universe) || openrgb?.has(universe)) continue;
+    const claimed = artnet.routes?.[universe];
+    for (const host of claimed?.length ? claimed : [artnet.host]) {
+      if (host) out.push({ universe, host, port: artnet.port, sync: !!artnet.sync });
+    }
+  }
+  return out;
+}
+
+const LEDGER_LIMIT = 1024;
+
+/**
+ * The destinations issued to a sender that it has not yet acknowledged as applied: a conservative record
+ * kept outside the sender, so a sender that dies mid-retirement hands its unfinished routes to the next one.
+ * An acknowledgement of snapshot n retires every destination last seen before n; a stale one retires nothing.
+ */
+class ArtnetLedger {
+  private seq = 0;
+  private acked = 0;
+  private readonly entries = new Map<string, { destination: ArtnetDestination; seq: number }>();
+  private readonly limit: number;
+
+  constructor(limit = LEDGER_LIMIT) { this.limit = limit; }
+
+  issue(config: TransmitConfig): number {
+    const seq = ++this.seq;
+    for (const destination of artnetDestinations(config)) {
+      const key = `${destination.universe}|${destination.host}|${destination.port}`;
+      const known = this.entries.get(key);
+      if (!known) this.entries.set(key, { destination, seq });
+      else {
+        known.seq = seq;
+        if (destination.sync) known.destination.sync = true;
+      }
+    }
+    if (this.entries.size > this.limit) this.trim();
+    return seq;
+  }
+
+  acknowledge(seq: number): void {
+    if (!Number.isInteger(seq) || seq <= this.acked || seq > this.seq) return;
+    this.acked = seq;
+    for (const [key, entry] of this.entries) if (entry.seq < seq) this.entries.delete(key);
+  }
+
+  outstanding(): ArtnetDestination[] {
+    return [...this.entries.values()].map((entry) => ({ ...entry.destination }));
+  }
+
+  clear(): void { this.entries.clear(); }
+
+  private trim(): void {
+    const oldest = [...this.entries].sort((a, b) => a[1].seq - b[1].seq).slice(0, this.entries.size - this.limit);
+    for (const [key] of oldest) this.entries.delete(key);
+    console.warn(`[artnet] forgot ${oldest.length} old unacknowledged destination(s): the sender has not acknowledged across ${this.limit} route changes`);
+  }
 }
 
 export {
   createTransmitter,
   sacnUniverseFor,
+  artnetDestinations,
+  ArtnetLedger,
 };

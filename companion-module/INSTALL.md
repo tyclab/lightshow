@@ -53,8 +53,10 @@ The connection will show **OK** once it connects to the running server.
 4. Drag presets onto your Stream Deck buttons:
    - **Patterns** — all patterns with active feedback
    - **Colours** — palette slots A–D, button background matches the colour
-   - **Transport** — Play/Stop, Blackout, Tap Tempo, BPM display/±5, beat divisions
+   - **Transport** — Programme Start/Stop, Picture Freeze/Resume, Blackout, Outputs, Tap Tempo, BPM display/±5, beat divisions
    - **Fixtures** — per-fixture blackout + clear all overrides
    - **Energy** — momentary effects (hold to activate, release to clear)
 
 See `companion/HELP.md` (also shown in Companion's connection help) for the full list of actions, feedbacks and variables.
+
+Global commands require the server’s version 1 control snapshot. Update server and module together; an older server leaves these commands unavailable. Review existing Play/Stop labels and replace legacy combined sequence stop-with-black buttons with explicit actions.

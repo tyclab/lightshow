@@ -4,6 +4,7 @@
 // config/pads.json, the routes, and the socket's voice hold with a pad.
 
 import test from 'node:test';
+import { installControlRuntime, sendControl } from './control-runtime-helpers.js';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
@@ -646,6 +647,7 @@ test('the default strobe pad starts on the press while the patterns run', (t) =>
  * memory, unacknowledged: nothing written to the operator's config/.
  */
 async function serve(t) {
+  applyPatch({ running: false, masterBlackout: false });
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'pads-routes-'));
   const padFile = path.join(dir, 'pads.json');
   const effectLibrary = new EffectLibrary(path.join(dir, 'effects.json')).load();
@@ -684,7 +686,8 @@ async function serve(t) {
     midi, spotify: { localCallbackUrl: '', setLoopbackPort() {}, configure() {} }, smtc: { start() {}, stop() {} },
     deezer: { init: async () => {} }, applyPatch, broadcast: () => integrations.broadcast(),
   });
-  attachRoutes(app, { integrations, applier });
+  installControlRuntime(t, { integrations, applier, autoShow });
+  attachRoutes(app, { integrations, applier, autoShow });
   attachSockets(io, { midi, integrations });
   await new Promise((r) => server.listen(0, '127.0.0.1', r));
   const url = `http://127.0.0.1:${server.address().port}`;
@@ -1016,7 +1019,7 @@ test('disarm stops a pad voice and the pads key shows it unlit', async (t) => {
   await until(() => toldPads(heard)?.lit[10] === id, 'the page hearing the pad lit');
 
   // Disarmed already, as a rehearsal is: an explicit disarm still stops it.
-  assert.equal((await s.call('POST', '/api/outputs/disarm')).body.armed, false);
+  assert.equal((await sendControl(s.call, 'disarm')).body.control.armed, false);
   assert.deepEqual(ids(), []);
   assert.equal((await s.call('GET', '/api/state')).body.pads.lit[10], null);
   await until(() => toldPads(heard)?.lit[10] === null, 'the page hearing it dark');

@@ -4,7 +4,6 @@ import { padLabel } from '../now-playing.js';
 import { formatBpm, clockSource } from '../utils.js';
 import { useVoicePads, holdsWhilePressed, padKey, rapidPad } from '../voice-pad.js';
 import { useSafetyGate } from './Photosensitivity.jsx';
-import { Transport } from './Transport.jsx';
 import { TempoScale } from './TempoScale.jsx';
 
 // Steps per beat. 1/16 was in the README and on MIDI, and missing here (A7.26).
@@ -102,7 +101,6 @@ export function CommandBar({ transport = true } = {}) {
 
       {/* Transport; blackout and the master are on the strip above the view */}
       {transport && <>
-        <div class="cb-block cb-transport"><Transport compact /></div>
         <div class="cb-divider" />
       </>}
 

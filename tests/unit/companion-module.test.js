@@ -20,6 +20,7 @@ import { PATTERNS, PRESET_ROWS, ENERGY_EFFECTS, COLOR_PRESETS, STROBE_FUNCTIONS,
 import { PIXEL_MAPS } from '../../src/shared/rig.ts';
 import { browseListOf } from '../../src/shared/effects/tags.ts';
 import { showStore } from '../../src/server/show-store.ts';
+import { GlobalControl } from '../../src/server/control.ts';
 
 showStore.scheduleSave = () => {};
 
@@ -79,7 +80,7 @@ async function serve() {
   app.use(express.json());
   // The HTTP side, as the module calls it: path, method, token and who it says it is.
   app.post(/^\/api\/.*/, (req, res) => {
-    rest.push({ path: req.path, token: req.get('x-lightshow-token'), client: req.get('x-lightshow-client') });
+    rest.push({ path: req.path, token: req.get('x-lightshow-token'), client: req.get('x-lightshow-client'), body: req.body });
     if (req.path === '/api/cues/missing/recall') return res.status(404).json({ ok: false, error: 'No such cue' });
     res.json({ ok: true });
   });
@@ -139,9 +140,11 @@ test('it connects on protocol 2 and follows the state by its changes alone', asy
     await conn.armOutputs('disarm');
     await conn.armOutputs('toggle');
     assert.deepStrictEqual(s.rest.map((r) => [r.path, r.token]), [
-      ['/api/cues/cue%207/recall', 'sesame'], ['/api/cues/missing/recall', 'sesame'], ['/api/auto/start', 'sesame'],
-      ['/api/outputs/disarm', 'sesame'], ['/api/outputs/arm', 'sesame'],
+      ['/api/cues/cue%207/recall', 'sesame'], ['/api/cues/missing/recall', 'sesame'], ['/api/control', 'sesame'],
+      ['/api/control', 'sesame'], ['/api/control', 'sesame'],
     ]);
+    assert.deepStrictEqual(s.rest.slice(2).map((r) => [r.body.action, r.body.programme]), [['start', 'auto'], ['disarm', undefined], ['arm', undefined]]);
+    assert.ok(s.rest.slice(2).every((r) => r.body.version === 1 && r.body.session === conn.state.control.session && r.body.revision === conn.state.control.revision));
     assert.ok(s.rest.every((r) => r.client === 'companion'), 'so the server can log an arm as Companion\'s');
   } finally {
     conn.disconnect();
@@ -410,4 +413,129 @@ test('the palette override and stopping every effect go out on their routes', as
     ['DELETE', '/api/palette-override', undefined],
     ['DELETE', '/api/voices', undefined],
   ]);
+});
+
+
+async function controlServer({ supported = true } = {}) {
+  const app = express();
+  app.use(express.json());
+  const requests = [];
+  const server = http.createServer(app);
+  const io = new Server(server);
+  const model = new GlobalControl();
+  const hardware = { armed: false, blackout: true, starts: [], stops: 0 };
+  let broadcast = true;
+  const publish = () => {
+    if (broadcast) io.emit('snapshot', { versions: {}, state: { running: true, armed: hardware.armed,
+      masterBlackout: hardware.blackout, ...(supported ? { control: model.snapshot() } : {}) } });
+  };
+  model.configure({ armed: () => hardware.armed, blackout: () => hardware.blackout,
+    arm: (on) => { hardware.armed = on; }, setBlackout: (on) => { hardware.blackout = on; },
+    validateStart() {}, start: (programme) => { hardware.starts.push(programme); }, stop: () => { hardware.stops++; },
+    changed: publish, frame: async () => {} });
+  io.on('connection', publish);
+  app.use((req, _res, next) => { requests.push({ method: req.method, path: req.path, body: req.body }); next(); });
+  app.post('/api/control', async (req, res) => {
+    try { res.json({ ok: true, control: await model.execute(req.body) }); }
+    catch (error) { res.status(error.status || 500).json({ ok: false, error: error.message }); }
+  });
+  app.post('/api/sequence/pause', (_req, res) => res.json({ ok: true }));
+  await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
+  const connection = new LightshowConnection({ host: '127.0.0.1', port: server.address().port });
+  connection.connect();
+  assert.ok(await until(() => connection.state.running === true));
+  return { connection, requests, model, hardware, holdBroadcast() { broadcast = false; },
+    sendGap() { io.emit('patch', { d: 'control', v: 2, set: { control: model.snapshot() } }); }, refresh: publish,
+    async close() { connection.disconnect(); io.close(); await new Promise((resolve) => server.close(resolve)); } };
+}
+
+test('Companion uses observed revisions for independent programme, picture and output controls', async () => {
+  const h = await controlServer();
+  const c = h.connection;
+  const act = async (call) => {
+    const seen = c.state.control;
+    const answer = await call();
+    assert.equal(answer.ok, true);
+    assert.equal(h.requests.at(-1).body.revision, seen.revision);
+    assert.equal(h.requests.at(-1).body.session, seen.session);
+    assert.ok(await until(() => c.state.control.revision === answer.control.revision && !c.state.control.pending));
+  };
+  try {
+    await act(() => c.autoShow('start'));
+    assert.equal(h.model.programme, 'auto');
+    assert.equal(h.model.playing, true);
+    assert.equal(h.hardware.blackout, true, 'Start never restores the picture');
+    assert.equal(h.hardware.armed, false, 'Start never arms');
+    await act(() => c.freezePicture('freeze'));
+    assert.equal(h.model.frozen, true);
+    assert.equal(h.model.playing, true, 'Freeze is independent of programme transport');
+    await act(() => c.programmeTransport('stop'));
+    assert.equal(h.model.frozen, true, 'Stop does not release Freeze');
+    await act(() => c.sequenceTransport('play'));
+    assert.equal(h.model.programme, 'sequence');
+    assert.equal(h.model.frozen, true, 'Start does not release Freeze');
+    const beforePause = h.model.snapshot();
+    assert.equal((await c.sequenceTransport('pause')).ok, true);
+    assert.equal(h.requests.at(-1).path, '/api/sequence/pause');
+    assert.deepStrictEqual(h.model.snapshot(), beforePause, 'timeline pause is not whole-picture Freeze');
+    await act(() => c.freezePicture('resume'));
+    assert.equal(h.model.frozen, false);
+    assert.equal(h.hardware.blackout, true);
+    await act(() => c.blackout('off'));
+    assert.equal(h.hardware.blackout, false);
+    assert.equal(h.hardware.armed, false);
+    await act(() => c.armOutputs('arm'));
+    assert.equal(h.hardware.armed, true);
+    assert.ok(h.requests.every((r) => r.method === 'POST'), 'no GET-before-mutation');
+    const count = h.requests.length;
+    for (const call of [() => c.sequenceTransport('blackout'), () => c.freezePicture('invalid'), () => c.blackout('invalid'), () => c.programmeTransport('invalid')]) {
+      assert.equal((await call()).ok, false);
+    }
+    assert.equal(h.requests.length, count, 'unknown/combined controls never mutate');
+  } finally { await h.close(); }
+});
+
+test('Companion rejects stale control once without refreshing or replaying the mutation', async () => {
+  const h = await controlServer();
+  try {
+    const displayed = h.connection.state.control;
+    h.holdBroadcast();
+    await h.model.execute({ version: 1, session: displayed.session, revision: displayed.revision, action: 'freeze' });
+    assert.equal(h.connection.state.control.revision, displayed.revision);
+    const answer = await h.connection.freezePicture('resume');
+    assert.equal(answer.ok, false);
+    assert.equal(h.model.frozen, true);
+    assert.deepStrictEqual(h.requests.map((r) => [r.method, r.path, r.body.revision]), [['POST', '/api/control', displayed.revision]]);
+  } finally { await h.close(); }
+});
+
+test('an old server cannot advertise or emulate whole-picture Freeze from its running flag', async () => {
+  const h = await controlServer({ supported: false });
+  try {
+    for (const action of [() => h.connection.freezePicture('freeze'), () => h.connection.programmeTransport('play'), () => h.connection.armOutputs('arm')]) {
+      assert.equal((await action()).ok, false);
+    }
+    assert.equal(h.requests.length, 0);
+    const { UpdateFeedbacks } = await import('../../companion-module/src/feedbacks.js');
+    let feedbacks;
+    UpdateFeedbacks({ liveState: h.connection.state, setFeedbackDefinitions: (defs) => { feedbacks = defs; } });
+    assert.equal(feedbacks.picture_frozen.callback(), false);
+    assert.equal(feedbacks.playing.callback(), false);
+  } finally { await h.close(); }
+});
+
+
+test('Companion invalidates global controls on a state gap and disconnect', async () => {
+  const h = await controlServer();
+  try {
+    h.sendGap();
+    assert.ok(await until(() => h.connection.state.control === undefined));
+    assert.equal((await h.connection.freezePicture('freeze')).ok, false);
+    assert.equal(h.requests.length, 0);
+    h.refresh();
+    assert.ok(await until(() => h.connection.state.control?.version === 1));
+    h.connection.socket.disconnect();
+    assert.equal((await h.connection.armOutputs('arm')).ok, false);
+    assert.equal(h.requests.length, 0);
+  } finally { await h.close(); }
 });

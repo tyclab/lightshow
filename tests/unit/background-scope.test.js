@@ -127,6 +127,21 @@ test('overrides, a fixture blackout, Kill and the master blackout still win insi
   assert.ok(dark(engine({ effect: hdGap, background }).draw(500, { masterBlackout: true })), 'Blackout owns the final output');
 });
 
+test('Stop keeps scoped background and fixture overrides while removing programme light', () => {
+  const background = { ...fixed, fixtures: 'selected', selected: [0, 1, 2] };
+  const pinned = fixtures.map(f => f.id === 1 ? { ...f, override: { enabled: true, r: 10, g: 20, b: 30, w: 40, a: 50, uv: 0, dim: 255 } }
+    : f.id === 2 ? { ...f, override: { enabled: false, blackout: true } } : f);
+  const e = engine({ background, fixtures: pinned, programmePlaying: true });
+  const playing = e.draw(0);
+  assert.ok(lit(part(playing, 3)), 'negative control: the programme lights a lamp outside the background scope');
+  const stopped = e.draw(500, { programmePlaying: false, running: false });
+  assert.deepEqual(part(stopped, 0), [48, 36, 24, 30, 27, 32], 'selected background remains at its own level');
+  assert.deepEqual(part(stopped, 1), [10, 20, 30, 40, 50, 0], 'the fixture override remains above background');
+  assert.ok(dark(part(stopped, 2)), 'a fixture blackout remains dark');
+  assert.ok(dark(part(stopped, 3)) && dark(part(stopped, 4)), 'no foreground leaks outside the scope');
+  assert.ok(dark(e.draw(1000, { programmePlaying: false, running: false, masterBlackout: true })), 'global Blackout still wins');
+});
+
 test('voices and sequence clips take the scope per fixture', () => {
   const table = { revision: 0, lanes: [{ id: 'l', kind: 'shared', name: 'l', mute: false, solo: false }],
     clips: [{ id: 'gap', laneId: 'l', fixtureIds: null, startBeat: 0, lengthBeats: 4, loopBeats: 4, spec: hdGap, seed: [1, 2, 3, 4], mute: false }] };

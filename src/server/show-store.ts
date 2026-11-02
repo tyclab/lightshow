@@ -1,4 +1,4 @@
-import { state, universeOf, maxBrightnessOf, setDefaultUniverse, placeAddresslessFixtures } from './state.ts';
+import { state, universeOf, maxBrightnessOf, placeAddresslessFixtures } from './state.ts';
 import { resizeFixtureBuffers } from './engine.ts';
 import { BUILTIN_PROFILE_ID, BUILTIN_PROFILE_IDS, isBuiltinProfile, MAX_FIXTURES, universeOverflow, unitCapOverflow, registerProfile, clearNonBuiltinProfiles, listProfiles } from './profiles.ts';
 import { MAX_UNIVERSES } from './universes.ts';
@@ -15,18 +15,20 @@ import type { Fixture, Profile } from '../types/rig.ts';
 import { configFile } from './config-dir.ts';
 
 const SAVE_DEBOUNCE_MS = 400;
+const APPLY_TIMEOUT_MS = 5000;
 
 function badShow(message: string): HttpError {
   return new HttpError(400, message);
 }
 
-function snapshotShow() {
-  const profiles = listProfiles();
+function snapshotShow() { return snapshotRig(state.artnet, state.fixtures, state.nextFixtureId, listProfiles()); }
+
+function snapshotRig(artnet: typeof state.artnet, fixtures: readonly Fixture[], nextFixtureId: number, profiles: Record<string, Profile>) {
   return {
-    artnet: { ...state.artnet },
-    nextFixtureId: state.nextFixtureId,
+    artnet: { ...artnet },
+    nextFixtureId,
     profiles: Object.values(profiles).filter((p) => !isBuiltinProfile(p.id)),
-    fixtures: state.fixtures.map((f) => ({
+    fixtures: fixtures.map((f) => ({
       id: f.id,
       label: f.label,
       ...(hasNoAddress(f) ? {} : { address: f.address, universe: universeOf(f) }),
@@ -42,17 +44,30 @@ function snapshotShow() {
   };
 }
 
-function applyShow(rawShow: unknown): ShowFile {
+interface PreparedRig {
+  show: ShowFile;
+  artnet: typeof state.artnet;
+  fixtures: Fixture[];
+  profiles: Record<string, Profile>;
+  nextFixtureId: number;
+}
+
+function prepareShow(rawShow: unknown): PreparedRig {
   const show = validate(showSchema, rawShow, 'show');
-  const fixtures = Array.isArray(show.fixtures) ? show.fixtures : [];
-  const hasFixtures = fixtures.length > 0;
+  const explicitFixtures = show.fixtures !== undefined;
+  const fixtures = show.fixtures ?? snapshotShow().fixtures.map(f => ({ ...f,
+    ...(show.artnet?.universe !== undefined && f.universe === state.artnet.universe ? { universe: show.artnet.universe } : {}),
+  }));
+  const hasFixtures = true;
   if (hasFixtures && fixtures.length > MAX_FIXTURES) {
     throw badShow(`Show has ${fixtures.length} fixtures, more than the ${MAX_FIXTURES} supported`);
   }
 
   const incoming: Record<string, Profile> = Object.create(null);
   for (const id of BUILTIN_PROFILE_IDS) incoming[id] = listProfiles()[id];
+  if (show.profiles === undefined) Object.assign(incoming, listProfiles());
   if (Array.isArray(show.profiles)) {
+    if (new Set(show.profiles.map(p => p.id)).size !== show.profiles.length) throw badShow('Show contains duplicate profile ids');
     for (const p of show.profiles) if (p && p.id && !isBuiltinProfile(p.id)) incoming[p.id] = p;
   }
 
@@ -64,6 +79,7 @@ function applyShow(rawShow: unknown): ShowFile {
     const ids = fixtures.map((fixture, i) => fixture.id ?? i);
     if (new Set(ids).size !== ids.length) throw badShow('Show contains duplicate fixture ids');
     const fallback = defaultHueBridgeId(settings.group('hue').bridges);
+    for (const fixture of fixtures) if (fixture.profileId !== undefined && !incoming[fixture.profileId]) throw badShow(`Unknown profile: ${fixture.profileId}`);
     next = fixtures.map((f, i): Fixture => ({
       id: ids[i],
       label: f.label || `Fixture ${i + 1}`,
@@ -78,7 +94,7 @@ function applyShow(rawShow: unknown): ShowFile {
       output: !f.output ? null
         : f.output.protocol === 'hue' ? { protocol: 'hue', channels: [...hueChannels(f.output)], bridge: f.output.bridge || fallback } : { ...f.output },
       productId: f.productId, hardware: f.hardware, admission: f.admission,
-      override: null,
+      override: explicitFixtures ? null : state.fixtures[i]?.override ?? null,
     }));
     const mixed = next.find((f) => isHueLamp(f) !== isHueProfile(incoming[f.profileId]));
     if (mixed) {
@@ -115,37 +131,46 @@ function applyShow(rawShow: unknown): ShowFile {
     }
   }
 
-  if (!hasFixtures && Array.isArray(show.profiles)) {
-    for (const fix of state.fixtures) {
-      const issue = geometryUnitIssue(fix.geometry, incoming[fix.profileId]);
-      if (issue) throw badShow(`"${fix.label}": ${issue}`);
-    }
-  }
-  if (Array.isArray(show.profiles)) {
-    clearNonBuiltinProfiles();
-    show.profiles.forEach((p) => { if (p && p.id) registerProfile(p); });
-  }
-  if (show.artnet) {
-    const { universe, ...rest } = show.artnet;
-    Object.assign(state.artnet, rest);
-    if (universe !== undefined) {
-      if (next) state.artnet.universe = universe;
-      else setDefaultUniverse(universe);
-    }
-  }
-  if (next) {
-    state.fixtures = next;
-    const highest = next.reduce((max, fixture) => Math.max(max, fixture.id), -1);
-    state.nextFixtureId = Math.max(state.nextFixtureId, show.nextFixtureId || 0, highest + 1);
-    resizeFixtureBuffers();
-  }
-  return show;
+  const prepared = next as Fixture[];
+  const highest = prepared.reduce((max, fixture) => Math.max(max, fixture.id), -1);
+  return { show, artnet: { ...state.artnet, ...show.artnet }, fixtures: prepared, profiles: incoming,
+    nextFixtureId: Math.max(state.nextFixtureId, show.nextFixtureId || 0, highest + 1) };
+}
+
+function publishRig(rig: PreparedRig): void {
+  clearNonBuiltinProfiles();
+  for (const profile of Object.values(rig.profiles)) if (!isBuiltinProfile(profile.id)) registerProfile(profile);
+  Object.assign(state.artnet, rig.artnet);
+  state.fixtures = rig.fixtures;
+  state.nextFixtureId = rig.nextFixtureId;
+  resizeFixtureBuffers();
+}
+
+function applyShow(rawShow: unknown): ShowFile {
+  const rig = prepareShow(rawShow);
+  publishRig(rig);
+  return rig.show;
+}
+
+export interface RigCommitResult {
+  saved: true;
+  revision: number;
+  applied: boolean;
+  error?: string;
+  superseded?: boolean;
 }
 
 class ShowStore extends JsonStore {
   declare _debounceMs: number;
   declare _timer: ReturnType<typeof setTimeout> | null;
   declare _saved: string | null;
+  private revision = 0;
+  private appliedRevision = 0;
+  private applyError: string | null = null;
+  private unsupported: Error | null = null;
+  private versioned = false;
+  private onRigPublished: ((revision: number) => Promise<void>) | null = null;
+  routingConflict: { settings: typeof state.artnet; show: typeof state.artnet } | null = null;
 
   constructor(file: string, { debounceMs = SAVE_DEBOUNCE_MS } = {}) {
     super(file, { tag: 'show', fallback: 'starting on the default patch' });
@@ -155,28 +180,127 @@ class ShowStore extends JsonStore {
   }
 
   load(): unknown {
-    return this.readJson() ?? null;
+    const document = this.readJson() ?? null;
+    if (document && typeof document === 'object' && 'formatVersion' in document) {
+      const file = document as { formatVersion: unknown; revision?: unknown; show?: unknown };
+      if (file.formatVersion !== 1) {
+        this.unsupported = new Error(`Unsupported rig format ${String(file.formatVersion)}; the file was left intact`);
+        throw this.unsupported;
+      }
+      if (!Number.isSafeInteger(file.revision) || Number(file.revision) < 0) throw new Error('Invalid saved rig revision');
+      this.revision = Number(file.revision);
+      this.versioned = true;
+      return file.show;
+    }
+    return document;
   }
 
   restore(): boolean {
     const show = this.load();
-    if (!show) return false;
-    try {
-      applyShow(show);
-    } catch (err) {
+    if (!show) {
+      const rig = prepareShow({ artnet: settings.legacyArtnet ?? state.artnet });
+      this.revision = 1;
+      this.write(this.serialise(snapshotRig(rig.artnet, rig.fixtures, rig.nextFixtureId, rig.profiles)));
+      publishRig(rig);
+      settings.setArtnetSource(() => ({ ...state.artnet }));
+      this._saved = this._serialise();
+      return false;
+    }
+    let rig: PreparedRig;
+    try { rig = prepareShow(show); }
+    catch (err) {
       this.quarantine(`does not fit this rig (${messageOf(err)})`);
       return false;
     }
-    // In sync with the file now, so no change-driven write repeats it.
+    const oldRoute = settings.legacyArtnet;
+    // A versioned rig is authoritative. Legacy conflicts need an explicit choice.
+    if (!this.versioned && oldRoute && (show as ShowFile).artnet
+      && Object.keys(oldRoute).some(key => oldRoute[key as keyof typeof oldRoute] !== rig.artnet[key as keyof typeof oldRoute])) {
+      this.routingConflict = { settings: { ...oldRoute }, show: { ...rig.artnet } };
+    }
+    if (!(show as ShowFile).artnet && oldRoute) rig.artnet = { ...oldRoute };
+    if (!this.versioned && !this.routingConflict) {
+      this.backupBefore(1);
+      this.revision = 1;
+      this.write(this.serialise(snapshotRig(rig.artnet, rig.fixtures, rig.nextFixtureId, rig.profiles)));
+      this.versioned = true;
+    }
+    publishRig(rig);
+    settings.setArtnetSource(() => ({ ...state.artnet }), { preserveLegacyArtnet: !!this.routingConflict });
     this._saved = this._serialise();
     return true;
   }
 
-  _serialise(): string {
-    return `${JSON.stringify(snapshotShow(), null, 2)}\n`;
+  setPublisher(publish: (revision: number) => Promise<void>): void { this.onRigPublished = publish; }
+
+  status() {
+    return { revision: this.revision, appliedRevision: this.appliedRevision,
+      pending: this.appliedRevision !== this.revision, error: this.applyError, routingConflict: this.routingConflict };
   }
 
+  commit(raw: unknown): Promise<RigCommitResult> {
+    if (this.unsupported) throw this.unsupported;
+    const rig = prepareShow(raw);
+    const revision = this.revision + 1;
+    const body = this.serialise(snapshotRig(rig.artnet, rig.fixtures, rig.nextFixtureId, rig.profiles), revision);
+    if (!this.versioned) this.backupBefore(1);
+    this.write(body);
+    this.versioned = true;
+    // No asynchronous boundary occurs between persistence and publication.
+    publishRig(rig);
+    this.revision = revision;
+    this._saved = body;
+    this.applyError = null;
+    this.routingConflict = null;
+    settings.setArtnetSource(() => ({ ...state.artnet }));
+    return this.applyCurrent();
+  }
+
+  applyCurrent(): Promise<RigCommitResult> {
+    if (this.unsupported) throw this.unsupported;
+    const revision = this.revision;
+    let applied: Promise<void>;
+    try { applied = this.onRigPublished ? this.onRigPublished(revision) : Promise.reject(new Error('Renderer acknowledgement is not connected')); }
+    catch (err) { applied = Promise.reject(err); }
+    const bounded = new Promise<void>((resolve, reject) => {
+      const timer = setTimeout(() => reject(new Error('Rig saved; renderer acknowledgement timed out')), APPLY_TIMEOUT_MS);
+      timer.unref?.();
+      void applied.then(() => { clearTimeout(timer); resolve(); }, err => { clearTimeout(timer); reject(err); });
+    });
+    return bounded.then(() => {
+      if (this.revision !== revision) return { saved: true, revision, applied: false, superseded: true,
+        error: 'A newer rig revision replaced this request before acknowledgement' };
+      this.appliedRevision = Math.max(this.appliedRevision, revision);
+      this.applyError = null;
+      return { saved: true, revision, applied: true };
+    }, err => {
+      const error = messageOf(err);
+      if (this.revision === revision) this.applyError = error;
+      return { saved: true, revision, applied: false, error };
+    });
+  }
+
+  commitArtnet(patch: unknown): Promise<RigCommitResult> { return this.commit({ artnet: patch }); }
+
+  resolveRouting(source: 'settings' | 'show'): Promise<RigCommitResult> {
+    if (!this.routingConflict) throw new HttpError(409, 'No routing conflict remains');
+    // Conflict resolution chooses the default for new fixtures; imported fixture
+    // universe assignments remain explicit and do not move with that default.
+    return this.commit({ ...snapshotShow(), artnet: this.routingConflict[source] });
+  }
+
+  private serialise(show: ReturnType<typeof snapshotShow>, revision = this.revision): string {
+    return `${JSON.stringify({ formatVersion: 1, revision, show }, null, 2)}\n`;
+  }
+
+  _serialise(): string { return this.serialise(snapshotShow()); }
+
   scheduleSave(): void {
+    this.revision++;
+    this.applyError = null;
+    // Mapping mutations are synchronous. Install the sender barrier immediately,
+    // including edits arriving while the existing disk debounce is still pending.
+    void this.applyCurrent();
     if (this._timer) return;
     this._timer = setTimeout(() => {
       this._timer = null;
@@ -191,10 +315,14 @@ class ShowStore extends JsonStore {
       clearTimeout(this._timer);
       this._timer = null;
     }
+    if (this.unsupported) throw this.unsupported;
+    if (this.routingConflict) return false;
     const body = this._serialise();
     if (body === this._saved) return false;
     try {
+      if (!this.versioned) this.backupBefore(1);
       this.write(body);
+      this.versioned = true;
       this._saved = body;
       return true;
     } catch (err) {
@@ -213,4 +341,5 @@ export {
   SHOW_FILE,
   snapshotShow,
   applyShow,
+  prepareShow,
 };

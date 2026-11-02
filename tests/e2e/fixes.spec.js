@@ -13,10 +13,10 @@ test('Space taps tempo without retriggering a clicked button', async ({ page, re
     if (event === 'tap') taps.push(event);
   }));
   await open(page, 'effects');
-  await page.getByRole('switch', { name: /Blackout/ }).click();
+  await page.getByRole('group', { name: 'Global show controls' }).getByRole('button', { name: 'Blackout', exact: true }).click();
   await until(request, (s) => s.masterBlackout === true);
   // Clicked again, so focus is left on the button, as a click leaves it.
-  await page.getByRole('switch', { name: /Blackout/ }).click();
+  await page.getByRole('group', { name: 'Global show controls' }).getByRole('button', { name: 'Restore', exact: true }).click();
   await until(request, (s) => s.masterBlackout === false);
   for (let i = 0; i < 4; i++) await page.keyboard.press('Space');
   await expect.poll(() => taps.length).toBe(4);

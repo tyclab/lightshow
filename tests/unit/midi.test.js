@@ -31,6 +31,7 @@ function harness(map, refuse = () => null) {
   };
 
   const patches = [];
+  const controls = [];
   const overrides = [];
   const maxes = [];
   const taps = [];
@@ -42,6 +43,7 @@ function harness(map, refuse = () => null) {
     patches.push(p);
     Object.assign(state, p);
   }, () => taps.push(Date.now()));
+  midi.control = action => controls.push(action);
   midi.overrideFixture = (id, override) => overrides.push({ id, override });
   midi.setFixtureMax = (id, value) => {
     maxes.push({ id, value });
@@ -58,7 +60,7 @@ function harness(map, refuse = () => null) {
 
   const cc = () => sent.filter((m) => m.type === 'cc');
 
-  return { midi, state, input, patches, overrides, maxes, taps, leds, sent, cc };
+  return { midi, state, input, patches, controls, overrides, maxes, taps, leds, sent, cc };
 }
 
 test('a mapped note fires its action', () => {
@@ -66,7 +68,8 @@ test('a mapped note fires its action', () => {
 
   h.input.emit('noteon', { note: 40, velocity: 127, channel: 0 });
 
-  assert.deepStrictEqual(h.patches, [{ masterBlackout: true }]);
+  assert.deepStrictEqual(h.controls, ['blackout']);
+  assert.deepStrictEqual(h.patches, [], 'global control is not a content patch');
 });
 
 test('an unmapped note does nothing', () => {
@@ -86,7 +89,8 @@ test('a binding with a channel only fires on that channel', () => {
   assert.deepStrictEqual(h.patches, [], 'wrong channel is ignored');
 
   h.input.emit('noteon', { note: 40, velocity: 127, channel: 5 });
-  assert.deepStrictEqual(h.patches, [{ running: false }]);
+  assert.deepStrictEqual(h.controls, ['stop']);
+  assert.deepStrictEqual(h.patches, [], 'global Stop is not a content patch');
 });
 
 test('a binding with no channel fires on any channel', () => {
@@ -237,7 +241,8 @@ test('cancelling learn resolves with nothing and re-arms normal dispatch', async
   assert.strictEqual(await pending, null);
 
   h.input.emit('noteon', { note: 40, velocity: 127, channel: 0 });
-  assert.deepStrictEqual(h.patches, [{ masterBlackout: true }], 'messages dispatch again');
+  assert.deepStrictEqual(h.controls, ['blackout'], 'messages dispatch again');
+  assert.deepStrictEqual(h.patches, []);
 });
 
 // Arming a second learn while one is pending used to leave the first waiting
@@ -1060,7 +1065,8 @@ test('while an encoder is being learned, the rest of the surface works', async (
   const learnt = h.midi.startLearn({ action: 'adjustBpm' });
   turn(h, 10, 1);
   h.input.emit('noteon', { note: 2, velocity: 127, channel: 0 });
-  assert.deepStrictEqual(h.patches.at(-1), { running: false });
+  assert.deepStrictEqual(h.controls, ['stop']);
+  assert.deepStrictEqual(h.patches, []);
   turn(h, 10, 1);
   assert.strictEqual((await learnt).type, 'relative');
 });

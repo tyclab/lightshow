@@ -20,12 +20,14 @@ import { attachSequenceRoutes } from './routes/sequence.ts';
 import { attachRoomSceneRoutes } from './routes/room-scene.ts';
 import { attachShowSetupRoutes } from './routes/show-setup.ts';
 import { attachPerformanceRoutes } from './routes/performance.ts';
+import { attachControlRoutes } from './routes/control.ts';
 
 export type { RouteDeps, RouteContext } from './routes/common.ts';
 export type { AnalyzeSource } from './routes/auto.ts';
 
 function attachRoutes(app: Express, deps: RouteDeps): void {
   const ctx = routeContext(deps);
+  attachControlRoutes(app);
   attachLookRoutes(app, ctx);
   attachMidiRoutes(app, ctx);
   attachSourceRoutes(app, ctx);

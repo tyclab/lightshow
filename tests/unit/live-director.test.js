@@ -52,7 +52,7 @@ test('it takes the rig with a look chosen from what it hears', () => {
   assert.ok(patternIds.has(look.pattern), `a pattern the rig has: ${look.pattern}`);
   for (const k of ['colorA', 'colorB', 'colorC', 'colorD']) assert.ok(look[k] >= 0 && look[k] <= 8, 'from the saturated wheel');
   assert.strictEqual(new Set([look.colorA, look.colorB, look.colorC, look.colorD]).size, 4);
-  assert.deepStrictEqual([look.fadeMs, look.beatDivision, look.running], [1000, 1, true]);
+  assert.deepStrictEqual([look.fadeMs, look.beatDivision, look.running], [1000, 1, undefined]);
   assert.deepStrictEqual(t.d.status(), { active: true, pattern: look.pattern, silent: false });
   t.event('BEAT');
   assert.strictEqual(t.patches.length, 1, 'the beat is the pattern clock\'s, not a patch');

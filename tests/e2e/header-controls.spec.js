@@ -1,10 +1,10 @@
 import { test, expect } from '@playwright/test';
-import { open, previewLook, reset, state, until } from './helpers.js';
+import { control, open, previewLook, reset, state, until } from './helpers.js';
 
 test.beforeEach(async ({ request }) => {
-  await request.post('/api/auto/stop');
+  await control(request, 'stop');
   await request.delete('/api/sequence');
-  await request.post('/api/outputs/disarm');
+  await control(request, 'disarm');
   await reset(request);
 });
 
@@ -14,17 +14,17 @@ for (const width of [1280, 390]) {
     await open(page, 'show');
     await page.evaluate(() => { document.body.scrollTop = document.body.scrollHeight; });
     const header = page.locator('.app-header');
-    const look = header.getByRole('button', { name: 'Look playback' });
-    const blackout = header.getByRole('button', { name: 'Master blackout' });
-    await expect(look).toBeInViewport();
+    const freeze = header.getByRole('button', { name: 'Freeze', exact: true });
+    const blackout = header.getByRole('button', { name: 'Blackout', exact: true });
+    await expect(freeze).toBeInViewport();
     await expect(blackout).toBeInViewport();
-    await look.click();
-    await until(request, s => s.running === false);
-    await look.click();
-    await until(request, s => s.running === true);
+    await freeze.click();
+    await until(request, s => s.control.frozen && s.control.playing);
+    await header.getByRole('button', { name: 'Resume', exact: true }).click();
+    await until(request, s => !s.control.frozen && s.control.playing);
     await blackout.click();
     await until(request, s => s.masterBlackout === true);
-    await blackout.click();
+    await header.getByRole('button', { name: 'Restore', exact: true }).click();
     await until(request, s => s.masterBlackout === false);
   });
 }
@@ -32,21 +32,19 @@ for (const width of [1280, 390]) {
 test('header controls work in setup, and preview playback never rearms a disarmed rig', async ({ page, request }) => {
   await open(page, 'settings');
   const header = page.locator('.app-header');
-  await header.getByRole('button', { name: 'Arm outputs', exact: true }).click();
+  await header.getByRole('button', { name: 'Arm', exact: true }).click();
   await until(request, s => s.armed === true);
-  await header.getByRole('button', { name: 'Disarm outputs', exact: true }).click();
-  await until(request, s => s.armed === false);
-  expect((await state(request)).running, 'a disarm leaves the look playing').toBe(true);
-  await expect(header.getByRole('button', { name: 'Look playback' })).toHaveText(/Playing/);
-  await header.getByRole('button', { name: 'Look playback' }).click();
-  await until(request, s => s.running === false);
-  await header.getByRole('button', { name: 'Look playback' }).click();
+  await header.getByRole('button', { name: 'Disarm', exact: true }).click();
+  await until(request, s => s.armed === false && s.control.playing === true && s.control.frozen === false);
+  await header.getByRole('button', { name: 'Stop', exact: true }).click();
+  await until(request, s => !s.control.playing);
+  await header.getByRole('button', { name: 'Start', exact: true }).click();
   await until(request, s => s.running === true);
   expect((await state(request)).armed).toBe(false);
-  const blackout = header.getByRole('button', { name: 'Master blackout' });
+  const blackout = header.getByRole('button', { name: 'Blackout', exact: true });
   await blackout.click();
   await until(request, s => s.masterBlackout === true);
-  await blackout.click();
+  await header.getByRole('button', { name: 'Restore', exact: true }).click();
   await until(request, s => s.masterBlackout === false);
 });
 

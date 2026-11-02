@@ -425,9 +425,18 @@ function defaultHueBridgeId(bridges: readonly { id: string }[]): string {
   return bridges.length ? bridges[0].id : LEGACY_HUE_BRIDGE_ID;
 }
 
+function assertSettingsDomains(patch: unknown): void {
+  if (patch && typeof patch === 'object' && 'artnet' in patch && Object.keys(patch).some(key => key !== 'artnet')) {
+    throw Object.assign(new HttpError(400, 'Save Art-Net routing separately from unrelated settings'), { code: 'mixed_settings_domains' });
+  }
+}
+
 class SettingsStore extends JsonStore {
   declare _values: Settings;
   declare _listeners: SettingsListener[];
+  private loadFailure: Error | null = null;
+  private artnetSource: (() => Settings['artnet']) | null = null;
+  legacyArtnet: Settings['artnet'] | null = null;
 
   constructor(file: string) {
     super(file, { tag: 'settings', fallback: 'using the defaults', mode: 0o600 });
@@ -436,33 +445,73 @@ class SettingsStore extends JsonStore {
   }
 
   load(): this {
-    const saved = this.readValid(schema, (parsed) => {
-      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed) && !('setup' in parsed)) {
-        (parsed as Record<string, unknown>).setup = { completed: true };
+    const document = this.readJson();
+    if (document === undefined) return this;
+    const root = document && typeof document === 'object' && !Array.isArray(document)
+      ? document as Record<string, unknown> : null;
+    const version = root && 'formatVersion' in root ? root.formatVersion : 0;
+    if (version !== 0 && version !== 1) {
+      this.loadFailure = new Error(`Unsupported settings format ${String(version)}; the file was left intact`);
+      throw this.loadFailure;
+    }
+    const parsed = version === 1 ? root?.values : document;
+    const values = parsed && typeof parsed === 'object' && !Array.isArray(parsed)
+      ? parsed as Record<string, unknown> : null;
+    if (!values || (version === 1 && Object.keys(root || {}).some(key => key !== 'formatVersion' && key !== 'values'))) {
+      this.loadFailure = new Error('Invalid settings document; the file was left intact');
+      throw this.loadFailure;
+    }
+    if (version === 0 && values) {
+      if (!('setup' in values)) values.setup = { completed: true };
+      clearNewlyInvalidFields(values);
+      retireGuessedGrade(values);
+      retireOldSourceName(values);
+      migrateLegacyHue(values);
+    }
+    const result = schema.safeParse(merge(DEFAULTS, parsed));
+    if (!result.success) {
+      this.quarantine(result.error.issues.map(i => `${i.path.join('.')} ${i.message}`).join('; '));
+      return this;
+    }
+    this.legacyArtnet = values && 'artnet' in values ? clone(result.data.artnet) : null;
+    if (version === 0) {
+      try {
+        this.backupBefore(1);
+        // Publish neither in memory nor on disk until the entire migration validates.
+        const { artnet, ...rest } = result.data;
+        this.writeJson({ formatVersion: 1, values: this.legacyArtnet ? { ...rest, artnet } : rest });
+      } catch (err) {
+        this.loadFailure = new Error(`Could not migrate settings: ${messageOf(err)}`, { cause: err });
+        throw this.loadFailure;
       }
-      // Clear newly invalid fields individually so one new rule cannot discard saved credentials.
-      clearNewlyInvalidFields(parsed);
-      retireGuessedGrade(parsed);
-      retireOldSourceName(parsed);
-      migrateLegacyHue(parsed);
-      // Merge defaults before validation so older files with missing settings still load.
-      return merge(DEFAULTS, parsed);
-    });
-    if (saved) this._values = saved;
+    }
+    this._values = result.data;
+    this.loadFailure = null;
     return this;
   }
+
+  setArtnetSource(source: () => Settings['artnet'], { preserveLegacyArtnet = false } = {}): void {
+    this.artnetSource = source;
+    if (!preserveLegacyArtnet) this.legacyArtnet = null;
+  }
+
+  legacyExport(): Settings { return this.all(); }
 
   useDefaults(): void {
     this._values = clone(DEFAULTS);
   }
 
-  all(): Settings { return clone(this._values); }
+  all(): Settings {
+    const values = clone(this._values);
+    if (this.artnetSource) values.artnet = clone(this.artnetSource());
+    return values;
+  }
 
-  group<G extends keyof Settings>(name: G): Settings[G] { return clone(this._values[name]); }
+  group<G extends keyof Settings>(name: G): Settings[G] { return clone(name === 'artnet' && this.artnetSource ? this.artnetSource() : this._values[name]) as Settings[G]; }
 
   get<P extends SettingPath>(dotted: P): SettingAt<P>;
   get(dotted: string): unknown;
-  get(dotted: string): unknown { return getPath(this._values, dotted); }
+  get(dotted: string): unknown { return getPath(dotted.startsWith('artnet.') && this.artnetSource ? { artnet: this.artnetSource() } : this._values, dotted); }
 
   // Redact secrets so screenshots and client state cannot reveal stored credentials.
   redacted(): { settings: Settings; secrets: Record<string, boolean> } {
@@ -482,6 +531,11 @@ class SettingsStore extends JsonStore {
 
   // Omit untouched secrets from patches so saving a redacted form cannot erase them.
   update(patch: unknown): string[] {
+    if (this.loadFailure) throw this.loadFailure;
+    assertSettingsDomains(patch);
+    if (this.artnetSource && patch && typeof patch === 'object' && 'artnet' in patch) {
+      throw Object.assign(new HttpError(409, 'Art-Net routing must be saved through the rig coordinator'), { code: 'routing_coordinator_required' });
+    }
     const hue = patch && typeof patch === 'object' ? (patch as { hue?: unknown }).hue : null;
     if (isLegacyHue(hue)) {
       const named = LEGACY_HUE_KEYS.filter((key) => key in hue).map((key) => `hue.${key}`).join(', ');
@@ -534,7 +588,10 @@ class SettingsStore extends JsonStore {
   }
 
   save(): void {
-    this.writeJson(this._values);
+    if (this.loadFailure) throw this.loadFailure;
+    const { artnet, ...rest } = this._values;
+    const retainedArtnet = this.artnetSource ? this.legacyArtnet : artnet;
+    this.writeJson({ formatVersion: 1, values: retainedArtnet ? { ...rest, artnet: retainedArtnet } : rest });
   }
 
   onChange(fn: SettingsListener): void { this._listeners.push(fn); }
@@ -586,5 +643,6 @@ export {
   migrateLegacyHue,
   retireGuessedGrade,
   retireOldSourceName,
+  assertSettingsDomains,
   warnAboutLegacyEnv,
 };

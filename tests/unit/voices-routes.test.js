@@ -5,6 +5,7 @@
 // clock and the audio detectors.
 
 import test from 'node:test';
+import { installControlRuntime, sendControl } from './control-runtime-helpers.js';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
@@ -60,6 +61,7 @@ async function until(found, what, ms = 5000) {
  * unacknowledged: nothing written to the operator's config/.
  */
 async function serve(t) {
+  applyPatch({ running: false, masterBlackout: false });
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'voices-routes-'));
   const effectLibrary = new EffectLibrary(path.join(dir, 'effects.json')).load();
   const paletteStore = new PaletteStore(path.join(dir, 'palettes.json')).load();
@@ -96,7 +98,8 @@ async function serve(t) {
     midi, spotify: { localCallbackUrl: '', setLoopbackPort() {}, configure() {} }, smtc: { start() {}, stop() {} },
     deezer: { init: async () => {} }, applyPatch, broadcast: () => integrations.broadcast(),
   });
-  attachRoutes(app, { integrations, applier });
+  installControlRuntime(t, { integrations, applier, autoShow });
+  attachRoutes(app, { integrations, applier, autoShow });
   attachSockets(io, { midi, integrations });
   await new Promise((r) => server.listen(0, '127.0.0.1', r));
   const url = `http://127.0.0.1:${server.address().port}`;
@@ -386,6 +389,16 @@ test("voice holds are leased to their owning socket", async (t) => {
 
 test("dropped sockets lose their voice at lease expiry", async (t) => {
   const s = await serve(t);
+  // This test advances a synthetic clock by seconds. Keep its physical-output
+  // safety history local: restoring performance.now must not rewind the shared
+  // renderer's monotonic clock for the following real-time control tests.
+  const renderer = createRenderer({ profileOf: getProfile, profilesRevision, now: performance.now() });
+  const store = universes.createUniverseStore(universes.allocateShared());
+  const renderFrame = () => renderer.frame(renderInput(), conductor.now(), performance.now(), store);
+  const blue = () => {
+    const fixture = state.fixtures[0];
+    return store.getBuffer(fixture.universe ?? state.artnet.universe)[fixture.address - 1 + getProfile(fixture).channelMap.blue];
+  };
   applyPatch({ pattern: 'solid', colorA: 0, running: false, masterDimmer: 255, masterBlackout: false });
   renderFrame();
   assert.equal(blue(), 0, 'the look: red, no blue');
@@ -454,16 +467,16 @@ test("dropped sockets lose their voice at lease expiry", async (t) => {
 
 test('a disarm asked for stops every voice, even with the outputs disarmed already', async (t) => {
   const s = await serve(t);
-  await s.call('POST', '/api/outputs/arm');
+  await sendControl(s.call, 'arm');
   await s.call('POST', '/api/energy/blinder');
   await s.call('POST', '/api/voices', { effect: FADE, mode: 'latched' });
-  assert.equal((await s.call('POST', '/api/outputs/disarm')).body.armed, false);
+  assert.equal((await sendControl(s.call, 'disarm')).body.control.armed, false);
   assert.deepEqual([ids(), state.energyOverride], [[], null]);
   // A rehearsal with the outputs off: voices play, and a disarm stops them.
   await s.call('POST', '/api/voices', { effect: FADE, mode: 'latched' });
   await s.call('POST', '/api/energy/glow');
   assert.equal(ids().length, 2);
-  assert.equal((await s.call('POST', '/api/outputs/disarm')).body.armed, false);
+  assert.equal((await sendControl(s.call, 'disarm')).body.control.armed, false);
   assert.deepEqual(ids(), []);
 });
 
@@ -471,12 +484,13 @@ test('a disarm and re-arm leave the look playing, so the effect picked next reac
   // The operator's report: after a disarm, every later effect pick showed nothing and the header read Look · Frozen.
   const s = await serve(t);
   applyPatch({ pattern: 'chase', colorA: 0, colorB: 0, colorC: 0, colorD: 0, running: true, masterDimmer: 255, masterBlackout: false });
+  await sendControl(s.call, 'start', 'look');
   renderFrame();
   assert.equal(blue(), 0, 'the look: red, no blue');
-  assert.equal((await s.call('POST', '/api/outputs/arm')).body.armed, true);
-  assert.equal((await s.call('POST', '/api/outputs/disarm')).body.armed, false);
+  assert.equal((await sendControl(s.call, 'arm')).body.control.armed, true);
+  assert.equal((await sendControl(s.call, 'disarm')).body.control.armed, false);
   assert.equal(state.running, true, 'a disarm ends the streams; it does not freeze the look');
-  assert.equal((await s.call('POST', '/api/outputs/arm')).body.armed, true);
+  assert.equal((await sendControl(s.call, 'arm')).body.control.armed, true);
   assert.equal(state.running, true, 'still playing after the re-arm');
   // The next effect, sent as the Effects tab sends a tap: a socket set naming it.
   const { socket } = await s.page();
@@ -495,21 +509,21 @@ test("disarm leaves sequence transport running", async (t) => {
   t.after(() => sequencer.unload());
   const frame = () => sequencer.frame(conductor.now());
   const beat = () => sequencer.status().beat;
-  await s.call('POST', '/api/outputs/arm');
-  assert.equal((await s.call('POST', '/api/outputs/disarm')).body.armed, false);
-  assert.deepEqual([state.running, ids()], [true, []], 'the voices go; the look plays on');
+  await sendControl(s.call, 'arm');
+  assert.equal((await sendControl(s.call, 'disarm')).body.control.armed, false);
+  assert.deepEqual([state.running, ids()], [false, []]);
   const glow = { id: 'set-1', name: 'Set one', lanes: [{ id: 'a', kind: 'shared', name: 'a', mute: false, solo: false }],
     clips: [{ id: 'A', laneId: 'a', startBeat: 0, lengthBeats: 1e6, effect: { kind: 'energy.glow', params: {} }, targets: 'lane', mute: false }] };
   assert.equal((await s.call('PUT', '/api/sequence', glow)).status, 200);
-  assert.equal((await s.call('POST', '/api/sequence/play')).body.status.playing, true, 'play with the outputs disarmed just runs');
+  assert.equal((await sendControl(s.call, 'start', 'sequence')).body.control.playing, true, 'play with the outputs disarmed just runs');
   frame();
   await wait(120);
   frame();
-  assert.equal(state.running, true, 'the disarm left the look playing');
+  assert.equal(state.running, true, 'Disarm preserves programme playback');
   assert.ok(beat() > 0.1, `after a disarm: the sequence counts its beats (beat ${beat()})`);
-  // Disarmed again while it plays: the look and the sequence play on.
-  await s.call('POST', '/api/outputs/arm');
-  assert.equal((await s.call('POST', '/api/outputs/disarm')).body.armed, false);
+  // Disarmed again while it plays: only physical outputs stop; the programme plays on.
+  await sendControl(s.call, 'arm');
+  assert.equal((await sendControl(s.call, 'disarm')).body.control.armed, false);
   assert.equal(freeClockRuns(), true);
   const from = beat();
   await wait(120);
@@ -534,7 +548,10 @@ test('the live state carries the voices as a domain of their own', async (t) => 
 
 test('a voice plays with the patterns stopped, and runs the free clock while it does', async (t) => {
   await serve(t);
-  applyPatch({ pattern: 'solid', colorA: 0, running: false, masterDimmer: 255, masterBlackout: false });
+  const background = structuredClone(state.background);
+  t.after(() => applyPatch({ background }));
+  applyPatch({ pattern: 'solid', colorA: 0, running: false, masterDimmer: 255, masterBlackout: false,
+    background: { ...background, mode: 'off' } }); // The independent background is explicitly dark for this voice test.
   assert.equal(freeClockRuns(), false);
   const still = conductor.phase().beatPos;
   await wait(60);

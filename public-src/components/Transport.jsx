@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'preact/hooks';
-import { api, pick, send } from '../state.js';
+import { api, pick } from '../state.js';
 import { beatsPerBar, positionText, presetNameOf } from '../preview-inputs.js';
 import { chooseDriver, driverOf, transportButtons, transportState } from '../transport-model.js';
 import { confirmSequenceReplacement } from '../sequence-workspace.js';
@@ -26,7 +26,6 @@ export async function runTransport(requests) {
   if (requests.some((r) => r.path === '/api/sequence' && ['PUT', 'DELETE'].includes(r.method))
     && !await confirmSequenceReplacement(api)) return false;
   for (const request of requests) {
-    if (request.set) { send(request.set); continue; }
     const result = await api(request.path, { method: request.method,
       ...(request.body ? { body: JSON.stringify(request.body) } : {}) });
     if (!result?.ok) return false;
@@ -35,9 +34,8 @@ export async function runTransport(requests) {
 }
 
 export function Transport({ initial, compact = false, prefer = null } = {}) {
-  const s = pick(['sequence', 'sequences', 'effects', 'running', 'showOn', 'autoShow', 'autoSource', 'activeSource']);
-  const [chosen, setChosen] = useState(prefer);
-  const driver = driverOf(s, chosen);
+  const s = pick(['sequence', 'sequences', 'effects', 'running', 'showOn', 'autoShow', 'autoSource', 'activeSource', 'control']);
+  const driver = driverOf(s, prefer);
   const status = s.sequence || null;
   const sequences = s.sequences || [];
   const [sequence, setSequence] = useState(initial?.sequence || null);
@@ -55,24 +53,21 @@ export function Transport({ initial, compact = false, prefer = null } = {}) {
   const lanes = driver === 'sequence' ? laneRows(status, sequence, presetNameOf(s.effects)) : [];
   const buttons = transportButtons(driver, s);
   const state = transportState(driver, s);
-  const value = driver === 'sequence' ? `sequence:${loadedId}` : driver;
+  const value = loadedId;
   const change = async (select) => {
     const next = select.value;
-    if (await runTransport(chooseDriver(next, s))) setChosen(next === 'auto' ? 'auto' : null);
-    else select.value = value;
+    if (!await runTransport(chooseDriver(next))) select.value = value;
   };
+  if (compact || driver === 'look') return null;
   return (
     <section class={`perform-transport${compact ? ' transport-compact' : ''}`} aria-label="Transport">
       {!compact && <div class="transport-row">
-        <select class="transport-picker" aria-label="Transport source" value={value} onChange={(e) => change(e.currentTarget)}>
-          <option value="look" selected={value === 'look'}>Look by hand</option>
-          <option value="auto" selected={value === 'auto'}>Auto show</option>
-          {driver === 'sequence' && !loadedId && <option value="sequence:" disabled selected>Pick a sequence</option>}
-          {loadedId && !sequences.some((q) => q.id === loadedId) && <option value={`sequence:${loadedId}`} selected>{status.loaded.name}</option>}
-          <optgroup label="Sequences">
-            {sequences.map((q) => <option key={q.id} value={`sequence:${q.id}`} selected={q.id === loadedId}>{q.name || q.id}</option>)}
-          </optgroup>
-        </select>
+        {driver === 'sequence' && <select class="transport-picker" aria-label="Loaded sequence" value={value}
+          disabled={!!s.control?.playing} onChange={(e) => change(e.currentTarget)}>
+          <option value="">No sequence loaded</option>
+          {loadedId && !sequences.some((q) => q.id === loadedId) && <option value={loadedId}>{status.loaded.name}</option>}
+          {sequences.map((q) => <option key={q.id} value={q.id}>{q.name || q.id}</option>)}
+        </select>}
         {driver === 'sequence' && <span class="transport-position" aria-label="Position, bars and beats">{loadedId ? positionText(status, perBar, 4 / (sequence?.timeSignature?.unit || 4)) : '–'}</span>}
         {state && <span class="transport-state" role="status">{state}</span>}
       </div>}

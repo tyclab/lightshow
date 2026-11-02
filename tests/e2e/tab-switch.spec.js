@@ -1,5 +1,7 @@
 import { test, expect } from '@playwright/test';
-import { open, previewLook, set, state } from './helpers.js';
+import { open, previewLook, reset, set, state } from './helpers.js';
+
+test.beforeEach(async ({ request }) => { await reset(request); });
 
 // Every WebGL context the page makes, and whether it is still alive, in the document or out of it.
 function countContexts() {
@@ -95,7 +97,7 @@ async function redBars(request) {
   const response = await request.post('/api/fixtures', { data: { profileId, count: 4, universe: 7 } });
   expect(response.ok()).toBe(true);
   const added = (await response.json()).fixtures;
-  await set(request, { pattern: 'solid', basePalette: { colours: ['#FF0000'] }, overridePalette: null, masterBlackout: false, running: true });
+  await set(request, { pattern: 'solid', basePalette: { colours: ['#FF0000'] }, overridePalette: null });
   return async () => {
     for (const id of added) await request.delete(`/api/fixtures/${id}`);
     await request.delete(`/api/profiles/${profileId}`);
@@ -103,7 +105,7 @@ async function redBars(request) {
 }
 
 const restore = (request, before) => set(request, { pattern: before.pattern, basePalette: before.basePalette,
-  overridePalette: before.overridePalette, masterBlackout: before.masterBlackout, running: before.running });
+  overridePalette: before.overridePalette });
 
 test('switching between Show and Effects keeps one WebGL context for the room and one for the plot\'s light', async ({ page, request }) => {
   test.setTimeout(60_000);

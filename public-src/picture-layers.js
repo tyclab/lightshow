@@ -15,7 +15,7 @@ const STOPPED = { hold: 'holding frame', black: 'blackout' };
 
 /** The main effect's name, as the chip and the picture layers both show it. */
 export function mainEffectText(playing) {
-  return `${playing.base.name}${playing.base.running ? '' : ' (frozen)'}`;
+  return `${playing.base.name}${playing.base.running ? '' : ' (stopped)'}${playing.base.frozen ? ' (frozen)' : ''}`;
 }
 
 // What plays over the main effect, one name each. nowPlaying's clips, voices, strobe, Matrix and palette

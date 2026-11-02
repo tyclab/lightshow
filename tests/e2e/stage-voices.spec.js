@@ -3,7 +3,7 @@
 // the look. Puts back the pad, the strobe, the acknowledgement and the look.
 
 import { test, expect } from '@playwright/test';
-import { open, previewLook, reset, set, state, until } from './helpers.js';
+import { control, open, previewLook, reset, set, state, until } from './helpers.js';
 import { stageImage } from './stage-image.js';
 
 const BANK = 0;
@@ -21,10 +21,10 @@ const distance = (a, b) => Math.max(Math.abs(a.r - b.r), Math.abs(a.g - b.g), Ma
 
 test('voices appear over the stage look and disappear when stopped', async ({ page, context, request }) => {
   const originalLook = await state(request);
-  await request.post('/api/outputs/disarm');
+  await control(request, 'disarm');
   await reset(request);
   // A still look and no sequence playing, so anything that moves on the stage is a voice.
-  await request.post('/api/sequence/stop', { data: {} });
+  expect((await state(request)).control.programme).toBe('look');
   // Two saturated colours, so a voice drawing in the palette differs from the solid look.
   await set(request, { pattern: 'solid', basePalette: { colours: ['#FF0000000000', '#0000FF000000'] }, overridePalette: null });
   // A preset that plays before the acknowledgement: the catalogue marks the ones that do not.
@@ -57,7 +57,11 @@ test('voices appear over the stage look and disappear when stopped', async ({ pa
     const label = held.voices.find((v) => v.id === press.id).label;
     await expect(now).toContainText(label);
     const fromLook = (s) => Math.min(...look.map((l) => distance(l, s)));
-    await expect.poll(async () => fromLook(await stageSample(page)),
+    await expect.poll(async () => {
+      const renewal = await request.post(`/api/pads/${BANK}/${SLOT}/press`, { data: { token: press.token } });
+      expect(renewal.ok()).toBe(true);
+      return fromLook(await stageSample(page));
+    },
       { message: 'the held pad changes the stage picture', timeout: 5000 }).toBeGreaterThan(4);
 
     // Released: back to the look.

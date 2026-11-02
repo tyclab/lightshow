@@ -63,7 +63,7 @@ export function currentLook(autoShow: ResumableShow | null, source = 'timer'): U
     source,
     positionMs: source === 'timer' ? Math.max(0, Math.round(autoShow.getPositionMs())) : null,
   } : null;
-  // The restart record keeps the transport a cue leaves out: a frozen show comes back frozen.
+  // Retain the legacy field for file compatibility; startup restores content and Blackout, never transport.
   return { look: lookSchema.parse({ ...captureLook(), running: state.running }), auto };
 }
 
@@ -78,7 +78,7 @@ export function putBack(saved: SavedLook): boolean {
       console.warn(`[look] the look from ${saved.savedAt} comes back without ${look.pattern}: ${messageOf(err)}`);
       recallLook({ ...look, pattern: state.pattern, energyOverride: null }, true);
     }
-    if (look.running !== undefined) applyPatch({ running: look.running });
+    applyPatch({ running: false, masterBlackout: look.masterBlackout });
     return true;
   } catch (err) {
     console.warn(`[look] could not put back the look from ${saved.savedAt}: ${messageOf(err)}`);

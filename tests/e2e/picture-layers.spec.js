@@ -2,7 +2,7 @@
 // beside it follow the Background card and what plays over the effect, from the state.
 
 import { test, expect } from '@playwright/test';
-import { open, reset, set, state, until } from './helpers.js';
+import { control, open, reset, set, state, until } from './helpers.js';
 
 const nameOf = (patterns, id) => patterns.find((p) => p.id === id).name;
 const FOLLOW = { version: 1, mode: 'follow', level: 1, colour: { r: 255, g: 160, b: 70, w: 0, a: 0, uv: 0 } };
@@ -66,11 +66,10 @@ test('the chip reads Main effect and the picture layers follow the Background ca
   await request.post(`/api/fixture/${fixtures[0].id}/blackout/toggle`);
   await expect(layer('above')).toHaveText('Pads and overrides: None active');
 
-  const frozen = await request.post('/api/stop');
-  expect(frozen.ok()).toBe(true);
+  await control(request, 'freeze');
   await expect(layer('main')).toHaveText(`Main effect: ${chase} (frozen)`);
   await expect(now.locator('.now-playing')).toHaveText(`Main effect: ${chase} (frozen)`);
-  await set(request, { running: true });
+  await control(request, 'resume');
 });
 
 for (const view of ['show', 'effects']) {

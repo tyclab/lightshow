@@ -1,7 +1,7 @@
 // The view shell: a real tab strip, a view per hash, keys to switch.
 
 import { test, expect } from '@playwright/test';
-import { open, reset } from './helpers.js';
+import { control, open, reset } from './helpers.js';
 
 test.beforeEach(async ({ request }) => { await reset(request); });
 
@@ -16,14 +16,15 @@ test('the hash opens a view, and switching views writes it back', async ({ page 
   await expect(page.locator('#panel-effects')).toBeVisible();
 });
 
-test('the app opens on Show: the room, the looks and the switches', async ({ page }) => {
+test('the app opens on Show: the room, the looks and global controls', async ({ page }) => {
   await page.goto('/');
   await page.locator('.offline-veil').waitFor({ state: 'detached' });
   await expect(page).toHaveURL(/#show$/);
   await expect(page.getByRole('tab', { name: /^Show/ })).toHaveAttribute('aria-selected', 'true');
-  await expect(page.getByRole('switch', { name: /Disarmed|Armed/ })).toBeVisible();
-  await expect(page.getByRole('switch', { name: /Auto show/ })).toBeVisible();
-  await expect(page.getByRole('switch', { name: /Blackout/ })).toBeVisible();
+  const controls = page.getByRole('group', { name: 'Global show controls' });
+  for (const name of ['Start', 'Stop', 'Freeze', 'Blackout', 'Arm']) {
+    await expect(controls.getByRole('button', { name, exact: true })).toBeVisible();
+  }
   await expect(page.locator('.show-room .stage3d-canvas')).toBeVisible();
   await expect(page.locator('.show-looks .effects-deck')).toBeVisible();
   await expect(page.locator('.command-bar')).toHaveCount(0);
@@ -41,27 +42,24 @@ test('the Show room offers the 2D plot beside the 3D room', async ({ page }) => 
   await expect(room.locator('.stage3d-canvas')).toBeVisible();
 });
 
-test('the same strip sits above every live view and none of the setup views', async ({ page }) => {
-  for (const view of ['effects', 'perform', 'stage', 'auto', 'sequence']) {
+test('picture settings appear on live views and global controls remain unique on every view', async ({ page }) => {
+  for (const view of ['effects', 'perform', 'stage', 'auto', 'sequence', 'rig', 'sources', 'settings', 'preflight']) {
     await open(page, view);
+    const live = ['effects', 'perform', 'stage', 'auto', 'sequence'].includes(view);
     const strip = page.locator('.show-strip');
-    await expect(strip).toHaveCount(1);
-    await expect(strip.getByRole('switch', { name: /Disarmed|Armed/ })).toBeVisible();
-    await expect(strip.getByRole('group', { name: 'Picture source' })).toBeVisible();
-    await expect(strip.getByRole('switch', { name: /Auto show/ })).toBeVisible();
-    await expect(strip.getByRole('switch', { name: /Blackout/ })).toBeVisible();
-    await expect(strip.getByRole('slider', { name: 'Master dimmer' })).toBeVisible();
-    // The view below adds no second copy of any of them.
-    await expect(page.getByRole('switch', { name: /Blackout/ })).toHaveCount(1);
+    await expect(strip).toHaveCount(live ? 1 : 0);
+    if (live) {
+      await expect(strip.getByRole('group', { name: 'Picture source' })).toBeVisible();
+      await expect(strip.getByRole('slider', { name: 'Master dimmer' })).toHaveCount(0);
+      await expect(strip.getByRole('button', { name: /^(?:Start|Stop|Freeze|Blackout|Arm)$/ })).toHaveCount(0);
+    }
+    await expect(page.getByRole('group', { name: 'Global show controls' })).toHaveCount(1);
+    await expect(page.getByRole('button', { name: 'Blackout', exact: true })).toHaveCount(1);
     await expect(page.getByRole('slider', { name: 'Master dimmer' })).toHaveCount(1);
-  }
-  for (const view of ['rig', 'sources', 'settings', 'preflight']) {
-    await open(page, view);
-    await expect(page.locator('.show-strip')).toHaveCount(0);
   }
 });
 
-test('the Show switches fit on the first screen of a tablet', async ({ page }) => {
+test('Show picture settings and global controls fit on the first screen of a tablet', async ({ page }) => {
   await page.setViewportSize({ width: 1024, height: 768 });
   await open(page, 'show');
   const strip = await page.locator('.show-strip').boundingBox();
@@ -69,7 +67,8 @@ test('the Show switches fit on the first screen of a tablet', async ({ page }) =
   const room = await page.locator('.show-room').boundingBox();
   expect(room.y).toBeGreaterThanOrEqual(strip.y + strip.height);
   expect(room.y).toBeLessThan(768 / 2);
-  // Every switch and the master value stay on screen: the strip never scrolls sideways.
+  // Picture and global controls never require sideways scrolling.
+  expect(await page.locator('.global-controls').evaluate((e) => e.scrollWidth - e.clientWidth)).toBeLessThanOrEqual(0);
   expect(await page.locator('.show-strip').evaluate((e) => e.scrollWidth - e.clientWidth)).toBeLessThanOrEqual(0);
 });
 
@@ -122,19 +121,19 @@ for (const [old, canonical, panel] of [['manual', 'effects', 'effects'], ['timel
   });
 }
 
-test('a new browser opens Show, and Perform restarts a frozen look', async ({ page, request }) => {
-  await request.post('/api/set', { data: { running: false } });
+test('a new browser opens Show and the same global Resume releases Freeze in Perform', async ({ page, request }) => {
+  await control(request, 'freeze');
   await page.goto('/');
   await expect(page.locator('#panel-show')).toBeVisible();
   await page.getByRole('tab', { name: /^Perform/ }).click();
   await expect(page.locator('#panel-perform')).toBeVisible();
-  const play = page.getByRole('button', { name: 'Play look', exact: true });
-  const freeze = page.getByRole('button', { name: 'Freeze look', exact: true });
-  await expect(freeze).toHaveAttribute('aria-pressed', 'true');
-  await expect(page.getByText('Look · frozen', { exact: false })).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Look playback' })).toHaveAttribute('aria-pressed', 'false');
-  await play.click();
-  await expect(play).toHaveAttribute('aria-pressed', 'true');
-  await expect(freeze).toHaveAttribute('aria-pressed', 'false');
-  await expect(page.getByRole('button', { name: 'Look playback' })).toHaveAttribute('aria-pressed', 'true');
+  const controls = page.getByRole('group', { name: 'Global show controls' });
+  const resume = controls.getByRole('button', { name: 'Resume', exact: true });
+  await expect(resume).toHaveAttribute('aria-pressed', 'true');
+  await expect(controls.getByRole('status')).toContainText('Frozen');
+  await expect(page.getByRole('button', { name: 'Play look', exact: true })).toHaveCount(0);
+  await resume.click();
+  await expect(controls.getByRole('button', { name: 'Freeze', exact: true })).toHaveAttribute('aria-pressed', 'false');
+  await expect(controls.getByRole('status')).toContainText('Playing');
+  await expect(controls.getByRole('status')).not.toContainText('Frozen');
 });
