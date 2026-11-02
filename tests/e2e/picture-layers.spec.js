@@ -10,11 +10,12 @@ const FOLLOW = { version: 1, mode: 'follow', level: 1, colour: { r: 255, g: 160,
 test.beforeEach(async ({ request }) => {
   await reset(request);
   await request.delete('/api/voices');
+  await request.delete('/api/palette-override');
   await set(request, { background: FOLLOW });
 });
 
 test.afterEach(async ({ request }) => {
-  await request.delete('/api/voices');
+  await request.delete('/api/palette-override');
   await set(request, { background: FOLLOW });
 });
 
@@ -48,12 +49,14 @@ test('the chip reads Main effect and the picture layers follow the Background ca
   await panel.getByRole('button', { name: 'Off', exact: true }).click();
   await expect(layer('background')).toHaveText(`Background: Off · Selected (1 of ${fixtures.length})`);
 
-  // A voice plays over the main effect; the main effect is still the look on stage.
-  const launch = await request.post('/api/voices', { data: { preset: 'hd.auroraDrift', mode: 'latched' } });
-  expect(launch.ok()).toBe(true);
+  // An override plays over the main effect, which stays the look on stage. Not a voice: the stage
+  // preview seeds a live voice from its id, which one server-wide counter numbers, so a voice here
+  // would change what the voices of later specs draw.
+  const override = await request.put('/api/palette-override', { data: { colours: ['#FF00FF'] } });
+  expect(override.ok()).toBe(true);
   await expect(layer('above')).toHaveText('Pads and overrides: 1 active');
   await expect(layer('main')).toHaveText(`Main effect: ${chase}`);
-  await request.delete('/api/voices');
+  await request.delete('/api/palette-override');
   await expect(layer('above')).toHaveText('Pads and overrides: None active');
 
   const frozen = await request.post('/api/stop');
