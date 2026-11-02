@@ -59,13 +59,13 @@ test('the rig layout is built once per patch, not once per render', () => {
   } finally { view.stop(); }
 });
 
-test('bar cells are one canvas, not an element per cell', () => {
+test('bar cells and lamps light one layer, not an element per cell', () => {
   ui.store.applySnapshot({ versions: {}, state: state() });
   const view = mount();
   try {
     assert.equal(classed(view.seen.tree, 'stage-cell').length, 0);
-    assert.equal(classed(view.seen.tree, 'stage-cells-canvas').length, 1);
-    assert.equal(classed(view.seen.tree, 'stage-cells-canvas')[0].type, 'canvas');
+    // The layer brings its own canvas when it mounts (cell-layer.js); the plot renders only its host.
+    assert.equal(classed(view.seen.tree, 'stage-light-host').length, 1);
     assert.equal(classed(view.seen.tree, 'stage-fixture').length, 3, 'every fixture keeps its button');
   } finally { view.stop(); }
 });

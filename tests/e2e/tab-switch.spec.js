@@ -44,17 +44,22 @@ function countPrograms() {
   }
 }
 
-/** A digest of the cell layer's pixels: two pictures that differ anywhere give different digests. */
+/** A digest of the light layer's pixels: two pictures that differ anywhere give different digests. */
 const cellDigest = (page) => page.locator('canvas.stage-cells-canvas').evaluate((canvas) => {
-  const data = canvas.getContext('2d').getImageData(0, 0, canvas.width, canvas.height).data;
+  // Copied out, whichever context draws the layer (WebGL 2, or 2D without it).
+  const copy = Object.assign(document.createElement('canvas'), { width: canvas.width, height: canvas.height }).getContext('2d');
+  copy.drawImage(canvas, 0, 0);
+  const data = copy.getImageData(0, 0, canvas.width, canvas.height).data;
   let digest = 0;
   for (let i = 0; i < data.length; i++) digest = (Math.imul(digest, 31) + data[i]) | 0;
   return digest;
 });
 
-/** Red and green pixels on the stage plot's cell layer. */
+/** Red and green pixels on the stage plot's light layer. */
 const cellPixels = (page) => page.locator('canvas.stage-cells-canvas').evaluate((canvas) => {
-  const data = canvas.getContext('2d').getImageData(0, 0, canvas.width, canvas.height).data;
+  const copy = Object.assign(document.createElement('canvas'), { width: canvas.width, height: canvas.height }).getContext('2d');
+  copy.drawImage(canvas, 0, 0);
+  const data = copy.getImageData(0, 0, canvas.width, canvas.height).data;
   let red = 0, green = 0;
   for (let i = 0; i < data.length; i += 4) {
     if (data[i] > 150 && data[i + 1] < 80) red++;
@@ -62,6 +67,26 @@ const cellPixels = (page) => page.locator('canvas.stage-cells-canvas').evaluate(
   }
   return { red, green };
 });
+
+/** Each lamp (not a bar) on the plot: the colour it was given, and the light layer's pixel inside its disc, beside its number. */
+const lampLights = (page, plot) => plot.locator('.stage-fixture:not(.bar)').evaluateAll((lamps) => {
+  const canvas = lamps[0].parentElement.querySelector('canvas.stage-cells-canvas');
+  const copy = Object.assign(document.createElement('canvas'), { width: canvas.width, height: canvas.height }).getContext('2d');
+  copy.drawImage(canvas, 0, 0);
+  const box = canvas.getBoundingClientRect();
+  const scale = canvas.width / box.width;
+  return lamps.map((lamp) => {
+    const glow = lamp.querySelector('.stage-glow').getBoundingClientRect();
+    const x = Math.floor((glow.left + glow.width / 2 - 8 - box.left) * scale), y = Math.floor((glow.top + glow.height / 2 - 9 - box.top) * scale);
+    return { light: lamp.dataset.light, pixel: `rgb(${Array.from(copy.getImageData(x, y, 1, 1).data.slice(0, 3)).join(',')})` };
+  });
+});
+
+/** The light layer's canvas: which context draws it, and whether it is still the canvas `marked` earlier. */
+const layerCanvas = (page) => page.locator('canvas.stage-cells-canvas').evaluate((canvas) => ({
+  // A canvas answers only for the kind of context it has.
+  webgl: !!canvas.getContext('webgl2'), flat: !!canvas.getContext('2d'), marked: canvas.dataset.marked === 'yes',
+}));
 
 /** A 128-cell bar profile patched four times, lit solid red and previewed while disarmed. */
 async function redBars(request) {
@@ -80,9 +105,11 @@ async function redBars(request) {
 const restore = (request, before) => set(request, { pattern: before.pattern, basePalette: before.basePalette,
   overridePalette: before.overridePalette, masterBlackout: before.masterBlackout, running: before.running });
 
-test('switching between Show and Effects keeps one WebGL context for the room', async ({ page, request }) => {
+test('switching between Show and Effects keeps one WebGL context for the room and one for the plot\'s light', async ({ page, request }) => {
   test.setTimeout(60_000);
   await page.addInitScript(countContexts);
+  // The plot's layer in WebGL 2 even where the browser draws WebGL in software, as here.
+  await page.addInitScript(() => localStorage.setItem('lightshow.lightLayer', 'webgl'));
   const before = await state(request);
   const remove = await redBars(request);
   try {
@@ -94,14 +121,15 @@ test('switching between Show and Effects keeps one WebGL context for the room', 
       await page.locator('#tab-show').click();
       await expect(page.getByRole('img', { name: /The rig in 3D/ })).toBeVisible();
     }
-    expect(await page.evaluate(() => window.webglContexts())).toEqual({ made: 1, live: 1, detached: 0 });
+    // On Show: the room's context on screen, the plot's kept for the next return to Effects (cell-layer.js).
+    expect(await page.evaluate(() => window.webglContexts())).toEqual({ made: 2, live: 1, detached: 1 });
   } finally {
     await remove();
     await restore(request, before);
   }
 });
 
-test('the Effects stage plot paints bar cells on one canvas, and the swatches follow, from the live feed', async ({ page, request }) => {
+test('the Effects stage plot paints bar cells and lamps on one canvas, and the swatches follow, from the live feed', async ({ page, request }) => {
   const before = await state(request);
   const remove = await redBars(request);
   try {
@@ -116,13 +144,64 @@ test('the Effects stage plot paints bar cells on one canvas, and the swatches fo
     expect((await cellPixels(page)).green).toBeGreaterThan(500);
     const lamps = plot.locator('.stage-fixture.bar');
     await expect(lamps).toHaveCount(4);
-    expect(await lamps.evaluateAll((nodes) => nodes.map((node) => node.style.getPropertyValue('--light')))).toEqual(Array(4).fill('rgb(0,255,0)'));
+    expect(await lamps.evaluateAll((nodes) => nodes.map((node) => node.dataset.light))).toEqual(Array(4).fill('rgb(0,255,0)'));
+    // The light is the layer's: the element paints none of it, and each lamp's disc under it is lit its colour.
+    expect(await lamps.first().locator('.stage-glow').evaluate((glow) => getComputedStyle(glow).backgroundColor)).toBe('rgba(0, 0, 0, 0)');
+    await expect.poll(async () => (await lampLights(page, plot)).filter(({ light, pixel }) => light !== 'rgb(0,255,0)' || pixel !== light)).toEqual([]);
+    expect((await lampLights(page, plot)).length).toBeGreaterThan(0);
     const swatches = page.locator('.fixture-preview[title="128 cells"]');
     await expect(swatches).toHaveCount(4);
     for (const background of await swatches.evaluateAll((nodes) => nodes.map((node) => node.style.background))) {
       expect(background).toMatch(/^linear-gradient\(90deg, rgb\(0, 255, 0\)/);
       expect(background).not.toMatch(/rgb\(255, 0, 0\)/);
     }
+  } finally {
+    await remove();
+    await restore(request, before);
+  }
+});
+
+test('a lost WebGL context that comes back draws again; one that does not gives way to the 2D layer, lit', async ({ page, request }) => {
+  test.setTimeout(60_000);
+  await page.addInitScript(() => localStorage.setItem('lightshow.lightLayer', 'webgl'));
+  const before = await state(request);
+  const remove = await redBars(request);
+  try {
+    await open(page, 'effects');
+    await previewLook(page);
+    const plot = page.getByRole('group', { name: 'Stage layout, viewed from the audience' });
+    await expect.poll(async () => (await cellPixels(page)).red).toBeGreaterThan(500);
+    await page.locator('canvas.stage-cells-canvas').evaluate((canvas) => { canvas.dataset.marked = 'yes'; });
+    expect(await layerCanvas(page)).toEqual({ webgl: true, flat: false, marked: true });
+    // Lost and back: the same canvas and context, lit again.
+    await page.locator('canvas.stage-cells-canvas').evaluate((canvas) => {
+      const extension = canvas.getContext('webgl2').getExtension('WEBGL_lose_context');
+      extension.loseContext();
+      setTimeout(() => extension.restoreContext(), 200);
+    });
+    await expect.poll(async () => (await cellPixels(page)).red).toBeGreaterThan(500);
+    expect(await layerCanvas(page)).toEqual({ webgl: true, flat: false, marked: true });
+    // Lost for good: within a few seconds the plot paints on a 2D canvas of its own, lit.
+    await page.locator('canvas.stage-cells-canvas').evaluate((canvas) => canvas.getContext('webgl2').getExtension('WEBGL_lose_context').loseContext());
+    await expect.poll(() => layerCanvas(page), { timeout: 10_000 }).toEqual({ webgl: false, flat: true, marked: false });
+    await expect.poll(async () => (await cellPixels(page)).red).toBeGreaterThan(500);
+    await expect.poll(async () => (await lampLights(page, plot)).filter(({ light, pixel }) => light !== 'rgb(255,0,0)' || pixel !== light)).toEqual([]);
+  } finally {
+    await remove();
+    await restore(request, before);
+  }
+});
+
+test('the 2D layer, where there is no WebGL 2, lights the cells and every lamp under its element', async ({ page, request }) => {
+  await page.addInitScript(() => localStorage.setItem('lightshow.lightLayer', '2d'));
+  const before = await state(request);
+  const remove = await redBars(request);
+  try {
+    await open(page, 'rig');
+    const plan = page.getByRole('group', { name: /^Plan of the rig from above/ });
+    await expect.poll(async () => (await cellPixels(page)).red).toBeGreaterThan(500);
+    expect(await layerCanvas(page)).toMatchObject({ webgl: false, flat: true });
+    await expect.poll(async () => (await lampLights(page, plan)).filter(({ light, pixel }) => light !== 'rgb(255,0,0)' || pixel !== light)).toEqual([]);
   } finally {
     await remove();
     await restore(request, before);
@@ -168,7 +247,7 @@ test('the Rig plan paints bar cells on one canvas that follows the live feed, wi
     expect((await cellPixels(page)).green).toBeGreaterThan(500);
     const lamps = plan.locator('.stage-fixture.bar');
     await expect(lamps).toHaveCount(4);
-    expect(await lamps.evaluateAll((nodes) => nodes.map((node) => node.style.getPropertyValue('--light')))).toEqual(Array(4).fill('rgb(0,255,0)'));
+    expect(await lamps.evaluateAll((nodes) => nodes.map((node) => node.dataset.light))).toEqual(Array(4).fill('rgb(0,255,0)'));
     // A picture that changes on every frame of the feed: the canvas follows it.
     await set(request, { pattern: 'plasma' });
     await page.waitForTimeout(500);

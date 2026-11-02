@@ -6,13 +6,17 @@
 export function createFrameQueue(request = (run) => requestAnimationFrame(run), cancelFrame = (handle) => cancelAnimationFrame(handle)) {
   const jobs = new Set();
   let handle = 0;
+  let frame = 0;
   const run = (now) => {
     handle = 0;
+    frame++;
     const due = [...jobs];
     jobs.clear();
     for (const job of due) job(now);
   };
   return {
+    /** How many frames have run: jobs in the same frame see the same number. */
+    get frame() { return frame; },
     schedule(job) {
       jobs.add(job);
       if (!handle) handle = request(run);

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
 import { pick, dmxSig, connectedSig, emitFixture, latestSent, stagePreviewSig } from '../state.js';
 import { colorToCss, fixtureOutputColor, fixtureCellColors, meanLight, fmtTime, patchedAt, stageMode } from '../utils.js';
 import { useDmxFeed, useDmxPaint } from '../use-dmx.js';
+import { frames } from '../frame-paint.js';
 import { useRehearsalTrack, useRehearsalSampler, useUnitSpace } from '../rehearsal.js';
 import { Audition } from './Audition.jsx';
 import { auditionSig, setAudition, useAuditionSampler } from '../audition.js';
@@ -10,23 +11,23 @@ import { useTimeline } from '../use-timeline.js';
 import { stagePositions } from '../../src/shared/stage.ts';
 import { buildRig, lineOf, rigSignature } from '../../src/shared/rig.ts';
 import { STAGE_EDGES, clamp, geometryOf, placeAt, pointIn, surfaceStyle } from '../stage-geometry.js';
-import { cellsOf, paintLayer, useCellLayer } from '../cell-layer.js';
+import { layoutOf, paintLayer, useCellLayer } from '../cell-layer.js';
 
 // The state the plot draws from; any other key changes without waking it.
 const KEYS = ['fixtures', 'profiles', 'armed', 'autoShow', 'colorPresets', 'masterBlackout', 'masterDimmer'];
 const NONE = [];
 
 /**
- * Light the plot: each lamp's --light and the bar cells' canvas. Runs outside
- * rendering, once per animation frame the DMX feed moved in, so a frame costs
- * one canvas paint and a few dozen style writes instead of a render of the
- * whole plot.
+ * Light the plot: the light layer's cells and lamps, and each lamp's data-light.
+ * Runs outside rendering, once per animation frame the DMX feed moved in, so a
+ * frame costs one paint of the layer and no restyle or repaint of an element.
  */
-function paintPlot(surface, layer, { drawn, rig, preview, shown, connected, live }) {
+function paintPlot(surface, layer, { drawn, rig, positions, preview, shown, connected, live }) {
   const dmx = live ? dmxSig.peek() : null;
   const lamps = surface ? surface.querySelectorAll(':scope > .stage-fixture') : NONE;
-  const cells = layer && layer.size ? cellsOf(layer, rig) : null;
+  const cells = layer && layer.size ? layoutOf(layer, rig, positions) : null;
   const colours = cells ? new Array(rig.points.length) : null;
+  const lights = new Array(drawn.length);
   drawn.forEach((fix, i) => {
     const { start, count } = rig.ranges[i];
     const bar = !!rig.cellMaps[i];
@@ -39,11 +40,13 @@ function paintPlot(surface, layer, { drawn, rig, preview, shown, connected, live
     const color = preview
       ? colorToCss(bar ? meanLight(preview.slice(start, start + count)) : preview[start])
       : connected ? fixtureOutputColor(fix, shown, dmx) : '#222';
+    lights[i] = { key: fix.id, colour: color };
     const lamp = lamps[i];
-    if (lamp && lamp.style.getPropertyValue('--light') !== color) lamp.style.setProperty('--light', color);
+    if (lamp && lamp.dataset.light !== color) lamp.dataset.light = color;
   });
   // An unchanged picture is not painted again: a still or dark rig costs no new frame.
-  if (cells) paintLayer(cells, cells.units.map((u) => colours[u]));
+  // While a lamp eases, the next frames draw the lamps alone (cell-layer.js easeLayer).
+  if (cells && paintLayer(cells, cells.units.map((u) => colours[u]), lights)) frames.schedule(cells.ease);
 }
 
 export function StagePreview({ controls = true } = {}) {
@@ -89,11 +92,10 @@ export function StagePreview({ controls = true } = {}) {
   const live = !rehearsal && !auditioning;
   useDmxFeed(live);
   const surface = useRef(null);
-  const cellCanvas = useRef(null);
-  const hasCells = rig.cellMaps.some(Boolean);
+  const lightHost = useRef(null);
   const inputs = useRef(null);
-  inputs.current = { drawn, rig, preview, shown, connected, live };
-  const layer = useCellLayer(cellCanvas, hasCells, () => paintPlot(surface.current, layer.current, inputs.current));
+  inputs.current = { drawn, rig, positions, preview, shown, connected, live };
+  const layer = useCellLayer(lightHost, drawn.length > 0, () => paintPlot(surface.current, layer.current, inputs.current));
   useDmxPaint(() => paintPlot(surface.current, layer.current, inputs.current), live);
 
   // Follows the *track*, not the timeline. A replan — an intensity nudge, a
@@ -170,8 +172,8 @@ export function StagePreview({ controls = true } = {}) {
       aria-label="Stage layout, viewed from the audience"
       style={surfaceStyle}>
       <span class="stage-back">{STAGE_EDGES.top}</span>
-      {/* A bar's cells first, so its number and every lamp sit on top. */}
-      {hasCells && <canvas ref={cellCanvas} class="stage-cells-canvas" aria-hidden="true" />}
+      {/* The light layer first (cell-layer.js), so every lamp's ring, number and label sit on top. */}
+      {drawn.length > 0 && <span ref={lightHost} class="stage-light-host" aria-hidden="true" />}
       {drawn.map((fix, i) => {
         const point = positions[i];
         const { count } = rig.ranges[i];

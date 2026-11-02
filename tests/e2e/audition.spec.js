@@ -22,7 +22,7 @@ test('demo audition animates room and plot while every live control keeps its st
   await page.getByRole('button', { name: '2D plot', exact: true }).click();
   const surface = page.getByRole('group', { name: 'Stage layout, viewed from the audience' });
   await expect(surface).toBeVisible();
-  const lights = await surface.locator('.stage-fixture').evaluateAll((nodes) => nodes.map((node) => node.style.getPropertyValue('--light')));
+  const lights = await surface.locator('.stage-fixture').evaluateAll((nodes) => nodes.map((node) => node.dataset.light || ''));
   expect(lights.some((colour) => /^rgb\(/.test(colour) && (colour.match(/\d+/g) || []).some((channel) => Number(channel) > 40))).toBe(true);
   await picker.selectOption('v2.scatterStrobe');
   const allow = page.getByRole('button', { name: 'Allow flashing in this browser preview' });
@@ -110,7 +110,7 @@ test('saved effect and its edited palette audition without updating the library 
     await page.getByRole('button', { name: 'Pause demo', exact: true }).click();
     await page.getByLabel('Audition position', { exact: true }).fill('0');
     await page.getByRole('button', { name: '2D plot', exact: true }).click();
-    const lights = await page.locator('.stage-fixture').evaluateAll((nodes) => nodes.map((node) => (node.style.getPropertyValue('--light').match(/\d+/g) || []).map(Number)));
+    const lights = await page.locator('.stage-fixture').evaluateAll((nodes) => nodes.map((node) => ((node.dataset.light || '').match(/\d+/g) || []).map(Number)));
     expect(lights).toContainEqual([0, 255, 0]);
     expect(await protectedState(request)).toEqual(before);
     expect(writes).toEqual([]);

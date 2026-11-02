@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
 import { pick, connectedSig, dmxSig, emitFixture, latestSent } from '../../state.js';
 import { useDmxFeed, useDmxPaint } from '../../use-dmx.js';
-import { cellsOf, paintLayer, useCellLayer } from '../../cell-layer.js';
+import { layoutOf, paintLayer, useCellLayer } from '../../cell-layer.js';
+import { frames } from '../../frame-paint.js';
 import { stagePositions } from '../../../src/shared/stage.ts';
 import { buildRig, lineOf } from '../../../src/shared/rig.ts';
 import { fixtureOutputColor, fixtureCellColors, patchedAt } from '../../utils.js';
@@ -83,16 +84,17 @@ export function endToEnd(bars) {
 }
 
 /**
- * Light the plan from the DMX feed: each lamp's --light and the bar cells'
- * canvas. Runs outside rendering, once per animation frame the feed moved in
- * (use-dmx.js), so a frame is one canvas paint and a few dozen style writes
- * rather than a render of every cell.
+ * Light the plan from the DMX feed: the light layer's cells and lamps, and each
+ * lamp's data-light. Runs outside rendering, once per animation frame the feed
+ * moved in (use-dmx.js), so a frame is one paint of the layer and no restyle or
+ * repaint of an element.
  */
-function paintPlan(surface, layer, { drawn, rig, s, identifying, connected }) {
+function paintPlan(surface, layer, { drawn, rig, positions, chosen, s, identifying, connected }) {
   const dmx = dmxSig.peek();
   const lamps = surface ? surface.querySelectorAll(':scope > .stage-fixture') : NONE;
-  const cells = layer && layer.size ? cellsOf(layer, rig) : null;
+  const cells = layer && layer.size ? layoutOf(layer, rig, positions, chosen) : null;
   const colours = cells ? new Array(rig.points.length) : null;
+  const lights = new Array(drawn.length);
   drawn.forEach((fix, i) => {
     // A lamp being identified is drawn lit through the blackout, as the rig lights it.
     const lit = identifying.has(fix.id) ? { ...s, masterBlackout: false } : s;
@@ -102,10 +104,12 @@ function paintPlan(surface, layer, { drawn, rig, s, identifying, connected }) {
       for (let c = 0; c < count; c++) colours[start + c] = shown[c];
     }
     const color = connected ? fixtureOutputColor(fix, lit, dmx) : '#222';
+    lights[i] = { key: fix.id, colour: color };
     const lamp = lamps[i];
-    if (lamp && lamp.style.getPropertyValue('--light') !== color) lamp.style.setProperty('--light', color);
+    if (lamp && lamp.dataset.light !== color) lamp.dataset.light = color;
   });
-  if (cells) paintLayer(cells, cells.units.map((u) => colours[u]));
+  // While a lamp eases, the next frames draw the lamps alone (cell-layer.js easeLayer).
+  if (cells && paintLayer(cells, cells.units.map((u) => colours[u]), lights)) frames.schedule(cells.ease);
 }
 
 export function PlanEditor() {
@@ -131,14 +135,15 @@ export function PlanEditor() {
   const drawnFixtures = useMemo(() => (draft ? fixtures.map((f) => (draft.has(f.id) ? { ...f, ...draft.get(f.id) } : f)) : fixtures), [fixtures, draft]);
   const positions = useMemo(() => stagePositions(drawnFixtures), [drawnFixtures]);
   const rig = useMemo(() => buildRig(drawnFixtures, (f) => (s.profiles && s.profiles[f.profileId]) || null), [drawnFixtures, s.profiles]);
-  const hasCells = rig.cellMaps.some(Boolean);
   const unplaced = drawnFixtures.filter((f) => !f.position).length;
   const indexOf = new Map(fixtures.map((f, i) => [f.id, i]));
   const identifying = new Set((s.identify && s.identify.ids) || []);
-  const cellCanvas = useRef(null);
+  const lightHost = useRef(null);
   const inputs = useRef(null);
-  inputs.current = { drawn: drawnFixtures, rig, s, identifying, connected };
-  const layer = useCellLayer(cellCanvas, hasCells, () => paintPlan(surface.current, layer.current, inputs.current));
+  // A selected bar blooms, as .stage-fixture.selected drew it.
+  const chosenLamps = useMemo(() => drawnFixtures.map((f) => selected.includes(f.id)), [drawnFixtures, selected]);
+  inputs.current = { drawn: drawnFixtures, rig, positions, chosen: chosenLamps, s, identifying, connected };
+  const layer = useCellLayer(lightHost, drawnFixtures.length > 0, () => paintPlan(surface.current, layer.current, inputs.current));
   useDmxPaint(() => paintPlan(surface.current, layer.current, inputs.current));
   const isBar = (id) => indexOf.has(id) && !!rig.cellMaps[indexOf.get(id)];
   const drawTarget = selected.length === 1 && isBar(selected[0]) ? selected[0] : null;
@@ -438,8 +443,8 @@ export function PlanEditor() {
         <span class="stage-back plan-edge-top" aria-hidden="true">{STAGE_EDGES.top}</span>
         <span class="plan-edge plan-edge-left" aria-hidden="true">{STAGE_EDGES.left}</span>
         <span class="plan-edge plan-edge-right" aria-hidden="true">{STAGE_EDGES.right}</span>
-        {/* The cells on one canvas, painted from the feed; each bar's first cell keeps its ring. */}
-        {hasCells && <canvas ref={cellCanvas} class="stage-cells-canvas" aria-hidden="true" />}
+        {/* The light layer, painted from the feed (cell-layer.js); each bar's first cell keeps its ring. */}
+        {drawnFixtures.length > 0 && <span ref={lightHost} class="stage-light-host" aria-hidden="true" />}
         {drawnFixtures.map((fix, i) => (rig.cellMaps[i]
           ? <i key={`first-${fix.id}`} class="stage-cell first" style={placeAt(rig.points[rig.ranges[i].start])} aria-hidden="true" />
           : null))}
