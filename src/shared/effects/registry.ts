@@ -23,7 +23,7 @@ export function requiresAcknowledgement(spec: EffectSpec): boolean {
 }
 
 /**
- * What a kind does between its hits when its spec chooses nothing: the LDJ families
+ * What a kind does between its hits when its spec chooses nothing: the Entertainment families
  * (the bitmap raster included) and Disco kept their gaps dark before an effect could
  * choose, every other family revealed the Background layer in them.
  */

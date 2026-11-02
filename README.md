@@ -249,8 +249,9 @@ Entertainment scope. The detailed fields below describe the data contract as
 well as the browser controls. See [feature coverage](docs/feature-coverage.md)
 for deliberate scope decisions and the fork policy.
 [Effects v2](docs/effects-v2.md) records the spatial framework and compatibility
-decisions. The Spatial group is the default catalogue for new shows; old effect
-and palette ids remain available to saved shows and integrations.
+decisions. The Effects view lists every current look in one tagged list (see
+[Effects catalogue and tags](#effects-catalogue-and-tags)); old effect and palette
+ids remain available to saved shows and integrations.
 
 An **effect** draws the lights. A **look** combines the base effect, colours and fixture
 settings. A **pattern** is a reusable sequence of clips. Favourites are quick access
@@ -293,10 +294,58 @@ Pads with no custom label use the catalogue name on both Perform and the
 command bar. Once, hold and loop are distinct launch modes. Header controls
 select theme, screen wake lock and fullscreen for the current device.
 
+### Effects catalogue and tags
+
+Effects opens on the deck: the starred favourites, the presets saved on this
+server, then the party looks. Under it one list holds every current look and every
+saved preset, A to Z by name; looks that share a name keep the order the server
+sends them in. Each row carries the tags its code states: what the look reads, where
+it draws, whose colours it plays and what it is for. A tag makes no claim about how
+a look appears.
+
+| Axis | Tag | The look… |
+|------|-----|-----------|
+| Reacts to | **Beat only** | runs on the beat clock and reads no music or picture input |
+| | **Static** | reads no clock and no input |
+| | **Bands & drums** | follows stems, drum hits or frequency bands |
+| | **Audio level** | follows the overall loudness |
+| | **Song sections** | follows the song section, or the build the auto show sets |
+| | **Screen** | takes its colours and speed from the screen capture |
+| Surface | **Whole rig** | gives every light the same value at once |
+| | **Room-placed** | is placed by room positions (Mapping: Through room) |
+| | **Bars & panels** | draws cell by cell (a pixel effect) |
+| Colour | **Own colours** | plays its own colours (white, UV, black or a palette of its own) instead of the look's |
+| Use & safety | **Energy** | is an energy hold or a strobe voice over the running look |
+| | **Rapid ⚡** | plays only after the photosensitivity acknowledgement |
+
+A reaction also says where its input comes from: **track** (only while the auto show
+plays an analysed track; picked by hand the look runs on its clock), **live** (the
+Reactive audio mode with live input) or **screen** (the screen capture as picture
+source). A look laid out along the Rig plot carries no surface tag; a plot variant's
+card reads **Across layout**.
+
+The chips under the search filter the deck and the list. Chips in one row (Reacts to,
+Surface, Colour, Use & safety) show the looks that carry any of them; rows combine,
+so a look must match every row that has a chip on. **Reactive** stands for the four
+reactions. Each chip counts the looks it would show with the other rows as they are
+and is disabled at zero; **Clear** turns every chip off. The search matches name,
+description, id and family, and also the tag names, Reactive and the source marks.
+The search stays above the list as it scrolls; the chips scroll with the page, and on
+a phone they wrap under the search without scrolling sideways.
+
+`src/shared/effects/tags.ts` holds the rules. A spec's kind and params decide its
+tags, so a saved preset or an edited copy is tagged by what it now does (a Wash given
+a bass beat accent becomes Bands & drums, live); the 59 classic patterns have no spec
+and take theirs from a table in the same module. The server sends them on every
+catalogue row and saved-preset summary as `tags` and, for a reaction, `via`.
+MIDI's **Browse patterns** and **Browse effects** and Companion's pattern and effect
+lists are built from them: effects are the Energy looks, the bars' picture the Bars &
+panels looks, patterns every other look; retired ids are in none.
+
 ### Spatial effects
 
-The **Spatial** group leads the Effects view with one entry for each of its 39
-named looks, over eleven generators. Open an effect's editor to choose its
+The Effects list has one entry for each of the 39 spatial looks, over eleven
+generators. Open an effect's editor to choose its
 **Mapping** when its motion or selection uses positions:
 
 - **Across layout** follows the Rig plot as a flat picture whose top is up. It
@@ -312,8 +361,9 @@ modulation and output settings. Switching a built-in's mapping makes that varian
 ready to Play without saving a copy. Other draft edits are preserved and can be
 auditioned or saved as usual.
 
-There is no separate 2D/3D catalogue filter. Pads and sequence pickers also offer
-one entry per look. Existing `v2.<name>.2d` and overlay ids, saved shows and aliases
+There is no separate 2D/3D catalogue filter: the **Room-placed** tag marks the room
+form, and a plot variant's card reads Across layout. Pads and sequence pickers also
+offer one entry per look. Existing `v2.<name>.2d` and overlay ids, saved shows and aliases
 keep their exact specs; a playing or pinned layout variant stays on the single
 card. The Stage's **3D room / 2D plot** switch changes only the preview camera.
 
@@ -394,8 +444,8 @@ The background level is independent of the effect editor's foreground brightness
 Effects without an ambient field stay dark between their notes in Follow mode.
 Wash, Breathe, Fire and continuous gradients remain effect content. Required dark
 rests stay dark even with a Fixed background. Fixed replaces the beds of the
-classic patterns and fills the gaps of the V2 generators and the HD effects; the
-LDJ, Disco and bitmap families keep their authored rests dark, so a Fixed colour
+classic patterns and fills the gaps of the V2 generators and the Party & Disco effects; the
+Entertainment, Disco and bitmap families keep their authored rests dark, so a Fixed colour
 shows there only where they author an ambient field. An effect changes this with
 **Between effect hits**, below.
 
@@ -427,23 +477,23 @@ pixel is one of three things:
 
 - A **bed**: ambient light the effect authors. The classic patterns' beds and floors
   (fade's and hit's included), the split wash, a V2 background floor and Neural idle,
-  the LDJ backlit rests and fade or matrix baselines, the Studio baseline, the
+  the Entertainment backlit rests and fade or matrix baselines, the Studio baseline, the
   Visualizer's mellow bed, the Disco idle washes and release floors, a bitmap's
   coloured background. Follow keeps it, Fixed replaces it and Off removes it, under
   either setting.
 - A **gap**: the share of a pixel the effect neither lights nor covers with a bed.
-  An HD or V2 envelope, kernel or gate below full, an LDJ lamp a row switches off or
+  A Party & Disco or V2 envelope, kernel or gate below full, an Entertainment lamp a row switches off or
   fades without a baseline, the unlit share of a Disco lamp it owns, a bitmap's black
   background. **Keep dark** leaves the gap the effect's own black; **Reveal
   background** lets the Fixed colour into it, in proportion to the uncovered share.
   Follow and Off put nothing there under either setting, on every profile, a
   dimmer-only lamp included. A wave's trough or a dark sector of a rotation is not
-  a gap: the LDJ continuous fields (waves, rotations, noise) and Studio publish
+  a gap: the Entertainment continuous fields (waves, rotations, noise) and Studio publish
   none, so Reveal changes nothing there.
 - An **explicit dark cue**: black the effect authors, dark under both settings and
   in every mode. The rests of an effect that needs the photosensitivity
   acknowledgement (one marked Rapid flash, and kinds that always flash fast:
-  Frequency Burst, the LDJ matrix and visualizer rows, rows at a quarter beat or
+  Frequency Burst, the Entertainment matrix and visualizer rows, rows at a quarter beat or
   faster, a fast-scrolling bitmap) or paces an automatic strobe of its own (a Disco
   with its strobe on), a foreground drawn black at full opacity (a black palette
   entry, the Blackout scene), and the strobe and energy effects, which author no
@@ -452,12 +502,12 @@ pixel is one of three things:
 A gap stays owned: a pattern pad's or a sequence clip's gap is its own black, never
 the look beneath. An effect that chooses nothing plays its family's default, which is
 how each family played before the setting: **Reveal background** for the V2
-generators and the HD effects, **Keep dark** for the LDJ, Disco and bitmap families.
+generators and the Party & Disco effects, **Keep dark** for the Entertainment, Disco and bitmap families.
 Picking the default stores no choice. A macro's choice reaches the steps that make
 none; a step's own choice wins. The editor offers the choice only where it can change
 the output; elsewhere it reads **No gaps to fill**: the strobe and energy effects,
-effects whose rests are strobe rests, the backlit and whole-room LDJ rows, Studio,
-the Visualizer, the LDJ continuous fields, generators with an authored floor, and
+effects whose rests are strobe rests, the backlit and whole-room Entertainment rows, Studio,
+the Visualizer, the Entertainment continuous fields, generators with an authored floor, and
 bitmaps without a black background. Classic patterns have no editor and play as
 before: Fixed replaces their beds, and the rests of those that author none stay dark
 (13 of 59: the flash patterns, ramp, ramp-scatter, decay-scatter, ring-strobe,
@@ -1057,7 +1107,9 @@ their output; Colour Strobe and Glow follow the override's first colour.
 
 ## Looks, palettes and cues
 
-The base `pattern` accepts classic pattern ids or effect-preset ids. Effects filters the catalogue by family/library and supports favourites.
+The base `pattern` accepts classic pattern ids or effect-preset ids. Effects lists the catalogue A to Z with
+code-derived tags, filters it by tag chips and supports favourites; see
+[Effects catalogue and tags](#effects-catalogue-and-tags).
 Editing a built-in saves a copy; user presets are editable and deletable.
 `GET /api/effects` exposes family parameter schemas and preset metadata.
 
@@ -1476,8 +1528,11 @@ energy holds, pads (`padPress` with bank/slot), cues, fixture controls and
 master/intensity/sync faders. Additional actions browse patterns, effects, pixel
 pictures, colour slots, palette overrides and beat divisions; adjust fade time
 and held-strobe rate; choose random looks/colours; double/halve BPM; stop effect
-voices; fire a bounded strobe burst; or toggle the auto show. Flashing actions
-use the same acknowledgement and limits as the browser controls.
+voices; fire a bounded strobe burst; or toggle the auto show. Browse patterns
+covers every current look but the bars' pictures and the energy looks, Browse effects
+the energy holds and strobes, and the bars' picture the Bars & panels looks, by the
+[tags](#effects-catalogue-and-tags) the server sends; retired ids are in none of them.
+Flashing actions use the same acknowledgement and limits as the browser controls.
 Encoders detect whether the device sends positions
 or relative steps, including two's complement and binary offset. Learn captures
 that mode; keep turning until the capture completes. If the messages remain
@@ -1520,8 +1575,9 @@ Add a TycStation Lightshow connection with host, port and access token.
 
 The **Busk** page browses and randomises patterns and effects, toggles palettes
 over the running show, launches pads, follows or taps tempo, and stops live
-effects. Pattern browsing includes Fire and Ice; rapid effects require the
-server's photosensitivity acknowledgement. **Auto Show** and **Sequence** have
+effects. Pattern browsing covers every current look but the bars' pictures and the
+energy looks (Fire and Ice included), effect browsing the energy holds and strobes;
+rapid effects require the server's photosensitivity acknowledgement. **Auto Show** and **Sequence** have
 their own preset pages. Preset variable references use the connection's label.
 
 Presets also cover energy holds, transport, cues, strobe bursts and fixture

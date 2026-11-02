@@ -1,4 +1,4 @@
-// The strobe voice's functions: its own palette flashes (Hue Dynamics'), or
+// The strobe voice's functions: its own palette flashes (as the Party & Disco kinds draw them), or
 // one of the ROOT PAR programs the look's strobe draws (shared/strobe-fx.ts),
 // drawn by the same code, every lamp held to five flashes a second.
 

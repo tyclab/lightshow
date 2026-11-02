@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Build the effects the operator asked for (Light DJ's scatter strobe and its pseudo-3D rotation and wave effects; Hue Dynamics' neural analyser and its beat features) as v2 generators that sample the real room in metres, each with a classic 2D version, beside today's effects.
+**Goal:** Build the effects the operator asked for (the Entertainment scatter strobe and its pseudo-3D rotation and wave effects; the Party & Disco neural analyser and its beat features) as v2 generators that sample the real room in metres, each with a classic 2D version, beside today's effects.
 
 **Architecture:** A shared `UnitSpace` gives every output unit a position in metres from the Stage room's bindings, with the 2D plan as fallback. It reaches the renderer worker and the browser preview through one shared builder. Five new effect kinds (`v2.sweep`, `v2.shell`, `v2.orbit`, `v2.scatter`, `v2.neural`) share one set of modifiers (space, trigger, envelope, colour, background) and register like every other kind, so pads, cues, sequences, voices and the existing safety path play them unchanged. Nothing existing is removed in Phase A.
 
@@ -14,7 +14,7 @@
 
 - Every startup remains disarmed. Nothing in this plan arms outputs, and no task or verification arms them (`POST /api/outputs/arm` is never called outside an isolated e2e server).
 - Preserve blackout, flash limits, photosensitivity acknowledgement, output shutdown and preview/output parity (AGENTS.md).
-- Take the essence of Hue Dynamics and Light DJ, never their ids, row tables, frame clock or numeric quirks. New ids live under `v2.`; names describe behaviour ("Scatter Strobe", "Groove Wave"), never the apps.
+- Take the essence of the Party & Disco and Entertainment kinds, never their ids, row tables, frame clock or numeric quirks. New ids live under `v2.`; names describe behaviour ("Scatter Strobe", "Groove Wave"), never the apps.
 - Never collapse an effect family into one fixed look: every generator exposes its parameters, and presets are parameter sets.
 - Every v2 preset exists in two first-class forms: `room` (metric 3D) and `plan` (classic 2D plot). The 2D form is a look of its own, not a fallback.
 - Rooms stay private: no room data, installation patch or fixture names from an installation are committed. Tests use synthetic rigs and rooms.
@@ -136,7 +136,7 @@
 - [ ] **Step 4: Run** — expected PASS; `npm run check` green.
 - [ ] **Step 5: Commit** `feat(effects-v2): shared space, trigger, envelope and colour modifiers`.
 
-### Task 6: Light DJ's pseudo-3D in real 3D: Sweep and Shell
+### Task 6: The Entertainment pseudo-3D in real 3D: Sweep and Shell
 
 **Files:**
 - Create: `src/shared/effects/v2/sweep.ts`, `src/shared/effects/v2/shell.ts`
@@ -161,7 +161,7 @@
 - [ ] **Step 4: Run** — expected PASS; frame diff of every existing id stays 0.
 - [ ] **Step 5: Commit** `feat(effects-v2): Sweep and Shell, room and classic plan`.
 
-### Task 7: Light DJ's rotation family in real 3D: Orbit
+### Task 7: The Entertainment rotation family in real 3D: Orbit
 
 **Files:**
 - Create: `src/shared/effects/v2/orbit.ts`
@@ -193,7 +193,7 @@
 - [ ] **Step 4: Run** — expected PASS; the strobe and flash-limit test files still pass.
 - [ ] **Step 5: Commit** `feat(effects-v2): Scatter and Scatter Strobe`.
 
-### Task 9: Hue Dynamics' neural analyser and beat features
+### Task 9: The Party & Disco neural analyser and beat features
 
 **Files:**
 - Create: `src/shared/effects/v2/neural.ts`

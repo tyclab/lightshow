@@ -19,7 +19,7 @@ export const DEFAULT_BACKGROUND: BackgroundSettings = {
 };
 /**
  * What an effect publishes under a slot's light. A bed (level or fullLevel above zero) is
- * ambient light it authors (writeFloor, FADE_FLOOR/HIT_FLOOR, V2 floors, LDJ baselines,
+ * ambient light it authors (writeFloor, FADE_FLOOR/HIT_FLOOR, V2 floors, Entertainment baselines,
  * Disco idles): Follow keeps it, Fixed replaces it, Off removes it. A gap (no authored
  * level) is the share the foreground leaves uncovered, published only by an effect that
  * reveals its gaps (gapsOf): Fixed fills it. An explicit dark cue, a rapid flash's rest

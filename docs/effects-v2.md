@@ -46,6 +46,15 @@ local Audition and colour sliders. All new-show workflows hide retired rows.
 - **Audition:** a typed, deterministic demo source supplies beat, bands, sections,
   stems and picture features to a browser-only Stage sampler. It never sends a
   live look, room, master or arm mutation.
+- **Catalogue (2026-11-02):** the Effects view lists every current look once, A to Z,
+  with the tags its code states: what it reacts to and where that input comes from
+  (analysed track, live input or the screen), whether it covers the whole rig, is
+  placed in the room or draws on bars and panels, whether it plays its own colours,
+  and whether it is an energy voice or a rapid flash. Multi-select chips filter by
+  them; the Spatial, Own and Classic sections are gone. `src/shared/effects/tags.ts`
+  derives the tags from kind and params and holds a table for the 59 classic
+  patterns; MIDI and Companion browse by the same tags. See the
+  [README](../README.md#effects-catalogue-and-tags).
 
 Verification covers original legacy goldens, a separate new-preset snapshot,
 room/plan parity, dense-fixture fairness, dark rest, rotation continuity, overlay
@@ -241,8 +250,8 @@ a pad launch mode instead of kinds.
 
 ## The operator's list
 
-Built first, in Phase A ([plan](superpowers/plans/2026-10-22-effects-v2-phase-a.md)): Light DJ's
-scatter strobe and its pseudo-3D rotation and wave effects, made truly spatial; Hue Dynamics'
+Built first, in Phase A ([plan](superpowers/plans/2026-10-22-effects-v2-phase-a.md)): the Entertainment
+scatter strobe and its pseudo-3D rotation and wave effects, made truly spatial; the Party & Disco
 neural analyser and its beat features (beat accent, volume gate, frequency burst) as triggers every
 generator shares. Each one in the room and in classic 2D.
 

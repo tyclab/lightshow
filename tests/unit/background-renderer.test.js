@@ -191,7 +191,7 @@ for (const kind of Object.keys(HD_DEFAULTS).filter(kind => kind !== 'hd.frequenc
   });
 }
 
-test('HD spatial coverage reveals Fixed without recolouring its fully covered foreground', () => {
+test('Party & Disco spatial coverage reveals Fixed without recolouring its fully covered foreground', () => {
   const effect = hdGap('hd.positionChase', { params: { stagger: .25, hold: .125 } });
   const a = engine({ effect, paletteOverride: null, background: off }), b = engine({ effect, paletteOverride: null, background: fixed });
   const foreground = a.draw(40), wash = b.draw(40);
@@ -201,7 +201,7 @@ test('HD spatial coverage reveals Fixed without recolouring its fully covered fo
   assert.ok(wash.slice(6).every(v => v > 0));
 });
 
-test('an explicitly black HD foreground owns its lamps independently of RGB brightness', () => {
+test('an explicitly black Party & Disco foreground owns its lamps independently of RGB brightness', () => {
   for (const kind of ['hd.positionChase', 'hd.simpleAdsr']) {
     const effect = hdGap(kind, { palette: ['#000000'],
       ...(kind === 'hd.simpleAdsr' ? { params: { rgbEnvelope: { ...HD_DEFAULTS[kind].params.rgbEnvelope, singleColour: '#000000',
@@ -212,7 +212,7 @@ test('an explicitly black HD foreground owns its lamps independently of RGB brig
   }
 });
 
-test('a half-opacity black HD foreground reveals half the Fixed wash independently of its brightness', () => {
+test('a half-opacity black Party & Disco foreground reveals half the Fixed wash independently of its brightness', () => {
   const black = (sustain, brightness = 1) => hdGap('hd.simpleAdsr', { brightness, palette: ['#000000'],
     params: { rgbEnvelope: { ...HD_DEFAULTS['hd.simpleAdsr'].params.rgbEnvelope, singleColour: '#000000',
       brightness: { attack: 0, hold: .1, decay: 0, sustain, release: 0, peak: 1 } } } });
@@ -235,7 +235,7 @@ for (const kind of ['hd.frequencyBurst', 'hd.positionChase', 'hd.simpleAdsr']) {
   });
 }
 
-test('HD zero-foreground coverage survives a sequence clip and its held snapshot', () => {
+test('Party & Disco zero-foreground coverage survives a sequence clip and its held snapshot', () => {
   const e = engine({ background: fixed });
   const effect = hdGap('hd.twinkle', { params: { probability: 0 } });
   e.renderer.setSequence({ revision: 1,
@@ -250,7 +250,7 @@ test('HD zero-foreground coverage survives a sequence clip and its held snapshot
   assert.deepEqual(e.draw(200, { sequenceRevision: 1, sequenceTransport: hold }), wash);
 });
 
-test('HD Fixed wash remains subordinate to explicit Kill and Blackout', () => {
+test('Party & Disco Fixed wash remains subordinate to explicit Kill and Blackout', () => {
   const effect = hdGap('hd.twinkle', { params: { probability: 0 } });
   const e = engine({ effect, background: fixed });
   assert.ok(lit(e.draw(0)), 'negative control: the transparent base exposes the wash');
@@ -260,7 +260,7 @@ test('HD Fixed wash remains subordinate to explicit Kill and Blackout', () => {
   assert.ok(dark(e.draw(200, { masterBlackout: true })), 'Blackout owns the final output');
 });
 
-test('a pattern pad owns black through its HD gaps over a lit base and reveals Fixed there', () => {
+test('a pattern pad owns black through its Party & Disco gaps over a lit base and reveals Fixed there', () => {
   const gap = hdGap('hd.twinkle', { params: { probability: 0 } });
   const table = { revision: 0, lanes: [{ id: 'l', kind: 'shared', name: 'l', mute: false, solo: false }],
     clips: [{ id: 'gap', laneId: 'l', fixtureIds: null, startBeat: 0, lengthBeats: 4, loopBeats: 4, spec: gap, seed: [1, 2, 3, 4], mute: false }] };
