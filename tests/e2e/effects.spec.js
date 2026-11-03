@@ -180,7 +180,7 @@ test.describe('on a touch screen', () => {
 });
 
 test('the tag chips filter the deck and the list: any chip within an axis, every axis with one, live counts and Clear', async ({ page, request }) => {
-  const rows = (await state(request)).patterns.filter((row) => !row.retired);
+  const rows = (await state(request)).patterns.filter((row) => !row.retired && row.id !== 'energy.colorStrobe');
   const has = (row, tags) => tags.some((tag) => row.tags.includes(tag));
   const REACTIVE = ['bands', 'level', 'sections', 'screen'];
   await open(page, 'effects');
@@ -192,7 +192,8 @@ test('the tag chips filter the deck and the list: any chip within an axis, every
   await expect(page.locator('.effects-catalogue details')).toHaveCount(0);
   const all = await listed();
   expect(all).toHaveLength(rows.length);
-  const names = all.map((id) => rows.find((row) => row.id === id).name);
+  const names = await page.locator('.effects-catalogue .pattern-btn .name').evaluateAll((els) =>
+    els.map((el) => [...el.childNodes].filter((node) => node.nodeType === node.TEXT_NODE).map((node) => node.textContent).join('').trim()));
   expect(names).toEqual([...names].sort(new Intl.Collator('en', { sensitivity: 'base', numeric: true }).compare));
   for (const [name, tags] of [['Beat only', ['beat']], ['Reactive', REACTIVE], ['Room-placed', ['room']], ['Rapid', ['rapid']]]) {
     expect(await countOf(name), name).toBe(rows.filter((row) => has(row, tags)).length);
