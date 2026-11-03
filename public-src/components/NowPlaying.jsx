@@ -8,12 +8,19 @@ export function NowPlaying() {
   return <span class="now-playing" title={text}>{text}</span>;
 }
 
-/** The picture's layers from the top, read-only: the Effects and Background cards hold the controls. */
 export function PictureLayers() {
+  const focusBackground = () => {
+    const card = document.querySelector('.background-controls');
+    if (card) { card.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); card.focus({ preventScroll: true }); }
+  };
   return <div class="picture-layers" role="group" aria-label="Picture layers">
-    {pictureLayers(pick(PICTURE_LAYER_FIELDS)).map((layer) => <span key={layer.id} class="picture-layer" data-layer={layer.id} title={layer.title || undefined}>
-      <span class="picture-layer-name">{layer.name}:</span> {layer.value}
-    </span>)}
+    {pictureLayers(pick(PICTURE_LAYER_FIELDS)).map((layer) => layer.id === 'background'
+      ? <button key={layer.id} type="button" class="picture-layer picture-layer-link" data-layer={layer.id} onClick={focusBackground} aria-label="Edit background lighting">
+        <span class="picture-layer-name">{layer.name}:</span> {layer.value}
+      </button>
+      : <span key={layer.id} class="picture-layer" data-layer={layer.id} title={layer.title || undefined}>
+        <span class="picture-layer-name">{layer.name}:</span> {layer.value}
+      </span>)}
   </div>;
 }
 

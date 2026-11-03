@@ -1,3 +1,4 @@
+import { withEffectColours } from '../shared/effect-colours.ts';
 import path from 'node:path';
 import { Worker } from 'node:worker_threads';
 
@@ -144,7 +145,7 @@ function resolveEffect(pattern: string): EffectSpec | null {
 }
 
 function currentEffect(): EffectSpec | null {
-  return resolveEffect(state.pattern);
+  return withEffectColours(state.pattern, resolveEffect(state.pattern), state.effectColours);
 }
 
 function setEffectSource(fn: ((pattern: string) => EffectSpec | null) | null | undefined): void {

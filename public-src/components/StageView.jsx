@@ -1,3 +1,4 @@
+import { Background } from './Background.jsx';
 import { useEffect, useLayoutEffect, useRef, useState } from 'preact/hooks';
 import { effect } from '@preact/signals';
 import { pick, connectedSig, dmxSig, field, pictureImageSig, stagePreviewSig } from '../state.js';
@@ -266,6 +267,7 @@ export function StageView({ compact = false } = {}) {
 
   return (
     <div class={`stage3d-view${compact ? ' compact' : ''}`}>
+      {!compact && <Background />}
       {!compact && <StageRoomPanel snapshot={roomState} coverage={room ? placed : null} fixtures={fixtures} rig={rig} onChange={setRoomState} />}
       {!compact && <Audition />}
       <div class="stage3d-tools" role="toolbar" aria-label="Stage view">

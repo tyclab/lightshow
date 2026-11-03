@@ -157,3 +157,30 @@ test('restoring a look leaves guarded effects off', (t) => {
   assert.deepEqual([state.pattern, state.colorB, state.masterBlackout], ['chase', 2, false]);
   assert.ok(warn.mock.calls.at(-1).arguments.join(' '));
 });
+
+test('a guarded saved effect drops its colour edit while restoring Blackout and background', (t) => {
+  const values = settings._values;
+  const before = { pattern: state.pattern, masterBlackout: state.masterBlackout,
+    background: state.background, running: state.running };
+  settings._values = { ...values, safety: { ...values.safety, photosensitivityAcknowledged: false } };
+  setEffectSource((id) => presetById(id)?.spec ?? null);
+  t.after(() => {
+    settings._values = values;
+    setEffectSource(null);
+    applyPatch({ ...before, effectColours: null });
+  });
+  t.mock.method(console, 'warn', () => {});
+  const background = { version: 1, mode: 'fixed', level: .4,
+    colour: { r: 12, g: 34, b: 56, w: 78, a: 90, uv: 11 } };
+  applyPatch({ pattern: 'chase', masterBlackout: false, background: { ...background, mode: 'off' } });
+  const saved = { savedAt: new Date().toISOString(), ...currentLook(null) };
+  saved.look = { ...saved.look, pattern: 'v2.scatterStrobe', masterBlackout: true, background,
+    effectColours: { pattern: 'v2.scatterStrobe', palette: { colours: ['#FF0000', '#00BFFF'] }, mode: 'along' } };
+
+  assert.equal(putBack(saved), true);
+  assert.equal(state.pattern, 'chase');
+  assert.equal(state.effectColours, null, 'the refused effect cannot recolour the fallback');
+  assert.equal(state.masterBlackout, true);
+  assert.deepEqual(state.background, background);
+  assert.equal(state.running, false);
+});

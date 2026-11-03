@@ -455,7 +455,7 @@ explicit background has its own colour, independent of colour A. Rotation blends
 its sector boundaries, including the emitter's size, to avoid a hard wall-wide
 colour jump.
 
-The **Background** card, in the Show and Effects views, separates ambient light from the effect. **Follow effect**
+The **Background** card, above the main controls in Show, Effects and Stage, separates ambient light from the effect. **Follow effect**
 uses the effect's authored background colours and movement; **Fixed colour** replaces
 that field with your RGB, white, amber and UV values; **Off** removes its contribution.
 The background level is independent of the effect editor's foreground brightness.
@@ -1170,8 +1170,15 @@ Editing a built-in saves a copy; user presets are editable and deletable.
 `GET /api/effects` exposes family parameter schemas and preset metadata.
 
 Base looks, effects and the global override use one palette model and one editor.
-The Perform and Effects palette strip selects its destination: **Base** changes
-look colours; **Override** replaces palettes across the stage. Fixed white, UV
+The palette strip selects its destination: **Main effect** edits the selected look;
+**Global override** replaces palettes across the stage. In Colours, the palette,
+swatches and sliders share that destination. Effects with their own palettes receive
+a temporary colour edit; their saved preset, pads and sequence clips remain unchanged.
+**Colour distribution** chooses the first colour, colours across the effect, or colours
+over time where the effect supports it. **Reset effect colours** restores the preset.
+Selecting an effect again clears this edit; cues capture and restore it.
+Strobe has one catalogue entry with White emitters, First colour and Cycle palette
+settings. White and Colour Strobe pads and historical IDs retain their behaviour. Fixed white, UV
 and blackout energy effects retain their dedicated output.
 
 A palette contains 1–8 `colours`: `#RGB`, `#RRGGBB`, `#RRGGBBWW`,
@@ -1182,6 +1189,12 @@ up to four gradient roles; `gradientSet` and `gradientRole` select the active
 role. Without authored gradients, effects keep their existing interpolation.
 
 `POST /api/set` accepts `basePalette` and `overridePalette` bodies, or null.
+`POST /api/set` accepts `effectColours: { pattern, palette?, mode? }` for the selected
+main effect, or `null` to reset. `pattern` must match the selected effect; stale edits
+are refused before other fields change. Palette bodies retain gradients and all
+six channels. Palette-only edits preserve effect phase. Distribution changes follow
+the effect's normal parameter-change behaviour. A global override still takes precedence.
+
 `PUT /api/palette-override` accepts the same body or `{ paletteId }`.
 `paletteOverride` and `paletteOverrideId` remain compatible with existing
 clients. Old indexed palettes retain their curated 2/3/4-colour variants;

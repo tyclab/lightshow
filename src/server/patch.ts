@@ -1,3 +1,4 @@
+import { colourModes } from '../shared/effect-colours.ts';
 import { state, getFixture, latchEnergy, reconcileFreeClock } from './state.ts';
 import { beginFade, resolveEffect } from './engine.ts';
 import { conductor } from './conductor.ts';
@@ -95,6 +96,14 @@ function applyPatch(rawData: unknown, { beforeCommit, origin = 'hand', paletteOv
   if (data.palette && !selected) throw new HttpError(400, `is not a known palette: ${data.palette}`);
   const baseBody = data.basePalette ? materializePalette(data.basePalette) : data.basePalette;
   const overrideBody = data.overridePalette ? materializePalette(data.overridePalette) : data.overridePalette;
+  const colourEdit = data.effectColours;
+  if (colourEdit) {
+    const pattern = data.pattern ?? state.pattern;
+    const spec = resolveEffect(pattern);
+    if (colourEdit.pattern !== pattern || !spec) throw new HttpError(409, 'Select the effect again before editing its colours');
+    if (colourEdit.mode && !colourModes(spec).includes(colourEdit.mode)) throw new HttpError(400, 'This effect does not support that colour distribution');
+    if (colourEdit.palette) colourEdit.palette = materializePalette(colourEdit.palette);
+  }
   // Naming the pattern is starting it, even the one on stage; a fader moved under it is not.
   if (data.pattern !== undefined) {
     const effect = resolveEffect(data.pattern);
@@ -111,7 +120,7 @@ function applyPatch(rawData: unknown, { beforeCommit, origin = 'hand', paletteOv
   const changesLook = data.pattern !== undefined || data.palette !== undefined
     || data.split !== undefined || data.pixelMap !== undefined || data.pixelPattern !== undefined
     || data.panelPattern !== undefined || data.paletteOverride !== undefined
-    || data.basePalette !== undefined || data.overridePalette !== undefined
+    || data.basePalette !== undefined || data.overridePalette !== undefined || data.effectColours !== undefined
     || COLOR_SLOTS.some((slot) => data[slot] !== undefined);
   if (data.fadeMs !== undefined || changesLook) beginFade(data.fadeMs || 0);
 
@@ -143,7 +152,9 @@ function applyPatch(rawData: unknown, { beforeCommit, origin = 'hand', paletteOv
     && (data.pattern !== undefined || data.pixelPattern !== undefined || data.panelPattern !== undefined
       || data.beatDivision !== undefined);
   if (data.beatDivision !== undefined) state.beatDivision = data.beatDivision;
-  if (data.pattern !== undefined) state.pattern = data.pattern;
+  if (data.pattern !== undefined) { state.pattern = data.pattern; state.effectColours = null; }
+  if (data.effectColours !== undefined) state.effectColours = data.effectColours
+    ? { ...state.effectColours, ...data.effectColours } : null;
   if (patternChanges || divisionChanges || scheduled) anchorPattern(data.anchorMs);
   // Before the single slots, so "this look, but slot A in red" lands as it reads.
   const wantsPalette = data.palette !== undefined

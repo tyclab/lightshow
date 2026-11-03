@@ -113,7 +113,7 @@ test('the Perform view has the bank, the strobe, tap and stop all, and leaves th
   assert.strictEqual(count(html, 'aria-pressed="true"'), 2, 'the Override destination and Off are pressed');
   assert.match(html, /aria-pressed="true" data-override="off"/, 'no palette override: Off is pressed');
   assert.match(html, /aria-label="Palette destination"/);
-  assert.match(html, />Base<.*>Override</);
+  assert.match(html, />Main effect<.*>Global override</);
   assert.strictEqual(count(html, 'role="switch"'), 0, 'arm, blackout and the master live in the header');
   assert.doesNotMatch(html, /Master dimmer|Picture source/);
   assert.match(html, /aria-valuetext="70 percent"/, 'the show\'s intensity');
@@ -679,7 +679,7 @@ test('shared status stays above the effect search', () => {
   assert.match(ui.html(ui.h(ui.Effects, {})), /class="effects-now"/);
 });
 
-test('the picture layers sit beside the main effect chip, read-only and outside its live status', () => {
+test('the picture layers offer background access outside the main effect live status', () => {
   givenLibrary({ background: { version: 1, mode: 'fixed', level: .4, colour: { r: 255, g: 0, b: 0, w: 0, a: 0, uv: 0 }, fixtures: 'selected', selected: [2] } });
   const html = ui.html(ui.h(ui.Effects, {}));
   const status = /<div class="effects-now" role="status"[^>]*>(.*?)<\/div>/s.exec(html)[1];
@@ -690,7 +690,8 @@ test('the picture layers sit beside the main effect chip, read-only and outside 
   assert.ok(html.indexOf('class="effects-now"') < strip.index && strip.index < html.indexOf('class="effects-search"'), 'between the chip and the search');
   const text = strip[1].replace(/<[^>]+>/g, '').replace(/&amp;/g, '&');
   assert.equal(text, 'Pads and overrides: None activeMain effect: Neon DominoBackground: Fixed colour · Selected (1 of 2)');
-  assert.doesNotMatch(strip[1], /<(button|input|select|a)\b/, 'nothing to press: the controls are the cards');
+  assert.equal(count(strip[1], '<button '), 1, 'one direct path to the background controls');
+  assert.match(strip[1], /aria-label="Edit background lighting"/);
 });
 
 test('a favourite is pinned first on the deck, whatever it is', () => {

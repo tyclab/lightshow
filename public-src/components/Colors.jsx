@@ -1,3 +1,4 @@
+import { useColourTarget } from '../colour-target.js';
 import { ColourSliders } from './ColourSliders.jsx';
 import { PaletteStrip } from './PaletteStrip.jsx';
 import { parseHex, toHex } from '../../src/shared/palette-model.ts';
@@ -21,6 +22,9 @@ function pairedSlot(slot) {
 
 export function Colors() {
   const s = pick(['colorA', 'colorB', 'colorC', 'colorD', 'colorPresets', 'palette', 'palettes', 'basePalette']);
+  const [target, setTarget] = useState('base');
+  const colour = useColourTarget(target);
+  const body = colour.current;
   const presets = s.colorPresets || [];
   const [activeSlot, setActiveSlot] = useState('colorA');
   // Roving tabindex: the grid is one stop in the tab order and the arrow keys
@@ -32,7 +36,19 @@ export function Colors() {
   if (presets.length === 0) return null;
 
   const swatchBg = (c) => (c.name === 'Blackout' ? '#111' : colorToCss(c));
-  const slotColour = (k) => s.basePalette?.colours[SLOTS.findIndex((slot) => slot.key === k) % s.basePalette.colours.length];
+  const slotColour = (k) => {
+    const entry = body.colours[SLOTS.findIndex((slot) => slot.key === k) % body.colours.length];
+    return typeof entry === 'string' ? entry : null;
+  };
+  const writePreset = (key, i) => {
+    if (target === 'base' && !colour.spec) send({ [key]: i });
+    else writeColour(key, toHex(presets[i]));
+  };
+  const writeColour = (key, value) => {
+    const colours = Array.from({ length: Math.max(4, body.colours.length) }, (_, i) => body.colours[i % body.colours.length]);
+    colours[SLOTS.findIndex((slot) => slot.key === key)] = value;
+    send(colour.patch({ ...body, colours }));
+  };
   const slotIndex = (k) => slotColour(k) ? presets.findIndex((p) => toHex(p) === slotColour(k)) : s[k];
   const slotPreset = (k) => {
     const i = slotIndex(k);
@@ -43,7 +59,7 @@ export function Colors() {
     <div class="card">
       <div class="card-title">Colours</div>
 
-      <PaletteStrip initialTarget="base" />
+      <PaletteStrip target={target} onTargetChange={setTarget} />
 
       {/* Which slot the grid below writes into. Not a tablist: there is one
           shared grid rather than a panel per slot, and declaring tabs without
@@ -110,10 +126,10 @@ export function Colors() {
           // Shift writes to the opposite-pair slot for fast two-handed work.
           // A keyboard activation carries shiftKey just as a click does, so
           // Shift+Enter reaches the same place without a separate branch.
-          const write = (e) => send({ [e.shiftKey ? pairedSlot(activeSlot) : activeSlot]: i });
+          const write = (e) => writePreset(e.shiftKey ? pairedSlot(activeSlot) : activeSlot, i);
           const onContextMenu = (e) => {
             e.preventDefault();
-            send({ [pairedSlot(activeSlot)]: i });
+            writePreset(pairedSlot(activeSlot), i);
           };
           // Colour alone carries which slots a swatch is in, so the label has
           // to say it — and say where pressing it would land.
@@ -138,7 +154,7 @@ export function Colors() {
               onKeyDown={(e) => {
                 if (e.key !== 'Enter' && e.key !== ' ') return;
                 e.preventDefault();
-                send({ [e.shiftKey ? pairedSlot(activeSlot) : activeSlot]: i });
+                writePreset(e.shiftKey ? pairedSlot(activeSlot) : activeSlot, i);
               }}
               onContextMenu={onContextMenu}
             />
@@ -165,17 +181,12 @@ export function Colors() {
       </div>
 
       <ColourSliders label={`Slot ${SLOTS.find((slot) => slot.key === activeSlot).label}`} value={toHex(slotPreset(activeSlot) || presets[0])}
-        onChange={(value) => {
-          const colours = Array.from({ length: Math.max(4, s.basePalette?.colours.length || 0) }, (_, i) =>
-            i < 4 ? toHex(slotPreset(SLOTS[i].key) || presets[0]) : s.basePalette.colours[i]);
-          colours[SLOTS.findIndex((slot) => slot.key === activeSlot)] = value;
-          send({ basePalette: { ...s.basePalette, colours } });
-        }} />
+        onChange={(value) => writeColour(activeSlot, value)} />
       <div class="color-hint">
         Click a swatch to write into the active slot.
         <kbd>Shift</kbd> + click → paired slot. Right-click → paired slot.
         Arrow keys move within the grid; <kbd>Shift</kbd> + <kbd>Enter</kbd> writes to the paired slot.
-        A palette writes all four at once; editing a slot afterwards drops the name.
+        The palette, swatches and sliders all write to the selected destination.
       </div>
     </div>
   );

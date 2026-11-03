@@ -1,3 +1,4 @@
+import { useColourTarget } from '../colour-target.js';
 import { useState } from 'preact/hooks';
 import { api, librarySig, pick, send } from '../state.js';
 import { parseHex, toHex } from '../../src/shared/palette-model.ts';
@@ -23,12 +24,17 @@ export function activeOverride(override, palettes, id = null, body = null) {
   return palettes.find((p) => matches(p))?.id ?? null;
 }
 
-export function PaletteStrip({ initialTarget = 'override' }) {
+export function PaletteStrip({ initialTarget = 'override', target: selectedTarget, onTargetChange }) {
   const s = pick(['palette', 'basePalette', 'paletteOverride', 'overridePalette', 'paletteOverrideId',
     'builtinPalettes', 'userPalettes', 'colorPresets', 'colorA', 'colorB', 'colorC', 'colorD', 'pattern']);
   const [expanded, setExpanded] = useState(false);
-  const [target, setTarget] = useState(initialTarget);
+  const [localTarget, setLocalTarget] = useState(initialTarget);
+  const target = selectedTarget ?? localTarget;
+  const setTarget = onTargetChange ?? setLocalTarget;
+  const colour = useColourTarget(target);
   const [draft, setDraft] = useState(null);
+  const [draftTarget, setDraftTarget] = useState(null);
+  const editKey = target === 'override' ? 'override' : `base:${colour.s.pattern}`;
   const [invalid, setInvalid] = useState(false);
   const [error, setError] = useState('');
   const [managing, setManaging] = useState(false);
@@ -40,35 +46,48 @@ export function PaletteStrip({ initialTarget = 'override' }) {
   const user = s.userPalettes || lib.palettes?.user || [];
   const all = [...builtin, ...user];
   const override = target === 'override';
-  const active = override ? activeOverride(s.paletteOverride, all, s.paletteOverrideId, s.overridePalette) : s.palette;
-  const base = [...(lib.builtin || []), ...(lib.user || [])].find((p) => p.id === s.pattern);
-  const reason = !override && (s.paletteOverride?.length ? 'Palette override controls the stage colours.'
-    : base?.spec?.palette?.length ? 'This effect has its own palette. Select Override to recolour it.' : null);
-  const current = override ? s.overridePalette || { colours: s.paletteOverride || ['#FFFFFF'] }
-    : s.basePalette || { colours: ['colorA', 'colorB', 'colorC', 'colorD'].map((k) => toHex(s.colorPresets?.[s[k]] || { r: 255, g: 255, b: 255 })) };
+  const active = override ? activeOverride(s.paletteOverride, all, s.paletteOverrideId, s.overridePalette)
+    : colour.spec ? activeOverride(colour.current.colours.filter((c) => typeof c === 'string'), all, null, colour.current) : s.palette;
+  const reason = !override && s.paletteOverride?.length ? 'Global override is masking the main effect’s palette. Switch to Global override and choose Off to see this colour choice.' : null;
+  const current = colour.current;
   const choose = async (p) => {
     if (override) await api('/api/palette-override', { method: 'PUT', body: JSON.stringify(overrideBody(p)) });
-    else send({ palette: p.id, paletteSize: size });
+    else if (colour.spec) {
+      const { id: _id, name: _name, app: _app, ...body } = p;
+      send(colour.patch(body));
+    } else send({ palette: p.id, paletteSize: size });
   };
   const apply = async () => {
-    const result = await api('/api/set', { method: 'POST', body: JSON.stringify({ [override ? 'overridePalette' : 'basePalette']: draft }) });
+    if (draftTarget !== editKey) return;
+    const result = await api('/api/set', { method: 'POST', body: JSON.stringify(colour.patch(draft)) });
     if (result.ok) { setDraft(null); setError(''); } else setError(result.error || 'Could not apply palette');
   };
-  return <section class="palette-strip" aria-label={override ? 'Palette override' : 'Base palette'}>
+  return <section class="palette-strip" aria-label={override ? 'Palette override' : 'Main effect palette'}>
     <div class="palette-tools">
       <span class="palette-title">Palette</span>
       <div class="segmented" role="group" aria-label="Palette destination">
         {['base', 'override'].map((t) => <button key={t} type="button" class={`segmented-btn ${target === t ? 'active' : ''}`}
-          aria-pressed={target === t} onClick={() => { setTarget(t); setDraft(null); setError(''); }}>{t === 'base' ? 'Base' : 'Override'}</button>)}
+          aria-pressed={target === t} onClick={() => { setTarget(t); setDraft(null); setError(''); }}>{t === 'base' ? 'Main effect' : 'Global override'}</button>)}
       </div>
-      {!override && <select aria-label="Classic palette size" value={size} onChange={(e) => {
+      {!override && !colour.spec && <select aria-label="Classic palette size" value={size} onChange={(e) => {
         const n = Number(e.target.value); setSize(n);
         try { localStorage.setItem('lightshow.paletteSize', String(n)); } catch { /* private mode */ }
         if (builtin.some((p) => p.id === active && p.app === 'look')) send({ paletteSize: n });
       }}><option value="2">Classic duo</option><option value="3">Classic triad</option><option value="4">Classic tetrad</option></select>}
-      <button type="button" class="btn sm" onClick={() => setDraft(JSON.parse(JSON.stringify(current)))}>Edit palette</button>
+      <button type="button" class="btn sm" onClick={() => { setDraftTarget(editKey); setDraft(JSON.parse(JSON.stringify(current))); }}>Edit palette</button>
       <button type="button" class="btn sm" onClick={() => setManaging(true)}>Manage palettes</button>
     </div>
+    {!override && colour.spec && <div class="palette-tools">
+      <span>Main effect: {colour.name}</span>
+      {colour.modes.length > 0 && <label>Colour distribution <select aria-label="Colour distribution"
+        value={colour.spec.params[colour.spec.kind === 'strobe' ? 'colourMode' : 'colour']}
+        onChange={(e) => send({ effectColours: { pattern: colour.s.pattern, mode: e.target.value } })}>
+        {colour.modes.map((mode) => <option value={mode}>{({ solid: 'First colour', along: 'Across the effect', time: 'Over time', white: 'White emitters', first: 'First colour', palette: 'Cycle palette' })[mode]}</option>)}
+      </select></label>}
+      <button type="button" class="btn sm" disabled={!colour.s.effectColours} onClick={() => send({ effectColours: null })}>Reset effect colours</button>
+      {['solid', 'first'].includes(colour.spec.params?.colourMode ?? colour.spec.params?.colour) && <span class="muted">Uses only the first colour. Change distribution to use the whole palette.</span>}
+      {colour.spec.params?.colourMode === 'white' && <span class="muted">White emitters ignore palettes. Choose First colour or Cycle palette for colour.</span>}
+    </div>}
     {reason && <p class="muted" role="status">{reason}</p>}
     <div class="perform-override">
       {override && <button type="button" class={`override-pad${active === 'off' ? ' active' : ''}`} aria-pressed={active === 'off'} data-override="off"
@@ -82,7 +101,7 @@ export function PaletteStrip({ initialTarget = 'override' }) {
     </div>
     <button type="button" class="btn sm" aria-expanded={expanded} onClick={() => setExpanded(!expanded)}>{expanded ? 'Show curated palettes' : 'Show all palettes'}</button>
     {override && all.some((p) => p.id === active && p.colours.some(isRandom)) && <p class="muted">Random colours held — tap again to reroll</p>}
-    {draft && <div class="palette-draft">
+    {draft && draftTarget === editKey && <div class="palette-draft">
       <PaletteEditor body={draft} onBodyChange={setDraft} onInvalid={setInvalid} builtin={builtin} user={user} />
       <button type="button" class="btn sm" disabled={invalid} onClick={apply}>Apply palette</button>
       <button type="button" class="btn sm" onClick={() => setDraft(null)}>Cancel</button>

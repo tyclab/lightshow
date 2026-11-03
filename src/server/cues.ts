@@ -1,3 +1,4 @@
+import { effectColoursSchema } from '../shared/effect-colours.ts';
 import { backgroundSchema } from '../shared/background.ts';
 import crypto from 'node:crypto';
 import { z } from 'zod';
@@ -44,6 +45,7 @@ const lookSchema = z.object({
   fixtureIds: z.array(fixtureId).max(64).optional(),
   overrides: z.array(z.union([overrideSchema, z.null()])).max(64),
   paletteOverride: paletteOverride.optional(),
+  effectColours: effectColoursSchema.nullable().optional(),
   basePalette: paletteBodySchema.nullable().optional(),
   overridePalette: paletteBodySchema.nullable().optional(),
   audioMode: settingsSchema.shape.audio.shape.mode.optional(),
@@ -107,6 +109,7 @@ function captureLook() {
     panelPattern: state.panelPattern,
     fixtureIds: state.fixtures.map((f) => f.id),
     overrides: state.fixtures.map((f) => (f.override ? { ...f.override } : null)),
+    effectColours: state.effectColours ? structuredClone(state.effectColours) : null,
     basePalette: state.basePalette ? structuredClone(state.basePalette) : null,
     overridePalette: state.overridePalette ? structuredClone(state.overridePalette) : null,
     paletteOverride: state.paletteOverride ? state.paletteOverride.map(toHex) : null,

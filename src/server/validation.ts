@@ -1,3 +1,4 @@
+import { effectColoursSchema } from '../shared/effect-colours.ts';
 import { backgroundSchema } from '../shared/background.ts';
 import { z } from 'zod';
 import { admissionPolicySchema, rateOverrideSchema } from '../shared/hardware.ts';
@@ -143,6 +144,7 @@ const patchSchema = z.object({
   strobeFunction: z.string().min(1).max(64).optional(),
   energyOverride: z.union([z.string().min(1).max(64), z.null()]).optional(),
   paletteOverride: paletteOverride.optional(),
+  effectColours: effectColoursSchema.nullable().optional(),
   basePalette: paletteBodySchema.nullable().optional(),
   overridePalette: paletteBodySchema.nullable().optional(),
   palette: z.string().min(1).max(64).nullable().optional(),

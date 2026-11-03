@@ -12,7 +12,7 @@ test.afterEach(async ({ request }) => {
 test('the shared editor keeps all emitters through RGB edits and palette reuse', async ({ page, request }) => {
   await open(page, 'perform');
   const strip = page.locator('.palette-strip');
-  await strip.getByRole('button', { name: 'Base', exact: true }).click();
+  await strip.getByRole('button', { name: 'Main effect', exact: true }).click();
   await strip.getByRole('button', { name: 'Edit palette' }).click();
   const editor = strip.locator('.palette-editor');
   const hex = editor.getByLabel('Colour 1', { exact: true });
@@ -36,7 +36,7 @@ test('the shared editor keeps all emitters through RGB edits and palette reuse',
   try {
     await strip.getByRole('button', { name: 'Apply palette', exact: true }).click();
     await until(request, (s) => s.basePalette?.colours[0] === '#ABCDEF4050FF' && s.basePalette?.gradientSet === 'Set 1');
-    await strip.getByRole('button', { name: 'Override', exact: true }).click();
+    await strip.getByRole('button', { name: 'Global override', exact: true }).click();
     await strip.locator(`[data-palette="${palette.id}"]`).click();
     await until(request, (s) => s.overridePalette?.gradientSet === 'Set 1' && s.paletteOverrideId === palette.id);
     await strip.getByRole('button', { name: 'Off', exact: true }).click();
