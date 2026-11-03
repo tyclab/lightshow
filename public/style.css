@@ -4229,7 +4229,8 @@ input[type=range]::-moz-range-thumb {
 .global-control.protective { border-color: var(--border-hi); }
 .global-control:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .global-programme, .global-master { display: flex; align-items: center; gap: 6px; }
-.global-programme select { min-height: 44px; background: var(--card); color: var(--text); border: 1px solid var(--border-hi); border-radius: var(--radius-sm); padding: 6px 28px 6px 10px; font: inherit; }
+.global-programme select, .background-controls select, .palette-tools select { min-height: 44px; background: var(--card); color: var(--text); border: 1px solid var(--border-hi); border-radius: var(--radius-sm); padding: 6px 28px 6px 10px; font: inherit; }
+.palette-tools > label { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; }
 .global-master input { width: 5.5rem; min-height: 44px; }
 .global-master span { min-width: 4ch; font-variant-numeric: tabular-nums; }
 .global-status { font-size: .85rem; flex: 1 1 9rem; }
@@ -4253,4 +4254,8 @@ input[type=range]::-moz-range-thumb {
 @media (pointer: coarse) { .picture-layer-link { min-height: 44px; } }
 .picture-layer-link:hover { border-color: var(--accent); }
 .background-controls { border-top: 2px solid var(--accent); }
+.background-controls > label { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.background-controls > label > input[type=range] { flex: 1 1 150px; min-width: 0; }
+.background-controls > label > select { flex: 1; min-width: 0; }
+.background-controls > .hint { margin-top: 10px; }
 .background-controls:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
