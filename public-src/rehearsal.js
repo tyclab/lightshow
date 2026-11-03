@@ -30,7 +30,7 @@ export function useUnitSpace(rig, rigDeps, given) {
 }
 
 export function useRehearsalSampler(data, space = null, enabled = true) {
-  const s = pick(['sequence', 'hardware', 'profiles', 'safety', 'hueStrobe', 'paletteOverride', 'background', 'basePalette', 'overridePalette', 'voices']);
+  const s = pick(['sequence', 'hardware', 'profiles', 'safety', 'hueStrobe', 'paletteOverride', 'background', 'basePalette', 'overridePalette', 'effectColours', 'voices']);
   const library = librarySig.value;
   const revision = s.sequence ? s.sequence.revision : null;
   const [table, setTable] = useState(null);
@@ -45,9 +45,9 @@ export function useRehearsalSampler(data, space = null, enabled = true) {
     if (!enabled) return previous.current;
     const options = { ...previewOptions(s, { table, library }), space };
     return previous.current = { options, key: JSON.stringify([space?.revision, s.voices, options.hueStrobe, options.hardware, options.profiles,
-      options.paletteOverride, options.background, options.basePalette, options.overridePalette, options.safety, options.sequence && options.sequence.table.revision, library.user]) };
+      options.paletteOverride, options.background, options.basePalette, options.overridePalette, s.effectColours, options.safety, options.sequence && options.sequence.table.revision, library.user]) };
   }, [enabled, space, s.voices, s.hueStrobe, s.hardware, s.profiles, s.paletteOverride, s.background, s.basePalette,
-    s.overridePalette, s.safety, s.sequence?.playing, s.sequence?.loop, table, library.user]);
+    s.overridePalette, s.effectColours, s.safety, s.sequence?.playing, s.sequence?.loop, table, library.user]);
   const sampler = useMemo(() => prepared ? createPreviewSampler([...(data?.timeline || []), ...liveVoiceEvents(s.voices)], data, prepared.options) : null, [data, prepared?.key]);
   return enabled ? sampler : null;
 }

@@ -1,3 +1,4 @@
+import type { EffectColours } from '../shared/effect-colours.ts';
 import { DEFAULT_BACKGROUND } from '../shared/background.ts';
 import type { BackgroundSettings } from '../shared/background.ts';
 import { control } from './control.ts';
@@ -60,6 +61,7 @@ export interface ShowState {
   /** Colours every effect plays instead of its own and the slots (the active palette override), or null. */
   paletteOverride: Colour[] | null;
   paletteOverrideId: string | null;
+  effectColours: EffectColours | null;
   basePalette: PaletteBody | null;
   overridePalette: PaletteBody | null;
   autoIntensity: number;
@@ -110,6 +112,7 @@ const state: ShowState = {
   // Rolled once when set, so a palette's random entries do not re-roll each frame.
   paletteOverride: null,
   paletteOverrideId: null,
+  effectColours: null,
   basePalette: null,
   overridePalette: null,
   autoIntensity: 50,
@@ -381,6 +384,7 @@ function getLiveState() {
     // Hex on the wire, as a palette is written everywhere else.
     paletteOverride: state.paletteOverride ? state.paletteOverride.map(toHex) : null,
     paletteOverrideId: state.paletteOverrideId,
+    effectColours: state.effectColours,
     basePalette: state.basePalette,
     overridePalette: state.overridePalette,
     safety: safety.status(),

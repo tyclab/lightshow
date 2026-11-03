@@ -117,8 +117,8 @@ function ModeTabs({ mode, setMode }) {
 function EffectsView() {
   return (
     <div class="manual-view">
-      <div class="manual-col col-patterns"><Cues /><Effects /></div>
-      <div class="manual-col col-colors"><Colors /><Background /></div>
+      <div class="manual-col col-patterns"><Background /><Cues /><Effects /></div>
+      <div class="manual-col col-colors"><Colors /></div>
       <div class="manual-col col-fixtures"><StagePreview /><Fixtures /></div>
     </div>
   );

@@ -98,8 +98,14 @@ export function byName(rows) {
   return [...rows].sort((a, b) => BY_NAME.compare(a.name || a.id, b.name || b.id));
 }
 
+const mainEffectRow = (row) => row.id === 'energy.whiteStrobe'
+  ? { ...row, name: 'Strobe', desc: 'All fixtures flash on the beat. Choose White emitters, First colour or Cycle palette in Colours.' }
+  : row.id === 'energy.colorStrobe' ? { ...row, retired: true, variantOf: 'energy.whiteStrobe' }
+    : row.id === 'strobe' ? { ...row, name: 'Fixture strobe' } : row;
+
 /** One card per look, retaining the playing or pinned variant's playback id. */
 export function catalogueRows(rows, playingId, favourites = []) {
+  rows = rows.map(mainEffectRow);
   const byId = new Map(rows.map((r) => [r.id, r]));
   const preferred = new Map();
   for (const id of [playingId, ...favourites]) {
@@ -297,7 +303,7 @@ export function Effects() {
     const spec = lib.user?.find((p) => p.id === e.id)?.spec;
     return { ...e, user: true, family: family?.id || 'user', mapping: spec ? mappingOf(spec) : null, desc: 'A preset saved on this server' };
   });
-  const allRows = [...userRows, ...(s.patterns || [])];
+  const allRows = [...userRows, ...(s.patterns || []).map(mainEffectRow)];
   const canonicalId = (id) => allRows.some((row) => row.id === id) ? id : (lib.builtin || []).find((row) => row.aliases?.includes(id))?.id || id;
   const playingId = canonicalId(s.pattern);
   const savedPins = favourites.map(canonicalId);

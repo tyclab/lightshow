@@ -50,7 +50,7 @@ export function Background() {
     update({ selected: fixtures.filter((f) => chosen.has(f.id)).map((f) => f.id) });
   };
   const hint = scopeHint(value, fixtures, wash);
-  return <section class="card" aria-label="Background lighting">
+  return <section class="card background-controls" tabIndex={-1} aria-label="Background lighting">
     <div class="card-title">Background</div>
     {control?.frozen && <p class="hint">The picture is frozen. Background edits appear when you Resume.</p>}
     <div class="btn-group" role="group" aria-label="Background mode">

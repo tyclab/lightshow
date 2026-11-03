@@ -42,3 +42,66 @@ test('rendering reuses equivalent snapshots but observes in-place geometry and p
   input.fixtures.length = 0;
   assert.equal(render().units.length, 0);
 });
+
+test('hardware history follows in-place fixture identities, order and cell topology', () => {
+  const profile = { id: 'guard-map', channelMap: { red: 0, green: 1, blue: 2 }, channelCount: 6,
+    cells: [{ channelMap: { red: 0, green: 1, blue: 2 } }] };
+  const input = { running: true, pattern: 'solid', colorA: 0, colorB: 0, colorC: 0, colorD: 0,
+    split: null, pixelMap: 'stage', beatDivision: 1, strobeSpeed: 0, strobeFunction: 'standard',
+    masterDimmer: 255, masterBlackout: false, energy: null, showDynamics: null,
+    patternAnchor: null, fade: null, syncTest: null, universes: [0],
+    hardware: { technologies: { dmx: { maxFlashHz: 5, minTransitionMs: 0 } }, products: {} },
+    fixtures: [1, 2].map((id) => ({ id, profileId: profile.id, universe: 0, address: 1 + (id - 1) * 6,
+      maxBrightness: 255, override: null })) };
+  let revision = 0;
+  const renderer = createRenderer({ profileOf: () => profile, profilesRevision: () => revision, now: 0 });
+  const store = createUniverseStore(allocateShared());
+  const render = (now) => renderer.frame(input, { beatPos: now / 500, bpm: 120, epoch: 0 }, now, store);
+  const red = () => [0, 3, 6, 9].map((at) => store.getBuffer(0)[at]);
+  render(0);
+  assert.deepEqual(red(), [255, 0, 255, 0]);
+  input.masterBlackout = true;
+  render(10);
+  input.masterBlackout = false;
+  input.fixtures[0].id = 3;
+  render(20);
+  assert.deepEqual(red(), [255, 0, 0, 0], 'a new identity lights; the existing identity retains its rise limit');
+  input.fixtures.reverse();
+  render(30);
+  assert.deepEqual(red(), [0, 0, 0, 0], 'the hardware refresh blackout preserves both identities\' rise limits');
+  profile.cells.push({ channelMap: { red: 3, green: 4, blue: 5 } });
+  revision++;
+  render(40);
+  assert.deepEqual(red(), [0, 0, 0, 0], 'adding cells does not bypass the retained whole-fixture rise limit');
+  input.fixtures.splice(1, 1);
+  render(50);
+  input.fixtures.push({ id: 3, profileId: profile.id, universe: 0, address: 1, maxBrightness: 255, override: null });
+  render(60);
+  assert.deepEqual(red(), [255, 255, 0, 0]);
+  render(300);
+  assert.deepEqual(red(), [255, 255, 255, 255], 'all cells recover after their 200 ms hardware interval');
+  input.masterBlackout = true;
+  render(310);
+  input.masterBlackout = false;
+  render(600);
+  assert.deepEqual(red(), [255, 255, 255, 255], 'establish a recent rise on every cell');
+  input.masterBlackout = true;
+  render(610);
+  const removed = input.fixtures.pop();
+  render(620);
+  input.fixtures.push(removed);
+  render(630);
+  input.masterBlackout = false;
+  render(640);
+  assert.deepEqual(red(), [0, 0, 0, 0], 'a topology round trip under blackout does not retire recent rise history');
+  input.masterBlackout = true;
+  const hardware = input.hardware;
+  delete input.hardware;
+  render(650);
+  input.fixtures[1].id = 4;
+  render(660);
+  input.hardware = hardware;
+  input.masterBlackout = false;
+  render(670);
+  assert.deepEqual(red(), [255, 255, 0, 0], 'restored hardware guards use current identities after a blackout edit');
+});

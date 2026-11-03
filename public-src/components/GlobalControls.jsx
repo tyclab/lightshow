@@ -9,7 +9,7 @@ export function GlobalControls() {
   const [dim, onDim, commitDim] = useDraft(masterDimmer ?? 255, (value) => send({ masterDimmer: value }));
   const pct = Math.round(dim / 255 * 100);
   const button = (label, action, active, protective, title, disabled = false) => (
-    <button type="button" class={`global-control${active ? ' active' : ''}${protective ? ' protective' : ''}`}
+    <button type="button" class={`btn global-control${active ? ' active' : ''}${protective ? ' protective' : ''}${action === 'restore' ? ' blackout-active' : ''}`}
       disabled={disabled || !ready || !protective && (pending || c?.ready === false)} aria-pressed={!!active} title={title}
       onClick={() => takeControl(action)}>{label}</button>
   );

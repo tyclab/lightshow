@@ -496,7 +496,8 @@ test('a disarm and re-arm leave the look playing, so the effect picked next reac
   const { socket } = await s.page();
   socket.emit('set', { pattern: 'solid', colorA: 5 });
   await until(() => state.pattern === 'solid' && state.colorA === 5, 'the picked effect in the state');
-  renderFrame();
+  // The shared hardware guard can defer a rise left by the previous voice's shutdown.
+  await until(() => { renderFrame(); return blue() > 0; }, 'the picked effect past the hardware guard');
   assert.ok(blue() > 0, `the effect picked after the re-arm is on the rig (blue ${blue()})`);
   // The frame buffer is shared: leave it red, since a later test freezes the look and reads the held picture.
   applyPatch({ pattern: 'solid', colorA: 0 });

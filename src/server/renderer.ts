@@ -308,6 +308,9 @@ function createRenderer({ profileOf, profilesRevision = () => 0, now = performan
   let rig: Rig<RenderFixture> | null = null;
   let rigKey = '';
   let guardUnitsKey = '';
+  let guardUnitIds: string[] = [];
+  let guardUnitSet = new Set<string>();
+  let retainedHardwareIds: string[] | null = null;
   const rigSignature = createRigSignature();
   let space: UnitSpace | null = null;
 
@@ -572,7 +575,9 @@ function createRenderer({ profileOf, profilesRevision = () => 0, now = performan
     const unitsKey = fixtures.map((fixture, i) => `${fixture.id}:${rig!.ranges[i].count}`).join('|');
     if (unitsKey !== guardUnitsKey) {
       guardUnitsKey = unitsKey;
-      outputGuard.retainEffects(new Set(rig.units.map(({ fixture, cell }) => `${fixtures[fixture].id}:${cell}`)));
+      guardUnitIds = rig.units.map(({ fixture, cell }) => `${fixtures[fixture].id}:${cell}`);
+      guardUnitSet = new Set(guardUnitIds);
+      outputGuard.retainEffects(guardUnitSet);
     }
     return rig;
   }
@@ -1127,21 +1132,23 @@ function createRenderer({ profileOf, profilesRevision = () => 0, now = performan
       return rigNow;
     }
     if (capabilities.length) {
-      const ids = new Set<string>();
+      if (retainedHardwareIds !== guardUnitIds) {
+        outputGuard.retain(guardUnitSet);
+        retainedHardwareIds = guardUnitIds;
+      }
       for (let i = 0; i < fixtures.length; i++) for (let c = 0; c < all[i].length; c++) {
-        const id = `${fixtures[i].id}:${c}`; ids.add(id);
+        const id = guardUnitIds[rigNow.ranges[i].start + c];
         const light = all[i][c];
         const { owner, cut } = ownership[rigNow.ranges[i].start + c];
         const guardedLight = outputGuard.light(id, light.col, light.dim, now, capabilities[i], owner, cut);
         light.col = guardedLight.colour; light.dim = guardedLight.dim;
       }
-      outputGuard.retain(ids);
     }
     for (let i = 0; i < fixtures.length; i++) {
       const scale = mastersOf(input, fixtures[i]), start = rigNow.ranges[i].start;
       for (let c = 0; c < all[i].length; c++) {
         const light = all[i][c], u = start + c;
-        light.dim = outputGuard.effectLevel(`${fixtures[i].id}:${c}`, light.dim, scale, ownership[u].kind, now);
+        light.dim = outputGuard.effectLevel(guardUnitIds[u], light.dim, scale, ownership[u].kind, now);
       }
     }
     if (input.flashLimit) limitFlashes(input, all, now);

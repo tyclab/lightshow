@@ -1,6 +1,6 @@
 import { presetById } from '../src/shared/effects/catalogue.ts';
 
-export const NOW_PLAYING_FIELDS = ['pattern', 'patterns', 'effects', 'running', 'control', 'sequence', 'voices', 'strobe', 'matrix', 'paletteOverride', 'pixelPattern', 'panelPattern', 'fixtures', 'profiles'];
+export const NOW_PLAYING_FIELDS = ['pattern', 'effectColours', 'patterns', 'effects', 'running', 'control', 'sequence', 'voices', 'strobe', 'matrix', 'paletteOverride', 'pixelPattern', 'panelPattern', 'fixtures', 'profiles'];
 
 export function effectName(id, s = {}) {
   return (s.effects || []).find((row) => row.id === id)?.name
@@ -39,7 +39,7 @@ export function playingState(s) {
   ].filter(Boolean).map((layer) => ({ ...layer, name: effectName(layer.id, s) }));
   return {
     layers,
-    base: { id: s.pattern || null, name: effectName(s.pattern, s), running: s.running !== false, frozen: !!s.control?.frozen },
+    base: { id: s.pattern || null, name: ['energy.whiteStrobe', 'energy.colorStrobe', 'white-strobe', 'color-strobe'].includes(s.pattern) ? 'Strobe' : effectName(s.pattern, s), running: s.running !== false, frozen: !!s.control?.frozen },
     sequence,
     voices: (s.voices || []).filter((voice) => !voice.hidden).map((voice) => ({ ...voice, label: voice.label?.trim() || effectName(voice.kind || voice.id, s) })),
     strobe: !!s.strobe?.active,

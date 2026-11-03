@@ -174,7 +174,7 @@ test('blackout, palettes and the master', async ({ page, request }) => {
   await page.getByRole('group', { name: 'Global show controls' }).getByRole('button', { name: 'Restore', exact: true }).click();
   await until(request, (s) => s.masterBlackout === false);
 
-  await page.locator('.palette-strip').getByRole('button', { name: 'Base', exact: true }).click();
+  await page.locator('.palette-strip').getByRole('button', { name: 'Main effect', exact: true }).click();
   const palette = page.locator('[data-palette="solarPunch"]');
   await palette.scrollIntoViewIfNeeded();
   await palette.click();

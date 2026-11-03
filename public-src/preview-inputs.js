@@ -1,3 +1,4 @@
+import { withEffectColours } from '../src/shared/effect-colours.ts';
 import { presetById } from '../src/shared/effects/catalogue.ts';
 import { playingState } from './now-playing.js';
 import { MAIN_EFFECT, mainEffectText } from './picture-layers.js';
@@ -27,9 +28,10 @@ export function positionText(status, perBar, beatSize = 1) {
 
 export function previewOptions(s, { table = null, library = null } = {}) {
   const seq = s.sequence;
+  const resolve = resolverOf(library && library.user);
   const override = Array.isArray(s.paletteOverride) && s.paletteOverride.length ? s.paletteOverride : null;
   return {
-    resolveEffect: resolverOf(library && library.user),
+    resolveEffect: (id) => withEffectColours(id, resolve(id), s.effectColours),
     hardware: s.hardware, profiles: s.profiles,
     hueStrobe: s.hueStrobe === 'pulse' ? 'pulse' : 'flash',
     safety: s.safety ? { acknowledged: !!s.safety.photosensitivityAcknowledged, hdFlashIntervalMs: s.safety.hdFlashIntervalMs ?? 350 } : null,

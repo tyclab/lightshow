@@ -363,11 +363,11 @@ test('named override matching includes every gradient body field', () => {
 });
 
 for (const [name, palette, override, hint] of [
-  ['own palette', ['#FF0000'], null, true],
+  ['own palette', ['#FF0000'], null, false],
   ['look palette', null, null, false],
   ['override', null, ['#00FF00'], true],
 ]) {
-  test(`look palettes indicate whether the base uses ${name}`, () => {
+  test(`main palette warns only when masked: ${name}`, () => {
     ui.librarySig.value = { builtin: [{ id: 'effect', spec: { palette } }], user: [] };
     given({ pattern: 'effect', paletteOverride: override, builtinPalettes: [{ id: 'look', colours: ['#FF0000'] }] });
     const html = ui.html(ui.h(ui.PaletteStrip, { initialTarget: 'base' }));

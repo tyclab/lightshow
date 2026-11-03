@@ -11,7 +11,7 @@ export function Show() {
       <StrobesOff perform />
       <div class="show-body">
         <div class="show-room"><StageView compact /></div>
-        <div class="show-looks"><Effects /><Colors /><Background /></div>
+        <div class="show-looks"><Background /><Colors /><Effects /></div>
       </div>
     </div>
   );

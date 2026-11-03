@@ -4224,11 +4224,13 @@ input[type=range]::-moz-range-thumb {
 
 /* Keep global actions together without giving status text its own full row. */
 .global-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; width: 100%; padding: 2px 0; order: 3; }
-.global-control { min-height: 44px; min-width: 4.5rem; border: 1px solid currentColor; border-radius: .4rem; padding: 6px 8px; }
-.global-control.active { box-shadow: inset 0 -3px currentColor; }
+.global-control { min-height: 44px; min-width: 4.5rem; border-radius: var(--radius-sm); padding: 6px 8px; }
+.global-control.blackout-active { background: var(--amber); border-color: var(--amber); color: var(--bg); }
+.global-control.protective { border-color: var(--border-hi); }
 .global-control:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .global-programme, .global-master { display: flex; align-items: center; gap: 6px; }
-.global-programme select { min-height: 44px; }
+.global-programme select, .background-controls select, .palette-tools select { min-height: 44px; background: var(--card); color: var(--text); border: 1px solid var(--border-hi); border-radius: var(--radius-sm); padding: 6px 28px 6px 10px; font: inherit; }
+.palette-tools > label { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; }
 .global-master input { width: 5.5rem; min-height: 44px; }
 .global-master span { min-width: 4ch; font-variant-numeric: tabular-nums; }
 .global-status { font-size: .85rem; flex: 1 1 9rem; }
@@ -4244,6 +4246,16 @@ input[type=range]::-moz-range-thumb {
 }
 .global-master input[type=range] { background: none; border: 0; border-radius: 0; }
 .global-master input[type=range]::-webkit-slider-runnable-track { height: 6px; background: var(--surface); border: 1px solid var(--border); border-radius: 999px; }
-.global-master input[type=range]::-webkit-slider-thumb { width: 28px; height: 28px; margin-top: -12px; }
+.global-master input[type=range]::-webkit-slider-thumb { width: 16px; height: 16px; margin-top: -6px; }
 .global-master input[type=range]::-moz-range-track { height: 6px; background: var(--surface); border: 1px solid var(--border); border-radius: 999px; }
-.global-master input[type=range]::-moz-range-thumb { width: 28px; height: 28px; }
+.global-master input[type=range]::-moz-range-thumb { width: 16px; height: 16px; }
+
+.picture-layer-link { font: inherit; color: inherit; background: transparent; border: 0; border-left: 1px solid var(--border); border-radius: 0; text-align: left; cursor: pointer; }
+@media (pointer: coarse) { .picture-layer-link { min-height: 44px; } }
+.picture-layer-link:hover { border-color: var(--accent); }
+.background-controls { border-top: 2px solid var(--accent); }
+.background-controls > label { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.background-controls > label > input[type=range] { flex: 1 1 150px; min-width: 0; }
+.background-controls > label > select { flex: 1; min-width: 0; }
+.background-controls > .hint { margin-top: 10px; }
+.background-controls:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
