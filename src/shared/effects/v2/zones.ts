@@ -38,24 +38,30 @@ function partitionOf(p: ZonesParams, room: Room, f: EffectFrame): { order: Float
   return { order, count };
 }
 
-function renderStems(p: ZonesParams, room: Room, pos: Positions, f: EffectFrame, i: number): { level: number; colour: number } {
+function stemsFrame(room: Room, pos: Positions, f: EffectFrame) {
   const bands = f.audioMode === 'reactive' ? f.audio?.party : null, stems = f.modulation?.stems;
-  const t = Math.max(0, f.beatPos - f.anchorBeat), height = clamp(pos.plan ? 1 - pos.z[i] : pos.y[i] / pos.bounds.height);
+  const t = Math.max(0, f.beatPos - f.anchorBeat);
   const bass = stems?.bass ?? bands?.bass ?? (0.55 + Math.cos(t * Math.PI * 2) * 0.35);
   const drums = stems?.drums ?? bands?.bass ?? Math.max(0, 1 - (t % 1) * 3);
   const vocals = stems?.vocals ?? bands?.mid ?? 0.6, hats = stems?.hats ?? bands?.high ?? 0.4;
   const speaker = pointIn(room, pos, room.space?.anchors.speakerLeft) ?? centreOf(pos);
   const other = pointIn(room, pos, room.space?.anchors.speakerRight) ?? speaker;
+  const listener = pos.plan ? centreOf(pos) : room.space?.listener ?? centreOf(pos);
+  const facing = pos.plan ? 0 : room.space?.listener.facingDeg ?? 0;
+  return { t, bass: clamp(bass), drums: clamp(drums), vocals: clamp(vocals), hats: clamp(hats), speaker, other, listener, facing };
+}
+
+function renderStems(pos: Positions, frame: ReturnType<typeof stemsFrame>, i: number): { level: number; colour: number } {
+  const { t, bass, drums, vocals, hats, speaker, other, listener, facing } = frame;
+  const height = clamp(pos.plan ? 1 - pos.z[i] : pos.y[i] / pos.bounds.height);
   const d = Math.min(distanceTo(pos, i, speaker), distanceTo(pos, i, other));
   const scale = pos.plan ? 0.25 : 1;
   const floor = Math.max(soft(height, 0.35, 0), soft(d, 1.1 * scale, pos.size[i]));
   const wave = soft(d - (t % 2) * 3 * scale, 0.45 * scale, pos.size[i]);
-  const listener = pos.plan ? centreOf(pos) : room.space?.listener ?? centreOf(pos);
-  const facing = pos.plan ? 0 : room.space?.listener.facingDeg ?? 0;
   const turn = (azimuthAround(pos, i, listener) - facing) * Math.PI / 180;
   const front = Math.max(0, Math.cos(turn)) * soft(height - 0.55, 0.45, 0);
   const sparkle = Math.sin(i * 2.399963 + Math.floor(t * 2)) > 0.25 ? 1 : 0;
-  const levels = [clamp(bass) * floor, clamp(drums) * wave, clamp(vocals) * front, clamp(hats) * soft(1 - height, 0.35, 0) * sparkle];
+  const levels = [bass * floor, drums * wave, vocals * front, hats * soft(1 - height, 0.35, 0) * sparkle];
   const level = Math.max(...levels);
   return { level, colour: levels.indexOf(level) / 3 };
 }
@@ -69,9 +75,10 @@ registerKind<ZonesParams, ReturnType<typeof partitionOf>>({
     const pos = positionsOf(room, p.space), tick = Math.max(0, f.beatPos - f.anchorBeat) / p.stepBeats;
     const step = Math.floor(tick) % state.count, active = p.reverse ? state.count - 1 - step : step;
     const envelope = sampleEnvelope((tick % 1) * p.stepBeats, p.envelope), trigger = triggerLevel(p, f);
+    const stems = p.partition === 'stems' ? stemsFrame(room, pos, f) : null;
     for (let i = 0; i < room.n; i++) {
-      if (p.partition === 'stems') {
-        const stem = renderStems(p, room, pos, f, i);
+      if (stems) {
+        const stem = renderStems(pos, stems, i);
         paint(p, f, stem.colour, stem.level * trigger, out[i]);
         continue;
       }
