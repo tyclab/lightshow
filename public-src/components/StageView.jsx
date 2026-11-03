@@ -18,7 +18,13 @@ const VIEWS = [
   { id: 'audience', label: 'Audience' },
   { id: 'above', label: 'Above' },
   { id: 'side', label: 'Side' },
+  { id: 'eye', label: 'Eye level', room: true },
 ];
+const VIEW_NAMES = { audience: 'the audience', above: 'above', side: 'the side', eye: 'eye level' };
+
+const readRoomLight = () => {
+  try { return localStorage.getItem('lightshow.stage.roomLight') !== 'off'; } catch { return true; }
+};
 
 const readHaze = () => {
   try {
@@ -48,6 +54,7 @@ export function StageView({ compact = false } = {}) {
   const [haze, setHaze] = useState(readHaze);
   const [roomState, setRoomState] = useState(() => knownRoom() || { room: null, revision: null });
   const [cutaway, setCutaway] = useState(true);
+  const [roomLight, setRoomLight] = useState(readRoomLight);
   const room = roomState.room;
   const host = useRef(null);
   const canvas = useRef(null);
@@ -85,6 +92,7 @@ export function StageView({ compact = false } = {}) {
       element.setAttribute('role', 'img');
     }
     element.onkeydown = (event) => keys.current(event);
+    element.ondblclick = (event) => { if (scene.current) scene.current.focusAt(event.clientX, event.clientY); };
     host.current.appendChild(element);
     canvas.current = element;
     const adopt = (entry) => {
@@ -111,6 +119,7 @@ export function StageView({ compact = false } = {}) {
     return () => {
       cancelled = true;
       element.onkeydown = null;
+      element.ondblclick = null;
       if (held) scenePool.give(held);
       else element.remove();
       scene.current = null;
@@ -135,6 +144,12 @@ export function StageView({ compact = false } = {}) {
     });
   }, [status]);
   useEffect(() => { if (status === 'ready') scene.current.setCutaway(cutaway); }, [status, cutaway]);
+  useEffect(() => {
+    try { localStorage.setItem('lightshow.stage.roomLight', roomLight ? 'on' : 'off'); } catch { /* private mode */ }
+    if (status === 'ready') scene.current.setRoomLight(roomLight);
+  }, [status, roomLight]);
+  // The generic venue has no eye-level view: leaving a room returns to the audience.
+  useEffect(() => { if (!room && view === 'eye') setView('audience'); }, [room, view]);
 
   useEffect(() => {
     try { localStorage.setItem('lightshow.stage.haze', String(haze)); } catch { /* private mode */ }
@@ -242,7 +257,7 @@ export function StageView({ compact = false } = {}) {
   const setUi = (patch) => { stagePreviewSig.value = { ...stagePreviewSig.value, ...patch }; };
   const parts = rig.units.length;
   const bars = rig.cellMaps.filter(Boolean).length;
-  const description = `The rig in 3D from ${view === 'audience' ? 'the audience' : view === 'above' ? 'above' : 'the side'}: `
+  const description = `The rig in 3D from ${VIEW_NAMES[view]}: `
     + `${fixtures.length} fixtures${bars ? `, ${bars} of them bars` : ''}, ${parts} lights, `
     + `${auditioning ? `auditioning ${audition.name || audition.id}; browser only, outputs disarmed` : rehearsing ? `rehearsing the track at ${fmtTime(ui.position)}` : !connected ? 'offline' : s.armed ? 'showing the live output'
       : mode.lit ? 'previewing with outputs disarmed; nothing is transmitted' : 'outputs disarmed, lights drawn off; nothing is transmitted'}.`;
@@ -260,12 +275,14 @@ export function StageView({ compact = false } = {}) {
           <button type="button" class="btn sm" aria-pressed={format === 'plot'} onClick={() => setFormat('plot')}>2D plot</button>
         </div>
         <div class="segmented" role="group" aria-label="Viewpoint">
-          {VIEWS.map((v) => (
+          {VIEWS.filter((v) => room || !v.room).map((v) => (
             <button key={v.id} type="button" class={`segmented-btn ${view === v.id ? 'active' : ''}`} aria-pressed={view === v.id}
               onClick={() => setView(v.id)}>{v.label}</button>
           ))}
         </div>
-        {room && <button type="button" class="btn sm" aria-pressed={cutaway} onClick={() => setCutaway(!cutaway)}>Cutaway walls</button>}
+        {room && <button type="button" class={`btn sm ${cutaway ? 'active' : ''}`} aria-pressed={cutaway} onClick={() => setCutaway(!cutaway)}>Cutaway walls</button>}
+        {room && <button type="button" class={`btn sm ${roomLight ? 'active' : ''}`} aria-pressed={roomLight} title="Light the room's surfaces with the colours of the lights near them"
+          onClick={() => setRoomLight(!roomLight)}>Room light</button>}
         {hasBeams(placed) && <label class="stage3d-haze">
           <span>Haze</span>
           <input type="range" min="0" max="100" value={haze} aria-valuetext={`${haze} percent`}
@@ -299,8 +316,9 @@ export function StageView({ compact = false } = {}) {
         {status === 'ready' && room && fixtures.length > 0 && !placed.lamps.length && !placed.cells.length && <p class="stage3d-note">This room has no positions for the current fixtures. Review its bindings above.</p>}
       </div>
       {!compact && <p class="look-note">
-        Drag to look around, scroll or pinch to move closer; on the stage, the arrow keys turn and tilt and + and − move
-        closer. {room ? `${room.name}: imported light positions; missing bindings are listed above. `
+        Drag to look around, scroll or pinch to move closer, right-drag or two fingers to pan, double-click to turn around
+        that point; on the stage, the arrow keys turn and tilt and + and − move
+        closer. {room ? `${room.name}: imported light positions; fixtures without one are drawn at their Rig plot position and listed above. `
           : 'Generic venue: fixture heights follow the plan when set; otherwise groups supply approximate mounting heights. '}{auditioning
           ? 'Audition: the demo track drives this effect locally. No commands are sent to the rig.' : rehearsing
           ? 'Rehearsing: the planned show, as the timeline has it; nothing goes out to the rig.'

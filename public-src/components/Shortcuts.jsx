@@ -52,6 +52,7 @@ export const SHORTCUTS = [
       { keys: ['Esc'], what: 'Stop drawing bars, or clear the plan selection' },
       { keys: ['←', '→', '↑', '↓'], either: true, what: 'Turn and tilt the focused 3D stage' },
       { keys: ['+', '−'], either: true, what: 'Move closer or further in the 3D stage' },
+      { keys: ['Double-click'], what: 'Turn the 3D stage around the point under the pointer' },
     ],
   },
   {

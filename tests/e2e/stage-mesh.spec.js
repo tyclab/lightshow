@@ -17,7 +17,7 @@ const script = buildSync({
     THREE.Group.prototype.add = function(...objects) {
       for (const object of objects) {
         if (object.isMesh && object.material) objectMaterials.push(object.material);
-        if (object.material?.isMeshLambertMaterial) materials.push(object.material);
+        if (object.userData?.roomObject && object.material?.isMeshStandardMaterial) materials.push(object.material);
       }
       return addObject.apply(this, objects);
     };

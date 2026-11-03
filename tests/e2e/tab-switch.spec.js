@@ -291,8 +291,8 @@ test('a return to Show draws the room the scene built, rebuilding and compiling 
   try {
     await open(page, 'show');
     await expect(page.getByRole('img', { name: /The rig in 3D/ })).toBeVisible();
-    // Settled: the room and the rig are drawn, every material linked once.
-    await expect.poll(() => page.evaluate(() => window.programLinks.filter((name) => name === 'MeshLambertMaterial').length)).toBe(1);
+    // Settled: the room and the rig are drawn, every material linked once (lit floors are double-sided, objects not).
+    await expect.poll(() => page.evaluate(() => window.programLinks.filter((name) => name === 'MeshStandardMaterial').length)).toBe(2);
     await page.waitForTimeout(500);
     const linked = await page.evaluate(() => window.programLinks.length);
     for (let round = 0; round < 3; round++) {

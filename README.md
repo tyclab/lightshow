@@ -222,6 +222,21 @@ only the preview. Furniture objects can reference an existing room light binding
 Surveyed strip paths render as continuous
 runs with their original corners and per-section colours; moving a strip moves the whole path.
 
+In a room, Stage draws every light at its physical size: a bulb about 7 cm across, a strip
+1.4 cm thick, each pixel of a cell map 0.4 of its pitch (a 288-pixel cube is 288 small
+emitters, not one marker). A fixture placed on the Rig plot that no binding names is drawn
+where the effects sample it, its plot position scaled into the room, and stays listed for a
+room position; with an explicit cell map it stands in a dark, see-through body spanning its
+pixels, since the room has no object for it. A fixture with no position anywhere is not drawn. The room's surfaces are lit:
+a dim fill shows them with the outputs off, and **Room light** adds eight point lights, each
+at a cluster of the room's emitters and mixing their live colours, so nearby walls and
+furniture take the colours of the lights near them. It is an approximation for the preview
+(no shadows, a bulb counting as much as a hundred pixels or 1.7 m of strip), not a
+photometric model; **Room light** off keeps the shading without it and is remembered in
+this browser. **Eye level** stands 1.5 m behind the room's first listener (or at its front
+edge) at 1.6 m; a double-click turns the view around the point under the pointer, and a
+right-drag or two fingers pan within the room.
+
 To run reactive effects, configure and enable live input in Sources, select
 Reactive in Perform's Audio panel, and choose a Disco or Visualizer preset in
 Effects. Check the meters and preview before arming. Expand Audio response to
@@ -2089,6 +2104,7 @@ Press **?** in the app for this list.
 | **Esc** on the plan | Stop drawing bars; else clear the selection |
 | **←** **→** (**Shift** for 10 s), **Home** / **End** on the timeline | Rehearse from a second later / earlier, the start / the end |
 | **←** **→** **↑** **↓**, **+** / **−** on the 3D stage | Turn and tilt the view, move closer / further |
+| Double-click on the 3D stage | Turn the view around that point |
 | **?** / **Esc** | Show / close the shortcuts overlay |
 
 ## Development
