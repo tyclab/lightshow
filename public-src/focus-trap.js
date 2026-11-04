@@ -56,7 +56,7 @@ export function useFocusTrap(ref, active, onClose) {
     const top = () => open[open.length - 1] === entry;
     const onKey = (e) => { if (top()) trapKey(e, box, onClose); };
     const onFocusIn = (e) => { if (top()) trapFocusIn(e, box); };
-    (focusables(box)[0] || box).focus();
+    if (!box.contains(document.activeElement)) (focusables(box)[0] || box).focus();
     document.addEventListener('keydown', onKey);
     document.addEventListener('focusin', onFocusIn);
     return () => {

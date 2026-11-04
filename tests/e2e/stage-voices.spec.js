@@ -5,6 +5,7 @@
 import { test, expect } from '@playwright/test';
 import { control, open, previewLook, reset, set, state, until } from './helpers.js';
 import { stageImage } from './stage-image.js';
+import { dmxLatch } from './dmx-latch.js';
 
 const BANK = 0;
 const SLOT = 1;
@@ -20,6 +21,7 @@ async function samples(page, count) {
 const distance = (a, b) => Math.max(Math.abs(a.r - b.r), Math.abs(a.g - b.g), Math.abs(a.b - b.b));
 
 test('voices appear over the stage look and disappear when stopped', async ({ page, context, request }) => {
+  const latch = await dmxLatch(page);
   const originalLook = await state(request);
   await control(request, 'disarm');
   await reset(request);
@@ -76,16 +78,24 @@ test('voices appear over the stage look and disappear when stopped', async ({ pa
     await expect.poll(async () => fromLook(await stageSample(page)), { message: 'the dim look reaches the stage', timeout: 5000 }).toBeGreaterThan(0.5);
     const lookLum = Math.max(...(await samples(page, 6)).map((s) => s.lum));
     expect((await request.post('/api/safety/acknowledge', { data: {} })).ok()).toBe(true);
+    const fixture = start.fixtures[0];
+    const channels = start.profiles[fixture.profileId].channelMap;
+    latch.holdWhen((frame) => ['red', 'green', 'blue'].every((colour) =>
+      frame[fixture.universe]?.[fixture.address - 1 + channels[colour]] === 255));
     expect((await request.post('/api/strobe/on', { data: {} })).ok()).toBe(true);
     await until(request, (s) => !!s.strobe?.active);
     await expect(preview.locator('.playing-voice[data-voice="strobe"]')).toBeVisible();
-    await expect.poll(async () => Math.max(...(await samples(page, 10)).map((s) => s.lum)),
+    await expect.poll(async () => latch.frame() ? Math.max(...(await samples(page, 10)).map((s) => s.lum)) : lookLum,
       { message: 'the strobe flashes the stage', timeout: 8000 }).toBeGreaterThan(lookLum + 4);
+    latch.release();
     await request.post('/api/strobe/off', { data: {} });
     await until(request, (s) => !s.strobe?.active);
     await expect(now).toHaveText(baseline);
+    await expect.poll(async () => (await stageSample(page)).lum,
+      { message: 'the released feed returns to the dim look', timeout: 5000 }).toBeLessThan(lookLum + 2);
   } finally {
     await preview.close();
+    latch.release();
     await request.post('/api/strobe/off', { data: {} });
     await request.post(`/api/pads/${BANK}/${SLOT}/release`, { data: {} });
     await request.put(`/api/pads/${BANK}/${SLOT}`, { data: original });

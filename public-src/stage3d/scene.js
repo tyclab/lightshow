@@ -1,3 +1,4 @@
+import { performanceReport } from '../performance.js';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { roomObjectGeometry } from './room-geometry.js';
@@ -366,6 +367,7 @@ export function createStageScene(canvas, { haze = 0.6, room, lightRGB }) {
   function setRig(placed, unitCount) {
     if (placed === rigPlaced && unitCount === units) return;
     rigPlaced = placed;
+    if (performanceReport) performanceReport.count('scene.rigBuilds');
     invalidate();
     lastLights = null;
     objectLights = placed.objectLights || [];
@@ -612,6 +614,7 @@ export function createStageScene(canvas, { haze = 0.6, room, lightRGB }) {
 
   /** The live room picture on the room's screens (RGB24, row-major from the top-left); null darkens them again. */
   function setPicture(image) {
+    if (performanceReport) performanceReport.count('scene.pictureInputs');
     if (!image) {
       for (const screen of screens) {
         if (!screen.material.map) continue;
@@ -631,9 +634,14 @@ export function createStageScene(canvas, { haze = 0.6, room, lightRGB }) {
       screenTexture.minFilter = THREE.LinearFilter;
       screenTexture.flipY = true;
     }
+    const started = performanceReport ? performance.now() : 0;
     const rgba = screenTexture.image.data;
     for (let i = 0, j = 0; i < width * height; i++, j += 3) {
       rgba[i * 4] = data[j]; rgba[i * 4 + 1] = data[j + 1]; rgba[i * 4 + 2] = data[j + 2]; rgba[i * 4 + 3] = 255;
+    }
+    if (performanceReport) {
+      performanceReport.count('scene.pictureConversions');
+      performanceReport.sample('scene.pictureConversion', performance.now() - started);
     }
     screenTexture.needsUpdate = true;
     for (const screen of screens) {
@@ -650,9 +658,15 @@ export function createStageScene(canvas, { haze = 0.6, room, lightRGB }) {
     controls.update();
     controls.dampingFactor = DAMPING;
     lastRenderAt = now;
-    if (!dirty) return;
+    if (!dirty) return false;
     dirty = false;
+    const started = performanceReport ? performance.now() : 0;
     renderer.render(scene, camera);
+    if (performanceReport) {
+      performanceReport.count('scene.draws');
+      performanceReport.sample('scene.renderSubmit', performance.now() - started);
+    }
+    return true;
   }
 
   function dispose() {
