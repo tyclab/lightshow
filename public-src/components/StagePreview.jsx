@@ -1,3 +1,4 @@
+import { performanceReport } from '../performance.js';
 import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
 import { pick, dmxSig, connectedSig, emitFixture, latestSent, stagePreviewSig } from '../state.js';
 import { colorToCss, fixtureOutputColor, fixtureCellColors, meanLight, fmtTime, patchedAt, stageMode } from '../utils.js';
@@ -69,7 +70,15 @@ export function StagePreview({ controls = true } = {}) {
   // where a lamp is drawn is where the chase will find it — and every cell of
   // a bar where the engine puts it (shared/rig.js). Built once per patch.
   const positions = useMemo(() => stagePositions(drawn), [drawn]);
-  const rig = useMemo(() => buildRig(drawn, (f) => (s.profiles && s.profiles[f.profileId]) || null), [drawn, s.profiles]);
+  const rig = useMemo(() => {
+    const started = performanceReport ? performance.now() : 0;
+    const built = buildRig(drawn, (f) => (s.profiles && s.profiles[f.profileId]) || null);
+    if (performanceReport) {
+      performanceReport.count('plot.rigBuilds');
+      performanceReport.sample('plot.rigBuild', performance.now() - started);
+    }
+    return built;
+  }, [drawn, s.profiles]);
   const signature = useMemo(() => rigSignature(drawn), [drawn]);
   const unplaced = drawn.filter((f) => !f.position).length;
   const duration = (data?.duration || 0) * 1000;

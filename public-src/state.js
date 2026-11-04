@@ -1,3 +1,4 @@
+import { performanceReport } from './performance.js';
 import { computed, effect, signal } from '@preact/signals';
 import { io } from 'socket.io-client';
 import { createVoiceHolds } from './hold-control.js';
@@ -128,9 +129,20 @@ socket.on('patch', (patch) => {
   if (result === 'ok' && patch.d === 'library') loadLibrary();
 });
 
+export let dmxReceivedAt = 0;
 // DMX as bytes (src/shared/dmx-frame.ts), while subscribed.
 socket.on('dmx-frame', (message) => {
+  const started = performanceReport ? performance.now() : 0;
   const frame = decodeDmxFrame(message);
+  if (performanceReport) {
+    performanceReport.count('dmx.received');
+    performanceReport.sample('dmx.decode', performance.now() - started);
+    if (!frame) performanceReport.count('dmx.invalid');
+    else {
+      if (dmxReceivedAt) performanceReport.sample('dmx.receiveInterval', started - dmxReceivedAt);
+      dmxReceivedAt = started;
+    }
+  }
   if (frame) dmxSig.value = frame;
 });
 
@@ -140,6 +152,7 @@ export const pictureImageSig = signal(null);
 socket.on('picture-image', (message) => {
   pictureImageSig.value = message && message.data && message.width > 0 && message.height > 0
     ? { width: message.width, height: message.height, data: new Uint8Array(message.data) } : null;
+  if (performanceReport) performanceReport.count('picture.received');
 });
 
 // The first view subscribes, the last unsubscribes, and a reconnect subscribes again.

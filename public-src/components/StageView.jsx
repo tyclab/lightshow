@@ -1,7 +1,8 @@
+import { performanceReport } from '../performance.js';
 import { Background } from './Background.jsx';
 import { useEffect, useLayoutEffect, useRef, useState } from 'preact/hooks';
 import { effect } from '@preact/signals';
-import { pick, connectedSig, dmxSig, field, pictureImageSig, stagePreviewSig } from '../state.js';
+import { pick, connectedSig, dmxSig, dmxReceivedAt, field, pictureImageSig, stagePreviewSig } from '../state.js';
 import { fmtTime, rigLights, stageMode } from '../utils.js';
 import { useDmxFeed } from '../use-dmx.js';
 import { useTimeline } from '../use-timeline.js';
@@ -186,9 +187,12 @@ export function StageView({ compact = false } = {}) {
     let lastPublish = 0;
     let position = stagePreviewSig.value.position;
     const tick = (now) => {
+      const started = performanceReport ? performance.now() : 0;
+      let consumedAt = 0;
       const cur = live.current;
       const st = stagePreviewSig.value;
       if (cur.format === 'plot' || !sized) { lastNow = now; raf = requestAnimationFrame(tick); return; }
+      if (performanceReport) performanceReport.sample('stage.rafInterval', now - lastNow);
       if (cur.auditioning) {
         const at = auditionSig.peek().position;
         const inputs = [at, cur.auditionSample, cur.fixtures, cur.presets, cur.rig];
@@ -218,6 +222,8 @@ export function StageView({ compact = false } = {}) {
         position = st.position;
         const dmx = dmxSig.value;
         if (dmx !== lastDmx || cur.fixtures !== lastFixtures || cur.profiles !== lastProfiles || cur.rig !== lastRig || cur.dark !== lastDark) {
+          const deriveStarted = performanceReport ? performance.now() : 0;
+          if (performanceReport && dmx !== lastDmx) { consumedAt = dmxReceivedAt; performanceReport.count('dmx.consumed'); }
           lastDmx = dmx;
           lastFixtures = cur.fixtures;
           lastProfiles = cur.profiles;
@@ -227,11 +233,17 @@ export function StageView({ compact = false } = {}) {
           // the masters and identify. Disarmed, the wire carries nothing.
           const raw = cur.fixtures.map((f) => (f.override ? { ...f, override: null } : f));
           liveFrame = rigLights(raw, { profiles: cur.profiles, masterBlackout: cur.dark, masterDimmer: 255 }, dmx, cur.rig);
+          if (performanceReport) performanceReport.sample('stage.deriveLights', performance.now() - deriveStarted);
         }
         scene.current.setLights(liveFrame);
       }
       lastNow = now;
-      scene.current.render();
+      const drew = scene.current.render();
+      if (performanceReport) {
+        performanceReport.count('stage.ticks');
+        performanceReport.sample('stage.tickWork', performance.now() - started);
+        if (consumedAt && drew) performanceReport.sample('dmx.receiveToSubmit', performance.now() - consumedAt);
+      }
       raf = requestAnimationFrame(tick);
     };
     raf = requestAnimationFrame(tick);

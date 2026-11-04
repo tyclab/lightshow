@@ -2168,6 +2168,17 @@ flowchart LR
   Budget --> Bytes[Visible output bytes and frame timings]
 ```
 
+For browser timings, open the app with `?performance=1` (for example
+`/?performance=1#stage`). That page then records DMX frame decoding and arrival,
+stage frame work, light derivation, render submission and picture conversion, and
+observes long tasks, long animation frames and slow input events where the browser
+supports them. `window.__lightshowPerformance.snapshot()` returns counts, means and
+maxima over the whole capture and p95/p99 over the last 2,048 samples per metric;
+`reset()` starts a new capture. Render timing is CPU submission, not GPU completion
+or presentation. Without the parameter nothing is recorded or observed.
+`tests/e2e/browser-performance.spec.js` holds a steady stage to a 200 ms main-thread
+budget and checks that an injected 250 ms renderer stall fails it.
+
 Build packages with Node 24 on the target platform. Package/release workflows
 are in `.github/workflows/`; a version tag matching `package.json` drafts the
 release. Preserve repository hooks, CI checks and normal release policies.
