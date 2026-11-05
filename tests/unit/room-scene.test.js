@@ -34,6 +34,23 @@ test('room import preserves fixture IDs and shared output bindings with explicit
   assert.equal(parsed.bindings[0].position.y, 2.2);
 });
 
+test('light targets persist independently of emitter positions and reject invalid geometry', (t) => {
+  const model = room(), store = storeFor(t);
+  model.bindings[0].lightTarget = { x: -3, y: 2.5, z: 0 };
+  model.bindings[0].lightTargetConfidence = 'estimated';
+  store.replace(model);
+  assert.deepEqual(new RoomSceneStore(store.file).load().snapshot().room.bindings[0].lightTarget, model.bindings[0].lightTarget);
+  for (const path of [[], [{ x: 0, y: 1, z: 0 }], [{ x: -2, y: 2.5, z: 0 }, { x: -4, y: 2.5, z: 0 }]]) {
+    assert.equal(roomSceneSchema.safeParse({ ...model, bindings: [{ ...model.bindings[0], path }] }).success, false,
+      'reject malformed paths and targets at the strip midpoint');
+  }
+  for (const target of [model.bindings[0].position, { x: 0, y: 10, z: 0 }, { x: Infinity, y: 1, z: 0 }]) {
+    assert.equal(roomSceneSchema.safeParse({ ...model, bindings: [{ ...model.bindings[0], lightTarget: target }] }).success, false);
+  }
+  delete model.bindings[0].lightTarget;
+  assert.equal(roomSceneSchema.safeParse(model).success, false);
+});
+
 test('strip paths round-trip and reject unsafe or degenerate edges', (t) => {
   const model = room();
   model.bindings[0].path = [{ x: -1, y: 2.2, z: 0 }, { x: 0, y: 2.2, z: 0 }, { x: 0, y: 2.2, z: 1 }];

@@ -83,7 +83,7 @@ export function plotPosition(rig: Rig, u: number, bounds: UnitSpace['bounds']): 
 }
 
 // A strip path places a run of cells: from its own unit up to the next cell another binding names.
-function pathPoints(path: readonly Vec3[], count: number): Vec3[] {
+export function pathPoints(path: readonly Vec3[], count: number): Vec3[] {
   const lengths = path.slice(1).map((to, k) => Math.hypot(to.x - path[k].x, to.y - path[k].y, to.z - path[k].z));
   const total = lengths.reduce((sum, length) => sum + length, 0);
   return Array.from({ length: count }, (_, c) => {

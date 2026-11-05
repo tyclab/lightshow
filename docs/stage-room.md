@@ -97,6 +97,15 @@ sources. Moving its position translates the whole path. Point-only imports remai
 re-export known strip geometry to give them their physical shape. Room imports accept at most
 8192 strip edges and reject zero-length edges and paths outside the room bounds.
 
+A binding's optional `lightTarget: { x, y, z }` aims its preview at a lit surface.
+It uses the room coordinate frame and must differ from the emitter (the path
+midpoint for strips). Optional `lightTargetConfidence` is `estimated` or
+`measured`; photo-derived directions are estimates. The target overrides fixture
+pan/tilt in this room while keeping its beam spread, with a 100° wash for lamps
+without a beam spread. The first opaque box wall or furniture surface, or room
+boundary, receives the pool. Other object shapes do not stop these beams.
+Physical positions, output addressing and effect sampling remain unchanged.
+
 Optional `anchors` name points effects can start from, such as speakers:
 `[{ "id": "speakerLeft", "position": { "x": -1.5, "y": 1, "z": -1.5 } }]`. Optional
 `listeners` are listening positions with a facing in degrees, seen from above: 0 looks

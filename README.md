@@ -221,6 +221,12 @@ only the preview. Furniture objects can reference an existing room light binding
 `lightTint` models a translucent material colour without changing physical outputs.
 Surveyed strip paths render as continuous
 runs with their original corners and per-section colours; moving a strip moves the whole path.
+Bindings can also carry a `lightTarget` in room metres, with optional
+`lightTargetConfidence` (`estimated` or `measured`). It aims the preview from the
+physical emitter toward the lit surface, overriding the fixture's pan and tilt
+in that room. A strip uses its path midpoint to aim the run. Targets do not move
+the emitter or change output/effect coordinates; the first opaque box wall or
+furniture surface stops the beam. Keep photo-derived targets marked estimated.
 
 In a room, Stage draws every light at its physical size: a bulb about 7 cm across, a strip
 1.4 cm thick, each pixel of a cell map 0.4 of its pitch (a 288-pixel cube is 288 small

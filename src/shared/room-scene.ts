@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { pathPoints } from './space.ts';
 
 const name = z.string().trim().min(1).max(120)
   .refine((value) => [...value].every((character) => character.charCodeAt(0) >= 32 && character.charCodeAt(0) !== 127), 'Control characters are not allowed');
@@ -42,7 +43,8 @@ const triangleMesh = z.object({
     }
   }
 });
-const bindingBase = { id, position: vector, path: stripPath.optional(), label: name.optional(), confidence };
+const bindingBase = { id, position: vector, path: stripPath.optional(), label: name.optional(), confidence,
+  lightTarget: vector.optional(), lightTargetConfidence: confidence.optional() };
 const contributors = z.array(z.object({ ...fixtureRef, weight: z.number().finite().positive() }).strict()).min(1).max(64)
   .superRefine((sources, ctx) => {
     if (!Number.isFinite(sources.reduce((sum, source) => sum + source.weight, 0))) {
@@ -129,6 +131,16 @@ export const roomSceneSchema = z.object({
     }
   });
   room.bindings.forEach((entry, index) => {
+    if (entry.lightTarget) {
+      const p = entry.lightTarget;
+      const origin = entry.path && entry.path.length >= 2 ? pathPoints(entry.path, 1)[0] : entry.position;
+      if (!withinFloor(p.x, p.z) || p.y < -1 || p.y > room.bounds.height + 1
+        || Math.hypot(p.x - origin.x, p.y - origin.y, p.z - origin.z) < 0.001) {
+        ctx.addIssue({ code: 'custom', path: ['bindings', index, 'lightTarget'], message: 'Light target must be inside the room and distinct from its emitter' });
+      }
+    } else if (entry.lightTargetConfidence) {
+      ctx.addIssue({ code: 'custom', path: ['bindings', index, 'lightTargetConfidence'], message: 'Target confidence needs a light target' });
+    }
     if (entry.path?.some((point) => !withinFloor(point.x, point.z) || point.y < -1 || point.y > room.bounds.height + 1)) {
       ctx.addIssue({ code: 'custom', path: ['bindings', index, 'path'], message: 'Strip path is outside the room bounds' });
     }

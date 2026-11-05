@@ -19,6 +19,39 @@ const lamp = (lights, extra = {}) => {
 const shape = (lights, fields = {}) => { const { profile, fixture } = lamp(lights); return emissionOf({ ...fixture, ...fields }, profile); };
 const SPOT = { kind: 'beam', beamAngle: 36, tilt: -90 };
 
+test('room targets override generic downlight aim and hit cabinet surfaces before the wall', () => {
+  const { profile, fixture } = lamp([light('spot_bulb')]);
+  const rig = buildRig([fixture], () => profile);
+  const binding = { id: 'spot', fixtureId: 1, position: { x: 0, y: 2.4, z: 0 }, lightTarget: { x: 0, y: 1.8, z: 1.5 } };
+  const room = { bounds: { width: 4, depth: 4, height: 2.6 }, bindings: [binding], objects: [
+    { kind: 'box', role: 'furniture', position: { x: 0, y: 1.8, z: 1.7 }, size: { x: 1, y: 1, z: 0.4 } },
+  ] };
+  const beam = roomRig([fixture], rig, room, { [profile.id]: profile }).lamps[0];
+  assert.deepEqual(beam.position, binding.position);
+  assert.ok(beam.aim.z > 0.9 && beam.aim.y < 0);
+  assert.ok(Math.abs(beam.end.z - 1.5) < 1e-9);
+  assert.equal(beam.pool.normal.z, -1);
+  binding.lightTarget = { x: 1, y: 2.6, z: 0 };
+  const upward = roomRig([fixture], rig, room, { [profile.id]: profile }).lamps[0];
+  assert.ok(upward.aim.y > 0);
+  assert.equal(upward.pool.normal.y, -1);
+});
+
+test('a directed strip keeps its run and output sources while aiming from the run centre', () => {
+  const { profile, fixture } = lamp([light('hue_lightstrip')]);
+  const rig = buildRig([fixture], () => profile);
+  const binding = { id: 'strip', fixtureId: 1, position: { x: -1, y: 2, z: 0 },
+    path: [{ x: -1, y: 2, z: 0 }, { x: 1, y: 2, z: 0 }], lightTarget: { x: 0, y: 2.6, z: 0 } };
+  const room = { bounds: { width: 4, depth: 4, height: 2.6 }, bindings: [binding], objects: [] };
+  const { lamps, cells } = roomRig([fixture], rig, room, { [profile.id]: profile });
+  assert.equal(cells.length, 1);
+  assert.deepEqual([cells[0].from, cells[0].to], binding.path);
+  assert.deepEqual(lamps[0].aim, { x: 0, y: 1, z: 0 });
+  assert.equal(lamps[0].unit, cells[0].unit);
+  assert.equal(lamps[0].weight, 0, 'spill does not double room-light energy');
+  assert.equal(lamps[0].body, 0, 'the physical strip already exists');
+});
+
 test('spot fittings and spot bulbs throw a 36 degree beam straight down', () => {
   for (const archetype of ['spot_bulb', 'single_spot', 'double_spot', 'triple_spot', 'recessed_ceiling', 'pendant_spot']) {
     assert.deepEqual(shape([light(archetype)]), SPOT, archetype);
