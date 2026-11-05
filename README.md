@@ -567,8 +567,8 @@ strict look and library readers cannot load the new fields and version and would
 move the files aside. The same holds for the sequences file once a clip or a
 pattern pad carries a **Between effect hits** choice, and for a cue or restart
 record with a fixture scope: a build without them cannot read those files, and only
-the effect library keeps an older copy by itself. The whole rig and the family
-defaults store nothing new.
+the effect library keeps an older copy by itself. The whole rig and the default
+**Between effect hits** (Reveal background) store nothing new.
 
 Known limitations of the background, pending the operator's decision because fixing
 them changes Off, Fixed or Follow output against earlier builds:
