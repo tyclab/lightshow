@@ -234,13 +234,6 @@ export function roomRig(fixtures, rig, model, profiles = {}) {
     if (binding.confidence !== 'measured') estimated++;
     const light = { unit: sources[0].unit, fixture: binding.fixtureId, position: binding.position,
       ...(binding.sources ? { sources } : {}) };
-    if (lightObjects.has(binding.id)) {
-      for (const object of lightObjects.get(binding.id)) {
-        objectLights.push({ objectId: object.id, sources });
-        objectEmitters.push({ position: object.position, weight: object.size ? surfaceWeight(object) : 0 });
-      }
-      continue;
-    }
     const fixture = fixtures[indices.get(binding.fixtureId ?? binding.sources?.[0]?.fixtureId)];
     // A room draws unshaped lamps as bulbs, except a Hue fitting its bridge names (emission.ts).
     const emission = fixture && (fixture.emission ?? hueEmission(fixture, profiles[fixture.profileId]));
@@ -250,6 +243,14 @@ export function roomRig(fixtures, rig, model, profiles = {}) {
     const aim = offset && Math.hypot(offset.x, offset.y, offset.z) >= 0.001 ? unit(offset) : null;
     const directed = (source, body) => ({ ...beamLight(source, { kind: 'beam', beamAngle: emission?.beamAngle ?? 100 },
       false, model.bounds, surfaces, aim), body, ...(body === 0 ? { weight: 0 } : {}) });
+    if (lightObjects.has(binding.id)) {
+      for (const object of lightObjects.get(binding.id)) {
+        objectLights.push({ objectId: object.id, sources });
+        objectEmitters.push({ position: object.position, weight: object.size ? surfaceWeight(object) : 0 });
+      }
+      if (aim) lamps.push(directed({ ...light, position: origin }, 0));
+      continue;
+    }
     if (binding.path) {
       for (let index = 1; index < binding.path.length; index++) {
         const from = binding.path[index - 1], to = binding.path[index];

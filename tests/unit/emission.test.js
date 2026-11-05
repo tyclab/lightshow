@@ -52,6 +52,26 @@ test('a directed strip keeps its run and output sources while aiming from the ru
   assert.equal(lamps[0].body, 0, 'the physical strip already exists');
 });
 
+test('a modeled fixture keeps its lit lens and directed spill without a second lamp body', () => {
+  const { profile, fixture } = lamp([light('spot_bulb')]);
+  const rig = buildRig([fixture], () => profile);
+  const binding = { id: 'spot', fixtureId: 1, position: { x: 0, y: 2.4, z: 0 },
+    lightTarget: { x: 1, y: 2.6, z: 0 } };
+  const room = { bounds: { width: 4, depth: 4, height: 2.6 }, bindings: [binding], objects: [
+    { id: 'lens', kind: 'mesh', role: 'furniture', lightBindingId: 'spot', position: binding.position,
+      size: { x: 0.05, y: 0.005, z: 0.05 } },
+  ] };
+  const placed = roomRig([fixture], rig, room, { [profile.id]: profile });
+  assert.equal(placed.objectLights.length, 1);
+  assert.equal(placed.objectLights[0].objectId, 'lens');
+  assert.equal(placed.lamps.length, 1);
+  assert.equal(placed.lamps[0].body, 0);
+  assert.equal(placed.lamps[0].weight, 0, 'the luminous surface already contributes ambient energy');
+  assert.ok(placed.lamps[0].aim.y > 0);
+  assert.equal(placed.lamps[0].pool.normal.y, -1);
+  assert.deepEqual(placed.lamps[0].position, binding.position);
+});
+
 test('spot fittings and spot bulbs throw a 36 degree beam straight down', () => {
   for (const archetype of ['spot_bulb', 'single_spot', 'double_spot', 'triple_spot', 'recessed_ceiling', 'pendant_spot']) {
     assert.deepEqual(shape([light(archetype)]), SPOT, archetype);
