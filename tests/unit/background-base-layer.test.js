@@ -141,3 +141,27 @@ test('the rehearsal preview shows the same base layer as the renderer', () => {
     }
   }
 });
+
+test('a black Fixed colour adds no light: a dimmer-only lamp stays as Off leaves it, and a black picture unit stays dark', () => {
+  const dimmerOnly = { id: 'dimmer-only-base', channelCount: 1, channelMap: { dimmer: 0 } };
+  const rig = fixtures.map((fixture, id) => ({ ...fixture, address: id + 1, profileId: dimmerOnly.id }));
+  const dimmers = (patch, times) => {
+    const renderer = createRenderer({ profileOf: () => dimmerOnly, profilesRevision: () => 0, now: 0 });
+    const store = createUniverseStore();
+    return times.map((now) => {
+      renderer.frame(withInputDefaults({ ...look, fixtures: rig, ...patch }), { beatPos: now / 500, bpm: 120, epoch: 0 }, now, store);
+      return [...store.getBuffer(0).slice(0, rig.length)];
+    });
+  };
+  const black = { ...fixed, level: 1, colour: { r: 0, g: 0, b: 0, w: 0, a: 0, uv: 0 } };
+  const fade = { effect: presetById('ldj.FadeCycle').spec };
+  const unlit = dimmers({ ...fade, background: off }, TIMES).flat();
+  assert.ok(unlit.some((value) => value === 0), 'negative control: Off leaves dimmer-only lamps dark between the notes');
+  assert.ok(dimmers({ ...fade, background: fixed }, TIMES).flat().every((value) => value > 0), 'negative control: a Fixed colour fills them');
+  for (const [name, patch] of [['Fade Cycle', fade], ['Disco', { effect: presetById('hd.disco.pop').spec }], ['confetti', { pattern: 'confetti' }],
+    ['the programme stopped', { ...fade, programmePlaying: false }]]) {
+    assert.deepEqual(dimmers({ ...patch, background: black }, TIMES), dimmers({ ...patch, background: off }, TIMES), `${name}: black Fixed lights nothing Off leaves dark`);
+  }
+  const picture = { leaseId: 'base-test', signature: 'rig', units: 8, expiresAt: 1e12, data: new Uint8Array(24) };
+  assert.deepEqual(dimmers({ background: black, picture }, [500])[0], new Array(8).fill(0), 'a black picture unit stays dark over a black Fixed colour');
+});

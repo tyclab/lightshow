@@ -478,7 +478,8 @@ whole colour and full colours cover it. Explicit dark cues stay dark: strobe and
 rests, Kill, a foreground drawn black at full opacity (the Blackout scene), the classic flash
 patterns and ring strobe, fixture overrides and blackouts, and the master blackout. An effect
 set to **Keep dark** under **Between effect hits**, below, keeps its own black too. Follow
-and Off never light a lamp the effect leaves dark.
+and Off never light a lamp the effect leaves dark, and neither does a black Fixed colour
+(no emitter lit), on every profile, a dimmer-only lamp included.
 
 **Fixtures** chooses what the card reaches: **Whole rig** (the default), **Wash
 fixtures** or **Selected fixtures…**, ticked from the patch. Wash fixtures are the

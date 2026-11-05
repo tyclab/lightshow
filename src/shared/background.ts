@@ -65,9 +65,12 @@ export function backgroundScope(settings: BackgroundSettings | undefined, cellMa
   return Uint8Array.from(cellMaps, (maps, i) => Number(chosen ? chosen.has(idOf(i)) : !maps));
 }
 
+// A colour with no emitter lit: as a Fixed colour it adds no light, or a lamp without colour channels would show its level.
+const unlit = (colour: Colour): boolean => !(Math.max(colour.r, colour.g, colour.b, colour.w ?? 0, colour.a ?? 0, colour.uv ?? 0) > 0);
+
 export function backgroundLight(field: BackgroundField | undefined, settings = DEFAULT_BACKGROUND, stopped = false): BackgroundLight {
   if (settings.mode === 'off' || (field?.dark && !stopped)) return { colour: DARK_BACKGROUND, level: 0 };
-  if (settings.mode === 'fixed') return { colour: settings.colour, level: settings.level * (stopped ? 1 : field?.coverage ?? 0) };
+  if (settings.mode === 'fixed') return { colour: settings.colour, level: unlit(settings.colour) ? 0 : settings.level * (stopped ? 1 : field?.coverage ?? 0) };
   return { colour: field?.colour ?? DARK_BACKGROUND, level: (stopped ? field?.fullLevel ?? field?.level ?? 0 : field?.level ?? 0) * settings.level };
 }
 
