@@ -61,10 +61,13 @@ function picturePalette(pattern: BitmapPattern, colours: readonly Colour[], rand
   return palette;
 }
 
-function repeatedRow(row: number[], height = 40): BitmapImage {
+function repeatedRow(row: number[], height = 40, roles?: Uint8Array): BitmapImage {
   // Row aliases are preserved inside each clone to avoid copying identical rows repeatedly.
-  return { width: row.length, height, rows: Array.from({ length: height }, () => row) };
+  return { width: row.length, height, rows: Array.from({ length: height }, () => row), ...(roles ? { backgrounds: Array.from({ length: height }, () => roles) } : {}) };
 }
+
+/** The black between a picture's lines or swells is its black background (role 2), as SolidBlackBG's is. */
+const blackRoles = (row: readonly number[]): Uint8Array => Uint8Array.from(row, (pixel) => (pixel === 0 ? 2 : 0));
 
 // Do not repeat the far palette entry when mirroring the sequence.
 function sequence(count: number, mirror: boolean, transitions: boolean): number[] {
@@ -109,15 +112,16 @@ function raster(pattern: BitmapPattern, palette: number[], gradient?: ResolvedGr
     return repeatedRow(row);
   }
   if (pattern === 'VertLines') {
-    for (const colour of palette) for (let t = 0; t <= LAST_T; t += .025) row.push(t < .4 ? colour : 0);
-    return repeatedRow(row);
+    const roles: number[] = [];
+    for (const colour of palette) for (let t = 0; t <= LAST_T; t += .025) { row.push(t < .4 ? colour : 0); roles.push(t < .4 ? 0 : 2); }
+    return repeatedRow(row, 40, Uint8Array.from(roles));
   }
   if (pattern === 'OGGrooveWave') {
     // Each colour swells from black and back on its own, never into the next.
     for (const colour of palette) for (let t = 0; t <= LAST_T; t += SMOOTH_STEP) {
       row.push(bitmapBlend(colour, 0, (Math.cos((t * 2) * Math.PI) + 1) / 2));
     }
-    return repeatedRow(row);
+    return repeatedRow(row, 40, blackRoles(row));
   }
 
   const triangle = pattern.endsWith('TriangleWave'), diagonal = pattern.endsWith('DiagonalLines');
@@ -189,12 +193,13 @@ interface BitmapState {
 }
 
 const schema = z.object({ pattern: z.enum(BITMAP_PATTERNS), speed: z.number().nonnegative().default(1) }).strict();
+const BLACK_BACKGROUNDS = /^(SolidBlackBG|VertLines$|OGGrooveWave$)/;
 
 registerKind<z.infer<typeof schema>, BitmapState>({
   requirements: { pixels: true, channels: ['r', 'g', 'b'] },
   kind: 'ldj.bitmap', app: 'ldj', schema, defaults: { params: { pattern: 'SmoothLoop', speed: 1 } }, stateful: true,
   rapidFlashWhen: (params) => params.speed > RAPID_SPEED,
-  gapsApply: (params, spec) => params.pattern.startsWith('SolidBlackBG') && !strobeRests(spec),
+  gapsApply: (params, spec) => BLACK_BACKGROUNDS.test(params.pattern) && !strobeRests(spec),
   init: (_params, _room, frame) => ({ originMs: frame.startedAtMs ?? frame.nowMs, key: '', image: null }),
   render(params, state, room, frame, out) {
     const scroll = bitmapScroll(frame.nowMs, state.originMs, frame.bpm, params.speed, params.pattern);

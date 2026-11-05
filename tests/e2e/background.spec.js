@@ -13,7 +13,12 @@ test('background modes and six-channel colour persist without changing transport
   await panel.getByRole('slider', { name: 'White', exact: true }).fill('83');
   await panel.getByRole('slider', { name: 'Amber', exact: true }).fill('61');
   await panel.getByRole('slider', { name: 'UV', exact: true }).fill('47');
-  const fixed = await until(request, s => s.background?.level === .34 && s.background.colour.uv === 47);
+  await panel.getByRole('slider', { name: 'Background colour saturation' }).fill('100');
+  await panel.getByRole('slider', { name: 'Background colour brightness' }).fill('100');
+  await panel.getByRole('slider', { name: 'Background colour hue' }).fill('240');
+  const fixed = await until(request, s => s.background?.level === .34 && s.background.colour.uv === 47
+    && s.background.colour.b === 255 && s.background.colour.r === 0 && s.background.colour.g === 0);
+  expect(fixed.background.colour.w, 'the hue keeps the white').toBe(83);
   expect(fixed.running).toBe(initial.running);
   expect(fixed.armed).toBe(initial.armed);
   expect(fixed.masterBlackout).toBe(initial.masterBlackout);
@@ -66,8 +71,8 @@ test('background fixtures: wash fixtures and a picked set persist; the whole rig
   await request.post('/api/set', { data: { background: { version: 1, mode: 'follow', level: 1, colour: { r: 255, g: 160, b: 70, w: 0, a: 0, uv: 0 } } } });
 });
 
-test('the effect editor sets Between effect hits per effect, showing the family default, and saves it with the preset', async ({ page, request }) => {
-  const NAME = 'E2E Reveal Fade';
+test('the effect editor sets Between effect hits per effect, showing the default, and saves it with the preset', async ({ page, request }) => {
+  const NAME = 'E2E Keep Dark Fade';
   const removeOwn = async () => {
     for (const e of (await state(request)).effects || []) if (e.name === NAME) await request.delete(`/api/effects/${encodeURIComponent(e.id)}`);
   };
@@ -79,15 +84,15 @@ test('the effect editor sets Between effect hits per effect, showing the family 
   await page.getByRole('button', { name: /^Edit Fade Cycle/ }).first().click();
   const sheet = page.getByRole('dialog', { name: 'Edit effect' });
   const gaps = sheet.getByLabel('Between effect hits');
-  await expect(gaps).toHaveValue('dark');
-  await expect(gaps.locator('option:checked')).toHaveText('Keep dark (family default)');
+  await expect(gaps).toHaveValue('reveal');
+  await expect(gaps.locator('option:checked')).toHaveText('Reveal background (default)');
   await expect(sheet).toContainText('Explicit dark cues stay dark.');
-  await gaps.selectOption('reveal');
-  await expect(sheet.locator('.insp-dirty')).toHaveText('Changed');
-  // Back to the family default stores no choice: the draft is the preset again.
   await gaps.selectOption('dark');
-  await expect(sheet.locator('.insp-dirty')).toHaveCount(0);
+  await expect(sheet.locator('.insp-dirty')).toHaveText('Changed');
+  // Back to the default stores no choice: the draft is the preset again.
   await gaps.selectOption('reveal');
+  await expect(sheet.locator('.insp-dirty')).toHaveCount(0);
+  await gaps.selectOption('dark');
   await sheet.getByLabel('Authored background level').fill('0.5');
   await sheet.getByRole('button', { name: 'Save as…' }).click();
   await sheet.getByLabel('Preset name').fill(NAME);
@@ -95,9 +100,9 @@ test('the effect editor sets Between effect hits per effect, showing the family 
   const s = await until(request, (st) => (st.effects || []).some((e) => e.name === NAME));
   const saved = s.effects.find((e) => e.name === NAME);
   const lib = await (await request.get('/api/effects')).json();
-  expect(lib.user.find((p) => p.id === saved.id).spec.background).toEqual({ version: 1, level: .5, gaps: 'reveal' });
+  expect(lib.user.find((p) => p.id === saved.id).spec.background).toEqual({ version: 1, level: .5, gaps: 'dark' });
   await expect(sheet.locator('.effect-inspector-head strong')).toHaveText(NAME);
-  await expect(gaps).toHaveValue('reveal');
+  await expect(gaps).toHaveValue('dark');
   await removeOwn();
 });
 

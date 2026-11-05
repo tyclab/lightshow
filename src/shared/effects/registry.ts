@@ -22,15 +22,8 @@ export function requiresAcknowledgement(spec: EffectSpec): boolean {
   return Boolean(spec.rapidFlash || def?.rapidFlash || def?.rapidFlashWhen?.(spec.params));
 }
 
-/**
- * What a kind does between its hits when its spec chooses nothing: the Entertainment families
- * (the bitmap raster included) and Disco kept their gaps dark before an effect could
- * choose, every other family revealed the Background layer in them.
- */
-export function familyGaps(kind: string): GapPolicy {
-  const def = kindOf(kind);
-  return def?.app === 'ldj' || def?.kind === 'hd.disco' ? 'dark' : 'reveal';
-}
+/** What an effect does between its hits when its spec chooses nothing: the Background layer shows there. Keep dark is a choice. */
+export const DEFAULT_GAPS: GapPolicy = 'reveal';
 
 /** Rests that are strobe rests: the spec needs the photosensitivity acknowledgement or paces an automatic strobe of its own (Disco). */
 export function strobeRests(spec: EffectSpec): boolean {
@@ -42,16 +35,21 @@ export function gapsApply(spec: EffectSpec): boolean {
   return Boolean(kindOf(spec.kind)?.gapsApply?.(spec.params ?? {}, spec));
 }
 
-/** The spec's background after a pick: its family's default (a macro's: none) is stored as no choice, so a container's choice still reaches it. */
+/** The spec's background after a pick: the default (a macro's: none) is stored as no choice, so a container's choice still reaches it. */
 export function chooseGaps(spec: EffectSpec, choice: GapPolicy | '' | null): NonNullable<EffectSpec['background']> {
   const { gaps: _gaps, ...rest } = spec.background ?? { version: 1 as const, level: spec.brightness ?? 1 };
-  const unchosen = spec.kind === 'macro' ? null : familyGaps(spec.kind);
+  const unchosen = spec.kind === 'macro' ? null : DEFAULT_GAPS;
   return choice && choice !== unchosen ? { ...rest, gaps: choice } : rest;
 }
 
-/** A spec's own "Between effect hits" choice, or its family's. */
-export function gapsOf(spec: EffectSpec): GapPolicy {
-  return spec.background?.gaps ?? familyGaps(spec.kind);
+/** A spec's own "Between effect hits" choice, an enclosing macro's, or the default. */
+export function gapsOf(spec: EffectSpec, inherited?: GapPolicy): GapPolicy {
+  return spec.background?.gaps ?? inherited ?? DEFAULT_GAPS;
+}
+
+/** Whether the Background layer shows where this spec leaves its light below full. */
+export function revealsBase(spec: EffectSpec, inherited?: GapPolicy): boolean {
+  return gapsOf(spec, inherited) === 'reveal' && gapsApply(spec);
 }
 
 /** Does a kind ride the expression level on a curve of its own (glow), so a layer's level is not multiplied by it again. */

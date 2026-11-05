@@ -1,10 +1,10 @@
-import { composeBackground, DEFAULT_BACKGROUND } from '../background.ts';
+import { baseGap, composeBackground, DEFAULT_BACKGROUND } from '../background.ts';
 import { resolveGradient } from '../palette-model.ts';
 // Containers import this module to avoid validating the catalogue before all kinds register.
 
 import type { Colour } from '../../types/rig.ts';
 import type { Room } from '../room.ts';
-import { familyGaps, kindOf, requiresAcknowledgement } from './registry.ts';
+import { DEFAULT_GAPS, kindOf, requiresAcknowledgement, revealsBase } from './registry.ts';
 import { createPaletteAccess, resolvePalette } from './palette.ts';
 import { EffectStepper } from './stepper.ts';
 import type { EffectInstance } from './stepper.ts';
@@ -13,6 +13,8 @@ import { stricterPolicy } from '../hardware.ts';
 import type { EffectFrame, EffectSlot, FrameBase } from './types.ts';
 
 const BLACK: Colour = { r: 0, g: 0, b: 0, w: 0, a: 0, uv: 0 };
+// Kinds that play other specs: each child decides its own gaps, so the container adds none.
+const CONTAINERS = new Set(['macro', 'pattern.bundle']);
 
 // Prepare runs only after admission and initialization so queued commands see valid state.
 function renderCore(inst: EffectInstance, frame: FrameBase & { roll?: number }, room: Room, stepper: EffectStepper, out: EffectSlot[],
@@ -25,7 +27,7 @@ function renderCore(inst: EffectInstance, frame: FrameBase & { roll?: number }, 
   const initialRoll = frame.roll ?? 0;
   const gaps = inst.spec.background?.gaps ?? frame.gaps;
   const f: EffectFrame = { ...frame, spec: inst.spec, seed: inst.seed, anchorBeat: inst.anchorBeat, startedAtMs: inst.startedAtMs, instanceId: inst.id,
-    palette: [], roll: initialRoll, gaps, revealGaps: (gaps ?? familyGaps(inst.spec.kind)) === 'reveal' };
+    palette: [], roll: initialRoll, gaps, revealGaps: (gaps ?? DEFAULT_GAPS) === 'reveal' };
   if (lamps && frame.fixtureIds) f.fixtureIds = lamps.slots.map((slots) => frame.fixtureIds![slots[0]]);
   const paletteAt = (roll: number) => resolvePalette(inst.spec, frame.paletteOverride, frame.lookPalette, inst.seed, roll, prepared);
   const state = stepper.get(inst.id, () => {
@@ -45,6 +47,8 @@ function renderCore(inst: EffectInstance, frame: FrameBase & { roll?: number }, 
   if (cellsPass) cellsPass(inst.spec.params, state, lamps, f, slots);
   else def.render(inst.spec.params, state, at, f, slots);
   const brightness = inst.spec.brightness ?? 1;
+  // Light below full that authors no field leaves the rest of the slot to the Background layer, unless kept dark.
+  const fills = !CONTAINERS.has(inst.spec.kind) && revealsBase(inst.spec, frame.gaps);
   const copy = (i: number) => {
     if (Number.isInteger(i) && i >= 0 && i < room.n) {
       const slot = slots[lamps && !cellsPass ? lamps.lampOf[i] : i];
@@ -58,7 +62,8 @@ function renderCore(inst: EffectInstance, frame: FrameBase & { roll?: number }, 
         out[i] = { ...slot, colour: { r: mix('r'), g: mix('g'), b: mix('b'), w: mix('w'), a: mix('a'), uv: mix('uv') }, level, background };
       } else {
         out[i] = { ...slot, level: slot.level * brightness };
-        if (background) out[i].background = background;
+        const field = background ?? (fills && slot.strength > 0 && !((slot.strobe ?? 0) > 0) ? baseGap(out[i].level) : undefined);
+        if (field) out[i].background = field;
       }
     }
   };
@@ -70,7 +75,7 @@ function renderCore(inst: EffectInstance, frame: FrameBase & { roll?: number }, 
 export function renderEffect(inst: EffectInstance, frame: FrameBase & { roll?: number }, room: Room, stepper: EffectStepper, out: EffectSlot[],
   prepare?: (state: unknown) => void): void {
   stepper.prepareKind(inst.id, inst.spec.kind, frame.nowMs);
-  if (!frame.hardware?.length || inst.spec.kind === 'macro' || inst.spec.kind === 'pattern.bundle') {
+  if (!frame.hardware?.length || CONTAINERS.has(inst.spec.kind)) {
     renderCore(inst, { ...frame, admission: stricterPolicy(frame.admission, inst.spec.admission) }, room, stepper, out, prepare);
     return;
   }

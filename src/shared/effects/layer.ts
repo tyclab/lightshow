@@ -1,5 +1,7 @@
+import { baseGap } from '../background.ts';
 import type { BackgroundField } from '../background.ts';
 import { renderEffect } from './render.ts';
+import { revealsBase } from './registry.ts';
 import { roomOf } from '../room.ts';
 import { roomSpaceOf } from '../space.ts';
 import type { UnitSpace } from '../space.ts';
@@ -159,10 +161,12 @@ export function renderEffectLayer(rig: Rig, layout: Layout, frame: FrameBase, in
   const room = effectRoom(layout, frame.unitSpace);
   const out = unwritten(room.n);
   renderEffect(instance, frame, room, stepper, out, prepare);
+  // Nothing lies beneath the main effect but the Background layer: a slot it leaves unlit shows it, unless kept dark.
+  const under = revealsBase(instance.spec) ? baseGap(0) : undefined;
   for (let k = 0; k < list.length; k++) {
     const slot = out[k] as EffectSlot | undefined;
     if (slot && slot.strength > 0) set(list[k], slot.colour, 255 * slot.level, slot.strobe ?? 0, slot.kind ?? instance.spec.kind, slot.owner, slot.background);
-    else set(list[k], BLACK, 0, 0, null, undefined, slot?.background);
+    else set(list[k], BLACK, 0, 0, null, undefined, slot?.background ?? under);
   }
 }
 

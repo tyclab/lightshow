@@ -1,4 +1,4 @@
-import { ambient } from './background.ts';
+import { ambient, baseGap } from './background.ts';
 import type { BackgroundField } from './background.ts';
 import { hardwareDecision } from './hardware.ts';
 import type { HardwareCaps } from './hardware.ts';
@@ -194,8 +194,19 @@ export {
   renderLayer,
 };
 
+// Classic patterns whose rests are flash rests: their black stays dark under a Fixed background.
+const FLASH_PATTERNS = new Set(['random-flash', 'flash-chase', 'flash-scatter', 'flash-fill', 'flash-alternate', 'flash-burst',
+  'core', 'ramp', 'ramp-scatter', 'decay-scatter', 'ring-strobe', 'flashes', 'strobe']);
+
+// Light a classic pattern draws below full, without a bed of its own, leaves the rest of the unit to the Background layer.
+function underBase(pattern: string, set: LayerSet): LayerSet {
+  return FLASH_PATTERNS.has(pattern) ? set
+    : (u, colour, dim, strobe, background) => set(u, colour, dim, strobe, background ?? (strobe > 0 ? undefined : baseGap(dim / 255)));
+}
+
 function paint(rig: Rig, layout: Layout, pattern: string, look: LayerLook, clock: LayerClock | null,
-  twinkle: number[] | undefined, span: Span | null, set: LayerSet, everyUnit: boolean): void {
+  twinkle: number[] | undefined, span: Span | null, given: LayerSet, everyUnit: boolean): void {
+  const set = underBase(pattern, given);
   if (!clock?.hardware?.length || pattern === 'solid') {
     paintCore(rig, layout, pattern, look, clock, twinkle, span, set, everyUnit);
     return;

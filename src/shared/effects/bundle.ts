@@ -100,10 +100,11 @@ registerKind<BundleParams, BundleState>({
     const ids = frame.fixtureIds ?? Array.from({ length: room.n }, (_, i) => i);
     // Children see the frame a sequence clip sees; the voice's brightness and targets apply after this.
     const { spec: _spec, palette: _palette, roll: _roll, ...base } = frame;
-    renderPlaced(base, p.table, transport, s.run, s.children, room, ids, (k, slot, kind) => {
-      // A child's gap stays the pad's own black (never the look beneath); its field rides along when the child publishes one.
+    renderPlaced(base, p.table, transport, s.run, s.children, room, ids, (k, slot, kind, under) => {
+      // A child's gap stays the pad's own black (never the look beneath); its field, or the Background layer, rides along.
+      const background = slot?.background ?? under;
       out[k] = slot && slot.strength > 0 ? { ...slot, kind: slot.kind ?? kind }
-        : { colour: BLACK, level: 0, strength: 1, ...(slot?.background ? { background: slot.background } : {}) };
+        : { colour: BLACK, level: 0, strength: 1, ...(background ? { background } : {}) };
     });
   },
 });

@@ -4,6 +4,7 @@ import { DEFAULT_BACKGROUND, storedBackground } from '../../src/shared/backgroun
 import { cellsOf } from '../../src/shared/rig.ts';
 import { parseHex, toHex } from '../../src/shared/palette-model.ts';
 import { BACKGROUND_LABELS } from '../picture-layers.js';
+import { ColourSliders } from './ColourSliders.jsx';
 
 // The server replaces the whole background on every set, so an edit builds on the last one
 // sent rather than on the last echo: a level dragged within the echo's round trip would
@@ -66,6 +67,8 @@ export function Background() {
     {value.mode === 'fixed' && <>
       <label>Colour <input type="color" value={toHex(value.colour).slice(0, 7)}
         onInput={(e) => { const { w, a, uv } = base().colour; setColour({ ...parseHex(e.target.value), w, a, uv }); }} /></label>
+      <ColourSliders label="Background colour" value={toHex(value.colour)}
+        onChange={(hex) => { const { r, g, b } = parseHex(hex); setColour({ r, g, b }); }} />
       {['w', 'a', 'uv'].map((channel) => <label>{({ w: 'White', a: 'Amber', uv: 'UV' })[channel]}
         <input type="range" min="0" max="255" value={value.colour[channel]}
           onInput={(e) => setColour({ [channel]: Number(e.target.value) })} />
@@ -84,6 +87,7 @@ export function Background() {
     </fieldset>}
     {hint && <p class="setting-help">{hint}</p>}
     <p class="hint">{value.mode === 'follow' ? 'Uses the effect’s authored ambient colours and movement. Effects without an ambient layer stay dark between notes.'
-      : value.mode === 'fixed' ? 'Fills the effect’s background with this colour, and the gaps between hits of an effect set to Reveal background. Deliberate dark rests stay dark.' : 'Removes ambient light; the effect and its trails still play.'}</p>
+      : value.mode === 'fixed' ? 'This colour lies under every effect, pad and the visualizer picture, and shows wherever they leave a lamp dark or dim. Strobe rests, Kill, blackouts and effects set to Keep dark stay dark.'
+        : 'Removes ambient light; the effect and its trails still play.'}</p>
   </section>;
 }

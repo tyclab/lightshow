@@ -1,6 +1,6 @@
 import { PictureHold } from './picture-hold.ts';
 import type { CellOwnership } from './picture-hold.ts';
-import { ambient, backgroundScope, blendBackground, composeBackground } from '../shared/background.ts';
+import { ambient, backgroundScope, blendBackground, composeBackground, underPicture } from '../shared/background.ts';
 import type { BackgroundField, BackgroundSettings } from '../shared/background.ts';
 import { fixedColours, colourSlots, resolveGradient } from '../shared/palette-model.ts';
 import type { UnitSpace } from '../shared/space.ts';
@@ -820,8 +820,9 @@ function createRenderer({ profileOf, profilesRevision = () => 0, now = performan
     const selected = clip && !unchanged ? composeBackground(clip, clip.dim / 255, seqBackground[u], background) : null;
     if (!stopped || !lastBackground[u]) lastBackground[u] = clip ? seqBackground[u] : shownBackground[u];
     const resting = stopped ? composeBackground(raw, 0, lastBackground[u], background, true) : null;
+    const picture = pixel && !resting ? underPicture(pixel, background) : null;
     const below = resting ? { ...resting.colour, dim: resting.level * 255, strobe: 0 }
-      : pixel ? { ...pixel, dim: 255, strobe: 0 } : selected ? { ...selected.colour, dim: selected.level * 255, strobe: clip!.strobe } : clip ?? layer;
+      : picture ? { ...picture.colour, dim: picture.level * 255, strobe: 0 } : selected ? { ...selected.colour, dim: selected.level * 255, strobe: clip!.strobe } : clip ?? layer;
 
     let col: Colour; let dim: number; let strobe: number;
     if (energy) {

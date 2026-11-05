@@ -148,8 +148,11 @@ test("bass hits select up to three lamps from the band", () => {
   out.forEach((s, i) => assert.equal(s.strength, on.includes(i) ? 1 : 0, `slot ${i}: the hit lamps are owned, the rest show the layer below`));
 });
 
+// An owned dark lamp is the Disco's own black, with the Background layer under it (Reveal background, the default).
+const UNDER = { colour: C(0, 0, 0), level: 0, fullLevel: 0, coverage: 1 };
+
 test("Disco owns lamps after their first command", () => {
-  const BLACK = { colour: C(0, 0, 0), level: 0, strength: 1 }, CLEAR = { colour: C(0, 0, 0), level: 0, strength: 0 };
+  const BLACK = { colour: C(0, 0, 0), level: 0, strength: 1, background: UNDER }, CLEAR = { colour: C(0, 0, 0), level: 0, strength: 0 };
   // Slot 1 is pinned to treble, slot 3 to the disabled voice band; 0 and 2 balance into bass.
   const h = disco(row(4), { assign: { 1: 'treble', 3: 'voice' }, channels: channels({ 1: { enabled: false } }) });
   assert.deepEqual(h.draw(quiet(0)), [CLEAR, CLEAR, CLEAR, BLACK]);
@@ -184,7 +187,7 @@ test("Disco owns lamps after their first command", () => {
 
 test('neural with channel 4 off renders owned dark and never idles', () => {
   const h = disco(row(2), { style: 'neural', channels: channels({ 4: { enabled: false } }) });
-  const dark = Array.from({ length: 2 }, () => ({ colour: C(0, 0, 0), level: 0, strength: 1 }));
+  const dark = Array.from({ length: 2 }, () => ({ colour: C(0, 0, 0), level: 0, strength: 1, background: UNDER }));
   assert.deepEqual(h.draw(quiet(0)), dark);
   assert.deepEqual(h.draw(live(100, hop(1, { mainFrequency: 0.5, amplitude: 1 }))), dark, 'a reading means nothing to a disabled channel');
   assert.deepEqual(h.draw(quiet(3000)), dark, 'nor does the idle run');

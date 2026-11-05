@@ -345,7 +345,7 @@ test('invalid preset files are quarantined', (t) => {
   assert.deepEqual(library.resolve(good.id), migrateEffectSpec(good.spec));
 });
 
-test("a version-3 library plays every effect at its family default and keeps a .v3 copy when a Between effect hits choice is saved", (t) => {
+test("a version-3 library plays every effect at the default and keeps a .v3 copy when a Between effect hits choice is saved", (t) => {
   quietly(t);
   const { file } = place(t);
   assert.equal(EFFECT_LIBRARY_VERSION, 4);
@@ -353,7 +353,7 @@ test("a version-3 library plays every effect at its family default and keeps a .
   const older = { version: 3, presets: [stored] };
   fs.writeFileSync(file, JSON.stringify(older));
   const library = new EffectLibrary(file).load();
-  assert.equal(library.resolve(stored.id).background.gaps, undefined, 'no choice is invented: the family default plays');
+  assert.equal(library.resolve(stored.id).background.gaps, undefined, 'no choice is invented: the default plays');
   const revealed = { ...FADE, background: { version: 1, level: 1, gaps: 'reveal' } };
   const saved = library.update(stored.id, { spec: revealed });
   assert.equal(saved.spec.background.gaps, 'reveal');

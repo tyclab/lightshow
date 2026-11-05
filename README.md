@@ -462,16 +462,23 @@ its sector boundaries, including the emitter's size, to avoid a hard wall-wide
 colour jump.
 
 The **Background** card, above the main controls in Show, Effects and Stage, separates ambient light from the effect. **Follow effect**
-uses the effect's authored background colours and movement; **Fixed colour** replaces
-that field with your RGB, white, amber and UV values; **Off** removes its contribution.
+uses the effect's authored background colours and movement; **Fixed colour** is a base
+colour of your own, picked by hue, saturation and brightness (or the colour well) plus
+white, amber and UV; **Off** removes the background.
 The background level is independent of the effect editor's foreground brightness.
 Effects without an ambient field stay dark between their notes in Follow mode.
-Wash, Breathe, Fire and continuous gradients remain effect content. Required dark
-rests stay dark even with a Fixed background. Fixed replaces the beds of the
-classic patterns and fills the gaps of the V2 generators and the Party & Disco effects; the
-Entertainment, Disco and bitmap families keep their authored rests dark, so a Fixed colour
-shows there only where they author an ambient field. An effect changes this with
-**Between effect hits**, below.
+
+A Fixed colour is the layer under everything the show plays: the main effect of every
+family, classic patterns, pattern pads and other voices, sequence clips, and the
+visualizer's room picture and pixel streams. It replaces the beds an effect authors and
+shows wherever the light above leaves a lamp dark or dim, in proportion to the share left
+uncovered: an unlit lamp takes the whole colour, a lamp at half takes half of it, a lamp at
+full takes none. A picture unit is uncovered by its brightest emitter, so its black shows the
+whole colour and full colours cover it. Explicit dark cues stay dark: strobe and rapid-flash
+rests, Kill, a foreground drawn black at full opacity (the Blackout scene), the classic flash
+patterns and ring strobe, fixture overrides and blackouts, and the master blackout. An effect
+set to **Keep dark** under **Between effect hits**, below, keeps its own black too. Follow
+and Off never light a lamp the effect leaves dark.
 
 **Fixtures** chooses what the card reaches: **Whole rig** (the default), **Wash
 fixtures** or **Selected fixtures…**, ticked from the patch. Wash fixtures are the
@@ -496,8 +503,9 @@ gives this card's mode and fixtures, such as Fixed colour · Selected (3 of 8). 
 strip is read-only.
 
 **Between effect hits**, beside **Authored background level** in the effect editor,
-decides what a Fixed colour does where an effect is dark. Each dark or partly dark
-pixel is one of three things:
+decides what a Fixed colour does where an effect is dark. **Reveal background**, the
+default, lets it show there; **Keep dark** is the choice for an effect that should not have
+a background. Each dark or partly dark pixel is one of three things:
 
 - A **bed**: ambient light the effect authors. The classic patterns' beds and floors
   (fade's and hit's included), the split wash, a V2 background floor and Neural idle,
@@ -507,13 +515,14 @@ pixel is one of three things:
   either setting.
 - A **gap**: the share of a pixel the effect neither lights nor covers with a bed.
   A Party & Disco or V2 envelope, kernel or gate below full, an Entertainment lamp a row switches off or
-  fades without a baseline, the unlit share of a Disco lamp it owns, a bitmap's black
-  background. **Keep dark** leaves the gap the effect's own black; **Reveal
-  background** lets the Fixed colour into it, in proportion to the uncovered share.
-  Follow and Off put nothing there under either setting, on every profile, a
-  dimmer-only lamp included. A wave's trough or a dark sector of a rotation is not
-  a gap: the Entertainment continuous fields (waves, rotations, noise) and Studio publish
-  none, so Reveal changes nothing there.
+  fades below full, the unlit share of a Disco lamp it owns or has not reached yet, a
+  bitmap's black background (the black between Vertical Lines and between the swells of
+  OG Groove Wave included), the trough of a wave and the dark side of Swirl and Beacon.
+  **Reveal background** lets the Fixed colour into it, in proportion to the uncovered
+  share; **Keep dark** leaves the gap the effect's own black. Follow and Off put nothing
+  there under either setting, on every profile, a dimmer-only lamp included. Rotation,
+  the noise fields, the travelling room waves and Studio draw their dark parts in colour at
+  full level or over an authored bed, so they leave no gap.
 - An **explicit dark cue**: black the effect authors, dark under both settings and
   in every mode. The rests of an effect that needs the photosensitivity
   acknowledgement (one marked Rapid flash, and kinds that always flash fast:
@@ -524,18 +533,19 @@ pixel is one of three things:
   background.
 
 A gap stays owned: a pattern pad's or a sequence clip's gap is its own black, never
-the look beneath. An effect that chooses nothing plays its family's default, which is
-how each family played before the setting: **Reveal background** for the V2
-generators and the Party & Disco effects, **Keep dark** for the Entertainment, Disco and bitmap families.
+the look beneath, with the Fixed colour under it unless the clip keeps it dark. An effect
+that chooses nothing plays the default, **Reveal background**, whatever its family;
+effect-library entries saved before stored no choice where Keep dark was their family's
+default, so the Entertainment, Disco and bitmap ones now reveal too until set to Keep dark.
 Picking the default stores no choice. A macro's choice reaches the steps that make
 none; a step's own choice wins. The editor offers the choice only where it can change
 the output; elsewhere it reads **No gaps to fill**: the strobe and energy effects,
 effects whose rests are strobe rests, the backlit and whole-room Entertainment rows, Studio,
-the Visualizer, the Entertainment continuous fields, generators with an authored floor, and
-bitmaps without a black background. Classic patterns have no editor and play as
-before: Fixed replaces their beds, and the rests of those that author none stay dark
-(13 of 59: the flash patterns, ramp, ramp-scatter, decay-scatter, ring-strobe,
-sparkle, confetti, twinkle and fire).
+the Visualizer, the Entertainment fields without a gap (above), generators with an authored
+floor, and bitmaps without a black background. Classic patterns have no editor: Fixed
+replaces their beds and shows under the light they draw below full, except under the
+flash patterns (random-flash, the flash-* patterns, core, ramp, ramp-scatter,
+decay-scatter, ring-strobe and flashes), whose rests stay dark.
 
 Changing effects keeps the operator's background setting. Cue recall also keeps it
 unless **Restore saved background on recall** is selected. The restart record saves
@@ -565,9 +575,10 @@ them changes Off, Fixed or Follow output against earlier builds:
 - A Disco automatic-strobe flash on a lamp whose last command was a release keeps
   that release's bed ramp, so Off removes part of the flash's fall (a fifth of it
   40 ms in) and Fixed replaces that part.
-- With Follow at 100 %, a bitmap's black background (the SolidBlackBG patterns,
-  kept dark) sends a dimmer-only lamp its full level: the pixel is black at level 1,
-  and a profile without colour channels outputs only the level (255).
+- With Follow at 100 %, a bitmap's black background set to Keep dark sends a
+  dimmer-only lamp its full level: the pixel is black at level 1, and a profile
+  without colour channels outputs only the level (255). Under Reveal background, the
+  default, it is unlit.
 
 For an incoming visualizer, select **Picture → Colour + motion** and a Visualizer
 Flow or Drift look. The room sender supplies frames; the effect extracts dominant

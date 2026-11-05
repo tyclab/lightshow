@@ -694,6 +694,18 @@ test('the picture layers offer background access outside the main effect live st
   assert.match(strip[1], /aria-label="Edit background lighting"/);
 });
 
+test('the Background card offers Fixed colour by hue, saturation and brightness, with white, amber and UV, and says what it reaches', () => {
+  givenLibrary({ background: { version: 1, mode: 'fixed', level: .4, colour: { r: 255, g: 128, b: 0, w: 40, a: 0, uv: 0 } } });
+  const card = /<section class="card background-controls"[^>]*>(.*?)<\/section>/s.exec(ui.html(ui.h(ui.Show)))[1];
+  assert.match(card, /role="group" aria-label="Background colour sliders"/);
+  const slider = (name) => new RegExp(`value="([^"]*)"[^>]*aria-label="Background colour ${name}"`).exec(card)?.[1];
+  assert.deepStrictEqual(['hue', 'saturation', 'brightness'].map((name) => Math.round(Number(slider(name)))), [30, 100, 100]);
+  for (const name of ['White', 'Amber', 'UV']) assert.ok(card.includes(`>${name}`), name);
+  assert.match(card, /under every effect, pad and the visualizer picture/);
+  givenLibrary({ background: { version: 1, mode: 'follow', level: 1, colour: { r: 255, g: 128, b: 0, w: 0, a: 0, uv: 0 } } });
+  assert.doesNotMatch(ui.html(ui.h(ui.Show)), /Background colour sliders/, 'Follow effect takes its colours from the effect');
+});
+
 test('a favourite is pinned first on the deck, whatever it is', () => {
   const rows = [{ id: 'a', party: true }, { id: 'u', user: true }, { id: 'x', app: 'ldj' }, { id: 'b', party: true }];
   assert.deepStrictEqual(ui.quickDeck(rows, []).map((r) => r.id), ['u', 'a', 'b']);

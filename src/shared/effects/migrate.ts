@@ -9,7 +9,7 @@ export const compatibilityKind = (kind: string): string => /^(hd|ldj)\./.test(ki
 export function migrateEffectSpec(raw: unknown, fromVersion = 0): EffectSpec {
   const spec = validateSpec(raw);
   // Versions 3 and 4 only added per-spec background fields: the level (validateSpec fills it) and the optional
-  // "Between effect hits" choice (absent plays the family default). The conversions below are v0/v1's.
+  // "Between effect hits" choice (absent plays the default, Reveal background). The conversions below are v0/v1's.
   if (fromVersion >= 2) return spec;
   const params = { ...spec.params };
   if (spec.kind === 'macro' && Array.isArray(params.steps)) {

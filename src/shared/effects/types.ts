@@ -78,7 +78,7 @@ export interface EffectFrame {
   background?: BackgroundSettings;
   // The nearest explicit "Between effect hits" choice, from the spec or a container (macro, pad) around it.
   gaps?: GapPolicy;
-  // Whether this instance's kind publishes its gaps (render-instance.ts sets it; unset is the family default).
+  // Whether this instance publishes its gaps: render-instance.ts sets it from gaps, Reveal background when none.
   revealGaps?: boolean;
   modulation?: EffectModulation;
   pictureFeatures?: PictureFeatures | null;
@@ -120,6 +120,7 @@ export interface EffectKindDef<P = unknown, S = unknown> {
   internal?: boolean;
   rapidFlashWhen?(params: P): boolean;
   // Whether "Between effect hits" can change this kind's output: it may leave gaps that are not strobe rests.
+  // Only such a kind shows the Background layer under light it draws below full (render-instance.ts).
   gapsApply?(params: P, spec: EffectSpec): boolean;
   // Fresh instances reset self-paced flash limits, so macros and clips must reject them.
   pacesOwnFlashes?(params: P): boolean;

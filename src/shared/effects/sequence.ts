@@ -1,8 +1,9 @@
+import { baseGap } from '../background.ts';
 import type { BackgroundField } from '../background.ts';
 import { canonical, effectContentKey, effectRoom } from './layer.ts';
 import { effectAdmission } from './hardware.ts';
 import { renderEffect } from './render-instance.ts';
-import { pacesOwnFlashes } from './registry.ts';
+import { pacesOwnFlashes, revealsBase } from './registry.ts';
 import { seedFrom } from './hash.ts';
 import { tempoOf } from '../look-math.ts';
 import type { Colour } from '../../types/rig.ts';
@@ -359,17 +360,18 @@ export function renderSequenceLayer(rig: Rig, layout: Layout, frame: FrameBase, 
     picture.covered[k] = 1;
     set(list[k], colour, dim, strobe, kind, owner, background);
   };
-  const placed = renderPlaced(frame, table, transport, run, stepper, effectRoom(layout, frame.unitSpace), ids, (k, slot, kind) => {
+  const placed = renderPlaced(frame, table, transport, run, stepper, effectRoom(layout, frame.unitSpace), ids, (k, slot, kind, under) => {
     if (slot && slot.strength > 0) keep(k, slot.colour, 255 * slot.level, slot.strobe ?? 0, slot.kind ?? kind, slot.owner, slot.background);
-    else keep(k, BLACK, 0, 0, null, undefined, slot?.background);
+    else keep(k, BLACK, 0, 0, null, undefined, slot?.background ?? under);
   });
   if (placed === null) { endSequence(run, stepper); return false; }
   return placed;
 }
 
-// Render each winning activation once over the whole room before masking its won cells.
+// Render each winning activation once over the whole room before masking its won cells. A won cell the clip
+// leaves unlit is the clip's own black; `under` is the Background layer there, unless the clip keeps it dark.
 export function renderPlaced(frame: FrameBase, table: SequenceTable, transport: SequenceTransport, run: SequenceRun, stepper: EffectStepper,
-  room: Room, ids: readonly (number | string)[], lay: (k: number, slot: EffectSlot | null, kind: string) => void): boolean | null {
+  room: Room, ids: readonly (number | string)[], lay: (k: number, slot: EffectSlot | null, kind: string, under?: BackgroundField) => void): boolean | null {
   const caps = new Map(ids.map((id, k) => [id, frame.hardware?.[k]]));
   const placed = placeSequence(table, transport, frame.beatPos, ids, (clip, id, position) => {
     const capability = caps.get(id);
@@ -413,9 +415,10 @@ export function renderPlaced(frame: FrameBase, table: SequenceTable, transport: 
     const instance: EffectInstance = { id, spec: clip.spec, seed: activation.seed, anchorBeat, startedAtMs: activation.startedAtMs, targets };
     const out = new Array<EffectSlot>(room.n);
     renderEffect(instance, frame, room, stepper, out);
+    const under = revealsBase(clip.spec) ? baseGap(0) : undefined;
     for (const k of cells) {
       const slot = out[k] as EffectSlot | undefined;
-      lay(k, slot && (slot.strength > 0 || slot.background) ? slot : null, clip.spec.kind);
+      lay(k, slot && (slot.strength > 0 || slot.background) ? slot : null, clip.spec.kind, under);
     }
   }
   return true;
