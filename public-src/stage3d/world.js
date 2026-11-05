@@ -1,7 +1,7 @@
 import { emissionOf, hueEmission, beamDirection } from '../../src/shared/emission.ts';
 import { isPlaced, stagePositions } from '../../src/shared/stage.ts';
 import { lineOf } from '../../src/shared/rig.ts';
-import { bindingSources, plotPosition, resolveBindings } from '../../src/shared/space.ts';
+import { bindingSources, pathPoints, plotPosition, resolveBindings } from '../../src/shared/space.ts';
 
 
 export const STAGE_W = 12;
@@ -40,8 +40,9 @@ const turn = (v, axis, angle) => {
 };
 
 /** A room's box walls with their axes in world space (three.js Euler XYZ); other shapes leave the room box to stop beams. */
-export function boxWalls(objects = []) {
-  return objects.filter((object) => object.role === 'wall' && object.kind === 'box').map(({ position, size, rotation }) => {
+export function boxWalls(objects = [], furniture = false) {
+  return objects.filter((object) => (object.role === 'wall' || furniture && object.role === 'furniture' && !object.lightBindingId && (object.opacity ?? 1) >= 0.9)
+    && object.kind === 'box').map(({ position, size, rotation }) => {
     const r = rotation || { x: 0, y: 0, z: 0 };
     const axes = [{ x: 1, y: 0, z: 0 }, { x: 0, y: 1, z: 0 }, { x: 0, y: 0, z: 1 }].map((v) => turn(turn(turn(v, 'z', r.z), 'y', r.y), 'x', r.x));
     return { centre: position, half: [size.x / 2, size.y / 2, size.z / 2], axes };
@@ -88,8 +89,8 @@ export function poolOn(end, normal, aim, radius) {
     normal, along, across: cross(along, normal), major: minor / Math.max(GRAZE, cos), minor };
 }
 
-function beamLight(light, emission, floor = false, bounds = null, walls = []) {
-  const from = light.position, aim = beamDirection(emission, floor);
+function beamLight(light, emission, floor = false, bounds = null, walls = [], direction = null) {
+  const from = light.position, aim = direction ?? beamDirection(emission, floor);
   const hit = surfaceHit(from, aim, bounds, walls);
   const length = hit ? hit.length : MAX_BEAM;
   const end = { x: from.x + aim.x * length, y: from.y + aim.y * length, z: from.z + aim.z * length };
@@ -224,6 +225,7 @@ export function roomRig(fixtures, rig, model, profiles = {}) {
   }
   const indices = new Map(fixtures.map((fixture, index) => [fixture.id, index]));
   const walls = boxWalls(model.objects);
+  const surfaces = boxWalls(model.objects, true);
   const { resolved, mapped, outputs } = resolveBindings(fixtures, rig, model.bindings);
   let estimated = 0;
   for (const { binding, sources, missingSources } of resolved) {
@@ -242,14 +244,25 @@ export function roomRig(fixtures, rig, model, profiles = {}) {
     const fixture = fixtures[indices.get(binding.fixtureId ?? binding.sources?.[0]?.fixtureId)];
     // A room draws unshaped lamps as bulbs, except a Hue fitting its bridge names (emission.ts).
     const emission = fixture && (fixture.emission ?? hueEmission(fixture, profiles[fixture.profileId]));
+    const target = binding.lightTarget;
+    const origin = binding.path ? pathPoints(binding.path, 1)[0] : light.position;
+    const offset = target && { x: target.x - origin.x, y: target.y - origin.y, z: target.z - origin.z };
+    const aim = offset && Math.hypot(offset.x, offset.y, offset.z) >= 0.001 ? unit(offset) : null;
+    const directed = (source, body) => ({ ...beamLight(source, { kind: 'beam', beamAngle: emission?.beamAngle ?? 100 },
+      false, model.bounds, surfaces, aim), body, ...(body === 0 ? { weight: 0 } : {}) });
     if (binding.path) {
       for (let index = 1; index < binding.path.length; index++) {
         const from = binding.path[index - 1], to = binding.path[index];
         const length = Math.hypot(to.x - from.x, to.y - from.y, to.z - from.z);
-        if (length > 1e-6) cells.push({ ...light, size: STRIP_THICKNESS, length, from, to,
-          position: { x: (from.x + to.x) / 2, y: (from.y + to.y) / 2, z: (from.z + to.z) / 2 } });
+        if (length > 1e-6) {
+          const cell = { ...light, size: STRIP_THICKNESS, length, from, to,
+            position: { x: (from.x + to.x) / 2, y: (from.y + to.y) / 2, z: (from.z + to.z) / 2 } };
+          cells.push(cell);
+          if (aim) lamps.push(directed(cell, 0));
+        }
       }
-    } else if (emission?.kind === 'beam') lamps.push({ ...beamLight(light, emission, fixture.group === 'floor', model.bounds, walls), body: ROOM_BULB });
+    } else if (aim) lamps.push(directed(light, ROOM_BULB));
+    else if (emission?.kind === 'beam') lamps.push({ ...beamLight(light, emission, fixture.group === 'floor', model.bounds, walls), body: ROOM_BULB });
     else if (emission?.kind === 'strip' || !emission && !binding.sources && rig.cellMaps[indices.get(binding.fixtureId)]) cells.push({ ...light, size: POINT_CELL });
     else lamps.push({ ...light, kind: 'bulb', aim: null, length: 0, body: ROOM_BULB });
   }

@@ -488,7 +488,7 @@ export function createStageScene(canvas, { haze = 0.6, room, lightRGB }) {
       put(lenses.instanceColor, k, 1);
       glow(beams.instanceColor, k, 1);
       glow(pools.instanceColor, k, 1);
-      glow(lampGlow.geometry.attributes.color, k, 0.9);
+      glow(lampGlow.geometry.attributes.color, k, par.body === 0 ? 0 : 0.9);
       add(par);
     });
     bulbs.forEach((bulb, k) => {
