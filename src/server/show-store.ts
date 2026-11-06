@@ -13,6 +13,7 @@ import { settings, defaultHueBridgeId } from './settings.ts';
 import type { ShowFile } from './validation.ts';
 import type { Fixture, Profile } from '../types/rig.ts';
 import { configFile } from './config-dir.ts';
+import { AcknowledgementTimeout } from './frame-barrier.ts';
 
 const SAVE_DEBOUNCE_MS = 400;
 const APPLY_TIMEOUT_MS = 5000;
@@ -276,6 +277,12 @@ class ShowStore extends JsonStore {
     }, err => {
       const error = messageOf(err);
       if (this.revision === revision) this.applyError = error;
+      // Arming waits on a clean rig status, so a late acknowledgement must clear the error it left.
+      if (err instanceof AcknowledgementTimeout) err.applied.then(() => {
+        if (this.revision !== revision) return;
+        this.appliedRevision = Math.max(this.appliedRevision, revision);
+        this.applyError = null;
+      }, () => { /* the renderer was lost first: the error stands */ });
       return { saved: true, revision, applied: false, error };
     });
   }

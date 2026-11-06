@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { GlobalControl, checkLegacyControlPatch } from '../../src/server/control.ts';
+import { FrameBarrier } from '../../src/server/frame-barrier.ts';
 
 function setup(frame = async () => {}) {
   const control = new GlobalControl(), calls = [];
@@ -49,6 +50,40 @@ test('Stop cancels a delayed command acknowledgement without undoing protective 
   waiters[1](); await stop;
   assert.equal(control.snapshot().pending, false);
   assert.equal(control.snapshot().playing, false);
+});
+
+test('a late renderer acknowledgement clears the fault it left; a lost renderer keeps it', async (t) => {
+  const frames = new FrameBarrier();
+  const warn = t.mock.method(console, 'warn', () => {});
+  const control = new GlobalControl();
+  let armed = false, broadcasts = 0;
+  control.configure({ armed: () => armed, blackout: () => false, arm: on => { armed = on; }, setBlackout() {},
+    validateStart() {}, start() {}, stop() {}, changed: () => { broadcasts++; }, frame: () => frames.wait(20) });
+  const act = (action) => control.execute({ ...control.snapshot(), action });
+  await assert.rejects(act('arm'), /did not acknowledge/);
+  assert.equal(control.snapshot().armed, true, 'the change was made');
+  assert.match(control.snapshot().fault, /did not acknowledge/);
+  const before = broadcasts;
+  assert.equal(frames.acknowledge(frames.revision), true);
+  await new Promise(setImmediate);
+  assert.equal(control.snapshot().fault, null);
+  assert.equal(control.snapshot().appliedRevision, control.snapshot().revision);
+  assert.equal(control.snapshot().pending, false);
+  assert.ok(broadcasts > before, 'every page hears the fault clear');
+  assert.match(warn.mock.calls.at(-1).arguments[0], /acknowledged revision \d+ late/);
+
+  await assert.rejects(act('freeze'), /did not acknowledge/);
+  frames.fail('The renderer restarted before acknowledging this change');
+  await new Promise(setImmediate);
+  assert.match(control.snapshot().fault, /did not acknowledge/, 'no acknowledgement ever came: the fault stands');
+
+  await assert.rejects(act('resume'), /did not acknowledge/);
+  const stale = control.snapshot().revision;
+  const newer = act('blackout');
+  frames.acknowledge(frames.revision);
+  await newer;
+  assert.equal(control.snapshot().fault, null);
+  assert.ok(control.snapshot().appliedRevision > stale);
 });
 
 test('legacy transport is rejected and frozen pads are never queued', async () => {

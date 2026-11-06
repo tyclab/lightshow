@@ -49,6 +49,8 @@ export interface Wires {
   sacnDiscovery(packet: { cid: string; sourceName: string; universes: number[]; iface: string }): unknown;
   ddp(target: DdpTarget, data: Uint8Array): boolean;
   openrgb(target: OpenRgbTarget, rgb: Uint8Array): boolean;
+  /** True while the device's SDK session is still being set up; a wire without it is never setting up. */
+  openrgbSettingUp?(target: OpenRgbTarget): boolean;
   openrgbClose(target: { host: string; port: number }): unknown;
 }
 
@@ -85,11 +87,13 @@ function sacnUniverseFor(universe: number, offset: number): number | null {
   return mapped;
 }
 
-let openrgbWire: Pick<Wires, 'openrgb' | 'openrgbClose'> | null = null;
+let openrgbWire: Required<Pick<Wires, 'openrgb' | 'openrgbSettingUp' | 'openrgbClose'>> | null = null;
 let openrgbLoading: Promise<void> | null = null;
 function loadOpenRgbWire(): void {
   if (openrgbLoading) return;
-  openrgbLoading = import('./openrgb.ts').then((m) => { openrgbWire = { openrgb: m.sendOpenRgb, openrgbClose: m.closeOpenRgb }; }, (err) => {
+  openrgbLoading = import('./openrgb.ts').then((m) => {
+    openrgbWire = { openrgb: m.sendOpenRgb, openrgbSettingUp: m.settingUpOpenRgb, openrgbClose: m.closeOpenRgb };
+  }, (err) => {
     console.warn(`[openrgb] cannot load the wire: ${err instanceof Error ? err.message : String(err)}`);
     openrgbLoading = null;
   });
@@ -102,6 +106,7 @@ const DEFAULT_WIRES: Wires = {
     loadOpenRgbWire();
     return false;
   },
+  openrgbSettingUp: (target) => !openrgbWire || openrgbWire.openrgbSettingUp(target),
   openrgbClose: (target) => openrgbWire?.openrgbClose(target),
 };
 
@@ -148,6 +153,9 @@ function createTransmitter({ wires = DEFAULT_WIRES, now = () => performance.now(
   const ddpSequence = new Map<string, number>();
   const openrgbFrames = new Map<number, Buffer>();
   let openrgbSent = new Map<string, OpenRgbRoute>();
+  // OpenRGB devices that took a frame since they were last darkened. One that has not, and whose
+  // session is still being set up, shows none of the show's light, so it cannot hold a frame back.
+  const openrgbLit = new Set<string>();
   let live = true;
   // Keyed by universe and port: a universe can wait on retirement at two old ports at once.
   const artnetSent = new Map<string, { universe: number; hosts: string[]; port: number; sync: boolean }>();
@@ -352,7 +360,8 @@ function createTransmitter({ wires = DEFAULT_WIRES, now = () => performance.now(
     }
     const pendingRgb = new Map<string, OpenRgbRoute>();
     for (const [key, gone] of openrgbSent) {
-      if (!wires.openrgb(openrgbTarget(gone), new Uint8Array(gone.leds * 3))) {
+      if (wires.openrgb(openrgbTarget(gone), new Uint8Array(gone.leds * 3))) openrgbLit.delete(key);
+      else if (openrgbHolds(key, gone)) {
         frameReady = false;
         pendingRgb.set(key, gone);
       }
@@ -426,12 +435,16 @@ function createTransmitter({ wires = DEFAULT_WIRES, now = () => performance.now(
   function endOpenRgbFrame(routes: OpenRgbRoute[] | null | undefined): void {
     const current = new Map<string, OpenRgbRoute>();
     for (const route of routes || []) {
-      current.set(openrgbKey(route), route);
+      const key = openrgbKey(route);
+      current.set(key, route);
       if (!route.parts.every((part) => openrgbFrames.has(part.universe))) { frameReady = false; continue; }
-      if (!wires.openrgb(openrgbTarget(route), openrgbPixels(route, (universe) => openrgbFrames.get(universe) as Buffer))) frameReady = false;
+      if (wires.openrgb(openrgbTarget(route), openrgbPixels(route, (universe) => openrgbFrames.get(universe) as Buffer))) openrgbLit.add(key);
+      else if (openrgbHolds(key, route)) frameReady = false;
     }
     for (const [key, gone] of openrgbSent) {
-      if (!current.has(key) && !wires.openrgb(openrgbTarget(gone), new Uint8Array(gone.leds * 3))) {
+      if (current.has(key)) continue;
+      if (wires.openrgb(openrgbTarget(gone), new Uint8Array(gone.leds * 3))) openrgbLit.delete(key);
+      else if (openrgbHolds(key, gone)) {
         frameReady = false;
         current.set(key, gone);
       }
@@ -439,6 +452,11 @@ function createTransmitter({ wires = DEFAULT_WIRES, now = () => performance.now(
     hangUpOpenRgb(openrgbSent, current);
     openrgbSent = current;
     openrgbFrames.clear();
+  }
+
+  /** Whether a device that could not take this frame holds it back: unless it is unlit and still being set up. */
+  function openrgbHolds(key: string, route: OpenRgbRoute): boolean {
+    return openrgbLit.has(key) || !wires.openrgbSettingUp?.(openrgbTarget(route));
   }
 
   function openrgbTarget(route: OpenRgbRoute): OpenRgbTarget {

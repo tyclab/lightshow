@@ -642,7 +642,8 @@ one complete rig document, then publishes it to the renderer. Success includes
 `saved: true`, `revision` and `applied: true` after the coherent frame is accepted
 by the local sender. This does not confirm UDP delivery at a fixture. A sender
 failure returns `saved: true, applied: false` and an error; the committed rig stays
-saved. A superseded request cannot claim that its older rig was applied.
+saved, and an acknowledgement that arrives later clears the error. A superseded
+request cannot claim that its older rig was applied.
 
 Save Art-Net separately from other settings: mixed requests are rejected before
 any changes with `mixed_settings_domains`. Outputs, the setup wizard, node
@@ -1098,7 +1099,9 @@ its name is listed. Devices must support a direct LED colour mode.
 
 Disarm or removal sends darkness and closes the connection. OpenRGB has no
 realtime timeout: another client/profile must restore the desired hardware
-effect. Unavailable PCs generate warnings; other outputs continue. Missing devices
+effect. Unavailable PCs generate warnings; other outputs continue. A device still
+connecting or being prepared holds back neither control acknowledgements nor Hue
+until it has taken a frame; a lit one that misses a frame does. Missing devices
 retry after 1 second, doubling to at most 30 seconds. Frames pause briefly while
 discovery validates device numbers, then healthy devices resume at the normal
 frame rate without replaying dropped frames. A device-list update or reconnect
@@ -1682,7 +1685,9 @@ actions and feedback. The module uses Socket.IO protocol 2. See
 last displayed `version: 1`, `session` and `revision` to `POST /api/control`, plus
 `action` and optional `programme` (`look`, `auto`, `sequence`). Actions are
 `select`, `start`, `stop`, `freeze`, `resume`, `arm`, `disarm`, `blackout`, `restore`.
-A successful response follows the renderer acknowledgement. A 409 requires a
+A successful response follows the renderer acknowledgement. If none arrives
+within 2 seconds the action fails and `control.fault` says so; an acknowledgement
+that arrives later clears that fault and marks the revision applied. A 409 requires a
 refresh and a new operator action; never fetch a newer revision and retry silently.
 Protective Stop, Disarm and Blackout also accept stale revisions. While the renderer
 is starting, enabling or releasing actions return 503 before changing state; the

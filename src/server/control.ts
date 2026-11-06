@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { HttpError } from '../errors.ts';
+import { AcknowledgementTimeout } from './frame-barrier.ts';
 import type { ArmOrigin } from './apply.ts';
 
 export type Programme = 'look' | 'auto' | 'sequence';
@@ -103,9 +104,21 @@ export class GlobalControl {
       if (this.revision === revision) {
         this.fault = error instanceof Error ? error.message : 'Control could not be applied';
         hooks.changed();
+        if (error instanceof AcknowledgementTimeout) this.clearWhenApplied(revision, error.applied);
       }
       throw error;
     }
+  }
+
+  // The change was made before the wait ran out: an acknowledgement that arrives late applies it after all.
+  private clearWhenApplied(revision: number, applied: Promise<void>): void {
+    applied.then(() => {
+      this.appliedRevision = Math.max(this.appliedRevision, revision);
+      if (this.revision !== revision || this.fault === null) return;
+      this.fault = null;
+      console.warn(`[control] the renderer acknowledged revision ${revision} late; its fault is cleared`);
+      this.hooks?.changed();
+    }, () => { /* the renderer was lost first: the fault stands */ });
   }
 
   current(revision: number): boolean { return this.revision === revision; }
