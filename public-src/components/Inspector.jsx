@@ -10,7 +10,7 @@ import { parseHex, toHex, HEX_COLOUR } from '../../src/shared/palette-model.ts';
 import { FieldInput } from './setup/FieldInput.jsx';
 import { useVoicePads } from '../voice-pad.js';
 import { useSafetyGate } from './Photosensitivity.jsx';
-import { chooseGaps, familyGaps, gapsApply, requiresAcknowledgement } from '../../src/shared/effects/registry.ts';
+import { DEFAULT_GAPS, chooseGaps, gapsApply, requiresAcknowledgement } from '../../src/shared/effects/registry.ts';
 
 /**
  * The preset picked in the Effects list, with every setting its family can
@@ -117,11 +117,10 @@ export function withRecommended(spec, def) {
 }
 
 const GAPS = { dark: 'Keep dark', reveal: 'Reveal background' };
-/** "Between effect hits": a macro may leave the choice to its steps; any other kind shows its family's default as the choice. */
+/** "Between effect hits": a macro may leave the choice to its steps; any other kind shows the default as the choice. */
 export function gapOptions(kind) {
   if (kind === 'macro') return { '': 'Each step’s own', ...GAPS };
-  const family = familyGaps(kind);
-  return Object.fromEntries(Object.entries(GAPS).map(([id, text]) => [id, id === family ? `${text} (family default)` : text]));
+  return Object.fromEntries(Object.entries(GAPS).map(([id, text]) => [id, id === DEFAULT_GAPS ? `${text} (default)` : text]));
 }
 
 // The entertainment backlit rows are kinds of their own (BL…): a row with a twin gets
@@ -621,7 +620,7 @@ export function Inspector({ id, onSelect, onPlay, onClose, inline = null, onAppl
         <UnitField label="Authored background level" path="background.level" value={spec.background?.level ?? spec.brightness ?? 1}
           onChange={(v) => setSpec('background', { ...spec.background, version: 1, level: v })} />
         {gapsApply(spec) ? <SelectField label="Between effect hits" path="background.gaps"
-          value={spec.background?.gaps ?? (spec.kind === 'macro' ? '' : familyGaps(spec.kind))}
+          value={spec.background?.gaps ?? (spec.kind === 'macro' ? '' : DEFAULT_GAPS)}
           options={gapOptions(spec.kind)} onChange={(v) => setSpec('background', chooseGaps(spec, v))} />
           : <Field label="Between effect hits" path="background.gaps">
             <select id={fid('background.gaps')} disabled><option>No gaps to fill</option></select>
@@ -629,8 +628,8 @@ export function Inspector({ id, onSelect, onPlay, onClose, inline = null, onAppl
         <HardwareFit spec={spec} />
       </div>
       <p class="effect-inspector-desc">Authored background level scales this effect’s own ambient beds. {gapsApply(spec)
-        ? 'Between its hits, Keep dark leaves the gaps black; Reveal background lets the Background card’s colour into them.'
-        : 'Between effect hits does not apply: this effect’s dark rests are strobe rests or beds, or it plays a continuous field.'} Explicit
+        ? 'Where it is dark or dim, Reveal background lets the Background card’s colour show under it; Keep dark leaves its own black.'
+        : 'Between effect hits does not apply: this effect’s dark rests are strobe rests, or it lights every lamp at all times.'} Explicit
         dark cues stay dark. Background Off removes the ambient layer, while effects can still produce light.</p>
       {!spatial && advancedControls}
       {ask && (

@@ -73,15 +73,22 @@ for (const pattern of ['solid', 'breathe', 'fire', 'gradient']) test(`Off preser
   for (const now of [0, 250, 500, 1500]) assert.deepEqual(b.draw(now), a.draw(now));
 });
 
-test('bitmap raster distinguishes authored colour beds from mandatory black rests', () => {
+test('bitmap raster distinguishes authored colour beds from its black background', () => {
   for (const pattern of ['SolidBGSineWave', 'SolidBlackBGSineWave']) {
     const effect = validateSpec({ kind: 'ldj.bitmap', params: { pattern } });
-    const a = engine({ effect }), b = engine({ effect, background: off }), c = engine({ effect, background: fixed });
-    const before = a.draw(0), after = b.draw(0), replaced = c.draw(0);
+    const kept = validateSpec({ ...effect, background: { ...effect.background, gaps: 'dark' } });
+    const a = engine({ effect }), b = engine({ effect, background: off }), c = engine({ effect, background: fixed }), d = engine({ effect: kept, background: fixed });
+    const before = a.draw(0), after = b.draw(0), replaced = c.draw(0), dark_ = d.draw(0);
     if (pattern === 'SolidBGSineWave') assert.ok(before.some((byte, index) => byte > after[index]), 'coloured raster bed is removable');
     else {
       assert.deepEqual(after, before, 'authored black is already dark');
-      for (let i = 0; i < before.length; i += 6) if (dark(before.slice(i, i + 6))) assert.ok(dark(replaced.slice(i, i + 6)));
+      let black = 0;
+      for (let i = 0; i < before.length; i += 6) if (dark(before.slice(i, i + 6))) {
+        black++;
+        assert.ok(!dark(replaced.slice(i, i + 6)), 'the Fixed colour shows on the black background');
+        assert.ok(dark(dark_.slice(i, i + 6)), 'Keep dark leaves it black');
+      }
+      assert.ok(black > 0, 'negative control: the raster has black background lamps');
     }
   }
 });

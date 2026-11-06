@@ -1,10 +1,10 @@
-// "Between effect hits": an effect keeps its gaps dark or reveals the Background
-// layer in them (spec.background.gaps). Beds and explicit dark cues do not change.
+// "Between effect hits": an effect reveals the Background layer in its gaps (the default)
+// or keeps them dark (spec.background.gaps). Beds and explicit dark cues do not change.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createRenderer, withInputDefaults } from '../../src/server/renderer.ts';
 import { createUniverseStore } from '../../src/server/universes.ts';
-import { KINDS, chooseGaps, familyGaps, gapsApply, gapsOf, strobeRests, validateSpec } from '../../src/shared/effects/registry.ts';
+import { DEFAULT_GAPS, KINDS, chooseGaps, gapsApply, gapsOf, strobeRests, validateSpec } from '../../src/shared/effects/registry.ts';
 import { CATALOGUE, presetById } from '../../src/shared/effects/index.ts';
 import { HD_DEFAULTS } from '../../src/shared/effects/hd.ts';
 import { bundleSpec } from '../../src/shared/effects/bundle.ts';
@@ -41,23 +41,20 @@ const with_ = (spec, gaps) => validateSpec({ ...spec, background: { ...spec.back
 const run = (patch, times) => { const e = engine(patch); return times.map((now) => e.draw(now)); };
 const TIMES = [0, 125, 250, 375, 500, 750, 1000, 1250, 1500, 2000];
 
-test('family defaults: Entertainment (bitmap included) and Disco keep their gaps dark, every other kind reveals', () => {
-  for (const [kind, def] of KINDS) {
-    const expected = def.app === 'ldj' || kind === 'hd.disco' ? 'dark' : 'reveal';
-    assert.equal(familyGaps(kind), expected, kind);
-    assert.equal(familyGaps(`compat.${kind}`), expected, `compat.${kind}`);
-  }
+test('every family reveals the Background layer by default; Keep dark is a stored choice', () => {
+  assert.equal(DEFAULT_GAPS, 'reveal');
+  for (const kind of ['ldj.FadeCycle', 'ldj.bitmap', 'hd.disco', 'hd.twinkle', 'v2.scatter']) assert.equal(gapsOf(validateSpec({ kind })), 'reveal', kind);
   const spec = validateSpec({ kind: 'ldj.FadeCycle' });
-  assert.equal(spec.background.gaps, undefined, 'a fresh spec stores no choice: it takes its family default');
-  assert.equal(gapsOf(spec), 'dark');
-  assert.equal(gapsOf(with_(spec, 'reveal')), 'reveal');
-  assert.equal(gapsOf(validateSpec({ kind: 'hd.twinkle' })), 'reveal');
-  assert.deepEqual(validateSpec(with_(spec, 'reveal')).background, { version: 1, level: 1, gaps: 'reveal' });
+  assert.equal(spec.background.gaps, undefined, 'a fresh spec stores no choice: it takes the default');
+  assert.equal(gapsOf(with_(spec, 'dark')), 'dark');
+  assert.equal(gapsOf(spec, 'dark'), 'dark', 'an enclosing macro’s choice reaches a spec that makes none');
+  assert.equal(gapsOf(with_(spec, 'reveal'), 'dark'), 'reveal', 'the spec’s own choice wins');
+  assert.deepEqual(validateSpec(with_(spec, 'dark')).background, { version: 1, level: 1, gaps: 'dark' });
   assert.throws(() => validateSpec({ ...spec, background: { version: 1, level: 1, gaps: 'maybe' } }));
   assert.throws(() => validateSpec({ ...spec, background: { version: 1, level: 1, between: 'dark' } }));
 });
 
-test('every catalogue effect renders the same with no choice stored as with its family default chosen', () => {
+test('every catalogue effect renders the same with no choice stored as with the default chosen', () => {
   for (const preset of CATALOGUE) {
     if (preset.legacy || !preset.spec) continue;
     const explicit = with_(preset.spec, gapsOf(preset.spec));
@@ -68,9 +65,9 @@ test('every catalogue effect renders the same with no choice stored as with its 
   }
 });
 
-test('an Entertainment chase keeps its gaps dark by default and reveals the Fixed colour in them when asked', () => {
+test('an Entertainment chase reveals the Fixed colour in its gaps by default and keeps them dark when asked', () => {
   const spec = validateSpec({ kind: 'ldj.FadeCycle', palette: ['#FF0000', '#00FF00'] });
-  const kept = run({ effect: spec, background: fixed }, TIMES), revealed = run({ effect: with_(spec, 'reveal'), background: fixed }, TIMES);
+  const kept = run({ effect: with_(spec, 'dark'), background: fixed }, TIMES), revealed = run({ effect: spec, background: fixed }, TIMES);
   let filled = 0;
   revealed.forEach((frame, k) => lamps(frame).forEach((lamp, i) => {
     const before = lamps(kept[k])[i];
@@ -79,7 +76,7 @@ test('an Entertainment chase keeps its gaps dark by default and reveals the Fixe
   }));
   assert.ok(filled >= 10, `negative control: the chase leaves unlit lamps (${filled})`);
   for (const background of [follow, off, DEFAULT_BACKGROUND]) {
-    assert.deepEqual(run({ effect: with_(spec, 'reveal'), background }, TIMES), run({ effect: spec, background }, TIMES),
+    assert.deepEqual(run({ effect: spec, background }, TIMES), run({ effect: with_(spec, 'dark'), background }, TIMES),
       `${background.mode}: Reveal changes nothing where there is no Fixed colour`);
   }
 });
@@ -100,7 +97,7 @@ test('explicit dark cues stay dark under Reveal: strobe rests, a black foregroun
   for (const spec of [with_(scene, 'reveal'), scene]) assert.ok(run({ effect: spec, background: fixed }, TIMES).every(dark), 'the Blackout scene owns black');
 });
 
-test('Disco reveals the unlit share of its lamps only when asked; its idle and release beds do not change', () => {
+test('Disco reveals the unlit share of its lamps unless kept dark; its idle and release beds do not change', () => {
   const audio = (t, amplitude) => ({ t, generation: 1, party: { full: 1, bass: 1, mid: 1, high: 1 }, spl: null,
     disco: { neural: { mainFrequency: .5, amplitude } } });
   const slots = (gaps) => {
@@ -108,7 +105,8 @@ test('Disco reveals the unlit share of its lamps only when asked; its idle and r
     h.draw({ nowMs: 0, beatPos: 0, audioMode: 'reactive', audio: audio(0, .2) });
     return h.draw({ nowMs: 100, beatPos: .2, audioMode: 'reactive', audio: audio(.1, .2) });
   };
-  for (const slot of slots()) assert.equal(slot.background, undefined, 'Keep dark publishes no field for a Neural lamp');
+  for (const slot of slots('dark')) assert.equal(slot.background, undefined, 'Keep dark publishes no field for a Neural lamp');
+  assert.deepEqual(slots(), slots('reveal'), 'Reveal is the default');
   for (const slot of slots('reveal')) {
     assert.ok(Math.abs(slot.level - .2) < .01, 'negative control: the lamp plays the amplitude');
     assert.ok(Math.abs(slot.background.coverage - .8) < .01, 'the unlit share is a gap');
@@ -117,7 +115,7 @@ test('Disco reveals the unlit share of its lamps only when asked; its idle and r
     assert.ok(Math.abs(shown.level - (.2 + .3 * .8)) < .01);
   }
   const idle = harness('hd.disco', row(4), { params: { style: 'neural' }, spec: { background: { version: 1, level: 1, gaps: 'reveal' } } });
-  const plain = harness('hd.disco', row(4), { params: { style: 'neural' } });
+  const plain = harness('hd.disco', row(4), { params: { style: 'neural' }, spec: { background: { version: 1, level: 1, gaps: 'dark' } } });
   const draw = (h, nowMs) => h.draw({ nowMs, beatPos: nowMs / 500 });
   assert.deepEqual(draw(idle, 0), draw(plain, 0), 'a lamp the Disco has not reached is the layer below’s, not a gap');
   for (const nowMs of [2100, 3000, 3600]) {
@@ -135,16 +133,16 @@ test('Disco reveals the unlit share of its lamps only when asked; its idle and r
   }
 });
 
-test('a bitmap’s black background is a gap: kept dark by default, filled when revealed, dark again when scrolled rapidly', () => {
+test('a bitmap’s black background is a gap: filled by default, dark when kept dark, dark again when scrolled rapidly', () => {
   const spec = validateSpec({ kind: 'ldj.bitmap', params: { pattern: 'SolidBlackBGSineWave' } });
-  const kept = run({ effect: spec, background: fixed }, [0, 500]), revealed = run({ effect: with_(spec, 'reveal'), background: fixed }, [0, 500]);
+  const kept = run({ effect: with_(spec, 'dark'), background: fixed }, [0, 500]), revealed = run({ effect: spec, background: fixed }, [0, 500]);
   let filled = 0;
   revealed.forEach((frame, k) => lamps(frame).forEach((lamp, i) => {
     if (dark(lamps(kept[k])[i])) { assert.deepEqual(lamp, WASH); filled++; }
   }));
   assert.ok(filled > 0, 'negative control: the raster has black background lamps');
   for (const background of [follow, off]) {
-    assert.deepEqual(run({ effect: with_(spec, 'reveal'), background }, [0, 500]), run({ effect: spec, background }, [0, 500]), background.mode);
+    assert.deepEqual(run({ effect: spec, background }, [0, 500]), run({ effect: with_(spec, 'dark'), background }, [0, 500]), background.mode);
   }
   const rapid = with_(validateSpec({ kind: 'ldj.bitmap', params: { pattern: 'SolidBlackBGSineWave', speed: 3 } }), 'reveal');
   assert.deepEqual(run({ effect: rapid, background: fixed }, [0, 500]),
@@ -172,13 +170,13 @@ test('a macro’s choice reaches steps that make none; a step’s own choice win
   const macro = (gaps, stepGaps) => validateSpec({ kind: 'macro', params: { steps: [step(stepGaps)], loopBeats: 4 },
     ...(gaps ? { background: { version: 1, level: 1, gaps } } : {}) });
   const unlit = (spec) => run({ effect: spec, background: fixed }, TIMES).flatMap(lamps).filter(dark).length;
-  assert.ok(unlit(macro()) > 10, 'negative control: the Entertainment step keeps its gaps dark');
-  assert.equal(unlit(macro('reveal')), 0, 'the macro reveals its step’s gaps');
-  assert.ok(unlit(macro('reveal', 'dark')) > 10, 'a step’s explicit Keep dark wins');
-  assert.equal(unlit(macro(undefined, 'reveal')), 0, 'a step’s explicit Reveal plays inside a macro that chose nothing');
+  assert.equal(unlit(macro()), 0, 'by default the step reveals its gaps');
+  assert.ok(unlit(macro('dark')) > 10, 'the macro keeps its step’s gaps dark');
+  assert.equal(unlit(macro('dark', 'reveal')), 0, 'a step’s explicit Reveal wins');
+  assert.ok(unlit(macro(undefined, 'dark')) > 10, 'a step’s explicit Keep dark plays inside a macro that chose nothing');
 });
 
-test('a pattern pad and a sequence clip reveal an Entertainment clip’s gaps only when the clip asks; the base never shows through', () => {
+test('a pattern pad and a sequence clip reveal an Entertainment clip’s gaps unless the clip keeps them dark; the look beneath never shows through', () => {
   const clip = (gaps) => {
     const spec = validateSpec({ kind: 'ldj.FadeCycle', palette: ['#FF0000'] });
     return { id: 'c', laneId: 'l', fixtureIds: null, startBeat: 0, lengthBeats: 4, loopBeats: 4, spec: gaps ? with_(spec, gaps) : spec, seed: [1, 2, 3, 4], mute: false };
@@ -188,10 +186,11 @@ test('a pattern pad and a sequence clip reveal an Entertainment clip’s gaps on
     targets: null, tier: 'voice', launchSeq: 1, startedAtMs: 0, untilMs: null, anchorBeat: 0, seed: [1, 2, 3, 4] });
   const padded = (gaps, background) => engine({ background }).draw(250, { voices: [pad(gaps)] });
   assert.ok(lamps(engine().draw(250)).every((lamp) => !dark(lamp)), 'negative control: the solid base lights every lamp');
-  for (const background of [DEFAULT_BACKGROUND, fixed]) {
-    assert.ok(lamps(padded(undefined, background)).filter(dark).length >= 4, `${background.mode}: the pad's gaps are its own black, not the base`);
+  assert.ok(lamps(padded(undefined, DEFAULT_BACKGROUND)).filter(dark).length >= 4, 'the pad’s gaps are its own black, not the look beneath');
+  assert.ok(lamps(padded('dark', fixed)).filter(dark).length >= 4, 'a clip that keeps its gaps dark keeps the pad’s own black');
+  for (const gaps of [undefined, 'reveal']) {
+    assert.ok(lamps(padded(gaps, fixed)).filter((lamp) => lamp.join() === WASH.join()).length >= 4, `${gaps ?? 'default'}: the clip fills the pad gaps`);
   }
-  assert.ok(lamps(padded('reveal', fixed)).filter((lamp) => lamp.join() === WASH.join()).length >= 4, 'a revealing clip fills the pad gaps');
   const e = engine({ background: fixed });
   e.renderer.setSequence(table('reveal'));
   const sequenceTransport = { startBeat: 0, generation: 0, loop: null };
@@ -249,7 +248,7 @@ test('a revealed bitmap black background emits nothing under Follow and Off on d
     });
   };
   const lamp = (rig, frame, id) => frame.slice(id * 4, id * 4 + (rig[id].profileId === rgbd.id ? 4 : 1));
-  const spec = validateSpec({ kind: 'ldj.bitmap', params: { pattern: 'SolidBlackBGSineWave' } }), revealed = with_(spec, 'reveal');
+  const revealed = validateSpec({ kind: 'ldj.bitmap', params: { pattern: 'SolidBlackBGSineWave' } }), spec = with_(revealed, 'dark');
   // Which lamps sit on the black background, read from colour lamps in the same places.
   const black = draw(colourOnly, spec, DEFAULT_BACKGROUND).map((frame) => colourOnly.map((_, id) => lamp(colourOnly, frame, id).slice(0, 3).every((b) => b === 0)));
   const keptFull = draw(mixed, spec, DEFAULT_BACKGROUND);
@@ -269,10 +268,12 @@ test('a revealed bitmap black background emits nothing under Follow and Off on d
 test('the choice is offered only where it can change the output', () => {
   const on = (raw) => gapsApply(validateSpec(raw));
   for (const raw of [{ kind: 'ldj.FadeCycle' }, { kind: 'hd.twinkle' }, { kind: 'v2.scatter', params: { background: 0 } }, { kind: 'hd.disco' },
-    { kind: 'ldj.bitmap', params: { pattern: 'SolidBlackBGSineWave' } }, { kind: 'ldj.matrixBoard', params: { mode: 'cycle', colours: ['#FFFFFF'] } },
+    { kind: 'ldj.bitmap', params: { pattern: 'SolidBlackBGSineWave' } }, { kind: 'ldj.bitmap', params: { pattern: 'VertLines' } },
+    { kind: 'ldj.bitmap', params: { pattern: 'OGGrooveWave' } }, { kind: 'ldj.matrixBoard', params: { mode: 'cycle', colours: ['#FFFFFF'] } },
+    { kind: 'ldj.GrooveWave' }, { kind: 'ldj.Impact' }, { kind: 'ldj.Swirl' }, { kind: 'ldj.Beacon' },
     { kind: 'macro', params: { steps: [{ beats: 4, effect: { kind: 'ldj.FadeCycle', params: {} } }], loopBeats: 4 } }]) assert.ok(on(raw), raw.kind);
-  for (const raw of [{ kind: 'strobe' }, { kind: 'energy.glow' }, { kind: 'ldj.StudioN1' }, { kind: 'ldj.visualizer' }, { kind: 'ldj.BLFadeCycle' },
-    { kind: 'ldj.GrooveWave' }, { kind: 'ldj.Swirl' }, { kind: 'ldj.ScatterStrobe' }, { kind: 'hd.frequencyBurst' }, { kind: 'hd.twinkle', rapidFlash: true },
+  for (const raw of [{ kind: 'strobe' }, { kind: 'energy.glow' }, { kind: 'energy.kill' }, { kind: 'ldj.StudioN1' }, { kind: 'ldj.visualizer' }, { kind: 'ldj.BLFadeCycle' },
+    { kind: 'ldj.Rotation' }, { kind: 'ldj.Perlin' }, { kind: 'ldj.BigRoomWave' }, { kind: 'ldj.ScatterStrobe' }, { kind: 'hd.frequencyBurst' }, { kind: 'hd.twinkle', rapidFlash: true },
     { kind: 'v2.neural', params: { idle: .2 } }, { kind: 'v2.scatter', params: { background: .3 } }, { kind: 'ldj.bitmap', params: { pattern: 'SmoothLoop' } },
     { kind: 'ldj.bitmap', params: { pattern: 'SolidBlackBGSineWave', speed: 3 } }, { kind: 'ldj.matrixBoard', params: { mode: 'solid', colours: ['#FFFFFF'] } }])
     assert.ok(!on(raw), raw.kind);
@@ -305,18 +306,18 @@ test('an Entertainment row is marked gapless exactly when no palette or room mak
   }
 });
 
-test('picking the family default stores no choice, so an enclosing macro’s choice still reaches the effect', () => {
+test('picking the default stores no choice, so an enclosing macro’s choice still reaches the effect', () => {
   const fade = validateSpec({ kind: 'ldj.FadeCycle', brightness: .6 });
-  assert.deepEqual(chooseGaps(fade, 'reveal'), { version: 1, level: .6, gaps: 'reveal' });
-  assert.deepEqual(chooseGaps(with_(fade, 'reveal'), 'dark'), { version: 1, level: .6 }, 'Keep dark is Entertainment’s default: no choice');
+  assert.deepEqual(chooseGaps(fade, 'dark'), { version: 1, level: .6, gaps: 'dark' });
+  assert.deepEqual(chooseGaps(with_(fade, 'dark'), 'reveal'), { version: 1, level: .6 }, 'Reveal is the default: no choice');
   const twinkle = validateSpec({ kind: 'hd.twinkle' });
-  assert.deepEqual(chooseGaps(twinkle, 'reveal'), twinkle.background, 'Reveal is Party & Disco’s default');
+  assert.deepEqual(chooseGaps(twinkle, 'reveal'), twinkle.background);
   assert.deepEqual(chooseGaps(twinkle, 'dark'), { ...twinkle.background, gaps: 'dark' });
   const macro = validateSpec({ kind: 'macro', params: { steps: [{ beats: 4, effect: { kind: 'ldj.FadeCycle', params: {} } }], loopBeats: 4 } });
-  assert.equal(chooseGaps(macro, 'reveal').gaps, 'reveal', 'a macro has no family default: each pick is a choice');
+  assert.equal(chooseGaps(macro, 'reveal').gaps, 'reveal', 'a macro has no default: each pick is a choice');
   assert.equal(chooseGaps(with_(macro, 'reveal'), '').gaps, undefined, '“Each step’s own” is no choice');
-  const inside = validateSpec({ ...macro, background: { version: 1, level: 1, gaps: 'reveal' },
-    params: { ...macro.params, steps: [{ beats: 4, effect: validateSpec({ kind: 'ldj.FadeCycle', background: chooseGaps(with_(fade, 'reveal'), 'dark') }) }] } });
+  const inside = validateSpec({ ...macro, background: { version: 1, level: 1, gaps: 'dark' },
+    params: { ...macro.params, steps: [{ beats: 4, effect: validateSpec({ kind: 'ldj.FadeCycle', background: chooseGaps(with_(fade, 'dark'), 'reveal') }) }] } });
   const unlit = run({ effect: inside, background: fixed }, TIMES).flatMap(lamps).filter(dark).length;
-  assert.equal(unlit, 0, 'the step picked back to its default follows the macro again');
+  assert.ok(unlit > 10, 'the step picked back to the default follows the macro’s Keep dark again');
 });

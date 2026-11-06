@@ -15,7 +15,8 @@ export const BITMAP_PATTERNS = ['SolidTest', 'SmoothLoop', 'SmoothMirror', 'Vert
   'SolidBGDiagonalLines', 'SolidBlackBGSineWave', 'SolidBlackBGTriangleWave', 'SolidBlackBGDiagonalLines', 'OGGrooveWave'] as const;
 export type BitmapPattern = typeof BITMAP_PATTERNS[number];
 // Generated pixel rows are immutable, so identical rows may share an array.
-export interface BitmapImage { width: number; height: number; rows: number[][]; backgrounds?: Uint8Array[] }
+// `lit`: the share of each pixel's colour that is lit, for a picture that swells its colours from black (OG Groove Wave).
+export interface BitmapImage { width: number; height: number; rows: number[][]; backgrounds?: Uint8Array[]; lit?: Float32Array[] }
 
 const f32 = Math.fround;
 // Six bytes fit exactly in a JS number; keeping RGB low preserves native raster bytes.
@@ -24,16 +25,26 @@ const byteAt = (pixel: number, shift: number) => Math.floor(pixel / 2 ** shift) 
 const unpack = (pixel: number): Colour => ({ r: byteAt(pixel, 16), g: byteAt(pixel, 8), b: byteAt(pixel, 0),
   w: byteAt(pixel, 24), a: byteAt(pixel, 32), uv: byteAt(pixel, 40) });
 const mod = (value: number, length: number): number => ((value % length) + length) % length;
+// A colour at a swell's level, scaled so that level gives back the same light (to the byte).
+const swollen = (c: Colour, level: number): Colour => {
+  const up = (value: number | undefined) => Math.min(255, Math.round((value ?? 0) / level));
+  return { r: up(c.r), g: up(c.g), b: up(c.b), w: up(c.w), a: up(c.a), uv: up(c.uv) };
+};
 const RAINBOW = LDJ_RANDOM_HUES.map((hue) => pack(hsbToColour(hue / 360, 1, 1)));
 // Repeated addition preserves quarter-turn pixels that division would round differently.
 const LAST_T = .99999999, SMOOTH_STEP = .005;
 // At 300 BPM, crossing 48 pixels can exceed the flash limit and needs acknowledgement.
 const RAPID_SPEED = MAX_LAMP_FLASH_HZ * 50.7 * 48 / (22 * 300);
 
+// The weights of a blend's two ends, in float32.
+function blendWeights(t: number): [wa: number, wb: number] {
+  const left = f32(1 - t), right = f32(1 - (1 - t)), sum = f32(left + right);
+  return [f32(left / sum), f32(right / sum)];
+}
+
 // Float32 mixing and HSV quantization preserve bitmap colour bytes.
 export function bitmapBlend(a: number, b: number, t: number): number {
-  const left = f32(1 - t), right = f32(1 - (1 - t)), sum = f32(left + right);
-  const wa = f32(left / sum), wb = f32(right / sum);
+  const [wa, wb] = blendWeights(t);
   if (wa <= 0) return b;
   if (wb <= 0) return a;
   const byte = (shift: number) => Math.trunc(((((a >>> shift) & 255) / 255) * wa + (((b >>> shift) & 255) / 255) * wb) * 255);
@@ -61,10 +72,14 @@ function picturePalette(pattern: BitmapPattern, colours: readonly Colour[], rand
   return palette;
 }
 
-function repeatedRow(row: number[], height = 40): BitmapImage {
+function repeatedRow(row: number[], height = 40, roles?: Uint8Array, lit?: Float32Array): BitmapImage {
   // Row aliases are preserved inside each clone to avoid copying identical rows repeatedly.
-  return { width: row.length, height, rows: Array.from({ length: height }, () => row) };
+  return { width: row.length, height, rows: Array.from({ length: height }, () => row), ...(roles ? { backgrounds: Array.from({ length: height }, () => roles) } : {}),
+    ...(lit ? { lit: Array.from({ length: height }, () => lit) } : {}) };
 }
+
+/** The black between a picture's lines or swells is its black background (role 2), as SolidBlackBG's is. */
+const blackRoles = (row: readonly number[]): Uint8Array => Uint8Array.from(row, (pixel) => (pixel === 0 ? 2 : 0));
 
 // Do not repeat the far palette entry when mirroring the sequence.
 function sequence(count: number, mirror: boolean, transitions: boolean): number[] {
@@ -109,15 +124,20 @@ function raster(pattern: BitmapPattern, palette: number[], gradient?: ResolvedGr
     return repeatedRow(row);
   }
   if (pattern === 'VertLines') {
-    for (const colour of palette) for (let t = 0; t <= LAST_T; t += .025) row.push(t < .4 ? colour : 0);
-    return repeatedRow(row);
+    const roles: number[] = [];
+    for (const colour of palette) for (let t = 0; t <= LAST_T; t += .025) { row.push(t < .4 ? colour : 0); roles.push(t < .4 ? 0 : 2); }
+    return repeatedRow(row, 40, Uint8Array.from(roles));
   }
   if (pattern === 'OGGrooveWave') {
-    // Each colour swells from black and back on its own, never into the next.
+    // Each colour swells from black and back on its own, never into the next. The swell is the share of the
+    // colour that is lit; a pixel with nothing lit (black, or a black palette entry) has none.
+    const lit: number[] = [];
     for (const colour of palette) for (let t = 0; t <= LAST_T; t += SMOOTH_STEP) {
-      row.push(bitmapBlend(colour, 0, (Math.cos((t * 2) * Math.PI) + 1) / 2));
+      const black = (Math.cos((t * 2) * Math.PI) + 1) / 2, pixel = bitmapBlend(colour, 0, black);
+      row.push(pixel);
+      lit.push(pixel === 0 ? 0 : blendWeights(black)[0]);
     }
-    return repeatedRow(row);
+    return repeatedRow(row, 40, blackRoles(row), Float32Array.from(lit));
   }
 
   const triangle = pattern.endsWith('TriangleWave'), diagonal = pattern.endsWith('DiagonalLines');
@@ -189,12 +209,13 @@ interface BitmapState {
 }
 
 const schema = z.object({ pattern: z.enum(BITMAP_PATTERNS), speed: z.number().nonnegative().default(1) }).strict();
+const BLACK_BACKGROUNDS = /^(SolidBlackBG|VertLines$|OGGrooveWave$)/;
 
 registerKind<z.infer<typeof schema>, BitmapState>({
   requirements: { pixels: true, channels: ['r', 'g', 'b'] },
   kind: 'ldj.bitmap', app: 'ldj', schema, defaults: { params: { pattern: 'SmoothLoop', speed: 1 } }, stateful: true,
   rapidFlashWhen: (params) => params.speed > RAPID_SPEED,
-  gapsApply: (params, spec) => params.pattern.startsWith('SolidBlackBG') && !strobeRests(spec),
+  gapsApply: (params, spec) => BLACK_BACKGROUNDS.test(params.pattern) && !strobeRests(spec),
   init: (_params, _room, frame) => ({ originMs: frame.startedAtMs ?? frame.nowMs, key: '', image: null }),
   render(params, state, room, frame, out) {
     const scroll = bitmapScroll(frame.nowMs, state.originMs, frame.bpm, params.speed, params.pattern);
@@ -214,7 +235,13 @@ registerKind<z.infer<typeof schema>, BitmapState>({
       const image = state.image, diagonal = params.pattern.endsWith('DiagonalLines');
       const row = mod(Math.floor(((diagonal ? room.v[slot] : -room.v[slot]) + 1) * image.height / 2), image.height);
       const col = mod(Math.floor(((diagonal ? -room.u[slot] : room.u[slot]) + 1) * image.height / 2) + mod(scroll, image.width), image.width);
-      const colour = unpack(image.rows[row][col]), role = image.backgrounds?.[row][col] ?? 0;
+      const colour = unpack(image.rows[row][col]), role = image.backgrounds?.[row][col] ?? 0, lit = reveal ? image.lit?.[row][col] : undefined;
+      // A swell lights its share of the pixel, the same light at that level, and leaves the rest to the Background layer.
+      if (lit !== undefined) {
+        const field = gap(lit);
+        out[slot] = { colour: lit > 0 ? swollen(colour, lit) : colour, level: lit, strength: 1, ...(field ? { background: field } : {}) };
+        continue;
+      }
       out[slot] = role === 2 && reveal ? { colour, level: 0, strength: 1, background: gap(0) } : { colour, level: 1, strength: 1,
         ...(role ? { background: { ...ambient(colour, 1), dark: role === 2 } } : {}) };
     }

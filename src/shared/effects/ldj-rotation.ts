@@ -7,9 +7,9 @@ import type { Colour } from '../../types/rig.ts';
 import { hash01 } from './hash.ts';
 import { LDJ_FRAME_MS } from './ldj-engine.ts';
 import { hsbToColour, LDJ_RANDOM_HUES } from './palette.ts';
-import { registerKind } from './registry.ts';
+import { registerKind, strobeRests } from './registry.ts';
 import { ConstantTable } from './stepper.ts';
-import type { EffectFrame, Seed } from './types.ts';
+import type { EffectFrame, EffectSpec, Seed } from './types.ts';
 
 const f32 = Math.fround;
 const BLACK: Colour = { r: 0, g: 0, b: 0, w: 0, a: 0, uv: 0 };
@@ -72,6 +72,8 @@ for (const name of ['Swirl', 'Rotation', 'Beacon', 'Perlin', 'NorthernLights']) 
   const noisy = name === 'Perlin' || name === 'NorthernLights';
   registerKind({
     kind: `ldj.${name}`, app: 'ldj', schema: continuousSchema, defaults: { params: { beats: 32 } }, stateful: true,
+    // Swirl's dark side and Beacon's dark sectors are drawn below full; the noise fields and Rotation never are.
+    ...(name === 'Swirl' || name === 'Beacon' ? { gapsApply: (_params: unknown, spec: EffectSpec) => !strobeRests(spec) } : {}),
     init: (_params, _room, frame): RotationState => ({ originMs: frame.startedAtMs ?? frame.nowMs, frame: -1,
       angle: 0, gradient: 0, nextAngle: 0, nextGradient: 0, noise: noisy ? createNoiseField(frame.seed) : null }),
     render(_params, state, room, frame, out) {

@@ -1,10 +1,10 @@
 import { z } from 'zod';
 import type { Colour } from '../../../types/rig.ts';
-import { requiresAcknowledgement } from '../registry.ts';
+import { requiresAcknowledgement, strobeRests } from '../registry.ts';
 import { sampleEnvelope } from '../envelope.ts';
 import { parseHex, samplePalette } from '../palette.ts';
 import type { Room } from '../../room.ts';
-import type { EffectFrame, EffectSlot } from '../types.ts';
+import type { EffectFrame, EffectSlot, EffectSpec } from '../types.ts';
 
 // Every v2 generator plays in one of two first-class spaces: `room` (metres) or `plan` (the classic 2D plot).
 export type V2Space = 'room' | 'plan';
@@ -151,8 +151,9 @@ function backgroundColour(common: V2Common): Colour {
   return cached.colour;
 }
 
-/** A generator with an authored floor has a bed under every slot, so no gap for Between effect hits to change. */
-export const gapsWithoutFloor = (p: { background: number; idle?: number }): boolean => !(Math.max(p.background, p.idle ?? 0) > 0);
+/** A generator with an authored floor has a bed under every slot, and a rapid one strobe rests: no gap for Between effect hits to change. */
+export const gapsWithoutFloor = (p: { background: number; idle?: number }, spec: EffectSpec): boolean =>
+  !(Math.max(p.background, p.idle ?? 0) > 0) && !strobeRests(spec);
 
 /** Write a slot: colour from the palette by colour mode, level over the background floor. */
 export function paint(common: V2Common, frame: EffectFrame, position01: number, level: number, out: EffectSlot): void {

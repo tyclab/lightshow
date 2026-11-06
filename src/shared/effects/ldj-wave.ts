@@ -8,7 +8,7 @@ import type { GradientSettings } from '../palette-model.ts';
 import { tempoOf } from '../look-math.ts';
 import { LDJ_FRAME_MS } from './ldj-engine.ts';
 import { continuousSchema, ldjFrameAt, mixColours } from './ldj-rotation.ts';
-import { registerKind } from './registry.ts';
+import { registerKind, strobeRests } from './registry.ts';
 import type { EffectFrame } from './types.ts';
 
 const f32 = Math.fround;
@@ -25,6 +25,8 @@ for (const name of ['GrooveWave', 'Ascent', 'Vortex', 'Impact']) {
   const wavelength = groove ? 4 : 2, heading = name === 'Ascent' ? 99 : 0;
   registerKind({
     kind: `ldj.${name}`, app: 'ldj', schema: continuousSchema, defaults: { params: { beats: 32 } }, stateful: true,
+    // The trough of the wave is drawn below full: the Background layer shows there unless kept dark.
+    gapsApply: (_params, spec) => !strobeRests(spec),
     init: (_params, _room, frame): SineState => ({ originMs: frame.startedAtMs ?? frame.nowMs, frame: -1,
       index: groove ? 20 : 0, shownIndex: groove ? 20 : 0, steps: 1, refreshToggle: false }),
     render(_params, state, room, frame, out) {

@@ -21,10 +21,11 @@ export const DEFAULT_BACKGROUND: BackgroundSettings = {
  * What an effect publishes under a slot's light. A bed (level or fullLevel above zero) is
  * ambient light it authors (writeFloor, FADE_FLOOR/HIT_FLOOR, V2 floors, Entertainment baselines,
  * Disco idles): Follow keeps it, Fixed replaces it, Off removes it. A gap (no authored
- * level) is the share the foreground leaves uncovered, published only by an effect that
- * reveals its gaps (gapsOf): Fixed fills it. An explicit dark cue, a rapid flash's rest
- * (`dark`) or a black foreground at full opacity (coverage 0), takes nothing. Without a
- * field the slot is the effect's own black: owned, never the look beneath (bundle.ts).
+ * level) is the share the foreground leaves uncovered, published wherever an effect reveals
+ * its gaps (gapsOf, the default): Fixed fills it. Light that authors no field gets baseGap.
+ * An explicit dark cue, a rapid flash's rest (`dark`) or a black foreground at full opacity
+ * (coverage 0), takes nothing. Without a field the slot is the effect's own black (Keep dark,
+ * strobe rests, Kill): owned, never the look beneath (bundle.ts).
  */
 export interface BackgroundField { colour: Colour; level: number; fullLevel?: number; coverage: number; dark?: boolean }
 export interface BackgroundLight { colour: Colour; level: number }
@@ -34,6 +35,18 @@ export const ambient = (colour: Colour, level: number, coverage = 1, fullLevel =
 export function gap(opacity: number): BackgroundField | undefined {
   const coverage = 1 - Math.max(0, Math.min(1, opacity));
   return coverage > 0 ? { colour: DARK_BACKGROUND, level: 0, fullLevel: 0, coverage } : undefined;
+}
+
+// One frozen gap per output step, so the render loop never allocates one for a slot that authors no field.
+const BASE_GAPS: readonly BackgroundField[] = Array.from({ length: 256 }, (_, step) =>
+  Object.freeze({ colour: DARK_BACKGROUND, level: 0, fullLevel: 0, coverage: 1 - step / 255 }));
+/**
+ * The base layer under light that authors no field of its own: the share a foreground at this level leaves
+ * uncovered, to the nearest output step; none where it covers the slot. Level 0 and Follow or Off read it as nothing.
+ */
+export function baseGap(level: number): BackgroundField | undefined {
+  const step = Math.round(255 * Math.max(0, Math.min(1, Number.isFinite(level) ? level : 1)));
+  return step < 255 ? BASE_GAPS[step] : undefined;
 }
 
 /** The setting as stored and sent: no whole-rig scope and no unused pick, so a build without scopes still reads it. */
@@ -52,9 +65,12 @@ export function backgroundScope(settings: BackgroundSettings | undefined, cellMa
   return Uint8Array.from(cellMaps, (maps, i) => Number(chosen ? chosen.has(idOf(i)) : !maps));
 }
 
+// A colour with no emitter lit: as a Fixed colour it adds no light, or a lamp without colour channels would show its level.
+const unlit = (colour: Colour): boolean => !(Math.max(colour.r, colour.g, colour.b, colour.w ?? 0, colour.a ?? 0, colour.uv ?? 0) > 0);
+
 export function backgroundLight(field: BackgroundField | undefined, settings = DEFAULT_BACKGROUND, stopped = false): BackgroundLight {
   if (settings.mode === 'off' || (field?.dark && !stopped)) return { colour: DARK_BACKGROUND, level: 0 };
-  if (settings.mode === 'fixed') return { colour: settings.colour, level: settings.level * (stopped ? 1 : field?.coverage ?? 0) };
+  if (settings.mode === 'fixed') return { colour: settings.colour, level: unlit(settings.colour) ? 0 : settings.level * (stopped ? 1 : field?.coverage ?? 0) };
   return { colour: field?.colour ?? DARK_BACKGROUND, level: (stopped ? field?.fullLevel ?? field?.level ?? 0 : field?.level ?? 0) * settings.level };
 }
 
@@ -68,6 +84,17 @@ export function composeBackground(colour: Colour, level: number, field?: Backgro
   const mix = (channel: keyof Colour) => Math.max(0, Math.min(255,
     ((colour[channel] ?? 0) * level - (field.colour[channel] ?? 0) * field.level + (below.colour[channel] ?? 0) * below.level) / combined));
   return { colour: { r: mix('r'), g: mix('g'), b: mix('b'), w: mix('w'), a: mix('a'), uv: mix('uv') }, level: combined };
+}
+
+/** A picture's colour (the visualizer room picture, a pixel stream) over the Fixed colour, which fills the share its peak leaves dark. */
+export function underPicture(colour: Colour, settings?: BackgroundSettings): BackgroundLight {
+  if (settings?.mode !== 'fixed') return { colour, level: 1 };
+  const peak = Math.max(colour.r, colour.g, colour.b, colour.w ?? 0, colour.a ?? 0, colour.uv ?? 0);
+  if (!(peak > 0)) return composeBackground(DARK_BACKGROUND, 0, baseGap(0), settings);
+  const scale = (value: number | undefined) => Math.min(255, (value ?? 0) * 255 / peak);
+  const level = Math.min(1, peak / 255);
+  return composeBackground({ r: scale(colour.r), g: scale(colour.g), b: scale(colour.b), w: scale(colour.w), a: scale(colour.a), uv: scale(colour.uv) },
+    level, baseGap(level), settings);
 }
 
 export function blendBackground(from: BackgroundField | undefined, to: BackgroundField | undefined, t: number): BackgroundField | undefined {
