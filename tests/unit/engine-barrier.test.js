@@ -4,7 +4,7 @@ import { startEngine, stopEngine, awaitFrameApplied, publishRigRevision, waitFor
 import { state } from '../../src/server/state.ts';
 import { applyPatch } from '../../src/server/patch.ts';
 import { getBuffer } from '../../src/server/universes.ts';
-import { FrameBarrier } from '../../src/server/frame-barrier.ts';
+import { FrameBarrier, AcknowledgementTimeout } from '../../src/server/frame-barrier.ts';
 import { hardwareOf, maximumFlashHz } from '../../src/shared/hardware.ts';
 import { getProfile } from '../../src/server/profiles.ts';
 import { settings } from '../../src/server/settings.ts';
@@ -21,6 +21,19 @@ test('frame barrier rejects stale and invented acknowledgements without settling
   assert.equal(applied, false);
   assert.equal(frames.acknowledge(2), true);
   await Promise.all([first, second]);
+});
+
+test('a timed-out wait still hears a late acknowledgement, and a lost renderer after it', async () => {
+  const frames = new FrameBarrier();
+  const late = await frames.wait(10).catch((error) => error);
+  assert.ok(late instanceof AcknowledgementTimeout);
+  assert.match(late.message, /did not acknowledge/);
+  assert.equal(frames.acknowledge(frames.revision), true);
+  await late.applied;
+
+  const lost = await frames.wait(10).catch((error) => error);
+  frames.fail('The renderer restarted before acknowledging this change');
+  await assert.rejects(lost.applied, /restarted/);
 });
 
 test('renderer loss fails pending frame acknowledgements instead of replaying them', async () => {

@@ -24,6 +24,12 @@ import { state } from '../../src/server/state.ts';
 import { showStore } from '../../src/server/show-store.ts';
 import { stopEngine } from '../../src/server/engine.ts';
 import { checkOpenRgb } from '../../src/server/preflight.ts';
+import { createApplier } from '../../src/server/apply.ts';
+import { Sequencer } from '../../src/server/sequencer.ts';
+import { settings } from '../../src/server/settings.ts';
+import * as output from '../../src/server/output.ts';
+import { startLogging, releaseConsole } from '../../src/server/log.ts';
+import { installControlRuntime, sendControl } from './control-runtime-helpers.js';
 import { stripOf, INTERNAL_UNIVERSE, isInternalUniverse } from '../../src/shared/placement.ts';
 
 state.artnet.enabled = false;
@@ -387,6 +393,39 @@ test('removed OpenRGB devices receive black before disconnect', () => {
   sent.length = 0;
   tx.endFrame(outputs(true, []));
   assert.deepStrictEqual(sent, [], 'and nothing after');
+});
+
+test('a device still being set up holds no frame back until it has taken one; a lit one still does', () => {
+  const { sent, wires } = fakeWires();
+  let refuse = true, settingUp = true;
+  const take = wires.openrgb;
+  wires.openrgb = (target, rgb) => (refuse ? false : take(target, rgb));
+  wires.openrgbSettingUp = () => settingUp;
+  const tx = createTransmitter({ wires });
+  const paint = (config) => { tx.send(0, LIT, config); tx.send(5, LIT, config); tx.send(6, LIT, config); return tx.endFrame(config); };
+
+  assert.strictEqual(paint(outputs(true)), true, 'armed while the SDK session opens: the frame is applied, the devices show none of it yet');
+  assert.strictEqual(tx.endFrame(outputs(false)), true, 'disarmed before they took a frame: nothing to darken, nothing withheld');
+  assert.deepStrictEqual(sent.filter((p) => p.wire === 'openrgb'), []);
+  assert.strictEqual(paint(outputs(true)), true);
+
+  refuse = false;
+  assert.strictEqual(paint(outputs(true)), true);
+  assert.deepStrictEqual(sent.filter((p) => p.wire === 'openrgb').map((p) => [p.device, p.dark]), [[3, false], [6, false]]);
+  refuse = true;
+  assert.strictEqual(paint(outputs(true)), false, 'a lit device whose session reopens holds the frame back');
+  settingUp = false;
+  assert.strictEqual(paint(outputs(true)), false, 'and so does a refusal on an open session');
+  assert.strictEqual(tx.endFrame(outputs(false)), false, 'Disarm waits for their darkness');
+  refuse = false;
+  sent.length = 0;
+  assert.strictEqual(tx.endFrame(outputs(false)), true);
+  assert.deepStrictEqual(sent.map((p) => [p.wire, p.device ?? p.host, p.dark]), [['openrgb', 3, true], ['openrgb', 6, true], ['close', '10.0.0.80:6742', undefined]]);
+
+  refuse = true;
+  settingUp = true;
+  assert.strictEqual(paint(outputs(true)), true, 'darkened, then armed again: setting up holds nothing back');
+  assert.strictEqual(paint(outputs(true, [ROUTES[0]])), true, 'a removed device that never took a frame needs no darkness');
 });
 
 test('transmit: a device held back for Hue waits until all its universes are in', () => {
@@ -837,6 +876,58 @@ test('the wire: a server that never says its version is spoken to at protocol 0'
 });
 
 // ── Discover, add, identify ─────────────────────────────────────────────────
+
+// Live, 2026-11-06: Arm answered 500 after 2 s while the PC's OpenRGB took over 5 s to describe its devices;
+// the arm had applied, yet the fault stayed and health logged the error.
+test('Arm answers at once while OpenRGB is slow to describe its devices, and leaves no fault behind', { timeout: 20_000 }, async (t) => {
+  const server = await fakeServer();
+  const saved = { fixtures: state.fixtures, next: state.nextFixtureId, values: settings.all() };
+  settings.save = () => {};
+  startLogging({ terminal: 'none' });
+  t.after(async () => {
+    releaseConsole();
+    output.setArmed(false);
+    settings._values = saved.values;
+    delete settings.save;
+    state.fixtures = saved.fixtures;
+    state.nextFixtureId = saved.next;
+    closeOpenRgb({ host: '127.0.0.1', port: server.port });
+    await server.close();
+  });
+  const app = express();
+  app.use(express.json());
+  const applier = createApplier({
+    midi: { close() {}, connect() { return true; }, setControlFeedback() {} },
+    spotify: { localCallbackUrl: '', setLoopbackPort() {}, configure() {} },
+    smtc: { start() {}, stop() {} }, deezer: { init: async () => {} }, applyPatch() {}, broadcast() {},
+  });
+  const deps = { applier, autoShow: { analysis: null }, integrations: { broadcast() {}, sequence: { sequencer: new Sequencer({ resolve: () => null }) } } };
+  installControlRuntime(t, deps);
+  attachRoutes(app, deps);
+  const listener = await new Promise((r) => { const l = app.listen(0, '127.0.0.1', () => r(l)); });
+  t.after(() => new Promise((r) => listener.close(r)));
+  const call = (method, path, body) => fetch(`http://127.0.0.1:${listener.address().port}${path}`, {
+    method, headers: { 'content-type': 'application/json' }, ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+  }).then(async (res) => ({ status: res.status, body: await res.json() }));
+
+  state.fixtures = [];
+  assert.strictEqual((await call('POST', '/api/openrgb/add', { host: '127.0.0.1', port: server.port, devices: [0, 5] })).status, 200);
+  await until(() => server.log.closed === server.log.connections, { what: 'discover hanging up' });
+  server.holdDescriptions();
+
+  const armed = await sendControl(call, 'arm');
+  const framesAtAnswer = server.log.leds.length;
+  await until(() => server.heldDescriptions() > 0, { what: 'the session waiting on a description' });
+  server.releaseDescriptions();
+  await until(() => server.log.leds.length > 0, { ms: 8000, what: 'frames once the devices are described' });
+  const control = (await call('GET', '/api/control')).body.control;
+  const health = (await call('GET', '/api/health')).body;
+  assert.deepStrictEqual({
+    status: armed.status, framesAtAnswer, fault: control.fault, pending: control.pending,
+    healthProblems: health.problems.filter((p) => /did not acknowledge/.test(p.what)).map((p) => p.what),
+  }, { status: 200, framesAtAnswer: 0, fault: null, pending: false, healthProblems: [] });
+  assert.strictEqual((await sendControl(call, 'disarm')).status, 200);
+});
 
 async function withApp(fn) {
   const app = express();

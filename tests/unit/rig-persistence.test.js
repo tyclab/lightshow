@@ -13,6 +13,7 @@ const { settings } = await import('../../src/server/settings.ts');
 const { state } = await import('../../src/server/state.ts');
 const { createApplier } = await import('../../src/server/apply.ts');
 const { isArmed } = await import('../../src/server/armed.ts');
+const { FrameBarrier } = await import('../../src/server/frame-barrier.ts');
 let sequence = 0;
 const fresh = () => new ShowStore(path.join(dir, `rig-${sequence++}.json`));
 const original = snapshotShow();
@@ -71,6 +72,22 @@ test('import persists one coherent rig before publication and waits for renderer
   acknowledge();
   assert.equal((await pending).applied, true);
   assert.equal(store.status().pending, false);
+});
+
+test('a late renderer acknowledgement clears the rig error that would refuse arming', async () => {
+  const store = fresh(), frames = new FrameBarrier();
+  store.setPublisher(() => frames.wait(20));
+  const result = await store.commit(draft('192.0.2.21', 9));
+  assert.deepEqual([result.applied, /did not acknowledge/.test(result.error)], [false, true]);
+  assert.deepEqual([store.status().pending, /did not acknowledge/.test(store.status().error)], [true, true]);
+  frames.acknowledge(frames.revision);
+  await new Promise(setImmediate);
+  assert.deepEqual([store.status().pending, store.status().error], [false, null]);
+
+  const lost = await store.commit(draft('192.0.2.22', 9));
+  frames.fail('The renderer stopped before acknowledging this change');
+  await new Promise(setImmediate);
+  assert.equal(store.status().error, lost.error, 'no acknowledgement ever came: the error stands');
 });
 
 test('failed persistence changes neither routing, fixture patch nor the old document', t => {
