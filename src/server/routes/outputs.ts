@@ -60,6 +60,7 @@ export function attachOutputRoutes(app: Express, ctx: RouteContext): void {
           configured: !!session?.configured,
           stream: session ? session.status : 'idle',
           lastError: session ? session.error : null,
+          occupiedBy: session ? session.occupiedBy : null,
         };
       }),
     });

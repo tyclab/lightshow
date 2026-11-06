@@ -146,7 +146,7 @@ test('unacknowledged strobe notices follow server safety state', () => {
 });
 
 test('every header pill keeps its place in every state', () => {
-  const LABELS = ['BPM', 'Master', 'Energy', 'Flash', 'Auto'];
+  const LABELS = ['BPM', 'Master', 'Energy', 'Flash', 'Auto', 'Hue'];
   const STATES = {
     'nothing known yet': { bpm: null, masterDimmer: undefined, autoShow: undefined },
     'disarmed, idle': { armed: false },
@@ -158,6 +158,7 @@ test('every header pill keeps its place in every state', () => {
     'a sequence loaded': { sequence: { loaded: { id: 'set', name: 'Set' }, playing: true, lanes: [] } },
     'strobes refused': { safety: { photosensitivityAcknowledged: false, hdFlashIntervalMs: 350, strobeMaxLatchSec: 60 } },
     'strobes allowed': { safety: { photosensitivityAcknowledged: true, hdFlashIntervalMs: 350, strobeMaxLatchSec: 60 } },
+    'a Hue bridge held by another app': { hue: [{ id: 'b1', label: 'Lounge', status: 'idle', occupiedBy: { areaId: 'tv', area: 'TV Couch', streamer: 'x' }, problem: 'held' }] },
   };
   for (const [name, state] of Object.entries(STATES)) {
     given(state);
@@ -168,6 +169,27 @@ test('every header pill keeps its place in every state', () => {
   }
   given({ masterBlackout: true, masterDimmer: 128 });
   assert.match(ui.html(ui.h(ui.Header, {})), /<span class="label">Master<\/span><span>50%<\/span>/, 'the master reads through a blackout');
+});
+
+// A Sync Box or the Hue app streaming an area leaves the lightshow's lamps on that bridge without the show.
+test('the Hue pill says when another app holds a bridge, and leads to the bridge cards', () => {
+  const problem = 'Hue bridge "Lounge": area "TV Couch" is streaming from another app (a Sync Box, the Hue app or another controller). '
+    + 'The lightshow cannot stream to this bridge until it stops.';
+  const pill = () => ui.html(ui.h(ui.Header, {})).match(/<(?:a|div) class="stat-pill[^"]*"[^>]*data-hue="[^"]*"[^>]*>.*?<\/(?:a|div)>/)[0];
+  given({});
+  assert.match(pill(), /data-hue="none".*<span>—<\/span>/, 'no bridge set up');
+  given({ hue: [{ id: 'b1', label: 'Lounge', status: 'idle', occupiedBy: null, problem: null }] });
+  assert.match(pill(), /data-hue="free".*<span>free<\/span>/);
+  assert.doesNotMatch(pill(), /alert/);
+  given({ hue: [
+    { id: 'b1', label: 'Lounge', status: 'failed', occupiedBy: { areaId: 'tv', area: 'TV Couch', streamer: 'sync-box' }, problem },
+    { id: 'b2', label: 'Party', status: 'streaming', occupiedBy: null, problem: null },
+  ] });
+  const held = pill();
+  assert.match(held, /^<a class="stat-pill alert" href="\/#rig\/outputs" data-hue="held"/);
+  assert.match(held, /<span>busy<\/span>/);
+  assert.ok(held.includes('area &quot;TV Couch&quot; is streaming from another app'), 'the title and name carry the problem');
+  assert.match(held, /aria-label="Hue busy: /);
 });
 
 test('the header reports whole-picture Freeze independently of programme and playback', () => {

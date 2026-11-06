@@ -142,6 +142,7 @@ function seedArtnet(destinations: readonly ArtnetDestination[]): void {
 }
 
 export const getHueStatus = () => hue.getStatusAll();
+export const startHueAreaWatch = () => hue.startAreaWatch();
 export const stopHue = () => hue.stopAll();
 
 export {

@@ -263,6 +263,8 @@ header {
 .stat-pill.control { font-family: inherit; line-height: inherit; cursor: pointer; }
 .stat-pill.control:focus-visible { outline: .125rem solid var(--accent); outline-offset: .1875rem; }
 .stat-pill.control:disabled { opacity: .5; cursor: default; }
+a.stat-pill { text-decoration: none; }
+a.stat-pill:focus-visible { outline: .125rem solid var(--accent); outline-offset: .1875rem; }
 .stat-pill.alert {
   background: var(--wash-amber);
   border-color: var(--amber);
@@ -2192,7 +2194,7 @@ input[type=range]::-moz-range-thumb {
      top half of a tablet. */
   .header-stats {
     order: 2; flex-basis: 100%; margin-left: 0;
-    display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px;
+    display: grid; grid-template-columns: repeat(8, minmax(0, 1fr)); gap: 4px;
   }
   .header-stats .stat-pill {
     flex-direction: column; justify-content: center; gap: 1px; min-width: 0;
@@ -2221,7 +2223,7 @@ input[type=range]::-moz-range-thumb {
   .app-header { padding: 10px 12px; }
   .app-header h1 { font-size: 13px; }
   .nav-link { padding: 4px 10px; font-size: 11px; }
-  /* Every pill stays on a phone too: two rows of five keep the Matrix colours on the first screen. */
+  /* Every pill stays on a phone too: two rows of at most five keep the Matrix colours on the first screen. */
   .header-stats { grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 3px; }
   .cb-tempo { gap: 10px; }
   .cb-bpm-num { font-size: 28px; }

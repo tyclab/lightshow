@@ -24,6 +24,13 @@ export interface HueChannelColour {
 
 export type HueState = 'idle' | 'connecting' | 'streaming' | 'failed';
 
+/** An entertainment area another app streams on the bridge; `streamer` is that app's id. */
+export interface HueOccupant {
+  areaId: string;
+  area: string;
+  streamer: string | null;
+}
+
 export interface HueStatus {
   id: string;
   label: string;
@@ -33,6 +40,16 @@ export interface HueStatus {
   host: string;
   entertainmentId: string;
   error: string | null;
+  occupiedBy: HueOccupant | null;
+}
+
+/** What /api/state carries per enabled, set-up bridge, so the header and HA see a held bridge. */
+export interface HueLiveStatus {
+  id: string;
+  label: string;
+  status: HueState;
+  occupiedBy: HueOccupant | null;
+  problem: string | null;
 }
 
 export type LampKind = 'color' | 'ambiance' | 'white';
@@ -463,10 +480,25 @@ async function setStreaming(host: string, key: string, configId: string, active:
 // Entertainment ownership is bridge-wide, even when the selected area is inactive.
 type Ownership = { kind: 'available' | 'owned' } | { kind: 'occupied'; area: ClipEntertainmentConfig };
 
+const AREAS_PATH = '/clip/v2/resource/entertainment_configuration';
+
+function isForeign(area: ClipEntertainmentConfig, config: Pick<HueBridgeConfig, 'entertainmentId'>, identity: string | null): boolean {
+  return area.status === 'active' && (area.id !== config.entertainmentId || area.active_streamer?.rid !== identity);
+}
+
+function occupantOf(area: ClipEntertainmentConfig): HueOccupant {
+  return { areaId: area.id, area: area.metadata?.name || area.id, streamer: area.active_streamer?.rid || null };
+}
+
+function occupiedProblem(label: string, occupant: HueOccupant): string {
+  return `Hue bridge "${label}": area "${occupant.area}" is streaming from another app (a Sync Box, the Hue app or another controller). `
+    + 'The lightshow cannot stream to this bridge until it stops.';
+}
+
 async function ownership(config: HueBridgeConfig, identity: string): Promise<Ownership> {
   let parsed: ClipList<ClipEntertainmentConfig>;
   try {
-    parsed = await bridgeRequest(config.host, { path: '/clip/v2/resource/entertainment_configuration', key: config.username }) as ClipList<ClipEntertainmentConfig>;
+    parsed = await bridgeRequest(config.host, { path: AREAS_PATH, key: config.username }) as ClipList<ClipEntertainmentConfig>;
     const error = describeClipError(parsed);
     if (error) throw new Error(error);
     if (!Array.isArray(parsed?.data)) throw new Error('invalid area list');
@@ -477,9 +509,7 @@ async function ownership(config: HueBridgeConfig, identity: string): Promise<Own
     if (!area || typeof area.id !== 'string' || !['active', 'inactive'].includes(area.status || '')) {
       throw new Error('could not verify Entertainment ownership: invalid area');
     }
-    if (area.status === 'active' && (area.id !== config.entertainmentId || area.active_streamer?.rid !== identity)) {
-      return { kind: 'occupied', area };
-    }
+    if (isForeign(area, config, identity)) return { kind: 'occupied', area };
   }
   const selected = parsed.data.find(area => area.id === config.entertainmentId);
   if (!selected) throw new Error('could not verify Entertainment ownership: selected area is missing');
@@ -538,6 +568,8 @@ const FAILED: HueState = 'failed';
 
 const RETRY_BASE_MS = 2000;
 const RETRY_MAX_MS = 60000;
+// A Sync Box or the Hue app can take an area at any time, armed or not: read every area this often.
+const AREA_WATCH_MS = 10_000;
 
 function isConfigured(c: Pick<HueBridgeConfig, 'host' | 'username' | 'clientKey' | 'entertainmentId'>): boolean {
   return !!(c.host && c.username && c.clientKey && c.entertainmentId);
@@ -574,6 +606,10 @@ class HueSession {
   private readonly owners: Map<string, HueSession>;
   private claimedHost: string | null = null;
   private retired = false;
+  private occupant: HueOccupant | null = null;
+  private watching = false;
+  private watchFailures = 0;
+  private watchNextAt = 0;
 
   constructor(config: HueBridgeConfig, sink: () => ApplicationIdSink | null = () => null, owners = new Map<string, HueSession>()) {
     this.id = config.id;
@@ -598,7 +634,59 @@ class HueSession {
       host: this.config.host,
       entertainmentId: this.config.entertainmentId,
       error: this.lastError,
+      occupiedBy: this.occupant ? { ...this.occupant } : null,
     };
+  }
+
+  liveStatus(): HueLiveStatus {
+    return {
+      id: this.id,
+      label: this.config.label,
+      status: this.status,
+      occupiedBy: this.occupant ? { ...this.occupant } : null,
+      problem: this.occupant ? occupiedProblem(this.name, this.occupant) : null,
+    };
+  }
+
+  private noteOccupant(area: ClipEntertainmentConfig | null): void {
+    const next = area ? occupantOf(area) : null;
+    const was = this.occupant;
+    this.occupant = next;
+    if (next && (was?.areaId !== next.areaId || was?.streamer !== next.streamer)) {
+      console.warn(`[hue] ${occupiedProblem(this.name, next)} (app ${next.streamer || 'unknown'})`);
+    } else if (!next && was) {
+      console.log(`[hue] ${this.name}: area "${was.area}" is no longer streamed by another app`);
+    }
+  }
+
+  // Read-only: reports another app's stream and never stops it.
+  async checkArea(): Promise<void> {
+    if (!this.config.enabled || !this.isConfigured()) {
+      this.occupant = null;
+      return;
+    }
+    if (this.watching || Date.now() < this.watchNextAt) return;
+    this.watching = true;
+    const config = { ...this.config };
+    const identity = config.applicationId || this.resolvedApplicationId;
+    const same = () => this.config.host === config.host && this.config.username === config.username
+      && this.config.entertainmentId === config.entertainmentId && !!this.config.enabled;
+    try {
+      const parsed = await bridgeRequest(config.host, { path: AREAS_PATH, key: config.username }) as ClipList<ClipEntertainmentConfig>;
+      const error = describeClipError(parsed);
+      if (error) throw new Error(error);
+      if (!Array.isArray(parsed?.data)) throw new Error('invalid area list');
+      this.watchFailures = 0;
+      this.watchNextAt = 0;
+      if (same()) this.noteOccupant(parsed.data.find((area) => area && typeof area.id === 'string' && isForeign(area, config, identity)) || null);
+    } catch (_) {
+      this.watchFailures++;
+      this.watchNextAt = Date.now() + Math.min(RETRY_MAX_MS, AREA_WATCH_MS * 2 ** this.watchFailures);
+      // An unreadable bridge is not a held one; the stream reports its own failure.
+      if (same()) this.noteOccupant(null);
+    } finally {
+      this.watching = false;
+    }
   }
 
   // Close the old session before reconfiguration because a bridge allows only one active stream.
@@ -621,6 +709,11 @@ class HueSession {
       this.retryDelay = RETRY_BASE_MS;
       this.retryAt = 0;
       this.lastError = null;
+    }
+    if (moved || !this.config.enabled) {
+      this.occupant = null;
+      this.watchFailures = 0;
+      this.watchNextAt = 0;
     }
     return { ...this.config };
   }
@@ -689,6 +782,7 @@ class HueSession {
   private async openSession(config: HueBridgeConfig, identity: string, current: () => boolean, restart = false): Promise<boolean> {
     const before = await ownership(config, identity);
     if (!current()) return false;
+    this.noteOccupant(before.kind === 'occupied' ? before.area : null);
     if (before.kind === 'occupied') {
       this.sessionConfig = null;
       throw new Error(busyMessage(before.area));
@@ -705,6 +799,7 @@ class HueSession {
     if (!current()) return false;
     const after = await ownership(config, identity);
     if (!current()) return false;
+    this.noteOccupant(after.kind === 'occupied' ? after.area : null);
     if (after.kind === 'occupied') {
       this.sessionConfig = null;
       throw new Error(busyMessage(after.area));
@@ -911,6 +1006,28 @@ function getConfigs(): HueBridgeConfig[] { return listSessions().map((s) => s.ge
 
 function getStatusAll(): HueStatus[] { return listSessions().map((s) => s.getStatus()); }
 
+function liveStatusAll(): HueLiveStatus[] {
+  return listSessions().filter((s) => s.getConfig().enabled && s.isConfigured()).map((s) => s.liveStatus());
+}
+
+let areaWatch: ReturnType<typeof setInterval> | null = null;
+
+async function checkAreas(): Promise<void> {
+  await Promise.all(listSessions().map((s) => s.checkArea()));
+}
+
+function startAreaWatch(intervalMs = AREA_WATCH_MS): void {
+  if (areaWatch) return;
+  void checkAreas();
+  areaWatch = setInterval(() => { void checkAreas(); }, intervalMs);
+  areaWatch.unref?.();
+}
+
+function stopAreaWatch(): void {
+  if (areaWatch) clearInterval(areaWatch);
+  areaWatch = null;
+}
+
 function anyEnabled(): boolean { return listSessions().some((s) => s.getConfig().enabled); }
 
 function sendFrames(frames: ReadonlyMap<string, readonly HueChannelColour[]>): boolean {
@@ -935,6 +1052,7 @@ async function closeAll(): Promise<void> {
 }
 
 function _reset(): void {
+  stopAreaWatch();
   sessions.clear();
   retiring.clear();
   physicalOwners.clear();
@@ -977,6 +1095,9 @@ export {
   listSessions,
   getConfigs,
   getStatusAll,
+  liveStatusAll,
+  checkAreas,
+  startAreaWatch,
   anyEnabled,
   sendFrames,
   stopAll,

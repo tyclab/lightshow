@@ -74,8 +74,8 @@ test('bridge status excludes secret keys', async () => {
     assert.strictEqual(res.body.ok, true);
     assert.strictEqual(res.body.latencyMs, 0);
     assert.deepStrictEqual(res.body.bridges, [
-      { id: 'b1', label: 'Lounge', host: '10.0.0.9', enabled: true, paired: true, applicationId: '', area: AREA, configured: true, stream: 'idle', lastError: null },
-      { id: 'b2', label: 'Party', host: '10.0.0.10', enabled: false, paired: false, applicationId: '', area: '', configured: false, stream: 'idle', lastError: null },
+      { id: 'b1', label: 'Lounge', host: '10.0.0.9', enabled: true, paired: true, applicationId: '', area: AREA, configured: true, stream: 'idle', lastError: null, occupiedBy: null },
+      { id: 'b2', label: 'Party', host: '10.0.0.10', enabled: false, paired: false, applicationId: '', area: '', configured: false, stream: 'idle', lastError: null, occupiedBy: null },
     ]);
     const text = JSON.stringify(res.body);
     assert.ok(!text.includes('app-key') && !text.includes('aabb'), 'the keys stay on the server');

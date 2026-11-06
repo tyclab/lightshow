@@ -250,6 +250,7 @@ test('an area another app is streaming is reported as held, and left to it', asy
 
   assert.strictEqual(session.getStatus().status, 'failed');
   assert.match(session.getStatus().error, /TV Lounge.*already in use/);
+  assert.deepStrictEqual(session.getStatus().occupiedBy, { areaId: AREA, area: 'TV Lounge', streamer: 'sync-box-app' }, 'the holder reaches the live state at once');
   assert.strictEqual(sockets.length, 0, 'no handshake against an area that is not ours');
   assert.deepStrictEqual(actions(calls), [], 'no start or stop for a stream that is not ours');
   assert.ok(calls.some((c) => c.method === 'GET' && c.path.endsWith('/entertainment_configuration')));
@@ -283,6 +284,8 @@ test('another active area blocks only its bridge, then reconnects after release'
   second.sendFrame(RED);
   await until(t, () => first.getStatus().status === 'failed' && second.getStatus().status === 'streaming', 1000);
   assert.match(first.getStatus().error, /TV Couch.*already in use/);
+  assert.strictEqual(first.getStatus().occupiedBy.area, 'TV Couch');
+  assert.strictEqual(second.getStatus().occupiedBy, null);
   assert.strictEqual(second.getStatus().status, 'streaming');
   assert.deepStrictEqual(actions(calls.filter((c) => c.host === PAIRED.host)), []);
   assert.strictEqual(sockets.length, 1);
@@ -292,6 +295,7 @@ test('another active area blocks only its bridge, then reconnects after release'
   await until(t, () => first.getStatus().status === 'streaming', 1000);
   assert.strictEqual(first.getStatus().status, 'streaming');
   assert.strictEqual(first.getStatus().error, null);
+  assert.strictEqual(first.getStatus().occupiedBy, null, 'a released area clears the report');
   assert.strictEqual(second.getStatus().status, 'streaming');
   await first.stop();
   await second.stop();

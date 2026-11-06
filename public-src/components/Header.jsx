@@ -79,9 +79,32 @@ function BpmPill({ bpm, running, source }) {
   );
 }
 
+// Another app streaming an area on a bridge leaves the lightshow's Hue lamps without the show: say so
+// before and while armed, one tap from the bridge's card.
+export function HuePill({ bridges }) {
+  const list = Array.isArray(bridges) ? bridges : [];
+  const held = list.filter((b) => b.occupiedBy);
+  if (held.length) {
+    const what = held.map((b) => b.problem).join('\n');
+    return (
+      <a class="stat-pill alert" href="/#rig/outputs" data-hue="held" title={what} aria-label={`Hue busy: ${what}`}>
+        <span class="label">Hue</span>
+        <span>busy</span>
+      </a>
+    );
+  }
+  return (
+    <div class="stat-pill" data-hue={list.length ? 'free' : 'none'}
+      title={list.length ? 'Hue: no other app streams to the bridges' : 'Hue: no bridge is on and set up (Rig → Outputs)'}>
+      <span class="label">Hue</span>
+      <span>{list.length ? 'free' : '—'}</span>
+    </div>
+  );
+}
+
 export function Header() {
   const connected = connectedSig.value;
-  const s = pick(['bpm', 'clock', 'running', 'masterDimmer', 'masterBlackout', 'energyOverride', 'flashLimit', 'autoShow', 'armed', 'sequence', 'showOn', 'safety']);
+  const s = pick(['bpm', 'clock', 'running', 'masterDimmer', 'masterBlackout', 'energyOverride', 'flashLimit', 'autoShow', 'armed', 'sequence', 'showOn', 'safety', 'hue']);
   const blackout = !!s.masterBlackout;
   const energy = s.energyOverride;
   const auto = s.autoShow && s.autoShow.status;
@@ -117,6 +140,7 @@ export function Header() {
           <span class="label">Auto</span>
           <span>{auto || '—'}</span>
         </div>
+        <HuePill bridges={s.hue} />
         <div class="stat-pill conn" title={connected ? 'Connected' : 'Disconnected'}>
           <div class={`status-dot ${connected ? 'connected' : ''}`} />
           <span>{connected ? 'Online' : 'Offline'}</span>

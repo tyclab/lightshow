@@ -13,6 +13,7 @@ import { PALETTES } from './palettes.ts';
 import { conductor } from './conductor.ts';
 import { isArmed } from './armed.ts';
 import { wledStatus } from './wled-watch.ts';
+import { liveStatusAll as hueStatus } from './hue.ts';
 import { pictureInput } from './picture-live.ts';
 import { safety } from './safety.ts';
 import { HttpError } from '../errors.ts';
@@ -411,6 +412,7 @@ function getLiveState() {
     hueBridges: settings.group('hue').bridges.map(({ id, label, host, enabled }) => ({ id, label, host, enabled })),
     // HA's sensor.lightshow polls this state, so a board ignoring the show is said where HA reads.
     wled: wledStatus(),
+    hue: hueStatus(),
     sequence: sequenceProvider(),
     ...extrasProvider(),
   };

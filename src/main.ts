@@ -25,7 +25,7 @@ import { HTTP_BASE as REMOTE_ANALYSIS_HTTP, RemoteAnalysisPool } from './remote-
 
 import { state, voices } from './server/state.ts';
 import { startEngine, stopEngine, setFrameHook, setPulseSource, setModulationSource, publishRigRevision, waitForEngineReady } from './server/engine.ts';
-import { artnetDiscovery } from './server/output.ts';
+import { artnetDiscovery, startHueAreaWatch } from './server/output.ts';
 import { conductor } from './server/conductor.ts';
 import { applyPatch, applyOverride, setFixtureMaxBrightness, processTap, setPersist, setHooks, flushPendingPersist } from './server/patch.ts';
 import { COLOR_PRESETS, PATTERNS } from './server/presets.ts';
@@ -233,6 +233,8 @@ setInterval(() => idleDisarm.tick(), 10_000).unref();
 
 // Read-only: the live override is HA's to clear, at the party's edges.
 startWledWatch({ boards: () => wledBoards(state.fixtures), armed: isArmed });
+// Read-only too: another app streaming on a bridge is reported, never stopped.
+startHueAreaWatch();
 
 // Do not await Spotify sign-in because network failures must not prevent the rig from starting.
 function restoreSpotifySession() {

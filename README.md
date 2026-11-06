@@ -1118,7 +1118,19 @@ entertainment stream; stop another sync client before connecting. Lightshow chec
 every area on the bridge before starting, including areas other than the selected
 one. An occupied area is named in the bridge status and left to its owner; the
 other bridges continue independently. Lightshow retries automatically when the
-area is released. An enabled, configured bridge whose stream fails degrades health
+area is released.
+
+A Sync Box, the Hue app or another controller can take an area at any time, so
+every 10 s, armed or not, the server reads each enabled bridge's area list (GET
+only, backing off to 60 s while the bridge does not answer). An area that another
+app streams is shown before an arm and while armed: the header's **Hue** pill
+reads **busy** and leads to Rig → Outputs, where the bridge's card names the area
+and the app id holding it, and preflight warns. The live state's `hue` list
+carries one entry per enabled, set-up bridge, `{ id, label, status, occupiedBy,
+problem }`, with `occupiedBy` `{ areaId, area, streamer }` or null and `problem`
+the sentence to show, so a Home Assistant sensor polling `/api/state` sees it as
+well. The lightshow never stops another app's stream; it is logged once when it
+starts and once when it ends. An enabled, configured bridge whose stream fails degrades health
 while outputs are armed. Starts require a verified application identity and a readable
 bridge-wide ownership check; unknown or conflicting ownership leaves output stopped.
 Stop waits for release before a replacement can start, including a removed and re-added
@@ -1750,7 +1762,7 @@ All endpoints return JSON. When a token is configured, send it as an
 
 | Method | Path | Description |
 |--------|------|-------------|
-| GET | `/api/state` | Full current state (`armed` says whether anything leaves the machine; `wled`, while armed, whether each WLED takes the stream — see [WLED](#wled)) |
+| GET | `/api/state` | Full current state (`armed` says whether anything leaves the machine; `wled`, while armed, whether each WLED takes the stream — see [WLED](#wled); `hue`, which Hue bridge another app's area holds — see [Philips Hue](#philips-hue)) |
 | GET · PUT · DELETE | `/api/stage/room` | Private Stage room model; writes require the current `If-Match` revision. See [room format](docs/stage-room.md) |
 | GET | `/api/stage/room/report` | Read-only: `{ ok, revision, units, unbound, shared, far }`, where the [Spatial effects](#spatial-effects) place each unit against the room bindings and the Rig plot |
 | POST | `/api/set` | Patch state fields (JSON body) |
@@ -1959,7 +1971,7 @@ Transport routes answer `{ ok, status }`; with no sequence loaded they answer
 
 | Method | Path | Description |
 |--------|------|-------------|
-| GET | `/api/hue/status` | Every bridge: id, label, address, whether it is on and paired, its area, and what its stream is doing; plus `latencyMs` |
+| GET | `/api/hue/status` | Every bridge: id, label, address, whether it is on and paired, its area, what its stream is doing and `occupiedBy`, the area another app streams on it; plus `latencyMs` |
 | GET | `/api/hue/discover` | Bridges Philips' cloud service has seen on this network |
 | POST | `/api/hue/pair` | Pair with `{ host, label? }` — the bridge link button must have been pressed in the last 30 seconds. Answers `409` with `pressLink: true` if it has not. A new address is added to `hue.bridges` (as `bridge-1`, `bridge-2`…, on, with no area yet); one already there gets fresh keys. Answers the bridge and its areas |
 | GET | `/api/hue/:bridge/areas` | Entertainment areas on that bridge, with their channel ids and lamp names |
