@@ -26,8 +26,9 @@ function renderCore(inst: EffectInstance, frame: FrameBase & { roll?: number }, 
   const prepared = stepper.palette(inst.id, inst.spec, frame.nowMs);
   const initialRoll = frame.roll ?? 0;
   const gaps = inst.spec.background?.gaps ?? frame.gaps;
+  const brightness = inst.spec.brightness ?? 1, container = CONTAINERS.has(inst.spec.kind);
   const f: EffectFrame = { ...frame, spec: inst.spec, seed: inst.seed, anchorBeat: inst.anchorBeat, startedAtMs: inst.startedAtMs, instanceId: inst.id,
-    palette: [], roll: initialRoll, gaps, revealGaps: (gaps ?? DEFAULT_GAPS) === 'reveal' };
+    palette: [], roll: initialRoll, gaps, revealGaps: (gaps ?? DEFAULT_GAPS) === 'reveal', ...(container && brightness < 1 ? { dimmedAbove: true } : {}) };
   if (lamps && frame.fixtureIds) f.fixtureIds = lamps.slots.map((slots) => frame.fixtureIds![slots[0]]);
   const paletteAt = (roll: number) => resolvePalette(inst.spec, frame.paletteOverride, frame.lookPalette, inst.seed, roll, prepared);
   const state = stepper.get(inst.id, () => {
@@ -46,14 +47,17 @@ function renderCore(inst: EffectInstance, frame: FrameBase & { roll?: number }, 
   const slots: EffectSlot[] = Array.from({ length: cellsPass ? room.n : at.n }, () => ({ colour: { ...BLACK }, level: 0, strength: 0 }));
   if (cellsPass) cellsPass(inst.spec.params, state, lamps, f, slots);
   else def.render(inst.spec.params, state, at, f, slots);
-  const brightness = inst.spec.brightness ?? 1;
   // Light below full that authors no field leaves the rest of the slot to the Background layer, unless kept dark.
-  const fills = !CONTAINERS.has(inst.spec.kind) && revealsBase(inst.spec, frame.gaps);
+  const fills = !container && revealsBase(inst.spec, frame.gaps);
   const copy = (i: number) => {
     if (Number.isInteger(i) && i >= 0 && i < room.n) {
       const slot = slots[lamps && !cellsPass ? lamps.lampOf[i] : i];
       const authored = inst.spec.background?.level ?? brightness;
-      const background = authored === 1 ? slot.background : slot.background && { ...slot.background, level: slot.background.level * authored, fullLevel: (slot.background.fullLevel ?? slot.background.level) * authored };
+      // Brightness dims the light above the field, so that light covers less of the slot: the share it covers scales with it,
+      // as baseGap's does for light without a field, and the Background layer holds the rest through a swell's peak.
+      const background = authored === 1 && brightness === 1 ? slot.background : slot.background && { ...slot.background,
+        level: slot.background.level * authored, fullLevel: (slot.background.fullLevel ?? slot.background.level) * authored,
+        coverage: brightness === 1 ? slot.background.coverage : 1 - (1 - slot.background.coverage) * brightness };
       if (background && authored !== brightness) {
         const foreground = composeBackground(slot.colour, slot.level, slot.background, { ...DEFAULT_BACKGROUND, mode: 'off' });
         const level = foreground.level * brightness + background.level;
@@ -62,7 +66,7 @@ function renderCore(inst: EffectInstance, frame: FrameBase & { roll?: number }, 
         out[i] = { ...slot, colour: { r: mix('r'), g: mix('g'), b: mix('b'), w: mix('w'), a: mix('a'), uv: mix('uv') }, level, background };
       } else {
         out[i] = { ...slot, level: slot.level * brightness };
-        const field = background ?? (fills && slot.strength > 0 && !((slot.strobe ?? 0) > 0) ? baseGap(out[i].level) : undefined);
+        const field = background ?? (fills && slot.strength > 0 && !((slot.strobe ?? 0) > 0) ? baseGap(out[i].level, frame.dimmedAbove) : undefined);
         if (field) out[i].background = field;
       }
     }

@@ -42,11 +42,12 @@ const BASE_GAPS: readonly BackgroundField[] = Array.from({ length: 256 }, (_, st
   Object.freeze({ colour: DARK_BACKGROUND, level: 0, fullLevel: 0, coverage: 1 - step / 255 }));
 /**
  * The base layer under light that authors no field of its own: the share a foreground at this level leaves
- * uncovered, to the nearest output step; none where it covers the slot. Level 0 and Follow or Off read it as nothing.
+ * uncovered, to the nearest output step; none where it covers the slot, unless `whole` asks for that cover too
+ * (a container dims the light later). Level 0 and Follow or Off read it as nothing.
  */
-export function baseGap(level: number): BackgroundField | undefined {
+export function baseGap(level: number, whole = false): BackgroundField | undefined {
   const step = Math.round(255 * Math.max(0, Math.min(1, Number.isFinite(level) ? level : 1)));
-  return step < 255 ? BASE_GAPS[step] : undefined;
+  return step < 255 || whole ? BASE_GAPS[step] : undefined;
 }
 
 /** The setting as stored and sent: no whole-rig scope and no unused pick, so a build without scopes still reads it. */

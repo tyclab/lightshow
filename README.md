@@ -473,13 +473,15 @@ family, classic patterns, pattern pads and other voices, sequence clips, and the
 visualizer's room picture and pixel streams. It replaces the beds an effect authors and
 shows wherever the light above leaves a lamp dark or dim, in proportion to the share left
 uncovered: an unlit lamp takes the whole colour, a lamp at half takes half of it, a lamp at
-full takes none. A picture unit is uncovered by its brightest emitter, so its black shows the
-whole colour and full colours cover it. Explicit dark cues stay dark: strobe and rapid-flash
-rests, Kill, a foreground drawn black at full opacity (the Blackout scene), the classic flash
-patterns and ring strobe, fixture overrides and blackouts, and the master blackout. An effect
-set to **Keep dark** under **Between effect hits**, below, keeps its own black too. Follow
-and Off never light a lamp the effect leaves dark, and neither does a black Fixed colour
-(no emitter lit), on every profile, a dimmer-only lamp included.
+full takes none. An effect's or a macro's brightness dims its cover with its light, so at 50 %
+the peak of a swell still takes half of it. A picture unit is uncovered by its brightest
+emitter, so its black shows the whole colour and full colours cover it. Explicit dark cues
+stay dark: strobe and rapid-flash rests, Kill, a foreground drawn black at full opacity (the
+Blackout scene), the classic flash patterns and ring strobe, fixture overrides and blackouts,
+and the master blackout. An effect set to **Keep dark** under **Between effect hits**, below,
+keeps its own black too. Follow and Off never light a lamp the effect leaves dark, and
+neither does a black Fixed colour (no emitter lit), on every profile, a dimmer-only lamp
+included.
 
 **Fixtures** chooses what the card reaches: **Whole rig** (the default), **Wash
 fixtures** or **Selected fixtures…**, ticked from the patch. Wash fixtures are the

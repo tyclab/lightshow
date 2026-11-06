@@ -80,6 +80,8 @@ export interface EffectFrame {
   gaps?: GapPolicy;
   // Whether this instance publishes its gaps: render-instance.ts sets it from gaps, Reveal background when none.
   revealGaps?: boolean;
+  // A container around this instance (a macro, a pad) dims its light by the container's brightness, so a slot it covers whole publishes that cover.
+  dimmedAbove?: boolean;
   modulation?: EffectModulation;
   pictureFeatures?: PictureFeatures | null;
   hardware?: readonly HardwareCaps[];
