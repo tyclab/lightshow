@@ -319,8 +319,8 @@ test('every pattern renders finite values on one lamp with one colour', () => {
     for (const frame of [0, .5, 1, 22, 1000, 1e9]) {
       const output = h.draw(at(frame)); assert.equal(output.length, n);
       for (const slot of output) {
-        // A black background pixel is unlit and leaves its whole share to the Background layer (Reveal background, the default).
-        if (slot.level !== 1) assert.deepEqual([slot.level, slot.background?.coverage], [0, 1], pattern);
+        // A black background pixel is unlit and a swell lit below full; either leaves the rest to the Background layer (Reveal background, the default).
+        if (slot.level !== 1) assert.ok(Math.abs(slot.level + slot.background?.coverage - 1) < 1e-6, pattern);
         assert.equal(slot.strength, 1);
         assert.ok(Object.values(slot.colour).every(value => Number.isInteger(value) && value >= 0 && value <= 255), pattern);
       }

@@ -517,8 +517,9 @@ a background. Each dark or partly dark pixel is one of three things:
 - A **gap**: the share of a pixel the effect neither lights nor covers with a bed.
   A Party & Disco or V2 envelope, kernel or gate below full, an Entertainment lamp a row switches off or
   fades below full, the unlit share of a Disco lamp it owns or has not reached yet, a
-  bitmap's black background (the black between Vertical Lines and between the swells of
-  OG Groove Wave included), the trough of a wave and the dark side of Swirl and Beacon.
+  bitmap's black background (the black between Vertical Lines included), the share of
+  each OG Groove Wave swell not yet lit, so the Fixed colour fades out as the swell fades
+  in, the trough of a wave and the dark side of Swirl and Beacon.
   **Reveal background** lets the Fixed colour into it, in proportion to the uncovered
   share; **Keep dark** leaves the gap the effect's own black. Follow and Off put nothing
   there under either setting, on every profile, a dimmer-only lamp included. Rotation,

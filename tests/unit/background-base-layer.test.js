@@ -165,3 +165,18 @@ test('a black Fixed colour adds no light: a dimmer-only lamp stays as Off leaves
   const picture = { leaseId: 'base-test', signature: 'rig', units: 8, expiresAt: 1e12, data: new Uint8Array(24) };
   assert.deepEqual(dimmers({ background: black, picture }, [500])[0], new Array(8).fill(0), 'a black picture unit stays dark over a black Fixed colour');
 });
+
+test('OG Groove Wave fades the Fixed colour in proportion to its swell, so a low swell carries most of it', () => {
+  // A white-emitter Fixed colour is told apart from the wave's RGB swell on the wire.
+  const white = { ...fixed, level: 1, colour: { r: 0, g: 0, b: 0, w: 255, a: 0, uv: 0 } };
+  const effect = validateSpec({ kind: 'ldj.bitmap', params: { pattern: 'OGGrooveWave' }, palette: ['#FF0000', '#0000FF'] });
+  const times = Array.from({ length: 264 }, (_, k) => k * 1000 / 44);
+  const swells = run({ effect, background: off }, times).flatMap(lamps), shown = run({ effect, background: white }, times).flatMap(lamps);
+  const share = (lamp) => Math.max(lamp[0], lamp[1], lamp[2]) / 255;
+  const low = swells.map((lamp, i) => [share(lamp), shown[i]]).filter(([s]) => s > 0 && s < .25);
+  assert.ok(low.length > 0, 'negative control: the wave passes through a low swell');
+  for (const [s, lamp] of low) assert.ok(Math.abs(lamp[3] - 255 * (1 - s)) <= 2, `swell ${s.toFixed(3)}: white ${lamp[3]}, expected ${(255 * (1 - s)).toFixed(1)}`);
+  for (const [i, lamp] of swells.entries()) assert.deepEqual(shown[i].slice(0, 3), lamp.slice(0, 3), 'the swell itself plays as under Off');
+  const kept = run({ effect: with_(effect, 'dark'), background: white }, times).flatMap(lamps);
+  assert.ok(kept.every((lamp, i) => share(swells[i]) === 0 || lamp[3] === 0), 'Keep dark: no Fixed colour under a lit swell');
+});
