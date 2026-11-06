@@ -219,18 +219,20 @@ test('an explicitly black Party & Disco foreground owns its lamps independently 
   }
 });
 
-test('a half-opacity black Party & Disco foreground reveals half the Fixed wash independently of its brightness', () => {
+test('a half-opacity black Party & Disco foreground reveals half the Fixed wash, and its brightness dims that cover with its light', () => {
   const black = (sustain, brightness = 1) => hdGap('hd.simpleAdsr', { brightness, palette: ['#000000'],
     params: { rgbEnvelope: { ...HD_DEFAULTS['hd.simpleAdsr'].params.rgbEnvelope, singleColour: '#000000',
       brightness: { attack: 0, hold: .1, decay: 0, sustain, release: 0, peak: 1 } } } });
   const half = engine({ effect: black(.5), background: fixed }), dim = engine({ effect: black(.5, .05), background: fixed });
   const reference = engine({ effect: black(0), background: { ...fixed, level: .15 } });
+  // At brightness .05 the half-opacity black covers .5 × .05 of the lamp, so the rest of the .3 wash shows.
+  const dimmed = engine({ effect: black(0), background: { ...fixed, level: .3 * (1 - .5 * .05) } });
   assert.ok(dark(half.draw(20)), 'negative control: the opaque black hold still occludes Fixed');
-  reference.draw(20); dim.draw(20);
+  reference.draw(20); dim.draw(20); dimmed.draw(20);
   const wash = half.draw(900);
   assert.ok(lit(wash), 'half coverage reveals the wash');
   assert.deepEqual(wash, reference.draw(900), 'half coverage of a .3 wash equals full coverage of a .15 wash');
-  assert.deepEqual(dim.draw(900), wash, 'foreground brightness does not scale the revealed wash');
+  assert.deepEqual(dim.draw(900), dimmed.draw(900), 'foreground brightness dims the cover with the light');
 });
 
 for (const kind of ['hd.frequencyBurst', 'hd.positionChase', 'hd.simpleAdsr']) {

@@ -26,9 +26,9 @@ const COVERED: BackgroundField = Object.freeze({ colour: BLACK, level: 0, fullLe
 const DARK_REST: BackgroundField = Object.freeze({ ...COVERED, dark: true });
 
 // These kinds have no authored ambient colour. Their envelope, spatial kernel and audio gate
-// explicitly define foreground opacity, independently of palette RGB or output
-// brightness. Ordinary gaps expose a Fixed wash unless the effect keeps them
-// dark; rapid rests still own black.
+// explicitly define foreground opacity, independently of palette RGB; the effect's brightness
+// dims that cover with the light (render-instance.ts). Ordinary gaps expose a Fixed wash unless
+// the effect keeps them dark; rapid rests still own black.
 function behind(opacity: number, rapid: boolean, reveal: boolean): BackgroundField | undefined {
   if (rapid) return DARK_REST;
   if (!reveal) return undefined;

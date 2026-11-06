@@ -180,3 +180,27 @@ test('OG Groove Wave fades the Fixed colour in proportion to its swell, so a low
   const kept = run({ effect: with_(effect, 'dark'), background: white }, times).flatMap(lamps);
   assert.ok(kept.every((lamp, i) => share(swells[i]) === 0 || lamp[3] === 0), 'Keep dark: no Fixed colour under a lit swell');
 });
+
+test('an effect at brightness .5 leaves the Fixed colour the uncovered half through each swell, never dark before its peak', () => {
+  // A white-emitter Fixed colour is told apart from the RGB light on the wire; full-value colours make the light's share its RGB peak.
+  const white = { ...fixed, level: 1, colour: { r: 0, g: 0, b: 0, w: 255, a: 0, uv: 0 } };
+  const times = Array.from({ length: 132 }, (_, k) => k * 1000 / 44);
+  const palette = ['#FF0000', '#0000FF'];
+  const half = (spec) => validateSpec({ ...spec, palette, brightness: .5, background: { ...spec.background, level: .5 } });
+  const swell = validateSpec({ kind: 'ldj.bitmap', params: { pattern: 'OGGrooveWave' }, palette });
+  const cases = [['OG Groove Wave', half(swell)], ['Fade Cycle', half(presetById('ldj.FadeCycle').spec)],
+    ['a Party & Disco envelope', half(presetById('hd.neonPulse').spec)],
+    ['a macro at .5 around a full swell', validateSpec({ kind: 'macro', brightness: .5, background: { version: 1, level: .5 },
+      params: { steps: [{ effect: swell, beats: 32 }], loopBeats: 32 } })]];
+  for (const [name, effect] of cases) {
+    const shown = run({ effect, background: white }, times);
+    let peaks = 0;
+    shown.forEach((frame, k) => lamps(frame).forEach((lamp, i) => {
+      const light = Math.max(lamp[0], lamp[1], lamp[2]);
+      assert.ok(light <= 128, `${name}: the light plays at half`);
+      if (light >= 126) peaks++;
+      assert.ok(lamp[3] >= 255 - light - 2, `${name}, lamp ${i} at frame ${k}: light ${light}, Fixed ${lamp[3]}, uncovered ${255 - light}`);
+    }));
+    assert.ok(peaks > 0, `negative control: ${name} reaches its peak`);
+  }
+});
