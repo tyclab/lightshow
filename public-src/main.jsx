@@ -6,7 +6,7 @@ import { setUpDevice } from './device.js';
 
 import { Header } from './components/Header.jsx';
 import { CommandBar } from './components/CommandBar.jsx';
-import { Colors } from './components/Colors.jsx';
+import { Bands } from './components/Bands.jsx';
 import { AutoMode } from './components/AutoMode.jsx';
 import { Warm } from './components/Warm.jsx';
 import { Effects } from './components/Effects.jsx';
@@ -118,7 +118,7 @@ function EffectsView() {
   return (
     <div class="manual-view">
       <div class="manual-col col-patterns"><Background /><Cues /><Effects /></div>
-      <div class="manual-col col-colors"><Colors /></div>
+      <div class="manual-col col-colors"><Bands /></div>
       <div class="manual-col col-fixtures"><StagePreview /><Fixtures /></div>
     </div>
   );

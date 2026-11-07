@@ -2,12 +2,15 @@ import { ZodError } from 'zod';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { DISCO_DEFAULTS, DISCO_PRESETS, assignDiscoBands, hdAutoStrobeFlash, hdHsbToColour } from '../../src/shared/effects/disco.ts';
+import { effectContentKey } from '../../src/shared/effects/layer.ts';
+import { bandColourAt, stopColour } from '../../src/shared/effects/band-colour.ts';
 import { kindOf, requiresAcknowledgement, validateSpec } from '../../src/shared/effects/registry.ts';
 import { renderEffect } from '../../src/shared/effects/render.ts';
 import { EffectStepper } from '../../src/shared/effects/stepper.ts';
 import { HD_MASTER_DEFAULTS } from '../../src/shared/effects/types.ts';
 import { seedFrom } from '../../src/shared/effects/hash.ts';
 import { parseHex } from '../../src/shared/effects/palette.ts';
+import { toHex as hexOf } from '../../src/shared/palette-model.ts';
 import { BAND_HZ_MAX, BIN_HZ, bandBins, perBinFloorDb } from '../../src/shared/spectrum-bands.ts';
 import { harness, row } from '../helpers/ldj-harness.js';
 
@@ -98,7 +101,7 @@ test("band edges must ascend within 0..11025 Hz", () => {
 
 test('the schema rejects what Disco cannot play', () => {
   const bad = [
-    { style: 'strobe' }, { channels: channels().slice(0, 4) }, { channels: channels({ 0: { minHue: 20000, maxHue: 10000 } }) },
+    { style: 'strobe' }, { channels: channels().slice(0, 4) }, { channels: channels({ 0: { mix: 'gradient' } }) },
     { channels: channels({ 1: { maxHue: 65536 } }) }, { channels: channels({ 2: { fadeBrightness: 255 } }) },
     { channels: channels({ 3: { idleFadeBrightness: -1 } }) }, { channels: channels({ 4: { sequenceLength: 0 } }) },
     { channels: channels({ 0: { palette: ['red'] } }) }, { channels: channels({ 0: { unknown: true } }) },
@@ -107,6 +110,8 @@ test('the schema rejects what Disco cannot play', () => {
     { globals: { sensitivity: -5 } }, { unknown: 1 },
   ];
   for (const params of bad) assert.throws(() => validateSpec({ kind: 'hd.disco', params }), JSON.stringify(params));
+  // A start past the end is a range across red, not a mistake.
+  assert.doesNotThrow(() => validateSpec({ kind: 'hd.disco', params: { channels: channels({ 0: { minHue: 60000, maxHue: 5000, mix: 'steps' } }) } }));
   const ok = validateSpec({ kind: 'hd.disco', params: { assign: { 7: 'treble' }, strobe: { flashesPerSecond: 5 } } }).params;
   assert.deepEqual(ok.assign, { 7: 'treble' });
   assert.deepEqual(ok.strobe, { palette: ['#FFFFFF'], flashesPerSecond: 5 });
@@ -696,4 +701,72 @@ test('a cloned stepper continues the same show, pending releases included', () =
   for (const frame of [quiet(260), live(400, hop(3, { hit: BASS })), quiet(2600), live(2700, hop(4, { hit: BASS_TREBLE })), quiet(5000)]) {
     assert.deepEqual(h.draw(frame, copy), h.draw(frame), String(frame.nowMs));
   }
+});
+
+// Band colour: a channel's bar is its hue range (wrapping past red) or its ordered colours, blended or in steps.
+const hits = (params, n = 40, band = BASS) => {
+  const h = disco(row(3), params);
+  h.draw(quiet(0));
+  return Array.from({ length: n }, (_, i) => h.draw(live(100 + i * 150, hop(i + 1, { hit: band })))[0].colour);
+};
+
+test('a wrapped bass range hits only hues across red', () => {
+  const colours = hits({ channels: channels({ 0: { minHue: 60000, maxHue: 5000 } }) });
+  const hues = colours.map(hueOf);
+  assert.ok(hues.every((h) => h >= 329 || h <= 28), hues.join(','));
+  assert.ok(hues.some((h) => h >= 329) && hues.some((h) => h <= 28), 'both sides of red play');
+});
+
+test('palette Steps plays its colours whole, dark ones included; Blend plays the bar between them', () => {
+  const palette = ['#FF0000', '#202020', '#0000FF'];
+  const stepped = hits({ channels: channels({ 0: { useAmbience: true, palette, mix: 'steps' } }) }).map((c) => hexOf(c));
+  assert.ok(stepped.every((c) => ['#FF0000', '#202020', '#0000FF'].includes(c)), stepped.join(','));
+  assert.equal(new Set(stepped).size, 3, 'every colour gets its share');
+  const band = { minHue: 0, maxHue: 0, useAmbience: true, palette: ['#FF0000', '#0000FF'], mix: 'blend' };
+  const bar = new Set(Array.from({ length: 1025 }, (_, i) => hexOf(bandColourAt(band, i / 1024))));
+  const blended = hits({ channels: channels({ 0: { useAmbience: true, palette: band.palette, mix: 'blend' } }) }).map((c) => hexOf(c));
+  assert.ok(blended.every((c) => bar.has(c)), 'every hit is a colour on the bar');
+  assert.ok(blended.some((c) => c !== '#FF0000' && c !== '#0000FF'), 'and not only its ends');
+});
+
+test('a palette release keeps its colour at the channel saturation', () => {
+  const h = disco(row(3), { channels: channels({ 0: { useAmbience: true, palette: ['#FF0000'], mix: 'steps', fadeSaturation: 0 } }) });
+  h.draw(quiet(0));
+  assert.deepEqual(h.draw(live(100, hop(1, { hit: BASS })))[0].colour, C(255, 0, 0));
+  const released = h.draw(live(2000, hop(1, { hit: BASS })))[0];
+  assert.deepEqual(released.colour, C(255, 255, 255));
+  close(released.level, L(40));
+});
+
+test('Neural places pitch on the bar: low notes take the first colour, high the last', () => {
+  const palette = ['#FF0000', '#00FF00', '#0000FF'];
+  for (const [mix, frequency, expected] of [['blend', 0, '#FF0000'], ['blend', 1, '#0000FF'], ['steps', 0.5, '#00FF00'], ['steps', 0.2, '#FF0000']]) {
+    const h = disco(row(1), { style: 'neural', channels: channels({ 4: { useAmbience: true, palette, mix, modulateSaturation: false } }) });
+    h.draw(quiet(0));
+    assert.equal(hexOf(h.draw(live(10, hop(1, { mainFrequency: frequency, amplitude: 1 })))[0].colour), expected, `${mix} ${frequency}`);
+  }
+  const mid = disco(row(1), { style: 'neural', channels: channels({ 4: { useAmbience: true, palette, mix: 'blend', modulateSaturation: false } }) });
+  mid.draw(quiet(0));
+  const at = mid.draw(live(10, hop(1, { mainFrequency: 0.25, amplitude: 1 })))[0].colour;
+  assert.deepEqual(at, stopColour(palette.map(parseHex), 'blend', Math.fround(0.25)));
+  // A wrapped range runs up the wheel from its start as the pitch rises.
+  const wrap = disco(row(1), { style: 'neural', channels: channels({ 4: { minHue: 60000, maxHue: 5000, modulateSaturation: false } }) });
+  wrap.draw(quiet(0));
+  assert.equal(hueOf(wrap.draw(live(10, hop(1, { mainFrequency: 0, amplitude: 1 })))[0].colour), hueOf(hdHsbToColour(60000, 255)));
+  assert.equal(hueOf(wrap.draw(live(20, hop(2, { mainFrequency: 1, amplitude: 1 })))[0].colour), hueOf(hdHsbToColour(5000, 255)));
+});
+
+test('band colours and switches are live edits: the instance, its fades and its strobe permit carry on', () => {
+  const spec = validateSpec({ kind: 'hd.disco', params: { allowStrobe: true } });
+  const edited = { ...spec, params: { ...spec.params, channels: channels({ 0: { minHue: 60000, maxHue: 5000, fade: false, enabled: false,
+    allowPulse: false, useAmbience: true, palette: ['#00FF00'], mix: 'steps' } }) } };
+  assert.equal(effectContentKey(edited), effectContentKey(spec));
+  const detector = { ...spec, params: { ...spec.params, channels: channels({ 0: { sequenceLength: 4 } }) } };
+  assert.notEqual(effectContentKey(detector), effectContentKey(spec), 'anything else still restarts');
+  // The same instance picks up an edit on its next hit.
+  const h = disco(row(3));
+  h.draw(quiet(0));
+  h.draw(live(100, hop(1, { hit: BASS })));
+  h.inst.spec = validateSpec({ kind: 'hd.disco', params: { channels: channels({ 0: { useAmbience: true, palette: ['#00FF00'], mix: 'steps' } }) } });
+  assert.deepEqual(h.draw(live(300, hop(2, { hit: BASS })))[0].colour, C(0, 255, 0));
 });

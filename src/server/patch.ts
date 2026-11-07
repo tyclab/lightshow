@@ -1,4 +1,5 @@
-import { colourModes } from '../shared/effect-colours.ts';
+import { bandEffect, colourModes, withEffectColours } from '../shared/effect-colours.ts';
+import { validateSpec } from '../shared/effects/registry.ts';
 import { state, getFixture, latchEnergy, reconcileFreeClock } from './state.ts';
 import { beginFade, resolveEffect } from './engine.ts';
 import { conductor } from './conductor.ts';
@@ -103,6 +104,13 @@ function applyPatch(rawData: unknown, { beforeCommit, origin = 'hand', paletteOv
     if (colourEdit.pattern !== pattern || !spec) throw new HttpError(409, 'Select the effect again before editing its colours');
     if (colourEdit.mode && !colourModes(spec).includes(colourEdit.mode)) throw new HttpError(400, 'This effect does not support that colour distribution');
     if (colourEdit.palette) colourEdit.palette = materializePalette(colourEdit.palette);
+    if (colourEdit.bands) {
+      if (!bandEffect(spec)) throw new HttpError(400, 'This effect has no bands to colour');
+      // Checked as it will play, so a refused edit never leaves the main effect unplayable.
+      const kept = data.pattern === undefined && state.effectColours?.pattern === pattern ? state.effectColours : null;
+      try { validateSpec(withEffectColours(pattern, spec, { ...kept, ...colourEdit })!); }
+      catch (err) { throw new HttpError(400, `These band colours cannot play: ${err instanceof Error ? err.message : String(err)}`); }
+    }
   }
   // Naming the pattern is starting it, even the one on stage; a fader moved under it is not.
   if (data.pattern !== undefined) {

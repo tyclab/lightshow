@@ -728,6 +728,39 @@ test('the Background card offers Fixed colour by hue, saturation and brightness,
   assert.doesNotMatch(ui.html(ui.h(ui.Show)), /Background colour sliders/, 'Follow effect takes its colours from the effect');
 });
 
+test('Show stacks Background, the effect, then Bands; a Disco shows its bands, another effect its own palette', () => {
+  givenLibrary({ pattern: 'hd.disco.ambient', audio: { mode: 'reactive' } });
+  const show = ui.html(ui.h(ui.Show));
+  const order = [...show.matchAll(/<(?:section|div) class="card ([a-z-]+)/g)].map((m) => m[1]).filter((c) => ['background-controls', 'effects', 'bands'].includes(c));
+  assert.deepStrictEqual(order, ['background-controls', 'effects', 'bands']);
+  const card = /<section class="card bands"[^>]*>(.*?)<\/section>/s.exec(show)[1];
+  assert.match(card, /Auto<span class="band-mode-sep"> · <\/span><span class="band-mode-name">Ambient</);
+  for (const name of ['Bass', 'Voice', 'Treble']) {
+    assert.match(card, new RegExp(`aria-label="${name} band"`));
+    assert.match(card, new RegExp(`aria-label="${name} level"`));
+    assert.match(card, new RegExp(`aria-label="${name} start hue"[^>]*aria-valuenow="\\d+"`));
+  }
+  assert.strictEqual(count(card, 'type="checkbox"'), 9, 'Enabled and Fade per band, and Fast Pulse where Fade is on');
+  assert.doesNotMatch(card, /Reactive audio/, 'no hint once the bands hear the music');
+  assert.doesNotMatch(show, /color-grid|color-slot|SLOT A|Palette destination/, 'no slots, swatch grid or palette strip');
+  // Fast Pulse acts only through Fade; a band switched off keeps only its switch.
+  const ambient = ui.CATALOGUE.find((row) => row.id === 'hd.disco.ambient').spec;
+  givenLibrary({ pattern: 'hd.disco.ambient', effectColours: { pattern: 'hd.disco.ambient', bands: [{ fade: false }, { enabled: false }, null, null, null] } });
+  const edited = /<section class="card bands"[^>]*>(.*?)<\/section>/s.exec(ui.html(ui.h(ui.Show)))[1];
+  const band = (name) => new RegExp(`aria-label="${name} band">(.*?)(?=aria-label="[A-Za-z]+ band"|$)`, 's').exec(edited)[1];
+  assert.doesNotMatch(band('Bass'), /Fast Pulse/);
+  assert.doesNotMatch(band('Voice'), /Fade|role="slider"/);
+  assert.match(band('Treble'), /Fast Pulse/);
+  assert.match(edited, />Reset</);
+  assert.ok(ambient.params.channels[1].enabled, 'the library preset is untouched');
+  // Any other effect: its palette as one bar and the same list, with its distribution.
+  givenLibrary({ pattern: 'v2.scatterStrobe' });
+  const own = /<section class="card bands" aria-label="Colours"[^>]*>(.*?)<\/section>/s.exec(ui.html(ui.h(ui.Show)))[1];
+  assert.match(own, /aria-label="Effect palette"/);
+  assert.match(own, /aria-label="Colour distribution"/);
+  assert.doesNotMatch(own, /Bass band|Fast Pulse/);
+});
+
 test('a favourite is pinned first on the deck, whatever it is', () => {
   const rows = [{ id: 'a', party: true }, { id: 'u', user: true }, { id: 'x', app: 'ldj' }, { id: 'b', party: true }];
   assert.deepStrictEqual(ui.quickDeck(rows, []).map((r) => r.id), ['u', 'a', 'b']);

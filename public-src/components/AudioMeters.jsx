@@ -28,8 +28,10 @@ export function latencyText(ms) {
   return `${ms < 0 ? '−' : '+'}${Math.abs(Math.round(ms))} ms`;
 }
 
-function useAudioFeed() {
+/** Subscribes this page to the 30 Hz audio feed while `enabled` and visible. */
+export function useAudioFeed(enabled = true) {
   useEffect(() => {
+    if (!enabled) return undefined;
     let release = null;
     const sync = () => {
       const visible = document.visibilityState !== 'hidden';
@@ -42,7 +44,7 @@ function useAudioFeed() {
       document.removeEventListener('visibilitychange', sync);
       if (release) release();
     };
-  }, []);
+  }, [enabled]);
 }
 
 /** One dot per Disco band, open while the band hits; `gate` is only the power a hit needs. */

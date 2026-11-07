@@ -176,8 +176,9 @@ For a live session, configure the fixtures and their positions in Rig, then
 run the night from Show: the room in 3D as the rig paints it, the looks beside
 it, and the switches that matter along the top — armed or not, what paints the
 room (the effects or the visualizer picture), the auto show on or off,
-blackout and the master. Effects holds the full catalogue, colours and fixture
-overrides; Perform is the tablet surface for pads, strobes, the Matrix board
+blackout and the master. Show stacks the looks as they layer: Background, the
+main effect, then its colours in the Bands card. Effects holds the full catalogue,
+the same Bands card and fixture overrides; Perform is the tablet surface for pads, strobes, the Matrix board
 and tempo tools; Sequence arranges clips or runs a playlist; Stage shows the
 rig in 3D with its room bindings or a rehearsal. Arming is a separate action
 from preparing or previewing a look. Stage and the fixture plot say **Outputs off**
@@ -281,7 +282,7 @@ to effects; pad banks launch effects or patterns over the look.
 | View | Shortcut | Purpose |
 |------|----------|---------|
 | Show | 1 | The room in 3D and the looks beside it |
-| Effects | 2 | Effects catalogue and inspector, cues, look colours, fixture overrides and stage preview |
+| Effects | 2 | Effects catalogue and inspector, cues, the Bands card, fixture overrides and stage preview |
 | Perform | 3 | Pads and Matrix, transport, strobe, tap, colours, the room picture's colour grade and the intensity fader |
 | Stage | 4 | Monitor the rendered rig in 3D, import a room and bind its lights |
 | Auto Show | 5 | Analyse music, choose its source, run the generated show; Timeline tab for rehearsal and edits |
@@ -1206,9 +1207,8 @@ Editing a built-in saves a copy; user presets are editable and deletable.
 `GET /api/effects` exposes family parameter schemas and preset metadata.
 
 Base looks, effects and the global override use one palette model and one editor.
-The palette strip selects its destination: **Main effect** edits the selected look;
-**Global override** replaces palettes across the stage. In Colours, the palette,
-swatches and sliders share that destination. Effects with their own palettes receive
+The palette strip in Perform selects its destination: **Main effect** edits the selected look;
+**Global override** replaces palettes across the stage. Effects with their own palettes receive
 a temporary colour edit; their saved preset, pads and sequence clips remain unchanged.
 **Colour distribution** chooses the first colour, colours across the effect, or colours
 over time where the effect supports it. **Reset effect colours** restores the preset.
@@ -1225,7 +1225,7 @@ up to four gradient roles; `gradientSet` and `gradientRole` select the active
 role. Without authored gradients, effects keep their existing interpolation.
 
 `POST /api/set` accepts `basePalette` and `overridePalette` bodies, or null.
-`POST /api/set` accepts `effectColours: { pattern, palette?, mode? }` for the selected
+`POST /api/set` accepts `effectColours: { pattern, palette?, mode?, bands? }` for the selected
 main effect, or `null` to reset. `pattern` must match the selected effect; stale edits
 are refused before other fields change. Palette bodies retain gradients and all
 six channels. Palette-only edits preserve effect phase. Distribution changes follow
@@ -1243,6 +1243,50 @@ emitters, available as separate numeric fields. **Generate a hue pair** controls
 the starting hue, angular separation, saturation and brightness; it fills the
 editor draft, which can then be applied or saved as a palette. The library offers
 every built-in and saved palette in either destination.
+
+### Bands
+
+Show and Effects colour the main effect in the **Bands** card. A Disco (the band
+effect) shows its channels: Bass, Voice and Treble for Spectrum, one channel for
+Peak or Neural. Each has a level meter (Spectrum: the band's power against twice its
+hit gate, the gate at the middle mark), **Enabled**, **Fade** and **Fast Pulse**, and a
+colour bar. A switch or bar that cannot act is hidden: a band switched off shows only
+Enabled, Fast Pulse only acts through Fade, Neural ignores both. The header chip names
+the lamp assignment (**Auto** shares the lamps among the enabled bands; **Manual** when
+some lamps keep a band of their own) and the main effect, for example *Auto · Ambient*.
+
+A colour bar is either a **hue range** or an ordered row of up to eight colours:
+
+- A hue range is two handles on the hue wheel joined by a line. Each hit plays a hue
+  drawn evenly from the start handle up the wheel to the end handle; with the start
+  past the end the range wraps across red. **Steps** plays only the two end hues.
+- A row of colours plays left to right in its order, spread evenly along the bar.
+  **Blend** mixes neighbours in OKLCH (yellow to blue passes teal, not grey); **Steps**
+  gives each colour an equal share and plays it whole, dark colours included. The
+  bar is drawn from the same function the lamps play.
+- Spectrum and Peak hits draw their place on the bar at random from the effect's seed;
+  Neural places pitch on it, low notes at the left. The release keeps the colour at
+  the channel's fade saturation.
+
+Open a band's colours to pick **Blend** or **Steps**, recolour the selected handle from
+the quick colours (a range takes only those with a hue), **Add colour** (a range opens
+into its start, middle and end colours) or **Remove colour**, or replace the bar from
+the searchable palette list: **Hue range** first, then every built-in and saved palette
+with its preview (**Manage palettes** edits the saved ones). Drag a handle to move it (a range) or reorder it (a row); on the keyboard
+the arrows do the same. Edits are the main effect's temporary edit
+(`effectColours.bands`): they play at once without restarting the Disco, reset with
+**Reset** or another effect, and are captured by cues.
+
+Any other effect keeps its own palette: the card shows it as one bar with the same
+quick colours and palette list, and its **Colour distribution**. The band ranges do not
+recolour other effects: their palettes are authored per look.
+
+A Disco channel saved before Blend and Steps (`useAmbience` with a `palette` and no
+`mix`) keeps its earlier meaning: one colour a hit, its hue only, at the channel's
+saturation. `POST /api/set` accepts `effectColours: { pattern, bands }`, `bands` being
+up to five entries (one per channel, `null` to leave it) of `enabled`, `fade`,
+`allowPulse`, `minHue`, `maxHue` (0–65535), `useAmbience`, `palette` (1–8 hex colours)
+and `mix` (`blend` or `steps`); the result must validate as the effect's parameters.
 
 Random stage slots roll once when selected. Cues snapshot full palette bodies.
 A sequence captures the override's colours, gradients and id; stop, unload
@@ -2146,9 +2190,8 @@ Press **?** in the app for this list.
 | **4** / **5** | Sequence / Stage view |
 | **6** / **7** / **8** / **9** | Rig / Sources / Settings / Preflight view |
 | **←** **→**, **Home** / **End** on the view tabs | Next / previous / first / last view |
-| **←** **→** **↑** **↓**, **Home** / **End** | Move within the colour grid |
-| **Enter** / **Shift+Enter** | Write the focused swatch into the active slot / the paired slot (A↔B, C↔D) |
-| **Shift+click** or **right-click** | Write a swatch into the paired slot |
+| **←** **→** **↑** **↓** on a hue range handle (**Shift** for 10°) | Move the handle round the hue wheel |
+| **←** **→** on a band colour | Move the colour one place in the bar's order |
 | **Space** or **Enter** on a pad reached with Tab | Hold: play until released; once: play one phrase; loop: start or stop on each press |
 | **←** **→** **↑** **↓** (**Shift** for bigger steps) | Nudge the focused fixture on the stage plot (on the Rig view's plan, the whole selection) |
 | **[** **]**, **-** **=**, **0** on a bar | Turn it, change its length, back to its default line |

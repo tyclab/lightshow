@@ -15,6 +15,9 @@ import { BAND_HZ_MAX, perBinFloorDb, validBand } from '../spectrum-bands.ts';
 import type { AudioFrame } from './audio-frame.ts';
 import { hash01 } from './hash.ts';
 import { parseHex, toHex } from './palette.ts';
+import { BAND_LIVE_KEYS, BAND_MIXES, desaturate, hdColour, hueAlong, hueDegrees, hueSpan, huesOnly, playsPalette, rangeDegrees, stopColour,
+  toDegrees } from './band-colour.ts';
+import type { BandMix } from './band-colour.ts';
 import { registerKind, strobeRests } from './registry.ts';
 import type { EffectFrame, EffectSlot } from './types.ts';
 
@@ -23,6 +26,8 @@ export interface DiscoChannel {
   enabled: boolean; fade: boolean; allowPulse: boolean; minHue: number; maxHue: number; fadeBrightness: number; fadeSaturation: number;
   idleFadeBrightness: number; sequenceLength: number; useAmbience: boolean; palette: string[] | null; strobeOn: boolean; linkLights: boolean;
   modulateSaturation: boolean;
+  /** How a palette or range plays between its stops; absent, a palette plays each colour's hue only, one colour a hit. */
+  mix?: BandMix;
 }
 /** The hit detector's settings: the audio features read them, the kind does not. */
 export interface DiscoGlobals {
@@ -59,7 +64,6 @@ const MAX_INTERVAL_MS = 1400;
 const FLASH_FALL_MS = 200;
 const FLASH_FLOOR = 40;
 const FULL = 254;
-const HUE_PER_DEGREE = 182.04;
 // The detector floor is minimumThreshold / 200000 in total over a band's bins.
 const FLOOR_PER_THRESHOLD = 1 / 200000;
 // Hash key base for the Disco's draws: one stream per channel, one for strobe colours.
@@ -74,32 +78,9 @@ const unit = (x: unknown) => typeof x === 'number' && Number.isFinite(x) ? clamp
 const rgb = (r: number, g: number, b: number): Colour => ({ r, g, b, w: 0, a: 0, uv: 0 });
 const solid = (c: Colour): Colour => ({ r: c.r, g: c.g, b: c.b, w: c.w ?? 0, a: c.a ?? 0, uv: c.uv ?? 0 });
 
-// Disco's own HSV at full value: double precision, bytes truncated, not the
-// rounded 32-bit converter the entertainment palettes use.
-function hsvDegrees(degrees: number, saturation: number): Colour {
-  if (saturation === 0) return rgb(255, 255, 255);
-  const sector = degrees / 60, i = Math.floor(sector), f = sector - i;
-  const p = 1 - saturation, q = 1 - saturation * f, t = 1 - saturation * (1 - f);
-  const [r, g, b] = i === 1 ? [q, 1, p] : i === 2 ? [p, 1, t] : i === 3 ? [p, q, 1] : i === 4 ? [t, p, 1] : i === 5 ? [1, p, q] : [1, t, p];
-  const byte = (x: number) => Math.trunc(Math.max(x * 255, 0));
-  return rgb(byte(r), byte(g), byte(b));
-}
-// Hue units clamp to 65534: 65535 is the same red.
-const toDegrees = (hue: number) => Math.trunc(clamp(Math.trunc(Number.isFinite(hue) ? hue : 0), 0, 65534) / HUE_PER_DEGREE);
-const hdColour = (degrees: number, saturation: number) =>
-  hsvDegrees(degrees, clamp(Math.trunc(Number.isFinite(saturation) ? saturation : 0), 0, 254) / 254);
-
 /** A Hue colour (hue 0..65535, saturation 0..255) as streamed: whole degrees of hue / 182.04 at full value. */
 export function hdHsbToColour(hue: number, saturation: number): Colour {
   return hdColour(toDegrees(hue), saturation);
-}
-
-// Ambience palettes give a hue only; saturation stays the channel's.
-function hueDegrees(c: Colour): number {
-  const max = Math.max(c.r, c.g, c.b), d = max - Math.min(c.r, c.g, c.b);
-  if (d === 0) return 0;
-  const h = max === c.r ? (c.g - c.b) / d : max === c.g ? (c.b - c.r) / d + 2 : (c.r - c.g) / d + 4;
-  return Math.trunc((h * 60 + 360) % 360);
 }
 
 /** The automatic strobe's permit: now ≥ last + ceil(1000 / rate), the rate held to 1..5 a second. Never flashed: last = −Infinity. */
@@ -228,7 +209,8 @@ const channelSchema = z.object({
   enabled: z.boolean(), fade: z.boolean(), allowPulse: z.boolean(), minHue: hue, maxHue: hue, fadeBrightness: brightness,
   fadeSaturation: z.number().int().min(0).max(255), idleFadeBrightness: brightness, sequenceLength: z.number().int().min(1),
   useAmbience: z.boolean(), palette: z.array(hex).nullable(), strobeOn: z.boolean(), linkLights: z.boolean(), modulateSaturation: z.boolean(),
-}).strict().refine((c) => c.minHue <= c.maxHue, 'a channel\'s minHue must not exceed its maxHue');
+  mix: z.enum(BAND_MIXES).optional(),
+}).strict();
 // Invalid edges are refused, never moved: the band list also restarts the
 // audio service, which refuses the same edges.
 const band = z.tuple([z.number(), z.number()]).refine(([lo, hi]) => validBand(lo, hi),
@@ -264,8 +246,10 @@ interface Layout {
   groups: number[][]; caps: number[];
   /** Whether a slot belongs to any channel; the Disco keeps the others dark. */
   grouped: boolean[];
-  /** Ambience hues in degrees, per channel; null plays the channel's hue range. */
+  /** Hue-only palette hues in degrees, per channel (a palette saved without a mix). */
   ambience: (number[] | null)[];
+  /** Palette colours that play whole, per channel; null where the channel has none. */
+  stops: (Colour[] | null)[];
   strobe: Colour[];
 }
 interface DiscoState {
@@ -344,7 +328,8 @@ function buildLayout(p: DiscoParams, ids: string[], groupsKey: string, coloursKe
   for (const group of groups) for (const slot of group) grouped[slot] = true;
   return {
     groupsKey, coloursKey, groups, caps: groups.map((g, ch) => ch < 3 ? Math.min(share, g.length) : g.length), grouped,
-    ambience: p.channels.map((c) => c.useAmbience && c.palette?.length ? c.palette.map((h) => hueDegrees(parseHex(h))) : null),
+    ambience: p.channels.map((c) => huesOnly(c) ? c.palette!.map((h) => hueDegrees(parseHex(h))) : null),
+    stops: p.channels.map((c) => playsPalette(c) && !huesOnly(c) ? c.palette!.map(parseHex) : null),
     strobe: p.strobe.palette.map(parseHex),
   };
 }
@@ -354,7 +339,7 @@ function buildLayout(p: DiscoParams, ids: string[], groupsKey: string, coloursKe
 function refreshLayout(p: DiscoParams, s: DiscoState, room: Room, f: EffectFrame): void {
   const ids = slotIds(room.n, f.fixtureIds);
   const groupsKey = JSON.stringify([p.style, p.assign, p.channels.map((c) => c.enabled), p.maxLightsPerBatch, ids]);
-  const coloursKey = JSON.stringify([p.channels.map((c) => [c.useAmbience, c.palette]), p.strobe.palette]);
+  const coloursKey = JSON.stringify([p.channels.map((c) => [c.useAmbience, c.palette, c.mix ?? null]), p.strobe.palette]);
   if (s.layout.groupsKey === groupsKey && s.layout.coloursKey === coloursKey) return;
   const remapped = s.layout.groupsKey !== groupsKey;
   if (remapped) s.pending = [];
@@ -381,16 +366,20 @@ function pickBatch(c: Context, ch: number, group: readonly number[], size: numbe
 }
 
 // Explicit colours (an override, then the effect's palette) play literally;
-// otherwise the channel's ambience hues or its hue range, at full saturation
-// for the hit and the channel's own for the release.
+// otherwise the channel's bar at a random place: a palette's colour, released
+// at the channel's saturation, or its range's hue, at full saturation for the
+// hit and the channel's own for the release.
 function hitColours(c: Context, ch: number, releaseSaturation: number): { hit: Colour; release: Colour } {
   if (c.literal) {
     const colour = solid(c.literal[Math.floor(roll(c, ch) * c.literal.length)]);
     return { hit: colour, release: colour };
   }
-  const ambience = c.s.layout.ambience[ch], cfg = c.p.channels[ch];
-  const degrees = ambience ? ambience[Math.floor(roll(c, ch) * ambience.length)]
-    : toDegrees(cfg.minHue + Math.floor(roll(c, ch) * (cfg.maxHue - cfg.minHue)));
+  const cfg = c.p.channels[ch], at = roll(c, ch), stops = c.s.layout.stops[ch], ambience = c.s.layout.ambience[ch];
+  if (stops) {
+    const colour = stopColour(stops, cfg.mix ?? 'blend', at);
+    return { hit: colour, release: desaturate(colour, Math.min(releaseSaturation, 254) / 254) };
+  }
+  const degrees = ambience ? ambience[Math.floor(at * ambience.length)] : rangeDegrees(cfg, at);
   return { hit: hdColour(degrees, 255), release: hdColour(degrees, releaseSaturation) };
 }
 
@@ -515,9 +504,13 @@ function neural(c: Context, heard: AudioFrame | null): void {
   const index = (n: number) => Math.trunc(f32(f32(n - 1) * frequency));
   let colour: Colour;
   if (c.literal) colour = solid(c.literal[index(c.literal.length)]);
-  else {
+  else if (c.s.layout.stops[4]) {
+    // Pitch places the colour on the bar: low notes at the left, high at the right.
+    colour = desaturate(stopColour(c.s.layout.stops[4], cfg.mix ?? 'blend', frequency), cfg.modulateSaturation ? Math.min(bri, 254) / 254 : 1);
+  } else {
     const ambience = c.s.layout.ambience[4];
-    const degrees = ambience ? ambience[index(ambience.length)] : toDegrees(Math.trunc(f32(f32(cfg.maxHue - cfg.minHue) * frequency)) + cfg.minHue);
+    const degrees = ambience ? ambience[index(ambience.length)] : cfg.mix === 'steps' ? rangeDegrees(cfg, frequency)
+      : toDegrees(hueAlong(cfg.minHue, Math.trunc(f32(f32(hueSpan(cfg.minHue, cfg.maxHue)) * frequency))));
     colour = hdColour(degrees, cfg.modulateSaturation ? bri : 255);
   }
   for (const i of group) setLamp(c.s.lamps[i], colour, bri / FULL, c.now, 0);
@@ -539,7 +532,7 @@ function initDisco(p: DiscoParams, room: Room, f: EffectFrame): DiscoState {
   // Channel timers start at launch: the first hit is taken 100 ms in, the first idle 2 s in.
   const launch = [f.startedAtMs, f.nowMs].find((t): t is number => Number.isFinite(t)) ?? 0;
   const s: DiscoState = {
-    layout: { groupsKey: '', coloursKey: '', groups: [], caps: [], grouped: [], ambience: [], strobe: [] },
+    layout: { groupsKey: '', coloursKey: '', groups: [], caps: [], grouped: [], ambience: [], stops: [], strobe: [] },
     channels: Array.from({ length: 5 }, () => ({ lastHit: launch, lastIdle: launch, sequence: 0, pulse: false, draws: 0 })),
     lamps: [], pending: [], lastFlash: null, strobeDraws: 0, heard: null, now: launch,
   };
@@ -586,5 +579,8 @@ registerKind<DiscoParams, DiscoState>({
   // The automatic strobe's five-a-second limit is the instance's own (lastFlash), where the style can flash at all.
   pacesOwnFlashes: (p) => (p.style === 'spectrum' && !!p.allowStrobe) || (p.style === 'peak' && !!p.channels?.[3]?.strobeOn),
   gapsApply: (_params, spec) => !strobeRests(spec),
+  // Band colours and switches are read on every render: editing them keeps the lamps, their fades and the strobe permit.
+  restartKey: (p) => !Array.isArray(p?.channels) ? p : { ...p, channels: p.channels.map((c) => c && typeof c === 'object'
+    ? Object.fromEntries(Object.entries(c).filter(([key]) => !(BAND_LIVE_KEYS as readonly string[]).includes(key))) : c) },
   init: initDisco, render: renderDisco,
 });

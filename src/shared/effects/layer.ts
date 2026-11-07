@@ -1,7 +1,7 @@
 import { baseGap } from '../background.ts';
 import type { BackgroundField } from '../background.ts';
 import { renderEffect } from './render.ts';
-import { revealsBase } from './registry.ts';
+import { kindOf, revealsBase } from './registry.ts';
 import { roomOf } from '../room.ts';
 import { roomSpaceOf } from '../space.ts';
 import type { UnitSpace } from '../space.ts';
@@ -34,7 +34,8 @@ export function canonical(value: unknown): string {
 }
 
 export function effectContentKey(spec: EffectSpec): string {
-  return canonical({ kind: spec.kind, params: spec.params ?? null, scope: spec.scope ?? null,
+  const restartKey = kindOf(spec.kind)?.restartKey;
+  return canonical({ kind: spec.kind, params: spec.params && restartKey ? restartKey(spec.params) : spec.params ?? null, scope: spec.scope ?? null,
     minFlashIntervalMs: spec.minFlashIntervalMs ?? null, rapidFlash: spec.rapidFlash ?? null });
 }
 

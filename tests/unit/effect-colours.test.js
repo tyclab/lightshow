@@ -103,3 +103,62 @@ test('separate palette and distribution edits compose without waiting for a brow
   applyPatch({ pattern, effectColours: { pattern, mode: 'time' } });
   assert.deepEqual(state.effectColours, { pattern, mode: 'time' });
 });
+
+// The Bands card's edits: a Disco main effect's channel colours and switches, kept with the main effect like its palette.
+const disco = 'hd.disco.ambient';
+const band = (over) => [over, null, null, null, null];
+
+test('band edits reach the main Disco live, without a restart, and leave the library preset alone', () => {
+  applyPatch({ pattern: disco });
+  const revision = renderInput().effectRevision;
+  const library = structuredClone(presetById(disco).spec);
+  applyPatch({ effectColours: { pattern: disco, bands: band({ minHue: 60000, maxHue: 5000, fade: false, useAmbience: true,
+    palette: ['#FF0000', '#0000FF'], mix: 'blend' }) } });
+  const channel = renderInput().effect.params.channels[0];
+  assert.deepEqual([channel.minHue, channel.maxHue, channel.fade, channel.palette, channel.mix], [60000, 5000, false, ['#FF0000', '#0000FF'], 'blend']);
+  assert.deepEqual(renderInput().effect.params.channels.slice(1), library.params.channels.slice(1), 'other bands untouched');
+  assert.equal(renderInput().effectRevision, revision, 'the Disco keeps its lamps and strobe permit');
+  assert.deepEqual(presetById(disco).spec, library);
+  assert.deepEqual(previewOptions(getLiveState()).resolveEffect(disco).params.channels[0], channel);
+});
+
+test('band edits that cannot play, or on an effect without bands, reject the whole patch', () => {
+  applyPatch({ pattern: disco });
+  const before = captureLook();
+  for (const effectColours of [
+    { pattern: disco, bands: band({ palette: Array(9).fill('#FF0000') }) },
+    { pattern: disco, bands: band({ minHue: 70000 }) },
+    { pattern: disco, bands: band({ mix: 'gradient' }) },
+    { pattern: disco, bands: band({ sequenceLength: 4 }) },
+    { pattern: 'v2.wash', bands: band({ fade: false }) },
+  ]) {
+    assert.throws(() => applyPatch({ effectColours, masterDimmer: 0 }), JSON.stringify(effectColours));
+    assert.deepEqual(captureLook(), before);
+  }
+  applyPatch({ pattern: 'v2.wash' });
+  assert.throws(() => applyPatch({ effectColours: { pattern: 'v2.wash', bands: band({ fade: false }) } }), /no bands/);
+});
+
+test('saved shows load as before: old edits, cues and Disco params without band colours play unchanged', () => {
+  // A cue saved before the Bands card has no bands field; a band edit restores with its cue.
+  applyPatch({ pattern, effectColours: { pattern, palette, mode: 'along' } });
+  const old = captureLook();
+  assert.equal('bands' in old.effectColours, false);
+  applyPatch({ pattern: disco, effectColours: { pattern: disco, bands: band({ allowPulse: true }) } });
+  const cue = captureLook();
+  recallLook(old);
+  assert.deepEqual(state.effectColours, old.effectColours);
+  recallLook(cue);
+  assert.equal(renderInput().effect.params.channels[0].allowPulse, true);
+  // A palette saved in a Disco channel before Blend and Steps keeps its hue-only meaning.
+  const legacy = { ...presetById(disco).spec, params: { ...presetById(disco).spec.params } };
+  legacy.params.channels = legacy.params.channels.map((c, i) => i === 0 ? { ...c, useAmbience: true, palette: ['#FF8080'] } : c);
+  assert.equal(withEffectColours(disco, legacy, null), legacy);
+  assert.equal(withEffectColours(disco, legacy, { pattern: disco, bands: null }).params.channels[0].mix, undefined);
+  // A band edit never reaches an effect without bands, even if one is stored against it.
+  const wash = presetById('v2.wash').spec;
+  assert.equal(withEffectColours('v2.wash', wash, { pattern: 'v2.wash', bands: band({ fade: false }) }).params, wash.params);
+  applyPatch({ pattern: disco, effectColours: { pattern: disco, bands: band({ fade: false }) } });
+  applyPatch({ pattern });
+  assert.equal(state.effectColours, null, 'choosing another effect drops the band edits, as it drops palette edits');
+});
