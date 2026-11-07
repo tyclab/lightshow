@@ -1250,43 +1250,54 @@ Show and Effects colour the main effect in the **Bands** card. A Disco (the band
 effect) shows its channels: Bass, Voice and Treble for Spectrum, one channel for
 Peak or Neural. Each has a level meter (Spectrum: the band's power against twice its
 hit gate, the gate at the middle mark), **Enabled**, **Fade** and **Fast Pulse**, and a
-colour bar. A switch or bar that cannot act is hidden: a band switched off shows only
-Enabled, Fast Pulse only acts through Fade, Neural ignores both. The header chip names
+strip of the colours it plays, which opens its colours. A control that cannot act is
+hidden: a band switched off shows only Enabled, Fast Pulse and the fade brightness only
+act through Fade, Neural ignores them. The header chip names
 the lamp assignment (**Auto** shares the lamps among the enabled bands; **Manual** when
 some lamps keep a band of their own) and the main effect, for example *Auto · Ambient*.
 
-A colour bar is either a **hue range** or an ordered row of up to eight colours:
+A band's colours are either a **hue range** or an ordered sequence of up to eight colours:
 
-- A hue range is two handles on the hue wheel joined by a line. Each hit plays a hue
+- A hue range is two points on the rim of the colour wheel, joined round the rim. Each hit plays a hue
   drawn evenly from the start handle up the wheel to the end handle; with the start
   past the end the range wraps across red. **Steps** plays only the two end hues.
-- A row of colours plays left to right in its order, spread evenly along the bar.
+- A sequence plays in its order, spread evenly from the first colour to the last.
   **Blend** mixes neighbours in OKLCH (yellow to blue passes teal, not grey); **Steps**
   gives each colour an equal share and plays it whole, dark colours included. The
-  bar is drawn from the same function the lamps play.
+  strip is drawn from the same function the lamps play.
 - Spectrum and Peak hits draw their place on the bar at random from the effect's seed;
   Neural places pitch on it, low notes at the left. The release keeps the colour at
   the channel's fade saturation.
 
-Open a band's colours to pick **Blend** or **Steps**, recolour the selected handle from
-the quick colours (a range takes only those with a hue), **Add colour** (a range opens
-into its start, middle and end colours) or **Remove colour**, or replace the bar from
-the searchable palette list: **Hue range** first, then every built-in and saved palette
-with its preview (**Manage palettes** edits the saved ones). Drag a handle to move it (a range) or reorder it (a row); on the keyboard
-the arrows do the same. Edits are the main effect's temporary edit
+Open a band's colours to edit them on the **colour wheel**: hue round the ring (red at
+the left, rising clockwise), saturation from the white centre to the rim. Each colour is
+a numbered point; the **sequence path** joins them in order (dashed for Steps, round the
+rim for a range). Drag a point to recolour it (a range's points stay on the rim); tap an
+empty place to add the next colour, up to eight; a drag that starts on an empty place
+adds nothing. A range given a third colour becomes a sequence of its two ends and the
+new colour. Beside the wheel the **colour order** lists 1st, 2nd, … with each colour's
+hex (tap it for a colour picker): drag a row's handle or press Up/Down on it to reorder,
+× removes, and choosing a row picks its point. **Add colour** adds one from the keyboard.
+Below the wheel **Fade brightness** sets the level the band fades to after a hit (its
+`fadeBrightness`). Then **Blend** or **Steps**, and the searchable palette list: **Hue
+range** first, then every built-in and saved palette with its preview, which loads its
+colours as points (**Manage palettes** edits the saved ones). Wheel points take the arrows:
+Left/Right turn the hue, Up/Down the saturation (**Shift** for ten). Edits are the main effect's temporary edit
 (`effectColours.bands`): they play at once without restarting the Disco, reset with
 **Reset** or another effect, and are captured by cues.
 
-Any other effect keeps its own palette: the card shows it as one bar with the same
-quick colours and palette list, and its **Colour distribution**. The band ranges do not
+Any other effect keeps its own palette: the card shows it on the same wheel, colour order
+and palette list, with its **Colour distribution**. A palette with authored gradients
+keeps its length and order there. The band ranges do not
 recolour other effects: their palettes are authored per look.
 
 A Disco channel saved before Blend and Steps (`useAmbience` with a `palette` and no
 `mix`) keeps its earlier meaning: one colour a hit, its hue only, at the channel's
 saturation. `POST /api/set` accepts `effectColours: { pattern, bands }`, `bands` being
 up to five entries (one per channel, `null` to leave it) of `enabled`, `fade`,
-`allowPulse`, `minHue`, `maxHue` (0–65535), `useAmbience`, `palette` (1–8 hex colours)
-and `mix` (`blend` or `steps`); the result must validate as the effect's parameters.
+`allowPulse`, `minHue`, `maxHue` (0–65535), `useAmbience`, `palette` (1–8 hex colours),
+`mix` (`blend` or `steps`) and `fadeBrightness` (0–254); the result must validate as the
+effect's parameters.
 
 Random stage slots roll once when selected. Cues snapshot full palette bodies.
 A sequence captures the override's colours, gradients and id; stop, unload
@@ -2190,8 +2201,8 @@ Press **?** in the app for this list.
 | **4** / **5** | Sequence / Stage view |
 | **6** / **7** / **8** / **9** | Rig / Sources / Settings / Preflight view |
 | **←** **→**, **Home** / **End** on the view tabs | Next / previous / first / last view |
-| **←** **→** **↑** **↓** on a hue range handle (**Shift** for 10°) | Move the handle round the hue wheel |
-| **←** **→** on a band colour | Move the colour one place in the bar's order |
+| **←** **→** / **↑** **↓** on a colour point (**Shift** for 10) | Turn its hue / change its saturation on the wheel |
+| **↑** **↓** on a colour's move handle | Move the colour one place in the order |
 | **Space** or **Enter** on a pad reached with Tab | Hold: play until released; once: play one phrase; loop: start or stop on each press |
 | **←** **→** **↑** **↓** (**Shift** for bigger steps) | Nudge the focused fixture on the stage plot (on the Rig view's plan, the whole selection) |
 | **[** **]**, **-** **=**, **0** on a bar | Turn it, change its length, back to its default line |

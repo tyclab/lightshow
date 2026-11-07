@@ -14,8 +14,9 @@ export const SHORTCUTS = [
   {
     group: 'Bands',
     items: [
-      { keys: ['←', '→', '↑', '↓'], either: true, what: 'Hue range handle: one degree round the wheel (Shift: ten)' },
-      { keys: ['←', '→'], either: true, what: 'Colour on a band bar: move it one place in the order' },
+      { keys: ['←', '→'], either: true, what: 'Colour point on the wheel: one degree round the wheel (Shift: ten)' },
+      { keys: ['↑', '↓'], either: true, what: 'Colour point on the wheel: saturation, one percent (Shift: ten)' },
+      { keys: ['↑', '↓'], either: true, what: 'Move handle in the colour order: one place earlier or later' },
     ],
   },
   {

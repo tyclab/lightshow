@@ -759,7 +759,7 @@ test('Neural places pitch on the bar: low notes take the first colour, high the 
 test('band colours and switches are live edits: the instance, its fades and its strobe permit carry on', () => {
   const spec = validateSpec({ kind: 'hd.disco', params: { allowStrobe: true } });
   const edited = { ...spec, params: { ...spec.params, channels: channels({ 0: { minHue: 60000, maxHue: 5000, fade: false, enabled: false,
-    allowPulse: false, useAmbience: true, palette: ['#00FF00'], mix: 'steps' } }) } };
+    allowPulse: false, useAmbience: true, palette: ['#00FF00'], mix: 'steps', fadeBrightness: 176 } }) } };
   assert.equal(effectContentKey(edited), effectContentKey(spec));
   const detector = { ...spec, params: { ...spec.params, channels: channels({ 0: { sequenceLength: 4 } }) } };
   assert.notEqual(effectContentKey(detector), effectContentKey(spec), 'anything else still restarts');

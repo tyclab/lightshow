@@ -738,7 +738,7 @@ test('Show stacks Background, the effect, then Bands; a Disco shows its bands, a
   for (const name of ['Bass', 'Voice', 'Treble']) {
     assert.match(card, new RegExp(`aria-label="${name} band"`));
     assert.match(card, new RegExp(`aria-label="${name} level"`));
-    assert.match(card, new RegExp(`aria-label="${name} start hue"[^>]*aria-valuenow="\\d+"`));
+    assert.match(card, new RegExp(`aria-expanded="false"[^>]*aria-label="${name} colours"`), 'a strip of the band\'s colours opens its wheel');
   }
   assert.strictEqual(count(card, 'type="checkbox"'), 9, 'Enabled and Fade per band, and Fast Pulse where Fade is on');
   assert.doesNotMatch(card, /Reactive audio/, 'no hint once the bands hear the music');
@@ -749,7 +749,7 @@ test('Show stacks Background, the effect, then Bands; a Disco shows its bands, a
   const edited = /<section class="card bands"[^>]*>(.*?)<\/section>/s.exec(ui.html(ui.h(ui.Show)))[1];
   const band = (name) => new RegExp(`aria-label="${name} band">(.*?)(?=aria-label="[A-Za-z]+ band"|$)`, 's').exec(edited)[1];
   assert.doesNotMatch(band('Bass'), /Fast Pulse/);
-  assert.doesNotMatch(band('Voice'), /Fade|role="slider"/);
+  assert.doesNotMatch(band('Voice'), /Fade|Voice colours/);
   assert.match(band('Treble'), /Fast Pulse/);
   assert.match(edited, />Reset</);
   assert.ok(ambient.params.channels[1].enabled, 'the library preset is untouched');
@@ -757,6 +757,8 @@ test('Show stacks Background, the effect, then Bands; a Disco shows its bands, a
   givenLibrary({ pattern: 'v2.scatterStrobe' });
   const own = /<section class="card bands" aria-label="Colours"[^>]*>(.*?)<\/section>/s.exec(ui.html(ui.h(ui.Show)))[1];
   assert.match(own, /aria-label="Effect palette"/);
+  assert.match(own, /class="colour-wheel-disc adds"/, 'its palette sits on the wheel, and a tap there adds a colour');
+  assert.match(own, /aria-label="Palette colour order"/);
   assert.match(own, /aria-label="Colour distribution"/);
   assert.doesNotMatch(own, /Bass band|Fast Pulse/);
 });
