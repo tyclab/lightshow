@@ -12,11 +12,12 @@ export const MAX_BAND_STOPS = 8;
 export interface BandColours { minHue: number; maxHue: number; useAmbience: boolean; palette: string[] | null; mix?: BandMix }
 
 /** What the Bands card edits on the main effect's channels; the Disco reads each on every render. */
-export const BAND_LIVE_KEYS = ['enabled', 'fade', 'allowPulse', 'minHue', 'maxHue', 'useAmbience', 'palette', 'mix'] as const;
+export const BAND_LIVE_KEYS = ['enabled', 'fade', 'allowPulse', 'minHue', 'maxHue', 'useAmbience', 'palette', 'mix', 'fadeBrightness'] as const;
 const hueUnit = z.number().int().min(0).max(65535);
 export const bandEditSchema = z.object({
   enabled: z.boolean(), fade: z.boolean(), allowPulse: z.boolean(), minHue: hueUnit, maxHue: hueUnit, useAmbience: z.boolean(),
   palette: z.array(z.string().regex(HEX_COLOUR, 'expected a hex colour')).min(1).max(MAX_BAND_STOPS).nullable(), mix: z.enum(BAND_MIXES),
+  fadeBrightness: z.number().int().min(0).max(254),
 }).partial().strict();
 export type BandEdit = z.output<typeof bandEditSchema>;
 

@@ -113,9 +113,10 @@ test('band edits reach the main Disco live, without a restart, and leave the lib
   const revision = renderInput().effectRevision;
   const library = structuredClone(presetById(disco).spec);
   applyPatch({ effectColours: { pattern: disco, bands: band({ minHue: 60000, maxHue: 5000, fade: false, useAmbience: true,
-    palette: ['#FF0000', '#0000FF'], mix: 'blend' }) } });
+    palette: ['#FF0000', '#0000FF'], mix: 'blend', fadeBrightness: 120 }) } });
   const channel = renderInput().effect.params.channels[0];
-  assert.deepEqual([channel.minHue, channel.maxHue, channel.fade, channel.palette, channel.mix], [60000, 5000, false, ['#FF0000', '#0000FF'], 'blend']);
+  assert.deepEqual([channel.minHue, channel.maxHue, channel.fade, channel.palette, channel.mix, channel.fadeBrightness],
+    [60000, 5000, false, ['#FF0000', '#0000FF'], 'blend', 120]);
   assert.deepEqual(renderInput().effect.params.channels.slice(1), library.params.channels.slice(1), 'other bands untouched');
   assert.equal(renderInput().effectRevision, revision, 'the Disco keeps its lamps and strobe permit');
   assert.deepEqual(presetById(disco).spec, library);
@@ -130,6 +131,7 @@ test('band edits that cannot play, or on an effect without bands, reject the who
     { pattern: disco, bands: band({ minHue: 70000 }) },
     { pattern: disco, bands: band({ mix: 'gradient' }) },
     { pattern: disco, bands: band({ sequenceLength: 4 }) },
+    { pattern: disco, bands: band({ fadeBrightness: 255 }) },
     { pattern: 'v2.wash', bands: band({ fade: false }) },
   ]) {
     assert.throws(() => applyPatch({ effectColours, masterDimmer: 0 }), JSON.stringify(effectColours));
