@@ -1,11 +1,13 @@
-import { NowPlaying } from './NowPlaying.jsx';
 import { connectedSig, pick } from '../state.js';
 import { formatBpm, clockSource } from '../utils.js';
-import { GlobalControls } from './GlobalControls.jsx';
-import { useState } from 'preact/hooks';
+import { GlobalControls, controlStatus } from './GlobalControls.jsx';
+import { PictureSource } from './PictureSource.jsx';
+import { useRef, useState } from 'preact/hooks';
 import { awakeSig, fullscreenSig, setAwake, toggleFullscreen, canFullscreen } from '../device.js';
 import { StrobesOff, isAcknowledged } from './Photosensitivity.jsx';
-import { BRAND, PRODUCT, KICKER } from '../brand.js';
+import { BRAND, PRODUCT } from '../brand.js';
+import { controlPending } from '../control.js';
+import { useDismiss } from '../popover.js';
 
 // The themes, and what each is for. `system` follows the device's setting.
 const THEMES = [
@@ -57,18 +59,7 @@ function DeviceTools() {
   );
 }
 
-// Every pill keeps its place in every state and at every width: a pill that comes and goes moves the
-// controls beside it and hides what the room is doing. Absent values read '—'.
-function MasterPill({ master, blackout }) {
-  const pct = Math.round(((master ?? 255) / 255) * 100);
-  return (
-    <div class="stat-pill" title={blackout ? 'Master dimmer: Blackout holds every light dark over it' : 'Master dimmer'}>
-      <span class="label">Master</span>
-      <span>{pct}%</span>
-    </div>
-  );
-}
-
+// The status details: every pill keeps its place in every state. Absent values read '—'.
 function BpmPill({ bpm, running, source }) {
   const clock = clockSource(source);
   return (
@@ -102,26 +93,18 @@ export function HuePill({ bridges }) {
   );
 }
 
-export function Header() {
+/** Everything the header no longer shows at once, behind the status chip. */
+export function StatusDetails() {
   const connected = connectedSig.value;
-  const s = pick(['bpm', 'clock', 'running', 'masterDimmer', 'masterBlackout', 'energyOverride', 'flashLimit', 'autoShow', 'armed', 'sequence', 'showOn', 'safety', 'hue']);
-  const blackout = !!s.masterBlackout;
+  const s = pick(['bpm', 'clock', 'running', 'energyOverride', 'flashLimit', 'autoShow', 'safety', 'hue', 'control']);
   const energy = s.energyOverride;
   const auto = s.autoShow && s.autoShow.status;
-
+  const ready = connected && s.control?.version === 1;
   return (
-    <header class="app-header">
-      <h1>
-        <a class="site-wordmark" href="/#show">
-          <svg class="site-mark" aria-hidden="true" focusable="false"><use href="#krake" stroke="url(#poles)" /></svg>
-          <span class="site-name">{BRAND} <span class="site-product">{PRODUCT}</span><span class="cursor" aria-hidden="true" /></span>
-        </a>
-      </h1>
-      <span class="site-kicker" aria-hidden="true">{KICKER}</span>
-
+    <div class="status-details-body">
+      <p class="status-details-show">{controlStatus(s.control ?? {}, ready, controlPending.value > 0 || s.control?.pending)}</p>
       <div class="header-stats">
         <BpmPill bpm={s.bpm} running={!!s.running} source={s.clock && s.clock.source} />
-        <MasterPill master={s.masterDimmer} blackout={blackout} />
         <div class={`stat-pill${energy ? ' energy' : ''}`} title={energy ? `Energy override: ${energy}` : 'Energy override: none'}>
           <span class="label">Energy</span>
           <span>{energy ? energy.replace(/-/g, ' ') : 'off'}</span>
@@ -146,9 +129,71 @@ export function Header() {
           <span>{connected ? 'Online' : 'Offline'}</span>
         </div>
       </div>
-      <DeviceTools />
+    </div>
+  );
+}
+
+/** BPM and the connection without a tap; the rest of the status one tap away. A bridge held by another app shows on the chip. */
+function StatusChip() {
+  const connected = connectedSig.value;
+  const s = pick(['bpm', 'running', 'hue']);
+  const [open, setOpen] = useState(false);
+  const trigger = useRef(null);
+  const panel = useRef(null);
+  useDismiss(open, () => setOpen(false), trigger, panel);
+  const held = (Array.isArray(s.hue) ? s.hue : []).some((b) => b.occupiedBy);
+  return (
+    <div class="header-status">
+      <button ref={trigger} type="button" class={`status-chip${held ? ' alert' : ''}${s.running ? ' live' : ''}`} aria-expanded={open}
+        aria-controls={open ? 'status-details' : undefined} title="Status details" onClick={() => setOpen(!open)}>
+        <span class={`status-dot ${connected ? 'connected' : ''}`} aria-hidden="true" />
+        <span class="status-chip-bpm">{formatBpm(s.bpm)}</span>
+        <span class="status-chip-unit">BPM</span>
+        <span class="status-chip-conn">{connected ? 'Online' : 'Offline'}</span>
+        {held && <span class="status-chip-alert">Hue busy</span>}
+        <span class="sr-only">: status details</span>
+      </button>
+      {open && <div ref={panel} id="status-details" class="header-popover status-details" role="group" aria-label="Status details">
+        <StatusDetails />
+      </div>}
+    </div>
+  );
+}
+
+/** Theme, keeping the screen awake and filling it, behind ⋮: this device's, not the show's. */
+function DeviceMenu() {
+  const [open, setOpen] = useState(false);
+  const trigger = useRef(null);
+  const panel = useRef(null);
+  useDismiss(open, () => setOpen(false), trigger, panel);
+  return (
+    <div class="header-device">
+      <button ref={trigger} type="button" class="btn global-control header-more" aria-label="This device" aria-expanded={open}
+        aria-controls={open ? 'device-tools' : undefined} title="Theme, keep awake, full screen" onClick={() => setOpen(!open)}>
+        <span aria-hidden="true">⋮</span>
+      </button>
+      {open && <div ref={panel} id="device-tools" class="header-popover device-tools"><DeviceTools /></div>}
+    </div>
+  );
+}
+
+/**
+ * One row on a desktop, two on a phone: what paints the room and its effect first, then play, Freeze,
+ * Blackout, Arm and the master in fixed places, then the status chip and this device's menu.
+ */
+export function Header() {
+  return (
+    <header class="app-header">
+      <h1>
+        <a class="site-wordmark" href="/#show" title={`${BRAND} ${PRODUCT}`}>
+          <svg class="site-mark" aria-hidden="true" focusable="false"><use href="#krake" stroke="url(#poles)" /></svg>
+          <span class="sr-only">{BRAND} {PRODUCT}</span>
+        </a>
+      </h1>
+      <PictureSource />
       <GlobalControls />
-      <div class="header-now"><NowPlaying /></div>
+      <StatusChip />
+      <DeviceMenu />
     </header>
   );
 }

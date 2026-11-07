@@ -206,7 +206,8 @@ socket.on('error-msg', ({ source, message, token }) => {
 });
 
 // Toasts every failure, since most callers fire and forget; returns the parsed body either way.
-export async function api(path, init) {
+// A caller that says the failure itself passes { quiet: true }.
+export async function api(path, init, { quiet = false } = {}) {
   try {
     const res = await fetch(path, {
       ...init,
@@ -217,14 +218,15 @@ export async function api(path, init) {
     const body = await res.json().catch(() => ({}));
     if (!res.ok || body.ok === false) {
       // Work the operator called off, or a newer track overtook, is not a failure.
-      if (!body.cancelled) toast.error(body.error || `${init && init.method ? init.method : 'GET'} ${path} failed (${res.status})`);
+      if (!body.cancelled && !quiet) toast.error(body.error || `${init && init.method ? init.method : 'GET'} ${path} failed (${res.status})`);
       return { ok: false, error: body.error || `HTTP ${res.status}`, ...body };
     }
     return { ok: true, ...body };
   } catch (err) {
     // Almost always the server went away mid-show: say so rather than a bare TypeError.
-    toast.error(`Could not reach the server: ${err.message}`);
-    return { ok: false, error: err.message };
+    const error = `Could not reach the server: ${err.message}`;
+    if (!quiet) toast.error(error);
+    return { ok: false, error };
   }
 }
 

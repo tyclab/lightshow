@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { control, open, previewLook, reset, state, until } from './helpers.js';
+import { control, open, playButton, previewLook, reset, state, until } from './helpers.js';
 
 test.beforeEach(async ({ request }) => {
   await control(request, 'stop');
@@ -36,9 +36,9 @@ test('header controls work in setup, and preview playback never rearms a disarme
   await until(request, s => s.armed === true);
   await header.getByRole('button', { name: 'Disarm', exact: true }).click();
   await until(request, s => s.armed === false && s.control.playing === true && s.control.frozen === false);
-  await header.getByRole('button', { name: 'Stop', exact: true }).click();
+  await playButton(page, 'Stop').click();
   await until(request, s => !s.control.playing);
-  await header.getByRole('button', { name: 'Start', exact: true }).click();
+  await playButton(page, 'Start').click();
   await until(request, s => s.running === true);
   expect((await state(request)).armed).toBe(false);
   const blackout = header.getByRole('button', { name: 'Blackout', exact: true });

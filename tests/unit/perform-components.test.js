@@ -447,7 +447,9 @@ test('without a sequence the look has no duplicate global transport buttons', ()
   assert.doesNotMatch(html, /<button|transport-picker|transport-position/);
   const global = ui.html(ui.h(ui.GlobalControls));
   assert.match(global, /aria-label="Global show controls"/);
-  for (const label of ['Start', 'Stop', 'Freeze', 'Blackout', 'Arm']) assert.match(global, new RegExp(`>${label}</button>`));
+  assert.match(global, /aria-label="Start Look"/, 'one play button, naming what it starts');
+  assert.match(global, /aria-label="Programme"/);
+  for (const label of ['Freeze', 'Blackout', 'Arm']) assert.match(global, new RegExp(`>${label}</button>`));
 });
 
 test('whole-picture Freeze stays in global controls and does not create secondary look transport', () => {
@@ -458,7 +460,7 @@ test('whole-picture Freeze stays in global controls and does not create secondar
     assert.doesNotMatch(html, /<button|Freeze|Resume|transport-state/);
     const global = ui.html(ui.h(ui.GlobalControls));
     assert.match(global, /aria-pressed="true"[^>]*>Resume<\/button>/);
-    assert.match(global, />Stop<\/button>/);
+    assert.match(global, playing ? /aria-label="Stop Look"/ : /aria-label="Start Look"/, 'Stop while the programme plays, Start while stopped');
   }
   assert.equal(ui.html(ui.h(ui.Transport, { compact: true })), '');
 });

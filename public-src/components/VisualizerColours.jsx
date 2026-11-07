@@ -19,13 +19,29 @@ export function shuffleColours(colours, random = Math.random) {
   return next;
 }
 
+const isVisualizerSpec = (spec) => spec?.kind === 'ldj.visualizer';
+const MELLOW = new Set(['swirl', 'wave', 'solid']);
+
+/** The built-in Visualizer looks as the header offers them: the hits (Active) and the bed between them (Mellow). */
+export function visualizerChoices(library) {
+  return (library.builtin || []).filter((p) => isVisualizerSpec(p.spec)).map((p) => {
+    const mode = p.id.split('.').pop();
+    return { id: p.id, name: p.name.replace(/^Visualizer\s+/, ''), group: MELLOW.has(mode) ? 'Mellow' : 'Active' };
+  });
+}
+
+/** Whether the effect `id` names is a Visualizer, built in or saved here. */
+export function isVisualizer(id, library) {
+  return isVisualizerSpec([...(library.builtin || []), ...(library.user || [])].find((p) => p.id === id)?.spec);
+}
+
 export function VisualizerColours() {
   const s = pick(['pattern', 'paletteOverride', 'overridePalette', 'basePalette', 'colorPresets', 'colorA', 'colorB']);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const library = librarySig.value;
   const preset = [...(library.builtin || []), ...(library.user || [])].find((p) => p.id === s.pattern);
-  if (preset?.spec?.kind !== 'ldj.visualizer') return null;
+  if (!isVisualizerSpec(preset?.spec)) return null;
   const spec = preset.spec;
   const body = s.overridePalette ?? (s.paletteOverride?.length ? { colours: s.paletteOverride }
     : spec.palette?.length ? { colours: spec.palette, ...gradientSettings(spec) }

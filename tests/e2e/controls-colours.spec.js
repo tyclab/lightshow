@@ -71,9 +71,10 @@ test('background remains above main controls, accessible from Stage, and the hea
   await open(page, 'show');
   const order = await page.locator('.show-looks > .card').evaluateAll((cards) => cards.map((card) => card.querySelector('.card-title')?.textContent));
   expect(order[0]).toBe('Background');
-  const select = page.getByRole('combobox', { name: 'Programme', exact: true });
-  const theme = await select.evaluate((element) => ({ colour: getComputedStyle(element).color, background: getComputedStyle(element).backgroundColor }));
-  expect(theme.colour).not.toBe(theme.background);
+  for (const control of [page.getByRole('button', { name: 'Programme', exact: true }), page.getByRole('group', { name: 'Picture source' }).getByRole('button').first()]) {
+    const theme = await control.evaluate((element) => ({ colour: getComputedStyle(element).color, background: getComputedStyle(element).backgroundColor }));
+    expect(theme.colour).not.toBe(theme.background);
+  }
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
   await page.goto('/#stage');
   const background = page.getByRole('region', { name: 'Background lighting' });

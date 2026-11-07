@@ -36,9 +36,12 @@ test('the shell the service worker keeps has the page\'s chunks, three.js with t
 
 test('a theme picked is the theme after a reload, set before the page draws', async ({ page }) => {
   await page.goto('/#effects');
+  // The theme is this device's: behind the header's ⋮.
+  await page.getByRole('button', { name: 'This device' }).click();
   await page.getByLabel('Theme').selectOption('light');
   await page.reload();
   expect(await page.evaluate(() => document.documentElement.dataset.theme)).toBe('light');
+  await page.getByRole('button', { name: 'This device' }).click();
   await page.getByLabel('Theme').selectOption('system');
   await page.reload();
   expect(await page.evaluate(() => document.documentElement.hasAttribute('data-theme'))).toBe(false);

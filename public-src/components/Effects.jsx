@@ -118,6 +118,27 @@ export function catalogueRows(rows, playingId, favourites = []) {
   });
 }
 
+/** Every look as the catalogue lists it, with the one on stage and the starred ones resolved to their rows. */
+export function catalogueOf(s, lib, families, favourites) {
+  // The presets saved here ride the live state as summaries; they list like the built-ins.
+  const userRows = (s.effects || []).map((e) => {
+    const family = familyOf(e.kind, families);
+    const spec = lib.user?.find((p) => p.id === e.id)?.spec;
+    return { ...e, user: true, family: family?.id || 'user', mapping: spec ? mappingOf(spec) : null, desc: 'A preset saved on this server' };
+  });
+  const allRows = [...userRows, ...(s.patterns || []).map(mainEffectRow)];
+  const canonicalId = (id) => allRows.some((row) => row.id === id) ? id : (lib.builtin || []).find((row) => row.aliases?.includes(id))?.id || id;
+  const playingId = canonicalId(s.pattern);
+  const savedPins = favourites.map(canonicalId);
+  const rows = catalogueRows(allRows, playingId, savedPins);
+  const familyId = (id) => allRows.find((row) => row.id === id)?.variantOf || id;
+  const pins = [...new Set(savedPins.flatMap((id) => {
+    const row = rows.find((r) => familyId(r.id) === familyId(id));
+    return row ? [row.id] : [];
+  }))];
+  return { allRows, rows, playingId, savedPins, pins, familyId };
+}
+
 /** The deck: the favourites in the order they were starred, then the presets saved here, then the party looks. */
 export function quickDeck(rows, favourites = []) {
   const byId = new Map(rows.map((r) => [r.id, r]));
@@ -230,7 +251,7 @@ function TagBadges({ row }) {
 /** The layout mapping, when it is not already said by the Room-placed badge. */
 const Mapping = ({ row }) => (row.mapping && row.mapping !== 'room' ? <span class="effect-mapping">{MAPPING_LABELS[row.mapping]}</span> : null);
 
-const iconOf = (row) => PATTERN_ICONS[row.id] || TAG_ICONS.find(([tag]) => tagsOf(row).includes(tag))?.[1] || '·';
+export const iconOf = (row) => PATTERN_ICONS[row.id] || TAG_ICONS.find(([tag]) => tagsOf(row).includes(tag))?.[1] || '·';
 
 function Star({ row, on, onToggle }) {
   return (
@@ -297,22 +318,7 @@ export function Effects() {
   const [confirm, setConfirm] = useState(null);
   const acknowledged = !!(s.safety && s.safety.photosensitivityAcknowledged);
 
-  // The presets saved here ride the live state as summaries; they list like the built-ins.
-  const userRows = (s.effects || []).map((e) => {
-    const family = familyOf(e.kind, families);
-    const spec = lib.user?.find((p) => p.id === e.id)?.spec;
-    return { ...e, user: true, family: family?.id || 'user', mapping: spec ? mappingOf(spec) : null, desc: 'A preset saved on this server' };
-  });
-  const allRows = [...userRows, ...(s.patterns || []).map(mainEffectRow)];
-  const canonicalId = (id) => allRows.some((row) => row.id === id) ? id : (lib.builtin || []).find((row) => row.aliases?.includes(id))?.id || id;
-  const playingId = canonicalId(s.pattern);
-  const savedPins = favourites.map(canonicalId);
-  const rows = catalogueRows(allRows, playingId, savedPins);
-  const familyId = (id) => allRows.find((row) => row.id === id)?.variantOf || id;
-  const pins = [...new Set(savedPins.flatMap((id) => {
-    const row = rows.find((r) => familyId(r.id) === familyId(id));
-    return row ? [row.id] : [];
-  }))];
+  const { allRows, rows, playingId, savedPins, pins, familyId } = catalogueOf(s, lib, families, favourites);
   const query = q.trim().toLowerCase();
   const found = rows.filter((r) => matchesSearch(r, query, families));
   const visible = filterByChips(found, filters);

@@ -7,6 +7,7 @@ export const SHORTCUTS = [
     group: 'Transport',
     items: [
       { keys: ['Space'], what: 'Tap tempo — tap along to set the BPM (also after clicking a button)' },
+      { keys: ['E'], what: 'Choose the main effect: opens the effect picker in the header' },
       ...VIEWS.map((view) => ({ view: view.id, keys: [...(view.shift ? ['Shift'] : []), view.key], what: `${view.label} view` })),
       { keys: ['←', '→'], either: true, what: 'Next or previous view, on the view tabs' },
     ],

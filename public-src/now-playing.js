@@ -19,6 +19,11 @@ export function padLabel(pad, s = {}) {
   return effectName(content.id, s);
 }
 
+/** The main effect's name as the header and the now-playing line say it: the strobes are one Strobe. */
+export function mainEffectName(s = {}) {
+  return ['energy.whiteStrobe', 'energy.colorStrobe', 'white-strobe', 'color-strobe'].includes(s.pattern) ? 'Strobe' : effectName(s.pattern, s);
+}
+
 /** Where a loaded sequence's transport stands: playing, paused, hold, black, ended or loaded. */
 export function sequenceMode(seq) {
   return seq.paused ? 'paused' : seq.playing ? 'playing' : seq.stopped || (seq.ended ? 'ended' : 'loaded');
@@ -39,7 +44,7 @@ export function playingState(s) {
   ].filter(Boolean).map((layer) => ({ ...layer, name: effectName(layer.id, s) }));
   return {
     layers,
-    base: { id: s.pattern || null, name: ['energy.whiteStrobe', 'energy.colorStrobe', 'white-strobe', 'color-strobe'].includes(s.pattern) ? 'Strobe' : effectName(s.pattern, s), running: s.running !== false, frozen: !!s.control?.frozen },
+    base: { id: s.pattern || null, name: mainEffectName(s), running: s.running !== false, frozen: !!s.control?.frozen },
     sequence,
     voices: (s.voices || []).filter((voice) => !voice.hidden).map((voice) => ({ ...voice, label: voice.label?.trim() || effectName(voice.kind || voice.id, s) })),
     strobe: !!s.strobe?.active,

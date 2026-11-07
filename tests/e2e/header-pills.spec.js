@@ -1,10 +1,9 @@
 import { test, expect } from '@playwright/test';
 import { open, reset, control } from './helpers.js';
 
-// Every status pill in the top bar stays visible, with its label, at every width and in every state:
-// a pill that comes and goes moves the controls beside it and hides what the room is doing.
-// Output permission, playback and Blackout are always-present explicit global controls now.
-const PILLS = ['BPM', 'Master', 'Energy', 'Strobes', 'Flash', 'Auto', 'Hue', 'Online'];
+// BPM and the connection stay on the status chip without a tap, at every width and in every state;
+// the other status pills are one tap away behind it. Play, Freeze, Blackout and Arm are always there.
+const PILLS = ['BPM', 'Energy', 'Strobes', 'Flash', 'Auto', 'Hue', 'Online'];
 const LABELLED = PILLS.filter((p) => p !== 'Strobes' && p !== 'Online');
 const sequence = { id: 'e2e-pills', name: 'Pills', mode: 'arrangement',
   lanes: [{ id: 'base', kind: 'shared', name: 'Base', mute: false, solo: false }],
@@ -21,7 +20,12 @@ test.afterEach(async ({ request }) => {
 });
 
 async function expectEveryPill(page, where) {
-  const stats = page.locator('.app-header .header-stats');
+  const chip = page.locator('.app-header .status-chip');
+  await expect(chip, `${where}: chip`).toBeInViewport();
+  await expect(chip.locator('.status-dot.connected'), `${where}: connection dot`).toBeVisible();
+  await expect(chip, `${where}: BPM and Online in its name`).toHaveAccessibleName(/120.*BPM.*Online/);
+  await chip.click();
+  const stats = page.getByRole('group', { name: 'Status details' }).locator('.header-stats');
   for (const name of PILLS) {
     const pill = stats.locator('.stat-pill', { hasText: name }).first();
     await expect(pill, `${where}: ${name}`).toBeVisible();
@@ -30,17 +34,18 @@ async function expectEveryPill(page, where) {
   for (const name of LABELLED) {
     await expect(stats.locator('.stat-pill .label', { hasText: new RegExp(`^${name}$`) }).first(), `${where}: ${name} label`).toBeVisible();
   }
+  await page.keyboard.press('Escape');
+  await expect(stats).toHaveCount(0);
   const controls = page.getByRole('group', { name: 'Global show controls' });
-  for (const name of ['Start', 'Stop', 'Freeze', /^(Blackout|Restore)$/, 'Arm']) {
+  for (const name of ['Stop Look', 'Programme', 'Freeze', /^(Blackout|Restore)$/, 'Arm']) {
     await expect(controls.getByRole('button', { name, exact: true }), `${where}: ${name}`).toBeInViewport();
   }
-  await expect(controls.getByRole('combobox', { name: 'Programme' })).toBeInViewport();
   await expect(controls.getByRole('status')).toContainText('Playing');
   await expect(controls.getByRole('status')).toContainText('Disarmed');
 }
 
 for (const width of [390, 800, 1280, 1920]) {
-  test(`every header pill stays visible at ${width}px, also under a blackout and a loaded sequence`, async ({ page, request }) => {
+  test(`the status chip and every control stay on screen at ${width}px, also under a blackout and a loaded sequence`, async ({ page, request }) => {
     await page.setViewportSize({ width, height: 900 });
     await open(page, 'show');
     await expectEveryPill(page, `${width}px`);

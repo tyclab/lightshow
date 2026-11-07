@@ -22,8 +22,11 @@ async function load() {
         export { store } from './public-src/state.js';
         export { Perform, sourceHealth } from './public-src/components/Perform.jsx';
         export { Show } from './public-src/components/Show.jsx';
-        export { Strip } from './public-src/components/Strip.jsx';
-        export { Header } from './public-src/components/Header.jsx';
+        export { Header, StatusDetails } from './public-src/components/Header.jsx';
+        export { PictureSource, pickerOpenSig } from './public-src/components/PictureSource.jsx';
+        export { EffectPicker } from './public-src/components/EffectPicker.jsx';
+        export { Bands } from './public-src/components/Bands.jsx';
+        export { pictureColours } from './public-src/picture-source.js';
         export { StagePreview } from './public-src/components/StagePreview.jsx';
         export { NowPlaying, PlayingVoices } from './public-src/components/NowPlaying.jsx';
         export { SHORTCUTS } from './public-src/components/Shortcuts.jsx';
@@ -121,20 +124,25 @@ test('the Perform view has the bank, the strobe, tap and stop all, and leaves th
   assert.doesNotMatch(html, /Latch effects/, 'a pad\'s launch mode says how it plays');
 });
 
-test('the header owns output permission and the picture strip never duplicates it', () => {
+test('the header owns output permission, and the Arm button itself says Armed', () => {
   for (const armed of [false, true]) {
     given({ armed, control: { version: 1, programme: 'look', playing: false, frozen: false, blackout: false, armed } });
     const header = ui.html(ui.h(ui.Header, {}));
     assert.strictEqual(count(header, 'aria-label="Global show controls"'), 1);
-    assert.match(header, new RegExp(`<button[^>]*aria-pressed="${armed}"[^>]*>${armed ? 'Disarm' : 'Arm'}</button>`));
-    assert.match(header, /Disarm ends output streams without changing playback, Freeze or Blackout/);
-    assert.doesNotMatch(ui.html(ui.h(ui.Strip, {})), /role="switch"|>Arm<|>Disarm<|Global show controls/);
+    const arm = new RegExp(`<button[^>]*class="[^"]*global-arm[^"]*"[^>]*aria-pressed="${armed}" aria-label="${armed ? 'Disarm' : 'Arm'}"[^>]*>(.*?)</button>`).exec(header);
+    assert.ok(arm, `${armed ? 'armed' : 'disarmed'}: one Arm button`);
+    assert.strictEqual(/global-arm[^"]*\barmed\b/.test(arm[0]), armed, 'the armed style only while armed');
+    assert.strictEqual(arm[1].includes('● Armed'), armed, 'the word Armed on the button while armed');
+    assert.match(arm[0], /Disarm ends output streams without changing playback, Freeze or Blackout/);
+    assert.match(arm[0], armed ? /title="Armed: the picture goes to the rig/ : /title="Disarmed: nothing goes to the rig/);
+    const source = /<div class="picture-source-segments" role="group" aria-label="Picture source">(.*?)<\/div>/s.exec(header)[1];
+    assert.doesNotMatch(source, /role="switch"|Arm|Disarm|Global show controls/);
   }
 });
 
 test('unacknowledged strobe notices follow server safety state', () => {
-  const views = () => [ui.html(ui.h(ui.Header, {})), ui.html(ui.h(ui.Perform, {}))];
-  // The header pill carries the notice as its accessible name; Perform shows it as text.
+  const views = () => [ui.html(ui.h(ui.StatusDetails, {})), ui.html(ui.h(ui.Perform, {}))];
+  // The status details' pill carries the notice as its accessible name; Perform shows it as text.
   const notice = /<button type="button" class="[^"]*" data-safety="ask"(?:[^>]*aria-label="Strobes off until acknowledged"[^>]*>|[^>]*>(?:<[^>]+>)*Strobes off until acknowledged)/;
   given({ safety: { photosensitivityAcknowledged: false, hdFlashIntervalMs: 350, strobeMaxLatchSec: 60 } });
   for (const html of views()) assert.match(html, notice);
@@ -145,8 +153,8 @@ test('unacknowledged strobe notices follow server safety state', () => {
   for (const html of views()) assert.doesNotMatch(html, /Strobes off/);
 });
 
-test('every header pill keeps its place in every state', () => {
-  const LABELS = ['BPM', 'Master', 'Energy', 'Flash', 'Auto', 'Hue'];
+test('every status pill keeps its place in every state', () => {
+  const LABELS = ['BPM', 'Energy', 'Flash', 'Auto', 'Hue'];
   const STATES = {
     'nothing known yet': { bpm: null, masterDimmer: undefined, autoShow: undefined },
     'disarmed, idle': { armed: false },
@@ -162,20 +170,26 @@ test('every header pill keeps its place in every state', () => {
   };
   for (const [name, state] of Object.entries(STATES)) {
     given(state);
-    const html = ui.html(ui.h(ui.Header, {}));
+    const html = ui.html(ui.h(ui.StatusDetails, {}));
     for (const label of LABELS) assert.match(html, new RegExp(`<span class="label">${label}</span>`), `${name}: ${label}`);
     assert.match(html, /<span class="label">Strobes<\/span>/, `${name}: Strobes`);
     assert.match(html, /<span>(Online|Offline)<\/span>/, `${name}: connection`);
+    // BPM and the connection need no tap: the chip in the header carries both.
+    const chip = /<button[^>]*class="status-chip[^"]*"[^>]*>(.*?)<\/button>/s.exec(ui.html(ui.h(ui.Header, {})))[1];
+    assert.match(chip, /class="status-chip-bpm">(—|[\d.]+)</, `${name}: BPM on the chip`);
+    assert.match(chip, /class="status-chip-conn">(Online|Offline)</, `${name}: connection on the chip`);
   }
   given({ masterBlackout: true, masterDimmer: 128 });
-  assert.match(ui.html(ui.h(ui.Header, {})), /<span class="label">Master<\/span><span>50%<\/span>/, 'the master reads through a blackout');
+  const header = ui.html(ui.h(ui.Header, {}));
+  assert.match(header, /class="global-master-value">50%</, 'the master slider reads through a blackout');
+  assert.doesNotMatch(header, /<span class="label">Master<\/span>/, 'no Master pill beside the slider');
 });
 
 // A Sync Box or the Hue app streaming an area leaves the lightshow's lamps on that bridge without the show.
 test('the Hue pill says when another app holds a bridge, and leads to the bridge cards', () => {
   const problem = 'Hue bridge "Lounge": area "TV Couch" is streaming from another app (a Sync Box, the Hue app or another controller). '
     + 'The lightshow cannot stream to this bridge until it stops.';
-  const pill = () => ui.html(ui.h(ui.Header, {})).match(/<(?:a|div) class="stat-pill[^"]*"[^>]*data-hue="[^"]*"[^>]*>.*?<\/(?:a|div)>/)[0];
+  const pill = () => ui.html(ui.h(ui.StatusDetails, {})).match(/<(?:a|div) class="stat-pill[^"]*"[^>]*data-hue="[^"]*"[^>]*>.*?<\/(?:a|div)>/)[0];
   given({});
   assert.match(pill(), /data-hue="none".*<span>—<\/span>/, 'no bridge set up');
   given({ hue: [{ id: 'b1', label: 'Lounge', status: 'idle', occupiedBy: null, problem: null }] });
@@ -190,6 +204,8 @@ test('the Hue pill says when another app holds a bridge, and leads to the bridge
   assert.match(held, /<span>busy<\/span>/);
   assert.ok(held.includes('area &quot;TV Couch&quot; is streaming from another app'), 'the title and name carry the problem');
   assert.match(held, /aria-label="Hue busy: /);
+  assert.match(ui.html(ui.h(ui.Header, {})), /class="status-chip alert[^"]*"[^>]*>.*<span class="status-chip-alert">Hue busy<\/span>/s,
+    'a held bridge shows on the chip, without a tap');
 });
 
 test('the header reports whole-picture Freeze independently of programme and playback', () => {
@@ -204,7 +220,7 @@ test('the header reports whole-picture Freeze independently of programme and pla
   }
   given({ running: false });
   const unavailable = ui.html(ui.h(ui.Header, {}));
-  assert.match(unavailable, /Global controls unavailable/);
+  assert.match(unavailable, /<span class="global-status sr-only" role="status">Global controls unavailable<\/span>/);
   assert.match(unavailable, /<button[^>]*disabled[^>]*aria-pressed="false"[^>]*>Freeze<\/button>/);
   assert.doesNotMatch(unavailable, />Resume<\/button>/, 'legacy running=false must not masquerade as a whole-picture hold');
 });
@@ -216,7 +232,7 @@ test('global blackout and a running voice\'s pad show their independent pressed 
   const header = ui.html(ui.h(ui.Header, {}));
   assert.match(header, /<button[^>]*aria-pressed="true"[^>]*>Restore<\/button>/);
   assert.match(header, /Restore reveals the current picture without changing playback or Freeze/);
-  assert.doesNotMatch(ui.html(ui.h(ui.Strip, {})), /Blackout|Restore/);
+  assert.strictEqual(count(header, '>Restore</button>'), 1, 'one Restore');
   assert.match(ui.html(ui.h(ui.Perform, {})), /class="pad-cell lit"[^>]*data-slot="4"[^>]*aria-pressed="true"/);
 });
 
@@ -243,7 +259,6 @@ test('command bar exposes tempo and division; the master stays in the header', (
   assert.match(html, /aria-label="Tempo 124.5 BPM. Press to type a tempo."/);
   assert.doesNotMatch(html, /Master dimmer|BLACKOUT/, 'blackout and the master sit in the header above every view');
   assert.match(ui.html(ui.h(ui.Header, {})), /aria-label="Master dimmer" aria-valuetext="50 percent"/);
-  assert.doesNotMatch(ui.html(ui.h(ui.Strip, {})), /Master dimmer/);
   assert.match(html, /<section class="command-bar" aria-label="Live controls">/);
   assert.doesNotMatch(ui.html(ui.h(ui.CommandBar, { transport: false })), /cb-transport/, 'no empty transport block without a transport');
 });
@@ -1025,7 +1040,7 @@ test('every live status surface renders the shared state', () => {
   });
   const expected = ui.html(ui.h(ui.NowPlaying, {}));
   assert.match(expected, /Clips: Front: Custom pulse/);
-  for (const Component of [ui.Header, ui.Perform, ui.Effects, ui.StagePreview]) {
+  for (const Component of [ui.EffectPicker, ui.Perform, ui.Effects, ui.StagePreview]) {
     assert.ok(ui.html(ui.h(Component, {})).includes(expected));
   }
 });
@@ -1040,28 +1055,87 @@ test('pad labels agree between the deck and command bar', () => {
   assert.strictEqual(labels[0], ui.CATALOGUE.find((row) => row.id === entry.content.id).name);
 });
 
-test('the strip selects the picture, the header owns global controls, and Show keeps the room and looks', () => {
-  given({ armed: false, picture: { source: 'effects', input: null }, fixtures: [], profiles: {}, patterns: [], families: [],
+test('one header row: the picture source and its effect first, then play, Freeze, Blackout, Arm, the master, status and this device', () => {
+  given({ armed: false, picture: { source: 'effects', input: null }, fixtures: [], profiles: {}, families: [],
+    pattern: 'swirl', patterns: [{ id: 'swirl', name: 'Swirl' }],
     control: { version: 1, programme: 'look', playing: false, frozen: false, blackout: false, armed: false },
     safety: { photosensitivityAcknowledged: true }, showOn: false, autoShow: { status: 'idle', intensity: 70 } });
-  const strip = ui.html(ui.h(ui.Strip));
-  assert.match(strip, /aria-label="Picture settings"/);
-  assert.match(strip, /aria-label="Picture source"/);
-  for (const text of ['Effects', 'Colour + motion', 'Visualizer']) assert.ok(strip.includes(text), text);
-  assert.strictEqual(count(strip, 'role="switch"'), 0);
-  assert.doesNotMatch(strip, /Global show controls|Auto show|>Start<|>Stop<|>Freeze<|>Blackout<|>Arm<|Master dimmer/);
   const header = ui.html(ui.h(ui.Header));
-  assert.strictEqual(count(header, 'aria-label="Global show controls"'), 1);
-  for (const label of ['Start', 'Stop', 'Freeze', 'Blackout', 'Arm']) assert.match(header, new RegExp(`>${label}</button>`));
-  assert.strictEqual(count(header, 'aria-label="Master dimmer"'), 1);
+  const order = ['aria-label="Picture source"', 'aria-label="Global show controls"', 'aria-label="Start Look"', 'aria-label="Programme"',
+    '>Freeze</button>', '>Blackout</button>', 'aria-label="Arm"', 'aria-label="Master dimmer"', '<button type="button" class="status-chip', 'aria-label="This device"'];
+  const at = order.map((needle) => header.indexOf(needle));
+  assert.ok(at.every((i) => i >= 0), `every control is there: ${order.filter((_, i) => at[i] < 0)}`);
+  assert.deepStrictEqual([...at].sort((a, b) => a - b), at, 'in this order');
+  for (const needle of order) assert.strictEqual(count(header, needle), 1, `${needle} once`);
+  const source = /<div class="picture-source-segments" role="group" aria-label="Picture source">(.*?)<\/div>/s.exec(header)[1];
+  const segments = [...source.matchAll(/<button[^>]*data-source="(\w+)"[^>]*aria-pressed="(true|false)"[^>]*>/g)].map((m) => [m[1], m[2]]);
+  assert.deepStrictEqual(segments, [['effects', 'true'], ['inspired', 'false'], ['visualizer', 'false']]);
+  assert.match(source, /aria-pressed="true" aria-haspopup="dialog" aria-expanded="false"[^>]*aria-label="Effects: Swirl"/, 'the chosen source names the main effect and opens its picker');
+  assert.match(source, /class="picture-segment-effect">Swirl</);
+  assert.strictEqual(count(source, 'aria-haspopup'), 1, 'only the chosen source opens the picker; the others choose');
+  for (const label of ['Colour + motion', 'Visualizer']) assert.match(source, new RegExp(`aria-label="${label.replace('+', '\\+')}"`));
+  assert.match(header, /<button[^>]*aria-label="Start Look"[^>]*><span aria-hidden="true">▶<\/span><span class="global-play-text">Look<\/span><\/button>/, 'play names what it starts');
+  assert.doesNotMatch(header, /Programme<select|<select[^>]*aria-label="Programme"/, 'no programme select');
+  assert.doesNotMatch(header, /now-playing|header-now|stat-pill/, 'the main effect line and the pills are gone from the row');
+  assert.doesNotMatch(header, /aria-label="Theme"|Keep awake|Full screen/, 'this device\'s tools are behind ⋮');
   const show = ui.html(ui.h(ui.Show));
   for (const text of ['stage3d-host', 'effects-deck']) assert.ok(show.includes(text), text);
   assert.strictEqual(count(show, 'role="switch"'), 0, 'global controls stay in the header');
-  assert.doesNotMatch(show, /Global show controls|Master dimmer/);
+  assert.doesNotMatch(show, /Global show controls|Master dimmer|Picture source/);
   assert.ok(!show.includes('stage-room-panel'), 'the room panel stays in Stage');
+});
 
-  given({ showOn: true, autoShow: { status: 'playing', intensity: 70, track: { name: 'Levels', artist: 'Avicii' } } });
-  assert.doesNotMatch(ui.html(ui.h(ui.Strip)), /Auto show|Avicii|Levels/, 'picture selection does not become a second auto transport');
+test('the play button is Stop while the programme plays, Start (or Resume) otherwise, and always names the programme', () => {
+  const play = (control) => {
+    given({ running: control.playing, control: { version: 1, frozen: false, blackout: false, armed: false, ...control } });
+    return /<div class="global-play[^"]*">(.*?)<\/div>/s.exec(ui.html(ui.h(ui.Header)))[1];
+  };
+  assert.match(play({ programme: 'look', playing: false }), /aria-label="Start Look"/);
+  const playing = play({ programme: 'look', playing: true });
+  assert.match(playing, /aria-label="Stop Look"[^>]*>.*■.*Stop<span class="global-play-name"> Look<\/span><\/span><\/button>/s);
+  assert.doesNotMatch(playing, /Start Look/, 'one button: Stop while playing');
+  assert.match(play({ programme: 'auto', playing: false }), /aria-label="Start Auto show"/);
+  const paused = play({ programme: 'sequence', playing: true, paused: true });
+  assert.match(paused, /aria-label="Resume Sequence"[^>]*title="Resume the paused sequence timeline\."/);
+  assert.match(paused, />Resume<\/span><\/button>/);
+});
+
+test('a Visualizer look reads as the Visualizer\'s own, and the picker offers the Visualizer looks with their colours', () => {
+  givenLibrary({ pattern: ui.CATALOGUE.find((row) => row.name === 'Visualizer Splotch').id, picture: { source: 'visualizer', input: { units: 4, receiving: true } }, armed: true });
+  const header = ui.html(ui.h(ui.Header));
+  assert.match(header, /aria-label="Visualizer: Splotch"/);
+  const picker = ui.html(ui.h(ui.EffectPicker, { source: 'visualizer', hint: 'Visualizer picture on 4 lamp cells', onClose: () => {} }));
+  assert.match(picker, /role="dialog" aria-label="Main effect"/);
+  assert.match(picker, /Visualizer picture on 4 lamp cells/);
+  const looks = /aria-label="Visualizer looks">(.*?)<input/s.exec(picker)[1];
+  for (const [group, names] of [['Active', ['Firework', 'Flash', 'Splotch', 'Pulse']], ['Mellow', ['Solid', 'Swirl', 'Wave']]]) {
+    const row = new RegExp(`aria-label="Visualizer ${group}">(.*?)</div>`, 's').exec(looks)[1];
+    assert.deepStrictEqual([...row.matchAll(/aria-label="Visualizer (\w+)"/g)].map((m) => m[1]), names, group);
+  }
+  assert.match(looks, /aria-pressed="true" aria-label="Visualizer Splotch"/, 'the one on stage is pressed');
+  assert.match(picker, /aria-label="Lighting visualizer colours"/, 'its colours beside its looks');
+  givenLibrary({ picture: { source: 'effects', input: null } });
+  const plain = ui.html(ui.h(ui.EffectPicker, { source: 'effects', hint: '', onClose: () => {} }));
+  assert.doesNotMatch(plain, /Visualizer looks|Lighting visualizer colours/, 'neither without the visualizer');
+  assert.match(plain, /class="picker-choice big active" data-id="hd.neonDomino" aria-pressed="true"|class="picker-choice active" data-id="hd.neonDomino" aria-pressed="true"/, 'the main effect is marked');
+  assert.match(plain, /aria-label="Every effect"/);
+});
+
+test('the Colours card gives way to one line while the picture sets the colours', () => {
+  const receiving = { units: 4, receiving: true };
+  assert.strictEqual(ui.pictureColours({ source: 'visualizer', input: receiving }, { kind: 'hd.positionChase' }), true);
+  assert.strictEqual(ui.pictureColours({ source: 'visualizer', input: { units: 4, receiving: false } }, null), false, 'no picture: the effect shows');
+  assert.strictEqual(ui.pictureColours({ source: 'visualizer', input: null }, null), false);
+  assert.strictEqual(ui.pictureColours({ source: 'inspired', input: receiving }, { kind: 'v2.visualizer' }), true);
+  assert.strictEqual(ui.pictureColours({ source: 'inspired', input: receiving }, { kind: 'hd.positionChase' }), false, 'only a spatial Visualizer takes the picture\'s colours');
+  assert.strictEqual(ui.pictureColours({ source: 'effects', input: receiving }, { kind: 'v2.visualizer' }), false);
+  givenLibrary({ picture: { source: 'visualizer', input: receiving } });
+  const card = ui.html(ui.h(ui.Bands));
+  assert.match(card, /<section class="card bands bands-picture" aria-label="Colours">/);
+  assert.match(card, /Colours follow the picture<\/span><input type="checkbox" role="switch" checked/);
+  assert.doesNotMatch(card, /Colour order|Effect palette|palette-list/, 'no colour controls that change nothing');
+  givenLibrary({ picture: { source: 'effects', input: receiving } });
+  assert.doesNotMatch(ui.html(ui.h(ui.Bands)), /Colours follow the picture/);
 });
 
 test('Perform lifts and grades the visualizer picture while it paints the room, and only then', () => {
