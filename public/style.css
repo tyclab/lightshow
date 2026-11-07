@@ -4040,6 +4040,7 @@ input[type=range]::-moz-range-thumb {
 .global-control.blackout-active { background: var(--amber); border-color: var(--amber); color: var(--bg); }
 .global-play { position: relative; display: flex; }
 .global-play-main { width: 9.5rem; justify-content: flex-start; overflow: hidden; border-radius: var(--radius-sm) 0 0 var(--radius-sm); }
+.global-play-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .global-play-menu { width: 2.25rem; padding: 0; border-left: 0; border-radius: 0 var(--radius-sm) var(--radius-sm) 0; }
 .global-play.playing .global-play-main { background: var(--wash-blue); border-color: var(--accent); }
 .global-play-list { left: 0; display: flex; flex-direction: column; min-width: 13rem; padding: 4px; }
@@ -4102,14 +4103,18 @@ input[type=range]::-moz-range-thumb {
   .picture-segment:not(.active) .picture-full { display: none; }
   .picture-segment:not(.active) .picture-short { display: inline; }
 }
-@media (max-width: 1120px) {
+@media (max-width: 1279px) {
   .app-header { gap: 6px; padding: 6px 8px; }
   .picture-segment { padding: 0 8px; }
   .status-chip { gap: 4px; padding: 0 10px; }
   .global-control { padding: 6px 8px; }
-  .global-freeze { width: 4.75rem; }
-  .global-blackout { width: 5.5rem; }
-  .global-arm { width: 5rem; }
+  .global-play-main { width: 7.5rem; }
+  .global-freeze { width: 4.5rem; }
+  .global-blackout { width: 5.25rem; }
+  .global-arm { width: 4.75rem; }
+  .global-master input { width: 4rem; }
+  .picture-segment.active { min-width: 7rem; }
+  .status-chip.alert .status-chip-conn { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
   /* The source's name over the effect's: the effect keeps the width. */
   .picture-segment.active { flex-direction: column; align-items: flex-start; justify-content: center; gap: 0; padding-right: 22px; position: relative; line-height: 1.15; }
   .picture-segment.active .picture-segment-source { font-size: 10px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
@@ -4125,6 +4130,7 @@ input[type=range]::-moz-range-thumb {
   .header-status { order: 2; margin-left: 0; position: static; }
   .header-device { order: 3; position: static; }
   .global-controls { order: 4; flex: 1 1 100%; }
+  .picture-segment.active { min-width: 0; }
   .global-master { flex: 0 1 16rem; }
   .global-master input { flex: 1; min-width: 0; }
   .header-popover { left: 8px; right: 8px; width: auto; top: calc(100% + 4px); }

@@ -294,7 +294,10 @@ function PictureColours() {
       <span>Colours</span>
       <label class="band-follow" title="The picture's colours light the room; switch off to choose Effects as the picture source and use the effect's colours">
         <span>Colours follow the picture</span>
-        <input type="checkbox" role="switch" checked onChange={() => chooseSource('effects')} />
+        <input type="checkbox" role="switch" checked onChange={async (e) => {
+          const box = e.currentTarget;
+          if (!(await chooseSource('effects')).ok) box.checked = true;
+        }} />
       </label>
     </div>
   </section>;

@@ -58,6 +58,8 @@ for (const [width, height] of WIDTHS) {
       const rows = new Set(Object.values(at).map(row));
       expect(Math.max(...rows) - Math.min(...rows)).toBeLessThanOrEqual(2);
       expect(at.source.x).toBeLessThan(at.play.x);
+      // The effect, what the operator changes first, reads in full.
+      expect(await page.locator('.picture-segment-effect').evaluate((e) => e.scrollWidth <= e.clientWidth)).toBe(true);
     } else {
       // Two rows: the source, the chip and ⋮; then play, Freeze, Blackout, Arm and the master.
       expect(bar.h).toBeLessThanOrEqual(2 * 56 + 8);
@@ -225,7 +227,7 @@ test('a refused control shows one toast with Refresh, and the next applied revis
     return route.continue();
   });
   await controls(page).getByRole('button', { name: 'Freeze', exact: true }).click();
-  const toast = page.locator('.toast', { hasText: message });
+  const toast = page.locator('.toast:not(.leaving)', { hasText: message });
   await expect(toast).toHaveCount(1);
   await expect(toast.getByRole('button', { name: 'Refresh' })).toBeVisible();
   await controls(page).getByRole('button', { name: 'Freeze', exact: true }).click();
@@ -240,7 +242,7 @@ test('a refused control shows one toast with Refresh, and the next applied revis
     ? (refused++, route.fulfill({ status: 409, json: { ok: false, error: 'Controls changed. Refresh the controls and take the action again.' } }))
     : route.continue()));
   await controls(page).getByRole('button', { name: 'Freeze', exact: true }).click();
-  const second = page.locator('.toast', { hasText: 'Controls changed.' });
+  const second = page.locator('.toast:not(.leaving)', { hasText: 'Controls changed.' });
   await expect(second).toHaveCount(1);
   await controls(page).getByRole('button', { name: 'Freeze', exact: true }).click();
   await expect(controls(page).getByRole('button', { name: 'Resume', exact: true })).toBeVisible();

@@ -1074,7 +1074,7 @@ test('one header row: the picture source and its effect first, then play, Freeze
   assert.match(source, /class="picture-segment-effect">Swirl</);
   assert.strictEqual(count(source, 'aria-haspopup'), 1, 'only the chosen source opens the picker; the others choose');
   for (const label of ['Colour + motion', 'Visualizer']) assert.match(source, new RegExp(`aria-label="${label.replace('+', '\\+')}"`));
-  assert.match(header, /<button[^>]*aria-label="Start Look"[^>]*>(?:<[^>]+>[^<]*<\/span>)? Look<\/button>/, 'play names what it starts');
+  assert.match(header, /<button[^>]*aria-label="Start Look"[^>]*><span aria-hidden="true">▶<\/span><span class="global-play-text">Look<\/span><\/button>/, 'play names what it starts');
   assert.doesNotMatch(header, /Programme<select|<select[^>]*aria-label="Programme"/, 'no programme select');
   assert.doesNotMatch(header, /now-playing|header-now|stat-pill/, 'the main effect line and the pills are gone from the row');
   assert.doesNotMatch(header, /aria-label="Theme"|Keep awake|Full screen/, 'this device\'s tools are behind ⋮');
@@ -1092,12 +1092,12 @@ test('the play button is Stop while the programme plays, Start (or Resume) other
   };
   assert.match(play({ programme: 'look', playing: false }), /aria-label="Start Look"/);
   const playing = play({ programme: 'look', playing: true });
-  assert.match(playing, /aria-label="Stop Look"[^>]*>.*■.* Stop<span class="global-play-name"> Look<\/span><\/button>/s);
+  assert.match(playing, /aria-label="Stop Look"[^>]*>.*■.*Stop<span class="global-play-name"> Look<\/span><\/span><\/button>/s);
   assert.doesNotMatch(playing, /Start Look/, 'one button: Stop while playing');
   assert.match(play({ programme: 'auto', playing: false }), /aria-label="Start Auto show"/);
   const paused = play({ programme: 'sequence', playing: true, paused: true });
-  assert.match(paused, /aria-label="Start Sequence"[^>]*title="Resume the paused sequence timeline\."/);
-  assert.match(paused, /Resume<\/button>/);
+  assert.match(paused, /aria-label="Resume Sequence"[^>]*title="Resume the paused sequence timeline\."/);
+  assert.match(paused, />Resume<\/span><\/button>/);
 });
 
 test('a Visualizer look reads as the Visualizer\'s own, and the picker offers the Visualizer looks with their colours', () => {

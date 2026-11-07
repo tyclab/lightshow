@@ -224,8 +224,9 @@ export async function api(path, init, { quiet = false } = {}) {
     return { ok: true, ...body };
   } catch (err) {
     // Almost always the server went away mid-show: say so rather than a bare TypeError.
-    toast.error(`Could not reach the server: ${err.message}`);
-    return { ok: false, error: err.message };
+    const error = `Could not reach the server: ${err.message}`;
+    if (!quiet) toast.error(error);
+    return { ok: false, error };
   }
 }
 

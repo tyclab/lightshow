@@ -5,7 +5,7 @@ export const controlPending = signal(0);
 
 /** The server's controls, merged unless this page already holds a newer revision. */
 export async function refreshControl() {
-  const fresh = await api('/api/control');
+  const fresh = await api('/api/control', undefined, { quiet: true });
   const current = field('control').peek();
   if (fresh.ok && current?.session === fresh.control.session && current.revision <= fresh.control.revision) {
     store.merge({ control: fresh.control });
@@ -13,21 +13,31 @@ export async function refreshControl() {
   return fresh;
 }
 
-// The one fault toast on screen: its message and the revision that was current when it came.
-let fault = null;
+// The one control toast on screen. A fault the server holds stays until the server lets it go; a refused
+// request goes after the usual time or once a later revision applies. A new session ends either.
+let shown = null;
 
-/** A control fault shows once, with Refresh, however often the state repeats it. */
-export function showFault(message, revision) {
-  if (!message || (fault && fault.message === message && fault.revision >= revision)) return;
-  fault?.dismiss();
-  fault = { message, revision, dismiss: toast.push({ message, kind: 'error', timeout: 0, action: { label: 'Refresh', onClick: refreshControl } }) };
+function show(message, session, revision, held) {
+  shown?.dismiss();
+  const dismiss = toast.push({ message, kind: 'error', action: { label: 'Refresh', onClick: refreshControl }, ...(held ? { timeout: 0 } : {}) });
+  shown = { message, session, revision, held, dismiss };
 }
 
-/** A later revision that applies without a fault takes the toast away. */
+/** A fault or lost held picture the server reports: shown once, however often the state repeats it. */
+export function showFault(message, session) {
+  if (!message || (shown?.held && shown.message === message && shown.session === session)) return;
+  show(message, session, null, true);
+}
+
+/** Takes the toast away once what it said no longer holds. */
 export function settleFault(control) {
-  if (!fault || !control || control.fault || control.heldUnavailable || !(control.appliedRevision > fault.revision)) return;
-  fault.dismiss();
-  fault = null;
+  if (!shown || !control) return;
+  const gone = control.session !== shown.session || (shown.held
+    ? control.fault !== shown.message && control.heldUnavailable !== shown.message
+    : control.appliedRevision > shown.revision);
+  if (!gone) return;
+  shown.dismiss();
+  shown = null;
 }
 
 export async function takeControl(action, programme) {
@@ -49,7 +59,9 @@ export async function takeControl(action, programme) {
       }
     } else {
       const fresh = await refreshControl();
-      showFault(reply.error, fresh.ok ? fresh.control.revision : control.revision);
+      const now = fresh.ok ? fresh.control : control;
+      if (now.fault === reply.error) showFault(reply.error, now.session);
+      else show(reply.error, now.session, now.revision, false);
     }
     return reply.ok;
   } finally {

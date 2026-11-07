@@ -29,12 +29,14 @@ function PlayControl({ c, ready, pending }) {
   const name = programmeName(programme);
   const stops = !!c?.playing && !c?.paused;
   const blocked = !ready || pending || c?.ready === false;
-  useEffect(() => { if (open) menu.current?.querySelector('[aria-checked="true"], [role^="menuitem"]:not([disabled])')?.focus(); }, [open]);
+  useEffect(() => {
+    if (open) (menu.current?.querySelector('[aria-checked="true"]:not([disabled])') ?? menu.current?.querySelector('[role^="menuitem"]:not([disabled])'))?.focus();
+  }, [open]);
   const pickItem = (run) => { setOpen(false); trigger.current?.focus(); run(); };
   const onMenuKey = (e) => {
     const items = [...menu.current.querySelectorAll('[role^="menuitem"]:not([disabled])')];
     const at = items.indexOf(document.activeElement);
-    const to = e.key === 'ArrowDown' ? (at + 1) % items.length : e.key === 'ArrowUp' ? (at - 1 + items.length) % items.length
+    const to = e.key === 'ArrowDown' ? (at + 1) % items.length : e.key === 'ArrowUp' ? (at <= 0 ? items.length - 1 : at - 1)
       : e.key === 'Home' ? 0 : e.key === 'End' ? items.length - 1 : -1;
     if (e.key === 'Tab') setOpen(false);
     if (to < 0 || !items.length) return;
@@ -47,12 +49,12 @@ function PlayControl({ c, ready, pending }) {
         ? <button type="button" class="btn global-control global-play-main protective" disabled={!ready} aria-label={`Stop ${name}`}
           title={`Stop ${name}: stops the programme and clears pads. Background and global controls keep their settings.`}
           onClick={() => takeControl('stop')}>
-          <span aria-hidden="true">■</span> Stop<span class="global-play-name"> {name}</span>
+          <span aria-hidden="true">■</span><span class="global-play-text">Stop<span class="global-play-name"> {name}</span></span>
         </button>
-        : <button type="button" class="btn global-control global-play-main" disabled={blocked} aria-label={`Start ${name}`}
+        : <button type="button" class="btn global-control global-play-main" disabled={blocked} aria-label={`${c?.paused ? 'Resume' : 'Start'} ${name}`}
           title={c?.paused ? `Resume the paused ${name.toLowerCase()} timeline.` : `Start ${name}. Freeze, Blackout and output permission keep their settings.`}
           onClick={() => takeControl('start')}>
-          <span aria-hidden="true">▶</span> {c?.paused ? 'Resume' : name}
+          <span aria-hidden="true">▶</span><span class="global-play-text">{c?.paused ? 'Resume' : name}</span>
         </button>}
       <button ref={trigger} type="button" class="btn global-control global-play-menu" aria-label="Programme" aria-haspopup="menu"
         aria-expanded={open} disabled={!ready} title={`Programme: ${name}. What the play button starts.`} onClick={() => setOpen(!open)}>
@@ -84,10 +86,10 @@ export function GlobalControls() {
   // A fault or a lost held picture is said once, as a toast with Refresh; a later applied revision clears it.
   useEffect(() => {
     if (!c) return;
-    if (c.fault) showFault(c.fault, c.revision);
-    else if (c.heldUnavailable) showFault(c.heldUnavailable, c.revision);
+    if (c.fault) showFault(c.fault, c.session);
+    else if (c.heldUnavailable) showFault(c.heldUnavailable, c.session);
     settleFault(c);
-  }, [c?.fault, c?.heldUnavailable, c?.revision, c?.appliedRevision]);
+  }, [c?.session, c?.fault, c?.heldUnavailable, c?.appliedRevision]);
   const button = (label, action, active, protective, title, extra = '') => (
     <button type="button" class={`btn global-control global-${extra}${active ? ' active' : ''}${protective ? ' protective' : ''}`}
       disabled={!ready || !protective && (pending || c?.ready === false)} aria-pressed={!!active} title={title}
@@ -99,7 +101,8 @@ export function GlobalControls() {
       'Freeze holds the whole picture. Resume releases the hold; it does not start a stopped programme.', 'freeze')}
     {button(c?.blackout ? 'Restore' : 'Blackout', c?.blackout ? 'restore' : 'blackout', c?.blackout, !c?.blackout,
       'Blackout darkens every output. Restore reveals the current picture without changing playback or Freeze.', `blackout${c?.blackout ? ' blackout-active' : ''}`)}
-    <button type="button" class={`btn global-control global-arm${c?.armed ? ' armed active protective' : ''}`} disabled={!ready}
+    <button type="button" class={`btn global-control global-arm${c?.armed ? ' armed active protective' : ''}`}
+      disabled={!ready || (!c?.armed && (pending || c?.ready === false))}
       aria-pressed={!!c?.armed} aria-label={c?.armed ? 'Disarm' : 'Arm'}
       title={c?.armed ? 'Armed: the picture goes to the rig. Disarm ends output streams without changing playback, Freeze or Blackout.'
         : 'Disarmed: nothing goes to the rig. Arm sends the picture to the rig. Disarm ends output streams without changing playback, Freeze or Blackout.'}
