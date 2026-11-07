@@ -1,6 +1,5 @@
 import { useRef, useState } from 'preact/hooks';
-import { WHEEL_BACKGROUND, onWheel, ordinal, rangePath, stopsPath, unitsOf, wheelPick, wheelPlace } from '../../src/shared/colour-wheel.ts';
-import { colourHsv } from '../../src/shared/colour-sliders.ts';
+import { WHEEL_BACKGROUND, onWheel, ordinal, rangePath, readableOn, stopsPath, unitsOf, wheelPick, wheelPlace } from '../../src/shared/colour-wheel.ts';
 
 /**
  * A sequence of colours on a colour wheel: each colour a numbered point, the
@@ -81,7 +80,7 @@ export function ColourWheel({ name, points, range = null, steps = false, selecte
         class={`colour-wheel-point${selected === i ? ' selected' : ''}${draft?.i === i ? ' dragging' : ''}`}
         aria-label={`${name} colour ${i + 1} of ${points.length}, ${p.hex.slice(0, 7)}, hue ${Math.round(p.hue)}°${range ? '' : `, saturation ${Math.round(p.saturation * 100)}%`}`}
         aria-pressed={selected === i} style={{ left: `${p.place.x}%`, top: `${p.place.y}%`, '--stop': p.hex.slice(0, 7),
-          color: colourHsv(p.hex).brightness > 60 && p.saturation < 0.5 ? '#111' : '#fff' }}
+          color: readableOn(p.hex) }}
         onKeyDown={(e) => key(e, i, p)} onFocus={() => onSelect(i)}>{i + 1}</button>)}
     </div>
   </div>;
@@ -124,7 +123,7 @@ export function StopOrder({ name, stops, selected, onSelect, onHex, onReorder, o
         <button type="button" class="stop-ordinal" aria-pressed={selected === i} aria-label={`Select ${name} colour ${i + 1}`}
           onClick={() => onSelect(i)}>{ordinal(i)}</button>
         {random ? <span class="stop-chip random">Random</span>
-          : <label class="stop-chip" style={{ '--stop': hex.slice(0, 7) }} onClick={() => onSelect(i)}>
+          : <label class="stop-chip" style={{ '--stop': hex.slice(0, 7), color: readableOn(hex) }} onClick={() => onSelect(i)}>
             <span>{hex.slice(0, 7)}</span>
             <input type="color" aria-label={`${name} colour ${i + 1}`} value={hex.slice(0, 7).toLowerCase()}
               onChange={(e) => onHex(i, e.currentTarget.value.toUpperCase())} />

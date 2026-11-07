@@ -4229,7 +4229,7 @@ input[type=range]::-moz-range-thumb {
 .stop-ordinal { min-height: 44px; border: 0; background: transparent; color: var(--text); font-weight: 700; cursor: pointer; padding: 0; }
 .stop-chip {
   position: relative; display: flex; align-items: center; justify-content: center; min-height: 44px; border-radius: 8px;
-  background: var(--stop, #555); color: #fff; font: 600 13px var(--mono, monospace); text-shadow: 0 1px 2px #000; cursor: pointer; overflow: hidden;
+  background: var(--stop, #555); color: #fff; font: 600 13px var(--mono, monospace); cursor: pointer; overflow: hidden;
 }
 .stop-chip.random { background: repeating-linear-gradient(45deg, #444 0 6px, #666 6px 12px); cursor: default; }
 .stop-chip input { position: absolute; inset: 0; opacity: 0; width: 100%; height: 100%; cursor: pointer; }

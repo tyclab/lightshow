@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { insertStop, moveStop, onWheel, ordinal, rangePath, removeStop, stopAt, stopPlace, stopsPath, unitsOf, wheelPick, wheelPlace }
+import { insertStop, moveStop, onWheel, ordinal, rangePath, readableOn, removeStop, stopAt, stopPlace, stopsPath, unitsOf, wheelPick, wheelPlace }
   from '../../src/shared/colour-wheel.ts';
 import { colourHsv } from '../../src/shared/colour-sliders.ts';
 import { MAX_BAND_STOPS, toDegrees } from '../../src/shared/effects/band-colour.ts';
@@ -78,4 +78,9 @@ test('a hue range runs round the rim from its start up the wheel, wrapping acros
   assert.equal(rangePath(30000, 30000).includes('A'), false, 'one hue is a point');
   assert.equal(toDegrees(unitsOf(27)), 27, 'a dragged degree is the degree the lamps play');
   assert.equal(toDegrees(unitsOf(-1)), 359);
+});
+
+test('the colour order writes each hex in black or white, whichever reads better on its colour', () => {
+  assert.deepEqual(['#FFFFFF', '#FFC800', '#00BFFF', '#34C759', '#000000', '#0000FF', '#AF52DE', '#FF0000'].map(readableOn),
+    ['#000000', '#000000', '#000000', '#000000', '#FFFFFF', '#FFFFFF', '#000000', '#000000']);
 });
