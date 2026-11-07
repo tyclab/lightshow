@@ -458,7 +458,7 @@ async function saveBridge(id, patch) {
  * area's lamps with Add and Identify. `patched` is channel → fixture label
  * for the lamps of this bridge already in the patch.
  */
-function HueBridge({ bridge, patched, onChanged, onPair, notify }) {
+function HueBridge({ bridge, live, patched, onChanged, onPair, notify }) {
   const [areas, setAreas] = useState(null);         // /api/hue/:bridge/areas: the list, or { error }
   const [lamps, setLamps] = useState(null);         // /api/hue/:bridge/lamps: { area, lamps } or { error }
   const [area, setArea] = useState(bridge.area);
@@ -521,14 +521,17 @@ function HueBridge({ bridge, patched, onChanged, onPair, notify }) {
   const options = Array.isArray(areas) ? areas : [];
   const known = options.some((a) => a.id === area);
   const areaId = `hue-area-${bridge.id}`;
+  // The live state follows the bridge between page loads; /api/hue/status is read once.
+  const stream = live ? live.status : bridge.stream;
+  const held = live ? live.occupiedBy : bridge.occupiedBy;
   return (
     <div class="hue-bridge" data-bridge={bridge.id}>
       <div class="discovery-head hue-bridge-head">
         <input class="hue-bridge-label" type="text" maxLength={64} value={label} aria-label={`Name of the bridge at ${bridge.host}`}
           onInput={(e) => setLabel(e.target.value)} />
         <span class="mono">{bridge.host}</span>
-        <span class={`setting-help ${bridge.stream === 'failed' ? 'setting-note warn' : ''}`}>
-          {bridge.paired ? 'paired' : 'not paired'} · stream: {bridge.stream}{bridge.lastError ? ` — ${bridge.lastError}` : ''}
+        <span class={`setting-help ${stream === 'failed' ? 'setting-note warn' : ''}`}>
+          {bridge.paired ? 'paired' : 'not paired'} · stream: {stream}{bridge.lastError && !held ? ` — ${bridge.lastError}` : ''}
         </span>
         <label class="hue-bridge-enabled">
           <input type="checkbox" checked={!!bridge.enabled} disabled={busy} onChange={(e) => save({ enabled: e.target.checked })} /> Enabled
@@ -536,6 +539,12 @@ function HueBridge({ bridge, patched, onChanged, onPair, notify }) {
         <button type="button" class="btn sm" title="Press the round button on the bridge, then this" onClick={() => onPair(bridge.host)}>Pair again</button>
         <button type="button" class="btn sm danger" onClick={forget}>Forget</button>
       </div>
+      {held && (
+        <p class="setting-help setting-note warn hue-held" role="status">
+          Area "{held.area}" is streaming from another app (a Sync Box, the Hue app or another controller){held.streamer ? `, app ${held.streamer.slice(0, 8)}` : ''}.
+          The lightshow cannot stream to this bridge until it stops, and starts by itself once the area is free.
+        </p>
+      )}
       <div class="inline-form">
         <label for={areaId}>Entertainment area</label>
         <select id={areaId} value={area} disabled={!bridge.paired} onChange={(e) => setArea(e.target.value)}>
@@ -590,7 +599,7 @@ function HueBridge({ bridge, patched, onChanged, onPair, notify }) {
 }
 
 function Hue() {
-  const s = pick(['fixtures']);
+  const s = pick(['fixtures', 'hue']);
   const [info, setInfo] = useState(null);           // /api/hue/status
   const [found, setFound] = useState([]);           // /api/hue/discover
   const [host, setHost] = useState('');
@@ -678,7 +687,8 @@ function Hue() {
         )}
         {info && !bridges.length && <p class="setting-help">No bridge paired yet: find one or type its address, press its round button, then Pair.</p>}
         {bridges.map((b) => (
-          <HueBridge key={b.id} bridge={b} patched={patched.get(b.id) || []} onChanged={changed} onPair={pair} notify={setNotice} />
+          <HueBridge key={b.id} bridge={b} live={(s.hue || []).find((h) => h.id === b.id)} patched={patched.get(b.id) || []}
+            onChanged={changed} onPair={pair} notify={setNotice} />
         ))}
       </div>
     </SettingsSection>

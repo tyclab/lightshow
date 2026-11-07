@@ -613,6 +613,13 @@ async function checkHueBridge(bridge: Settings['hue']['bridges'][number], lamps:
         };
     }
     const live = output.getHueStatus().find((s) => s.id === bridge.id);
+    if (live?.occupiedBy) {
+        return {
+            id, label, status: WARN,
+            detail: `"${live.occupiedBy.area}" on "${name}" is streaming from another app, so "${area.name}" gets nothing from the show until it stops.`,
+            fix: 'Stop that sync (a Sync Box\'s light sync, the Hue app or another controller); the lightshow starts by itself once the area is free.',
+        };
+    }
     if (live && live.status === 'failed') {
         return {
             id, label, status: WARN,

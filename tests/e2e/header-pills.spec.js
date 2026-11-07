@@ -4,7 +4,7 @@ import { open, reset, control } from './helpers.js';
 // Every status pill in the top bar stays visible, with its label, at every width and in every state:
 // a pill that comes and goes moves the controls beside it and hides what the room is doing.
 // Output permission, playback and Blackout are always-present explicit global controls now.
-const PILLS = ['BPM', 'Master', 'Energy', 'Strobes', 'Flash', 'Auto', 'Online'];
+const PILLS = ['BPM', 'Master', 'Energy', 'Strobes', 'Flash', 'Auto', 'Hue', 'Online'];
 const LABELLED = PILLS.filter((p) => p !== 'Strobes' && p !== 'Online');
 const sequence = { id: 'e2e-pills', name: 'Pills', mode: 'arrangement',
   lanes: [{ id: 'base', kind: 'shared', name: 'Base', mute: false, solo: false }],

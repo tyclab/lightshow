@@ -56,3 +56,22 @@ test('Hue discovery lists one gradient lamp and refreshes existing profiles', as
     await expect(page.getByText('Refreshed 1 fixtures.')).toBeVisible();
   });
 });
+
+// While a Sync Box or the Hue app streams an area, the bridge refuses the lightshow's stream: its card says
+// which area holds it, once, and the header pill leads there.
+test('a Hue bridge another app streams to says which area holds it', async ({ page }) => {
+  const area = { id: 'area', name: 'Music area', channels: lamp.channels.map((id) => ({ id })), lamps: [lamp] };
+  const fulfil = (route, body) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true, ...body }) });
+  await page.route('**/api/hue/status', (route) => fulfil(route, { bridges: [{ id: 'b1', label: 'Lounge', host: 'bridge.local', paired: true,
+    enabled: true, area: 'area', stream: 'failed', lastError: 'Entertainment area "TV Couch" is already in use.',
+    occupiedBy: { areaId: 'tv', area: 'TV Couch', streamer: '5f1c0a2e-0000-4000-8000-000000000000' } }] }));
+  await page.route('**/api/hue/b1/areas', (route) => fulfil(route, { areas: [area] }));
+  await page.route('**/api/hue/b1/lamps', (route) => fulfil(route, { area, lamps: [{ ...lamp, shows: profile.modeName }] }));
+  await open(page, 'rig/outputs');
+  const bridge = page.locator('.hue-bridge[data-bridge="b1"]');
+  const held = bridge.getByRole('status');
+  await expect(held).toContainText('Area "TV Couch" is streaming from another app (a Sync Box, the Hue app or another controller), app 5f1c0a2e.');
+  await expect(held).toContainText('The lightshow cannot stream to this bridge until it stops');
+  await expect(bridge.locator('.hue-bridge-head')).toContainText('stream: failed');
+  await expect(bridge.locator('.hue-bridge-head')).not.toContainText('already in use');
+});

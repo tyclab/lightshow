@@ -386,6 +386,40 @@ test('each Hue bridge and orphaned lamp receives a preflight result', async () =
   assert.ok(checks[2].detail);
 });
 
+// A Sync Box or the Hue app streaming another area on the bridge refuses the
+// lightshow's start: before the show, preflight names that area.
+test('a Hue bridge another app is streaming to warns and names the area', async (t) => {
+  const { default: https } = await import('node:https');
+  const { EventEmitter } = await import('node:events');
+  const hue = await import('../../src/server/hue.ts');
+  const areas = { data: [
+    { id: PAIRED.entertainmentId, metadata: { name: 'Music area' }, status: 'inactive', channels: [{ channel_id: 0, members: [] }] },
+    { id: 'tv', metadata: { name: 'TV Couch' }, status: 'active', active_streamer: { rid: 'sync-box' }, channels: [] },
+  ] };
+  t.mock.method(console, 'warn', () => {});
+  t.mock.method(https, 'request', (options, onResponse) => {
+    const req = new EventEmitter();
+    req.write = () => {};
+    req.destroy = () => {};
+    req.end = () => setImmediate(() => {
+      const res = new EventEmitter();
+      res.statusCode = 200;
+      res.headers = {};
+      onResponse(res);
+      res.emit('data', Buffer.from(JSON.stringify(options.path.endsWith('/entertainment_configuration') ? areas : { data: [] })));
+      res.emit('end');
+    });
+    return req;
+  });
+  const [check] = await withHue([PAIRED], async () => {
+    await hue.checkAreas();
+    return checkHue();
+  }, [lamp(90, 0)]);
+  assert.strictEqual(check.status, STATUSES.WARN);
+  assert.match(check.detail, /"TV Couch" on "Lounge" is streaming from another app/);
+  assert.match(check.fix, /Sync Box/);
+});
+
 // Model weights run to gigabytes: the check fetches what is missing in the
 // background through the model manager, once — see model-manager.test.js.
 
