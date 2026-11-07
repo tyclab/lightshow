@@ -230,9 +230,12 @@ test('a refused control shows one toast with Refresh, and the next applied revis
   const toast = page.locator('.toast:not(.leaving)', { hasText: message });
   await expect(toast).toHaveCount(1);
   await expect(toast.getByRole('button', { name: 'Refresh' })).toBeVisible();
+  // The same refusal again replaces the toast rather than adding one.
+  await toast.evaluate((element) => { element.dataset.first = 'yes'; });
   await controls(page).getByRole('button', { name: 'Freeze', exact: true }).click();
-  await expect.poll(() => refused).toBe(2);
+  await expect(page.locator('.toast:not(.leaving):not([data-first])', { hasText: message })).toHaveCount(1);
   await expect(toast).toHaveCount(1);
+  expect(refused).toBe(2);
   const refreshed = page.waitForRequest((r) => r.url().endsWith('/api/control') && r.method() === 'GET');
   await toast.getByRole('button', { name: 'Refresh' }).click();
   await refreshed;
