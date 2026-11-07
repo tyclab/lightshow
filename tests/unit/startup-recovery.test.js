@@ -30,7 +30,9 @@ test('a restart recovers a workspace that targets the saved patch, not the defau
   const child = spawn(process.execPath, ['server.js', '--no-supervisor'], { cwd: ROOT, stdio: 'ignore', env: {
     ...process.env, LIGHTSHOW_CONFIG_DIR: dir, LIGHTSHOW_CACHE_DIR: path.join(dir, 'cache'), LIGHTSHOW_LOG_DIR: path.join(dir, 'logs'), LIGHTSHOW_SUPERVISOR: '0',
   } });
-  t.after(() => { child.kill('SIGTERM'); fs.rmSync(dir, { recursive: true, force: true }); });
+  // The server still writes its logs while it stops: remove its directory only once it has exited.
+  const exited = new Promise((resolve) => child.once('exit', resolve));
+  t.after(async () => { child.kill('SIGTERM'); await exited; fs.rmSync(dir, { recursive: true, force: true }); });
   let body = null;
   for (let i = 0; i < 200 && !body; i++) {
     body = await fetch(`http://127.0.0.1:${port}/api/sequence/workspace`).then((r) => r.json()).catch(() => null);

@@ -1242,114 +1242,7 @@ input[type=range]::-moz-range-thumb {
 }
 .palette-btn.active .palette-name { color: var(--text); }
 
-.color-slot-tabs {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 3px;
-  margin-bottom: 8px;
-  padding: 3px;
-  background: var(--surface);
-  border-radius: var(--radius-sm);
-  border: 1px solid var(--border);
-}
-.color-slot-tab {
-  padding: 4px 6px;
-  border-radius: 5px;
-  font-size: 10px;
-  font-weight: 700;
-  border: 1px solid transparent;
-  background: transparent;
-  color: var(--muted);
-  cursor: pointer;
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  letter-spacing: 0.06em;
-}
-.color-slot-tab:hover { color: var(--text); background: var(--card); }
-.color-slot-tab.active {
-  background: var(--card-hi);
-  color: var(--text);
-  border-color: var(--slot-color, var(--accent));
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--slot-color, var(--accent)) 20%, transparent);
-}
-.color-slot-tab .swatch {
-  width: 14px;
-  height: 14px;
-  border-radius: 3px;
-  background: var(--swatch, #333);
-  border: 1px solid var(--border);
-}
 
-.color-grid {
-  display: grid;
-  grid-template-columns: repeat(7, 1fr);
-  gap: 4px;
-}
-
-.color-swatch {
-  width: 100%;
-  aspect-ratio: 1;
-  border-radius: var(--radius);
-  border: 2px solid transparent;
-  /* A button rather than a div, so the grid can be driven from a keyboard.
-     These three undo what that brings with it. */
-  appearance: none;
-  padding: 0;
-  font: inherit;
-  cursor: pointer;
-  position: relative;
-}
-/* An outline rather than another box-shadow: the slot rings below are
-   box-shadows, and a focused swatch that is also in slot A has to show both. */
-.color-swatch:focus-visible {
-  outline: 2px solid var(--text);
-  outline-offset: 2px;
-}
-.color-swatch:hover { border-color: var(--accent); }
-.color-swatch:active { transform: scale(.98); }
-
-.color-swatch::after {
-  content: '';
-  position: absolute;
-  inset: -4px;
-  border-radius: 11px;
-  pointer-events: none;
-  border: 2px solid transparent;
-}
-.color-swatch.active-a { box-shadow: 0 0 0 2px var(--bg), 0 0 0 4px var(--accent); }
-.color-swatch.active-b { box-shadow: 0 0 0 2px var(--bg), 0 0 0 4px var(--accent-2); }
-.color-swatch.active-c { box-shadow: 0 0 0 2px var(--bg), 0 0 0 4px var(--accent-3); }
-.color-swatch.active-d { box-shadow: 0 0 0 2px var(--bg), 0 0 0 4px var(--accent-4); }
-
-.color-current {
-  margin-top: 8px;
-  padding: 5px 8px;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 11px;
-  color: var(--muted);
-}
-.color-current .name { color: var(--text); font-weight: 600; font-size: 11px; }
-
-.color-hint {
-  display: none;
-}
-.color-hint kbd {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  padding: 1px 5px;
-  border-radius: 3px;
-  font-family: var(--mono);
-  font-size: 9px;
-  color: var(--dim);
-}
 
 /* =============================================================
    ENERGY OVERRIDES
@@ -2206,7 +2099,6 @@ input[type=range]::-moz-range-thumb {
   .header-now { order: 3; }
   .manual-view { grid-template-columns: 1fr 1fr; }
   .manual-view .col-fixtures { grid-column: 1 / -1; }
-  .color-grid { grid-template-columns: repeat(6, 1fr); }
 }
 
 @media (max-width: 900px) {
@@ -2231,7 +2123,6 @@ input[type=range]::-moz-range-thumb {
   .cb-energy-btn { padding: 0 10px; height: 38px; font-size: 10px; }
   .mode-tab-hint { display: none; }
   .fixtures-grid { grid-template-columns: 1fr; }
-  .color-grid { grid-template-columns: repeat(5, 1fr); }
   .pattern-grid { grid-template-columns: 1fr; }
 }
 
@@ -3042,9 +2933,8 @@ input[type=range]::-moz-range-thumb {
    Keyboard shortcuts overlay
    ============================================================= */
 
-/* A small, permanently visible affordance. The shortcuts are only useful if
-   you know they exist, and `.color-hint` — the one place some of them were
-   written down — is display:none. */
+/* A small, permanently visible affordance: the shortcuts are only useful if
+   you know they exist. */
 .shortcuts-tab {
   position: fixed;
   right: 12px;
@@ -3167,7 +3057,6 @@ input[type=range]::-moz-range-thumb {
 .energy-btn:focus-visible,
 .segmented-btn:focus-visible,
 .palette-btn:focus-visible,
-.color-slot-tab:focus-visible,
 .mode-tab:focus-visible {
   outline: .125rem solid var(--accent);
   outline-offset: .1875rem;
@@ -3822,7 +3711,7 @@ input[type=range]::-moz-range-thumb {
 @media (pointer: coarse) {
   .btn, .btn.sm, .btn.icon, .segmented-btn, .bd-tab, .bd-toggle, .mode-tab, .nav-link,
   .header-tool, .header-theme, .stat-pill.gate, .stat-pill.control, .cb-energy-btn, .cb-tap, .cb-play, .cb-bpm-follow,
-  .palette-btn, .pattern-btn, .color-slot-tab, .cue-recall, .cue-capture, .sync-nudge,
+  .palette-btn, .pattern-btn, .cue-recall, .cue-capture, .sync-nudge,
   .transport-btn, .warm-toggle, .auto-select, .warm-playlist-select, .shortcuts-tab,
   .sub-tab, .remove-btn, .wizard-step-btn, .ofl-hit, .file-upload-btn, .timeline-section,
   .effects-chip, .effect-star, .effect-edit, .palette-random, .insp-check,
@@ -4261,3 +4150,83 @@ input[type=range]::-moz-range-thumb {
 .background-controls > label > select { flex: 1; min-width: 0; }
 .background-controls > .hint { margin-top: 10px; }
 .background-controls:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* =============================================================
+   BANDS — the main effect's colours: band channels, colour bars, palettes
+   ============================================================= */
+.bands .band-title { text-transform: none; letter-spacing: 0; font-size: 15px; font-weight: 800; color: var(--text); flex-wrap: wrap; }
+.band-mode {
+  margin-left: auto; display: inline-flex; align-items: center; gap: 6px; min-height: 36px; padding: 0 14px;
+  border: 1px solid var(--violet); border-radius: 999px; font-size: 13px; font-weight: 700; color: var(--text);
+  box-shadow: 0 0 10px color-mix(in srgb, var(--violet) 45%, transparent);
+}
+.band-mode-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--violet); box-shadow: 0 0 6px var(--violet); }
+.band-mode-sep, .band-mode-name { color: color-mix(in srgb, var(--violet) 55%, var(--text)); }
+.band-reset { min-height: 44px; }
+.band-channel { padding: 10px 0 12px; border-top: 1px solid var(--border); display: grid; gap: 8px; }
+.band-channel:first-of-type { border-top: 0; }
+.band-head { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.band-name { font-size: 15px; font-weight: 800; white-space: nowrap; }
+.band-name::after { content: ' Channel'; }
+.band-channel[aria-label="Effect palette"] .band-name::after { content: ''; }
+.band-meter { flex: 1; min-width: 0; display: grid; grid-template-columns: repeat(24, 1fr); gap: 2px; height: 12px; align-items: center; position: relative; }
+.band-meter > span { height: 8px; border-radius: 2px; background: color-mix(in srgb, var(--text) 12%, transparent); }
+.band-meter > span.on { box-shadow: 0 0 4px currentColor; }
+.band-meter.gated::after { content: ''; position: absolute; left: 50%; top: 0; bottom: 0; width: 2px; background: var(--text); opacity: .7; }
+.band-switches { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px 8px; }
+.band-switch { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; min-height: 44px; cursor: pointer; font-size: 13px; color: var(--text-2, var(--text)); }
+.band-switch input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+.band-switch-track { position: relative; width: 44px; height: 26px; border-radius: 13px; background: color-mix(in srgb, var(--text) 18%, transparent); transition: background .15s; }
+.band-switch-track::after { content: ''; position: absolute; top: 3px; left: 3px; width: 20px; height: 20px; border-radius: 50%; background: #c8c8d2; transition: transform .15s; }
+.band-switch input:checked + .band-switch-track { background: #5b45e0; }
+.band-switch input:checked + .band-switch-track::after { transform: translateX(18px); }
+.band-switch input:focus-visible + .band-switch-track { outline: .125rem solid var(--accent); outline-offset: .1875rem; }
+.band-bar { position: relative; height: 52px; margin: 0 22px; touch-action: none; cursor: pointer; }
+.band-bar-track {
+  position: absolute; left: -22px; right: -22px; top: 6px; bottom: 6px; border-radius: 20px;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .08), inset 0 0 14px rgba(0, 0, 0, .55);
+}
+.band-bar.stops .band-bar-track { left: 0; right: 0; }
+.band-bar-dim { position: absolute; top: 6px; bottom: 6px; background: rgba(0, 0, 0, .62); pointer-events: none; }
+.band-bar-line { position: absolute; top: 50%; height: 6px; margin-top: -3px; border-radius: 3px; background: rgba(235, 235, 245, .82); pointer-events: none; }
+.band-bar-line.steps { background: repeating-linear-gradient(90deg, rgba(235, 235, 245, .82) 0 8px, transparent 8px 14px); }
+.band-handle {
+  position: absolute; top: 50%; width: 44px; height: 44px; margin: -22px 0 0 -22px; padding: 0; border: 0; border-radius: 50%;
+  background: transparent; cursor: grab; touch-action: none;
+}
+.band-handle::before {
+  content: ''; position: absolute; inset: 2px; border-radius: 50%; background: var(--stop, #888);
+  border: 3px solid rgba(255, 255, 255, .85); box-shadow: 0 2px 8px rgba(0, 0, 0, .6);
+}
+.band-handle.selected::before { border-color: #fff; box-shadow: 0 0 0 3px #5b45e0, 0 2px 8px rgba(0, 0, 0, .6); }
+.band-handle.dragging { z-index: 2; cursor: grabbing; }
+.band-handle:focus-visible { outline: .125rem solid var(--accent); outline-offset: .125rem; }
+.band-open { justify-self: start; min-height: 44px; }
+.band-editor { display: grid; gap: 10px; padding: 10px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface); }
+.band-tools { display: grid; gap: 8px; }
+.band-quick { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.band-quick-colour {
+  width: 44px; height: 44px; border-radius: 50%; border: 2px solid rgba(255, 255, 255, .25); padding: 0; cursor: pointer;
+  font-weight: 800; color: #fff; text-shadow: 0 1px 2px #000;
+}
+.band-quick-colour.random { background: conic-gradient(#f00, #ff0, #0f0, #0ff, #00f, #f0f, #f00); }
+.band-well { width: 44px; height: 44px; padding: 2px; border-radius: var(--radius-sm); border: 1px solid var(--border); background: var(--card); }
+.band-stop-tools { display: flex; gap: 8px; flex-wrap: wrap; }
+.band-stop-tools .btn { min-height: 44px; }
+.band-editor .segmented-btn { min-height: 44px; }
+.band-palettes { display: grid; gap: 6px; }
+.band-search { min-height: 44px; width: 100%; box-sizing: border-box; }
+.band-manage { justify-self: start; min-height: 44px; }
+.band-palette-list { display: grid; gap: 6px; max-height: 296px; overflow-y: auto; overscroll-behavior: contain; padding-right: 2px; }
+.band-palette {
+  position: relative; min-height: 44px; padding: 8px 12px 14px; border-radius: 22px; border: 1px solid var(--border);
+  background: var(--card); color: var(--text); font-weight: 600; cursor: pointer; overflow: hidden; text-align: center;
+}
+.band-palette.active { border-color: #5b45e0; box-shadow: 0 0 0 2px #5b45e0; }
+.band-palette-strip { position: absolute; left: 10px; right: 10px; bottom: 4px; height: 6px; border-radius: 3px; }
+.band-distribution { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; font-size: 13px; }
+.bands > .muted { margin: 0 0 8px; font-size: 12px; }
+@media (max-width: 560px) {
+  .band-switch { font-size: 12px; }
+  .bands .band-title { font-size: 14px; }
+}

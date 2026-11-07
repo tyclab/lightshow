@@ -12,14 +12,10 @@ export const SHORTCUTS = [
     ],
   },
   {
-    group: 'Colours',
+    group: 'Bands',
     items: [
-      { keys: ['←', '→', '↑', '↓'], either: true, what: 'Move within the swatch grid' },
-      { keys: ['Enter'], what: 'Write the swatch into the active slot' },
-      { keys: ['Shift', 'Enter'], what: 'Write into the paired slot (A↔B, C↔D)' },
-      { keys: ['Shift', 'Click'], what: 'Write into the paired slot' },
-      { keys: ['Right-click'], what: 'Write into the paired slot' },
-      { keys: ['Home', 'End'], either: true, what: 'First / last swatch' },
+      { keys: ['←', '→', '↑', '↓'], either: true, what: 'Hue range handle: one degree round the wheel (Shift: ten)' },
+      { keys: ['←', '→'], either: true, what: 'Colour on a band bar: move it one place in the order' },
     ],
   },
   {

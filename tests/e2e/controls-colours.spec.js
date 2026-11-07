@@ -12,10 +12,11 @@ test.afterEach(async ({ request }) => {
   await request.put('/api/settings', { data: { safety: { photosensitivityAcknowledged: false } } });
 });
 
-test('Scatter palette, swatches and sliders edit the same destination', async ({ page, request }) => {
+test('the palette strip in Perform keeps one destination for palettes and distribution', async ({ page, request }) => {
   await set(request, { pattern: 'v2.scatterStrobe' });
-  await open(page, 'effects');
+  await open(page, 'perform');
   const strip = page.locator('.palette-strip');
+  await strip.getByRole('button', { name: 'Main effect', exact: true }).click();
   await strip.locator('[data-palette="redCyan"]').click();
   await until(request, (s) => s.effectColours?.palette?.colours.join(',') === '#FF0000,#00BFFF');
   await expect(strip.getByLabel('Colour distribution')).toHaveValue('solid');
@@ -23,11 +24,9 @@ test('Scatter palette, swatches and sliders edit the same destination', async ({
   await until(request, (s) => s.effectColours?.mode === 'along');
   const before = await (await request.get('/api/state')).json();
   await strip.getByRole('button', { name: 'Global override', exact: true }).click();
-  await page.getByRole('button', { name: /^Green.*Write to slot A/ }).click();
-  const green = await until(request, (s) => s.overridePalette?.colours[0] === '#00FF55');
-  expect(green.effectColours).toEqual(before.effectColours);
-  await page.getByLabel('Slot A brightness', { exact: true }).fill('40');
-  await until(request, (s) => s.overridePalette?.colours[0] !== '#00FF55');
+  await strip.locator('[data-override="greenPink"]').click();
+  const override = await until(request, (s) => s.paletteOverrideId === 'greenPink');
+  expect(override.effectColours).toEqual(before.effectColours);
   await strip.getByRole('button', { name: 'Main effect', exact: true }).click();
   await expect(strip.getByRole('status')).toContainText('masking');
   await strip.getByRole('button', { name: 'Global override', exact: true }).click();
@@ -39,7 +38,8 @@ test('Scatter palette, swatches and sliders edit the same destination', async ({
 
 test('main drafts stay with their effect and global drafts survive effect changes', async ({ page, request }) => {
   await set(request, { pattern: 'v2.scatterStrobe' });
-  await open(page, 'effects');
+  await open(page, 'perform');
+  await page.locator('.palette-strip').getByRole('button', { name: 'Main effect', exact: true }).click();
   await page.getByRole('button', { name: 'Edit palette', exact: true }).click();
   await page.getByLabel('Colour 1', { exact: true }).fill('#FF0000');
   await set(request, { pattern: 'v2.wash' });
