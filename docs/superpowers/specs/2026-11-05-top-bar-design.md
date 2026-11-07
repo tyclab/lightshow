@@ -1,6 +1,6 @@
-# Top bar redesign: design brief (draft for review)
+# Top bar redesign: design brief
 
-Status: draft, 2026-11-05. Nothing is built until the operator approves this brief.
+Status: approved, 2026-11-07, with the operator's answers below. Drafted 2026-11-05.
 
 ## Why
 
@@ -89,13 +89,20 @@ Phone (680 px and below), two rows:
 
 Target: header 56–64 px on desktop, chrome above the Effects content at most 200 px.
 
-## Open questions for the operator
+## Answers, 2026-11-07
 
-1. When the room looks wrong at a party, what do you reach for first? This decides the left-to-right
-   order.
-2. Play target: the split button above, or no Auto show/Sequence in the header at all (they would start
-   from their own views, which breaks the one-place rule)?
-3. Which status, if any, must stay visible without a tap: BPM, Online, Armed?
+The operator answered the three open questions on 2026-11-07.
+
+1. **When the room looks wrong, what do you reach for first?** None of picture source, play,
+   Blackout/Freeze or the master: the operator changes the effect. So the leftmost control is the effect
+   choice. The picture source control stays first, and its active segment shows the current effect by
+   name with its picker one tap away ("Effects: Swirl ▾"). Switching effects must be the fastest action in
+   the header.
+2. **Play target:** the split button. "▶ Look ▾" with Auto show and Sequence in its menu; the same
+   button is "■ Stop …" while playing.
+3. **Status visible without a tap:** BPM and Online, in the one status chip. Armed is shown by the Arm
+   button itself (the operator asked "armed we see on the button itself right?"), so the Arm button's
+   armed state must be unmistakable, not a status pill.
 
 ## Left to the builder
 
