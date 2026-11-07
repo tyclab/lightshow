@@ -187,10 +187,39 @@ draws the rendered look that arming would send and the label becomes **Preview (
 is saved in this browser across reloads and shared by both views.
 They say **Live output** once outputs are armed.
 
-The sticky header keeps Programme, Start/Stop, Freeze/Resume, Blackout/Restore,
-Arm/Disarm and Master available in every view, including while scrolling through
-Show. Disarm ends the physical streams and clears voices; it preserves programme
-playback, Freeze and Blackout. Re-arming reveals the current picture.
+The sticky header is one row on a desktop (two on a phone, 1000 px and narrower) and
+the same on every view, including while scrolling through Show:
+
+```text
+[mark] [Effects: Swirl ▾ | Colour + motion | Visualizer]  [▶ Look ▾] [Freeze] [Blackout] [Arm]  Master ━━●━ 100%  [● 120 BPM Online] [⋮]
+```
+
+- **Picture source** comes first. The chosen source names the main effect
+  (**Effects: Swirl**); pressing it, or **E** anywhere, opens the effect picker:
+  favourites, your presets and the party looks, then every look A to Z with a
+  search. A tap puts a look on stage and leaves the picker open for the next one;
+  Escape or a press outside closes it. With **Visualizer** chosen, or a Visualizer
+  on stage, the picker also offers the Visualizer looks (Active and Mellow) and
+  their colours. The other sources are one tap away.
+- **Play** names what it starts (**▶ Look**, **▶ Auto show**, **▶ Sequence**) and
+  is **■ Stop …** while that programme plays; its ▾ menu chooses the programme
+  while stopped and keeps **Stop** in reach when the button itself is not Stop
+  (stopped: **Stop and clear pads**; a paused sequence: **Stop Sequence**, while
+  the button resumes it).
+- **Freeze/Resume**, **Blackout/Restore** and **Arm/Disarm** keep their own 44 px
+  buttons at fixed places. Armed shows on the button itself: filled red, **● Armed**
+  over **Disarm**.
+- **Master** is the slider and its value.
+- The **status chip** shows the BPM and the connection without a tap (on a phone
+  the dot alone says Online); pressing it shows the show's state and the Energy,
+  Strobes, Flash, Auto, Hue and Online pills. A bridge held by another app also
+  shows on the chip as **Hue busy**.
+- **⋮** holds this device's Theme, Keep awake and Full screen.
+
+A refused or unacknowledged control shows once as a toast with **Refresh** and
+clears when a later control change applies. Disarm ends the physical streams and
+clears voices; it preserves programme playback, Freeze and Blackout. Re-arming
+reveals the current picture.
 
 **Audition effects** in Stage or the fixture plot plays any current or saved effect
 against a deterministic 124 BPM demo: build, drop, breakdown and groove, with
@@ -263,7 +292,7 @@ with the loaded show; Pad layouts saves named decks and remaps their fixture
 targets onto another rig order.
 
 Perform also offers tempo capture from live audio, half and double tempo, live
-tempo and brightness automation, and colour controls for a running Visualizer.
+tempo and brightness automation; the colours of a running Visualizer are in the header's effect picker.
 Fire and Ice are slow, strobe-free Party looks.
 
 The effect catalogue and show workflows cover the Party & Disco and the
@@ -292,28 +321,27 @@ to effects; pad banks launch effects or patterns over the look.
 | Settings | 9 | Show behaviour, safety, MIDI, engine and server access |
 | Preflight | 0 | Run the pre-show checks |
 
-The global controls appear once in the app header, including setup views.
-The live view strip keeps the picture-source choice; choosing content never
-starts the programme or releases Freeze or Blackout.
+The global controls and the picture source appear once in the app header,
+including setup views; choosing a source or an effect never starts the programme
+or releases Freeze or Blackout.
 
 Hashes open a view directly, such as `/#perform` or `/#rig/outputs`.
 Show opens by default. Old `#manual`, `#timeline` and `#matrix` bookmarks redirect
 to Effects, Auto Show → Timeline and Perform → Matrix. The global header stays
-in one place on every tab: Programme, Start, Stop, Freeze/Resume, Blackout/Restore,
-Arm/Disarm and Master. Sequence tools retain timeline Pause and row navigation.
-Start resumes a paused sequence timeline; Resume releases only the picture hold.
+in one place on every tab. Sequence tools retain timeline Pause and row navigation.
+The play button resumes a paused sequence timeline; Resume releases only the picture hold.
 The view strip scrolls with its arrow buttons; keyboard arrows, Home and End
 work while a view tab is focused.
 
-Header, Perform, Effects and the stage preview share the same status line:
+The effect picker, Perform, Effects and the stage preview share the same status line:
 main effect, sequence transport, visible voices and palette override. The
 highlighted catalogue row, tagged **Main effect**, identifies it; a sequence or
 voice may be above it. Perform and Effects list visible voices with individual Stop
 buttons. Stop all voices also clears latched and off-bank effects.
 
 Pads with no custom label use the catalogue name on both Perform and the
-command bar. Once, hold and loop are distinct launch modes. Header controls
-select theme, screen wake lock and fullscreen for the current device.
+command bar. Once, hold and loop are distinct launch modes. The header's ⋮
+selects theme, screen wake lock and fullscreen for the current device.
 
 ### Effects catalogue and tags
 
@@ -1000,7 +1028,7 @@ feed reads that same canvas without a desktop capture or OBS process.
 
 ### Room picture
 
-The same canvas can paint the whole rig. The strip's **Picture** selector (also
+The same canvas can paint the whole rig. The header's picture source (also
 Settings → Show → Picture Source, or `POST /api/picture/source` with
 `{ "source": "effects" | "visualizer" | "inspired" }`) chooses what the base layer paints
 from. With **Visualizer** selected, a sender claims the room picture over the
@@ -1127,8 +1155,8 @@ area is released.
 A Sync Box, the Hue app or another controller can take an area at any time, so
 every 10 s, armed or not, the server reads each enabled bridge's area list (GET
 only, backing off to 60 s while the bridge does not answer). An area that another
-app streams is shown before an arm and while armed: the header's **Hue** pill
-reads **busy** and leads to Rig → Outputs, where the bridge's card names the area
+app streams is shown before an arm and while armed: the header's status chip
+reads **Hue busy**, and its **Hue** pill reads **busy** and leads to Rig → Outputs, where the bridge's card names the area
 and the app id holding it, and preflight warns. The live state's `hue` list
 carries one entry per enabled, set-up bridge, `{ id, label, status, occupiedBy,
 problem }`, with `occupiedBy` `{ areaId, area, streamer }` or null and `problem`
@@ -1255,6 +1283,11 @@ hidden: a band switched off shows only Enabled, Fast Pulse and the fade brightne
 act through Fade, Neural ignores them. The header chip names
 the lamp assignment (**Auto** shares the lamps among the enabled bands; **Manual** when
 some lamps keep a band of their own) and the main effect, for example *Auto · Ambient*.
+
+While the picture sets the colours (the **Visualizer** picture source with a picture
+arriving, or **Colour + motion** feeding a spatial Visualizer effect) the card shrinks to
+one line, **Colours follow the picture**: its colour controls would change nothing. Switching
+it off chooses **Effects** as the picture source, which gives the colours back to the effect.
 
 A band's colours are either a **hue range** or an ordered sequence of up to eight colours:
 
@@ -1413,7 +1446,7 @@ palette take effect on Play. Select a clip to edit its timing/targets or open it
 effect settings. Apply to clip embeds that edited effect without changing its
 source preset. **Hold on live rig** launches a live voice using the clip's targets and releases on exit. **Audition on Stage** previews the draft locally while disarmed.
 Playlist rows move the playhead by click or keyboard without starting or stopping
-the programme. Choose Sequence in the global controls and use Start or Stop. Saved patterns can be renamed, mapped to lanes or deleted.
+the programme. Choose Sequence in the play button's menu, then start or stop it there. Saved patterns can be renamed, mapped to lanes or deleted.
 Clips can carry a name; selected clips can be grouped, moved together by beats
 or lanes, and ungrouped. Command rows have Run now.
 
@@ -1492,7 +1525,7 @@ shelf summaries. The shelf permits 64 saved sequences.
 strobes, rapid sequence content and rapid Matrix modes are refused. REST
 returns `409 photosensitivity acknowledgement required`; socket commands
 return `error-msg`; MIDI/Companion report the refusal. Stop/release remains
-available. The Header and Perform acknowledgement indicator opens the warning.
+available. The acknowledgement indicator in the header's status details and in Perform opens the warning.
 
 | Control | Scope |
 |---------|-------|

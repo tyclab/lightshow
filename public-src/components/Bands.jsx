@@ -1,5 +1,6 @@
 import { useMemo, useRef, useState } from 'preact/hooks';
 import { audioFeedSig, librarySig, pick, send } from '../state.js';
+import { chooseSource, pictureColours, pictureReceivingSig, pictureSourceSig } from '../picture-source.js';
 import { useColourTarget } from '../colour-target.js';
 import { useAudioFeed } from './AudioMeters.jsx';
 import { activeOverride } from './PaletteStrip.jsx';
@@ -286,12 +287,27 @@ function EffectPalette({ colour, palettes, masked, classic }) {
   </>;
 }
 
+/** While the picture sets the colours, the card says so in one line, with the switch that gives them back to the effect. */
+function PictureColours() {
+  return <section class="card bands bands-picture" aria-label="Colours">
+    <div class="card-title band-title">
+      <span>Colours</span>
+      <label class="band-follow" title="The picture's colours light the room; switch off to choose Effects as the picture source and use the effect's colours">
+        <span>Colours follow the picture</span>
+        <input type="checkbox" role="switch" checked onChange={() => chooseSource('effects')} />
+      </label>
+    </div>
+  </section>;
+}
+
 export function Bands() {
   const colour = useColourTarget('base');
   const { audio, palette, control } = pick(['audio', 'palette', 'control']);
   const palettes = useLibraryPalettes();
   const bands = bandEffect(colour.spec) && Array.isArray(colour.spec.params?.channels);
-  useAudioFeed(bands);
+  const followsPicture = pictureColours({ source: pictureSourceSig.value, input: { receiving: pictureReceivingSig.value } }, colour.spec);
+  useAudioFeed(bands && !followsPicture);
+  if (followsPicture) return <PictureColours />;
   const override = colour.s.paletteOverride?.length;
   const masked = override ? `The global palette override (Perform) is playing instead of these ${bands ? 'band colours' : 'colours'}. Turn it Off there to hear them.`
     : bands && colour.spec.palette?.length ? 'This effect’s own palette plays instead of its bands: Reset to play the bands.' : null;

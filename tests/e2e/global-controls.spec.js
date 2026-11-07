@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { open, reset, state, control, until } from './helpers.js';
+import { open, playButton, reset, state, control, until } from './helpers.js';
 import { VIEWS } from '../../public-src/views.js';
 
 test('one global control set stays visible on every view without changing latches', async ({ page, request }) => {
@@ -10,7 +10,7 @@ test('one global control set stays visible on every view without changing latche
     await page.goto(`/#${view.id}`);
     await expect(controls).toHaveCount(1);
     await expect(controls).toBeVisible();
-    for (const label of ['Start', 'Stop', 'Freeze', 'Blackout', 'Arm']) {
+    for (const label of ['Stop Look', 'Programme', 'Freeze', 'Blackout', 'Arm']) {
       await expect(controls.getByRole('button', { name: label, exact: true })).toBeVisible();
       await expect(page.getByRole('button', { name: label, exact: true })).toHaveCount(1);
     }
@@ -37,14 +37,14 @@ test('explicit controls preserve independent states and content edits cannot rel
   await controls.getByRole('button', { name: 'Blackout', exact: true }).click();
   await until(request, s => s.control.blackout && !s.control.pending);
   await request.post('/api/set', { data: { pattern: 'solid', colorA: 2 } });
-  await controls.getByRole('button', { name: 'Stop', exact: true }).click();
+  await playButton(page, 'Stop').click();
   await until(request, s => !s.control.playing && !s.control.pending);
   await controls.getByRole('button', { name: 'Resume', exact: true }).click();
   const stopped = await until(request, s => !s.control.frozen && !s.control.pending);
   expect(stopped.control.playing).toBe(false);
   expect(stopped.control.blackout).toBe(true);
   expect(stopped.armed).toBe(false);
-  await controls.getByRole('button', { name: 'Start', exact: true }).click();
+  await playButton(page, 'Start').click();
   await until(request, s => s.control.playing && !s.control.pending);
   expect((await state(request)).control.blackout).toBe(true);
   await controls.getByRole('button', { name: 'Restore', exact: true }).click();

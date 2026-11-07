@@ -2,6 +2,5 @@
 export const BRAND = 'TycStation';
 export const PRODUCT = 'Lightshow';
 export const WORDMARK = `${BRAND} ${PRODUCT}`;
-export const KICKER = 'engine · lighting controller';
 
 export const pageTitle = (view) => (view ? `${view} · ${WORDMARK}` : WORDMARK);

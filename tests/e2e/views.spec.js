@@ -22,9 +22,10 @@ test('the app opens on Show: the room, the looks and global controls', async ({ 
   await expect(page).toHaveURL(/#show$/);
   await expect(page.getByRole('tab', { name: /^Show/ })).toHaveAttribute('aria-selected', 'true');
   const controls = page.getByRole('group', { name: 'Global show controls' });
-  for (const name of ['Start', 'Stop', 'Freeze', 'Blackout', 'Arm']) {
+  for (const name of ['Stop Look', 'Programme', 'Freeze', 'Blackout', 'Arm']) {
     await expect(controls.getByRole('button', { name, exact: true })).toBeVisible();
   }
+  await expect(page.getByRole('group', { name: 'Picture source' })).toBeVisible();
   await expect(page.locator('.show-room .stage3d-canvas')).toBeVisible();
   await expect(page.locator('.show-looks .effects-deck')).toBeVisible();
   await expect(page.locator('.command-bar')).toHaveCount(0);
@@ -42,34 +43,28 @@ test('the Show room offers the 2D plot beside the 3D room', async ({ page }) => 
   await expect(room.locator('.stage3d-canvas')).toBeVisible();
 });
 
-test('picture settings appear on live views and global controls remain unique on every view', async ({ page }) => {
+test('the picture source and global controls are the header\'s alone, once on every view', async ({ page }) => {
   for (const view of ['effects', 'perform', 'stage', 'auto', 'sequence', 'rig', 'sources', 'settings', 'preflight']) {
     await open(page, view);
-    const live = ['effects', 'perform', 'stage', 'auto', 'sequence'].includes(view);
-    const strip = page.locator('.show-strip');
-    await expect(strip).toHaveCount(live ? 1 : 0);
-    if (live) {
-      await expect(strip.getByRole('group', { name: 'Picture source' })).toBeVisible();
-      await expect(strip.getByRole('slider', { name: 'Master dimmer' })).toHaveCount(0);
-      await expect(strip.getByRole('button', { name: /^(?:Start|Stop|Freeze|Blackout|Arm)$/ })).toHaveCount(0);
-    }
+    await expect(page.locator('.show-strip')).toHaveCount(0);
+    const header = page.locator('.app-header');
+    await expect(page.getByRole('group', { name: 'Picture source' })).toHaveCount(1);
+    await expect(header.getByRole('group', { name: 'Picture source' })).toBeVisible();
     await expect(page.getByRole('group', { name: 'Global show controls' })).toHaveCount(1);
     await expect(page.getByRole('button', { name: 'Blackout', exact: true })).toHaveCount(1);
     await expect(page.getByRole('slider', { name: 'Master dimmer' })).toHaveCount(1);
   }
 });
 
-test('Show picture settings and global controls fit on the first screen of a tablet', async ({ page }) => {
+test('Show\'s room starts in the top half of a tablet, under a header that never scrolls sideways', async ({ page }) => {
   await page.setViewportSize({ width: 1024, height: 768 });
   await open(page, 'show');
-  const strip = await page.locator('.show-strip').boundingBox();
-  expect(strip.y + strip.height).toBeLessThanOrEqual(340);
+  const header = await page.locator('.app-header').boundingBox();
   const room = await page.locator('.show-room').boundingBox();
-  expect(room.y).toBeGreaterThanOrEqual(strip.y + strip.height);
+  expect(room.y).toBeGreaterThanOrEqual(header.y + header.height);
   expect(room.y).toBeLessThan(768 / 2);
-  // Picture and global controls never require sideways scrolling.
+  expect(await page.locator('.app-header').evaluate((e) => e.scrollWidth - e.clientWidth)).toBeLessThanOrEqual(0);
   expect(await page.locator('.global-controls').evaluate((e) => e.scrollWidth - e.clientWidth)).toBeLessThanOrEqual(0);
-  expect(await page.locator('.show-strip').evaluate((e) => e.scrollWidth - e.clientWidth)).toBeLessThanOrEqual(0);
 });
 
 test('the tab strip is one stop, and the arrow keys move along it', async ({ page }) => {

@@ -16,7 +16,6 @@ import { SubTabs, SubPanel, useSubTab } from './setup/SubTabs.jsx';
 import { AudioMeters } from './AudioMeters.jsx';
 import { StrobesOff } from './Photosensitivity.jsx';
 import { TempoScale } from './TempoScale.jsx';
-import { VisualizerColours } from './VisualizerColours.jsx';
 import { PictureGrade } from './PictureGrade.jsx';
 import { BpmCapture } from './BpmCapture.jsx';
 import { LiveAutomation } from './LiveAutomation.jsx';
@@ -34,8 +33,8 @@ import { LiveAutomation } from './LiveAutomation.jsx';
  *   fader        how hard the generated show pushes
  *
  * Everything here is also on the other views; this is the same controls laid
- * out for a thumb rather than a mouse. Arming, the picture source, blackout
- * and the master are on the strip the shell keeps above every live view.
+ * out for a thumb rather than a mouse. Arming, the picture source and its
+ * effect, blackout and the master are in the header above every view.
  */
 
 const SOURCE_LABELS = {
@@ -211,7 +210,6 @@ export function Perform() {
             <Utility />
           </div>
           <PaletteStrip />
-          <VisualizerColours />
           <PictureGrade />
           <HardwareFit />
         </div>

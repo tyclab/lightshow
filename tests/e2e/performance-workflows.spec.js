@@ -39,7 +39,7 @@ test('live tempo automation applies from Perform and a manual edit ends the sele
   expect((await request.put('/api/performance/automation', { data: { axis: 'tempo', settings: { ...settings, max: 500 } } })).status()).toBe(400);
 });
 
-test('visualizer colour wells apply immediately and retain white, amber and UV', async ({ page, request }) => {
+test('visualizer colour wells in the header\'s effect picker apply immediately and retain white, amber and UV', async ({ page, request }) => {
   const before = await state(request);
   const { settings } = await (await request.get('/api/settings')).json();
   const acknowledge = (value) => request.put('/api/settings', { data: { safety: { photosensitivityAcknowledged: value } } });
@@ -48,7 +48,9 @@ test('visualizer colour wells apply immediately and retain white, amber and UV',
     expect((await acknowledge(true)).ok()).toBe(true);
     await set(request, { pattern: 'ldj.visualizer.solid', overridePalette: { colours: ['#010203040506', '#AABBCC112233'] } });
     await open(page, 'perform');
-    const wells = page.getByRole('region', { name: 'Lighting visualizer colours' });
+    await expect(page.getByRole('region', { name: 'Lighting visualizer colours' })).toHaveCount(0);
+    await page.getByRole('group', { name: 'Picture source' }).getByRole('button', { name: /^Effects: / }).click();
+    const wells = page.getByRole('dialog', { name: 'Main effect' }).getByRole('region', { name: 'Lighting visualizer colours' });
     await wells.getByLabel('Hit colour', { exact: true }).fill('#ff0000');
     await until(request, (s) => s.paletteOverride?.[1] === '#FF0000112233');
     await wells.getByRole('button', { name: 'Shuffle visualizer colours' }).click();

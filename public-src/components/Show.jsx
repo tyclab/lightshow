@@ -4,7 +4,7 @@ import { Effects } from './Effects.jsx';
 import { Bands } from './Bands.jsx';
 import { Background } from './Background.jsx';
 
-// The room and looks share the header's global controls; the live strip chooses the picture source.
+// The room and looks share the header's global controls, the picture source among them.
 // The looks read top down as they layer: the Background, the main effect over it, then its colours.
 export function Show() {
   return (

@@ -181,7 +181,7 @@ header {
   z-index: 100;
 }
 
-/* The wordmark: the Krake, the name in mono and the cursor block, one link to the root. */
+/* The wordmark: the Krake alone, one link to the root; its name is read, not drawn. */
 .app-header h1 { font-size: 1.1rem; font-weight: 600; line-height: 1; }
 .site-wordmark {
   display: inline-flex;
@@ -197,24 +197,6 @@ header {
 }
 .site-mark { width: 1.7rem; height: 1.7rem; flex: none; }
 .svg-defs { position: absolute; width: 0; height: 0; overflow: hidden; }
-.cursor {
-  display: inline-block;
-  width: .55em; height: 1.1em;
-  margin-left: .3em;
-  vertical-align: -.18em;
-  background: var(--blue);
-  box-shadow: var(--glow-blue);
-}
-.site-kicker {
-  font-family: var(--mono);
-  font-size: .78rem;
-  letter-spacing: .08em;
-  color: var(--faint);
-  white-space: nowrap;
-  text-align: right;
-}
-/* Below a wide desktop the kicker would push the status pills onto a row of their own. */
-@media (max-width: 79.9375em) { .site-kicker { display: none; } }
 
 .header-nav { display: flex; gap: 2px; margin-left: 8px; }
 .nav-link {
@@ -231,12 +213,11 @@ header {
   color: var(--text-on-accent);
 }
 
-/* live status pills inside the header */
+/* The status pills, in the status chip's details. */
 .header-stats {
   display: flex;
   align-items: center;
   gap: 8px;
-  margin-left: auto;
   flex-wrap: wrap;
 }
 
@@ -590,15 +571,6 @@ button.cb-bpm-num:focus-visible { outline: .125rem solid var(--accent); outline-
 .header-tool:hover, .header-theme:hover { border-color: var(--accent); }
 .header-tool.active { border-color: var(--accent); color: var(--text); }
 .header-tool:focus-visible, .header-theme:focus-visible { outline: .125rem solid var(--accent); outline-offset: .1875rem; }
-@media (max-width: 900px) {
-  .header-tool-label { display: none; }
-}
-@media (max-width: 560px) {
-  /* Room for this device's tools: the name shortens, the theme picker narrows. The status pills
-     stay at every width (a grid of tiles below 1280px). */
-  .site-product { display: none; }
-  .header-theme { max-width: 104px; }
-}
 
 .mode-tab-key { display: none; }
 /* Perform has no command bar above it to stick under. */
@@ -666,36 +638,6 @@ button.cb-bpm-num:focus-visible { outline: .125rem solid var(--accent); outline-
 .perform-progress-fill { position: absolute; inset: 0 auto 0 0; background: var(--accent-fill); opacity: .4; }
 .perform-progress-time { position: relative; padding: 0 8px; font: 600 13px/24px var(--mono); }
 
-.perform-arm { display: flex; gap: 8px; align-items: stretch; }
-.perform-arm-switch {
-  flex: 1;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  min-height: 56px;
-  padding: 10px 16px;
-  background: var(--card);
-  border: 2px solid var(--border-hi);
-  border-radius: var(--radius-lg);
-  color: var(--text);
-  font: inherit;
-  text-align: left;
-  cursor: pointer;
-  -webkit-tap-highlight-color: transparent;
-}
-.perform-arm-switch.armed { border-color: var(--green); background: var(--wash-blue); }
-.perform-arm-state { font-size: 18px; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; }
-.perform-arm-hint { font-size: 13px; color: var(--muted); text-align: right; }
-/* Beside the arm switch, never below it: the first screen keeps its height on a phone. */
-.perform-picture { display: flex; flex-direction: column; justify-content: center; gap: 4px; min-width: 0; }
-.perform-picture-hint { font-size: 12px; color: var(--muted); max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-@media (max-width: 560px) {
-  /* A phone's arm row keeps one line: the state word and the picture switch, no running text. */
-  .perform-picture-hint, .perform-arm-hint { display: none; }
-  .perform-arm-switch { min-height: 48px; }
-}
-.perform-arm-switch.armed .perform-arm-hint { color: var(--text-2); }
 
 .perform-gate { display: flex; }
 .perform-gate-button {
@@ -841,69 +783,12 @@ button.cb-bpm-num:focus-visible { outline: .125rem solid var(--accent); outline-
    SHOW VIEW — the room, the looks, the switches a party needs
    ============================================================= */
 .show-view { display: grid; gap: 12px; padding-bottom: 48px; }
-/* Above every live view, between the tabs and the panel, as wide as the panel. */
-.show-strip { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr) minmax(0, 1.3fr); gap: 8px; align-items: stretch; padding: 10px 12px 0; }
-.show-strip .perform-arm { min-width: 0; }
-.show-switch {
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  gap: 2px;
-  min-width: 0;
-  min-height: 56px;
-  padding: 10px 16px;
-  background: var(--card);
-  border: 2px solid var(--border-hi);
-  border-radius: var(--radius-lg);
-  color: var(--text);
-  font: inherit;
-  text-align: left;
-  cursor: pointer;
-  -webkit-tap-highlight-color: transparent;
-}
-.show-switch:disabled { cursor: progress; opacity: .7; }
-.show-switch.on { border-color: var(--accent); background: var(--wash-blue); }
-.show-switch.blackout.on { border-color: var(--amber); background: var(--wash-amber); color: var(--text-amber); }
-.show-switch-state { font-size: 15px; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; }
-.show-switch-hint { font-size: 12px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.show-switch.on .show-switch-hint { color: var(--text-2); }
-.show-switch.blackout.on .show-switch-hint { color: var(--text-2); }
-/* The blackout hint gives way first: the master needs its label, a usable slider and the value. */
-.show-masters { display: grid; grid-template-columns: minmax(0, max-content) minmax(13.5rem, 1fr); gap: 8px; min-width: 0; }
-.show-master {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  min-width: 0;
-  padding: 8px 12px;
-  background: var(--card);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-}
-.show-master-label { font-size: 11px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
-.show-master input[type=range] { flex: 1; min-width: 60px; accent-color: var(--accent); cursor: pointer; }
-.show-master-value { font: 650 15px var(--mono); min-width: 4ch; text-align: right; }
 .show-body { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(300px, 1fr); gap: 12px; align-items: start; }
 .show-room { min-width: 0; position: sticky; top: calc(var(--header-height, 47px) + var(--views-height, 0px) + 8px); }
 .show-looks { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
 @media (max-width: 1100px) {
   .show-body { grid-template-columns: 1fr; }
   .show-room { position: static; }
-}
-@media (max-width: 900px) {
-  .show-strip { grid-template-columns: 1fr 1fr; }
-  .show-strip .perform-arm { grid-column: 1 / -1; }
-}
-@media (max-width: 560px) {
-  /* A phone keeps the strip to one row that scrolls sideways, like the view tabs:
-     the view below it stays on the first screen. */
-  .show-strip { display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; padding-bottom: 2px; }
-  .show-strip::-webkit-scrollbar { display: none; }
-  .show-strip > *, .show-masters > * { flex: 0 0 auto; }
-  .show-masters { display: flex; gap: 6px; }
-  .show-master { min-width: 150px; }
-  .show-switch { min-height: 48px; }
-  .show-switch-hint { display: none; }
 }
 
 /* =============================================================
@@ -2081,22 +1966,6 @@ input[type=range]::-moz-range-thumb {
    RESPONSIVE
    ============================================================= */
 @media (max-width: 1280px) {
-  .header-tools { order: 1; margin-left: auto; }
-  /* Every pill (Header.jsx) on its own row below the wordmark: a fixed grid of tiles, label over
-     value, so the row count does not depend on the font and the Show's room still starts in the
-     top half of a tablet. */
-  .header-stats {
-    order: 2; flex-basis: 100%; margin-left: 0;
-    display: grid; grid-template-columns: repeat(8, minmax(0, 1fr)); gap: 4px;
-  }
-  .header-stats .stat-pill {
-    flex-direction: column; justify-content: center; gap: 1px; min-width: 0;
-    padding: 3px 4px; border-radius: 8px; font-size: 10px; line-height: 1.15; text-align: center;
-  }
-  .header-stats .stat-pill .label { font-size: 9px; letter-spacing: .04em; }
-  .header-stats .stat-pill > span { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .header-stats .stat-pill.conn { flex-direction: row; gap: 5px; }
-  .header-now { order: 3; }
   .manual-view { grid-template-columns: 1fr 1fr; }
   .manual-view .col-fixtures { grid-column: 1 / -1; }
 }
@@ -2112,11 +1981,7 @@ input[type=range]::-moz-range-thumb {
 }
 
 @media (max-width: 640px) {
-  .app-header { padding: 10px 12px; }
-  .app-header h1 { font-size: 13px; }
   .nav-link { padding: 4px 10px; font-size: 11px; }
-  /* Every pill stays on a phone too: two rows of at most five keep the Matrix colours on the first screen. */
-  .header-stats { grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 3px; }
   .cb-tempo { gap: 10px; }
   .cb-bpm-num { font-size: 28px; }
   .cb-tap { height: 48px; padding: 0 16px; }
@@ -4029,9 +3894,6 @@ input[type=range]::-moz-range-thumb {
   .perform-view { padding-bottom: 72px; }
 }
 
-.app-header { flex-wrap: wrap; row-gap: 4px; }
-.header-now { flex: 1 0 100%; min-width: 0; font-size: 11px; }
-.header-now .now-playing { display: block; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 .perform-playing { margin-bottom: 8px; font-size: 13px; }
 .playing-voices { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0; }
 .playing-voice { display: inline-flex; align-items: center; flex-wrap: wrap; gap: 6px; padding: 4px 8px; border: 1px solid var(--border); border-radius: var(--radius); font-size: 12px; }
@@ -4113,33 +3975,181 @@ input[type=range]::-moz-range-thumb {
 .spatial-colour input[type=color] { margin-left: .6rem; }
 .spatial-fields .insp-field { margin-top: .2rem; }
 
-/* Keep global actions together without giving status text its own full row. */
-.global-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; width: 100%; padding: 2px 0; order: 3; }
-.global-control { min-height: 44px; min-width: 4.5rem; border-radius: var(--radius-sm); padding: 6px 8px; }
-.global-control.blackout-active { background: var(--amber); border-color: var(--amber); color: var(--bg); }
+/* The header (Header.jsx): one row of 56 px on a desktop, two rows on a phone. What paints the room
+   comes first; play, Freeze, Blackout and Arm keep fixed widths, so they never move as labels change. */
+.app-header { flex-wrap: nowrap; gap: 8px; min-height: 56px; padding: 6px 12px; }
+.app-header h1 { flex: none; }
+.app-header .site-wordmark { margin: 0; min-width: 44px; justify-content: center; }
+.header-popover {
+  position: absolute; top: calc(100% + 6px); z-index: 110;
+  padding: 10px; background: var(--panel-solid); border: 1px solid var(--border-hi); border-radius: var(--radius);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, .45);
+}
+
+.picture-source { position: relative; flex: 0 1 34rem; min-width: 0; }
+.picture-source-segments { display: flex; min-width: 0; border: 1px solid var(--border-hi); border-radius: var(--radius-sm); overflow: hidden; }
+.picture-segment {
+  flex: none; display: inline-flex; align-items: center; gap: 4px; min-height: 44px; padding: 0 12px;
+  background: var(--surface); border: 0; color: var(--text-2); font: inherit; font-size: 13px; font-weight: 600;
+  white-space: nowrap; cursor: pointer;
+}
+.picture-segment + .picture-segment { border-left: 1px solid var(--border); }
+.picture-segment:hover { background: var(--card-hi); color: var(--text); }
+.picture-segment:focus-visible { outline: .125rem solid var(--accent); outline-offset: -.25rem; }
+.picture-segment.active { flex: 1 1 auto; min-width: 0; background: var(--accent-fill); color: var(--text-on-accent); }
+.picture-segment.active:focus-visible { outline-color: var(--text-on-accent); }
+.picture-segment-effect { min-width: 0; overflow: hidden; text-overflow: ellipsis; font-weight: 800; }
+.picture-segment-caret { margin-left: auto; padding-left: 6px; }
+.picture-short { display: none; }
+
+.effect-picker {
+  left: 0; display: flex; flex-direction: column; gap: 8px;
+  width: min(42rem, calc(100vw - 24px)); max-height: calc(100vh - 80px); overflow: auto; overscroll-behavior: contain;
+}
+.picker-head { display: flex; align-items: center; gap: 8px; }
+.picker-now { flex: 1; min-width: 0; font-size: 12px; color: var(--text-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.picker-hint { font-size: 12px; color: var(--muted); }
+.picker-search {
+  min-height: 40px; padding: 6px 10px; background: var(--card); border: 1px solid var(--border-hi);
+  border-radius: var(--radius-sm); color: var(--text); font: inherit;
+}
+.picker-deck { display: grid; grid-template-columns: repeat(auto-fill, minmax(9rem, 1fr)); gap: 6px; }
+.picker-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(11rem, 1fr)); gap: 4px; }
+.picker-choice {
+  display: flex; align-items: center; gap: 6px; min-width: 0; min-height: 40px; padding: 6px 10px;
+  background: var(--card); border: 1px solid var(--border); border-radius: var(--radius-sm);
+  color: var(--text); font: inherit; font-size: 13px; text-align: left; cursor: pointer;
+}
+.picker-choice:hover { border-color: var(--accent); }
+.picker-choice:focus-visible { outline: .125rem solid var(--accent); outline-offset: .125rem; }
+.picker-choice.big { min-height: 52px; font-weight: 700; }
+.picker-choice.active { background: var(--wash-blue); border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+.picker-icon { flex: none; width: 1.2em; text-align: center; color: var(--muted); }
+.picker-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.picker-desc { display: block; overflow: hidden; text-overflow: ellipsis; font-size: 11px; font-weight: 400; color: var(--muted); }
+.picker-rapid { margin-left: auto; color: var(--text-amber); }
+.picker-visualizer { display: grid; gap: 6px; }
+.picker-visualizer-row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.picker-visualizer-label { min-width: 4.5rem; font-size: 11px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+.effect-picker .visualizer-colours { margin: 0; }
+
+.global-controls { display: flex; align-items: center; gap: 6px; flex: none; }
+.global-control { justify-content: center; min-height: 44px; padding: 6px 10px; border-radius: var(--radius-sm); font-size: 13px; }
+.global-control.active { box-shadow: inset 0 -3px currentColor; }
 .global-control.protective { border-color: var(--border-hi); }
-.global-control:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-.global-programme, .global-master { display: flex; align-items: center; gap: 6px; }
-.global-programme select, .background-controls select, .palette-tools select { min-height: 44px; background: var(--card); color: var(--text); border: 1px solid var(--border-hi); border-radius: var(--radius-sm); padding: 6px 28px 6px 10px; font: inherit; }
-.palette-tools > label { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; }
-.global-master input { width: 5.5rem; min-height: 44px; }
-.global-master span { min-width: 4ch; font-variant-numeric: tabular-nums; }
-.global-status { font-size: .85rem; flex: 1 1 9rem; }
-.app-header .header-now { order: 4; }
-@media (max-width: 600px) {
-  .global-control { flex: 1; min-width: 3.8rem; padding: 6px; }
-  .global-programme { flex: 0 1 auto; }
-  .global-master { flex: 1; }
-  .global-master input { flex: 1; width: 5rem; }
+.global-control.blackout-active { background: var(--amber); border-color: var(--amber); color: var(--bg); }
+.global-play { position: relative; display: flex; }
+.global-play-main { width: 9.5rem; justify-content: flex-start; overflow: hidden; border-radius: var(--radius-sm) 0 0 var(--radius-sm); }
+.global-play-menu { width: 2.25rem; padding: 0; border-left: 0; border-radius: 0 var(--radius-sm) var(--radius-sm) 0; }
+.global-play.playing .global-play-main { background: var(--wash-blue); border-color: var(--accent); }
+.global-play-list { left: 0; display: flex; flex-direction: column; min-width: 13rem; padding: 4px; }
+.global-play-list [role^="menuitem"] {
+  display: flex; align-items: center; min-height: 44px; padding: 6px 12px 6px 8px; background: none; border: 0; border-radius: var(--radius-sm);
+  color: var(--text); font: inherit; font-size: 13px; text-align: left; cursor: pointer;
 }
-@media (min-width: 641px) and (max-width: 1280px) {
-  .app-header { padding-top: 2px; padding-bottom: 2px; row-gap: 2px; }
-}
+.global-play-list [role^="menuitem"]:hover, .global-play-list [role^="menuitem"]:focus-visible { background: var(--card-hi); outline: none; }
+.global-play-list [aria-checked="true"] { font-weight: 700; }
+.global-play-check { flex: none; width: 20px; }
+.global-play-list [role^="menuitem"]:disabled { opacity: .45; cursor: not-allowed; }
+.global-play-list .protective { border-top: 1px solid var(--border); border-radius: 0; margin-top: 4px; }
+.global-freeze { width: 5.5rem; }
+.global-blackout { width: 6.25rem; }
+.global-arm { width: 6rem; flex-direction: column; gap: 0; line-height: 1.1; }
+/* Armed is unmistakable on the button itself: filled red, the state over the action. */
+.global-arm.armed { background: var(--red); border-color: var(--red); color: #07070e; box-shadow: var(--glow-red); }
+.global-arm.armed:hover { background: var(--red); border-color: var(--ink); }
+.global-arm-state { font-size: 10px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
+.global-master { display: flex; align-items: center; gap: 6px; min-height: 44px; font-size: 12px; color: var(--text-2); }
+.global-master input { width: 7rem; min-height: 44px; }
+.global-master-value { min-width: 4ch; font-variant-numeric: tabular-nums; text-align: right; color: var(--text); }
 .global-master input[type=range] { background: none; border: 0; border-radius: 0; }
 .global-master input[type=range]::-webkit-slider-runnable-track { height: 6px; background: var(--surface); border: 1px solid var(--border); border-radius: 999px; }
 .global-master input[type=range]::-webkit-slider-thumb { width: 16px; height: 16px; margin-top: -6px; }
 .global-master input[type=range]::-moz-range-track { height: 6px; background: var(--surface); border: 1px solid var(--border); border-radius: 999px; }
 .global-master input[type=range]::-moz-range-thumb { width: 16px; height: 16px; }
+
+.header-status { position: relative; flex: none; margin-left: auto; }
+.status-chip {
+  display: inline-flex; align-items: center; gap: 6px; min-height: 44px; padding: 0 12px;
+  background: var(--card); border: 1px solid var(--border); border-radius: 999px;
+  color: var(--text); font: inherit; font-size: 12px; white-space: nowrap; cursor: pointer;
+}
+.status-chip:hover { border-color: var(--accent); }
+.status-chip:focus-visible { outline: .125rem solid var(--accent); outline-offset: .1875rem; }
+.status-chip-bpm { font: 700 15px var(--mono); font-variant-numeric: tabular-nums; }
+.status-chip-unit { font-size: 10px; font-weight: 700; letter-spacing: .08em; color: var(--muted); }
+.status-chip-conn { color: var(--text-2); }
+.status-chip.alert { background: var(--wash-amber); border-color: var(--amber); }
+.status-chip-alert { color: var(--text-amber); font-weight: 700; }
+.status-details { right: 0; width: min(26rem, calc(100vw - 24px)); }
+.status-details-show { margin-bottom: 8px; font-size: 12px; color: var(--text-2); }
+.header-device { position: relative; flex: none; }
+.header-more { width: 44px; padding: 0; font-size: 18px; }
+.device-tools { right: 0; }
+.device-tools .header-tools { flex-direction: column; align-items: stretch; min-width: 12rem; }
+
+.background-controls select, .palette-tools select { min-height: 44px; background: var(--card); color: var(--text); border: 1px solid var(--border-hi); border-radius: var(--radius-sm); padding: 6px 28px 6px 10px; font: inherit; }
+.palette-tools > label { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; }
+.band-follow { display: inline-flex; align-items: center; gap: 8px; min-height: 44px; margin-left: auto; font-size: 13px; color: var(--text-2); text-transform: none; letter-spacing: 0; cursor: pointer; }
+.band-follow input { width: 2.25rem; height: 1.25rem; accent-color: var(--accent); cursor: pointer; }
+
+/* A laptop keeps the one row: the master loses its word and the other sources their long names. */
+@media (max-width: 1365px) {
+  .picture-source { flex-basis: 26rem; }
+  .global-master-label { display: none; }
+  .global-master input { width: 5rem; }
+  .global-play-main { width: 8.5rem; }
+  .picture-segment:not(.active) .picture-full { display: none; }
+  .picture-segment:not(.active) .picture-short { display: inline; }
+}
+@media (max-width: 1120px) {
+  .app-header { gap: 6px; padding: 6px 8px; }
+  .picture-segment { padding: 0 8px; }
+  .status-chip { gap: 4px; padding: 0 10px; }
+  .global-control { padding: 6px 8px; }
+  .global-freeze { width: 4.75rem; }
+  .global-blackout { width: 5.5rem; }
+  .global-arm { width: 5rem; }
+  /* The source's name over the effect's: the effect keeps the width. */
+  .picture-segment.active { flex-direction: column; align-items: flex-start; justify-content: center; gap: 0; padding-right: 22px; position: relative; line-height: 1.15; }
+  .picture-segment.active .picture-segment-source { font-size: 10px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
+  .picture-segment.active .picture-segment-effect { max-width: 100%; }
+  .picture-segment.active .picture-segment-caret { position: absolute; right: 8px; top: 50%; transform: translateY(-50%); padding: 0; }
+  .status-chip-unit { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+}
+/* A tablet or a phone: the picture source, the chip and ⋮ on the first row; play, the safety buttons and the master on the second. */
+@media (max-width: 1000px) {
+  .app-header { flex-wrap: wrap; row-gap: 6px; }
+  .app-header h1 { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+  .picture-source { order: 1; flex: 1 1 0; position: static; }
+  .header-status { order: 2; margin-left: 0; position: static; }
+  .header-device { order: 3; position: static; }
+  .global-controls { order: 4; flex: 1 1 100%; }
+  .global-master { flex: 0 1 16rem; }
+  .global-master input { flex: 1; min-width: 0; }
+  .header-popover { left: 8px; right: 8px; width: auto; top: calc(100% + 4px); }
+  .effect-picker { max-height: calc(100vh - var(--header-height, 112px) - 16px); }
+}
+@media (max-width: 680px) {
+  .global-controls { gap: 4px; }
+  .picture-full { display: none; }
+  .picture-short { display: inline; }
+  /* Both grow from nothing, so the free width, not the play label, sets them: the safety buttons stay put. */
+  .global-play { flex: 1.3 1 0; min-width: 0; position: static; }
+  .global-play-main { flex: 1 1 0; width: auto; min-width: 0; padding: 4px 6px; }
+  .global-play.playing .global-play-name { display: none; }
+  .global-play-menu { width: 1.75rem; }
+  .global-control { padding: 4px 6px; font-size: 12px; }
+  .global-freeze { width: 4.1rem; }
+  .global-blackout { width: 4.6rem; }
+  .global-arm { width: 4.1rem; }
+  .global-master { flex: 1 1 0; min-width: 3rem; }
+  .global-master-value { display: none; }
+  .status-chip-conn { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+}
+@media (pointer: coarse) {
+  .picker-choice, .picker-search, .picker-visualizer .btn { min-height: 44px; }
+}
 
 .picture-layer-link { font: inherit; color: inherit; background: transparent; border: 0; border-left: 1px solid var(--border); border-radius: 0; text-align: left; cursor: pointer; }
 @media (pointer: coarse) { .picture-layer-link { min-height: 44px; } }

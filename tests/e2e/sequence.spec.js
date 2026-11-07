@@ -4,7 +4,7 @@
 // a take becomes a clip.
 
 import { test, expect } from '@playwright/test';
-import { control, open, reset } from './helpers.js';
+import { chooseProgramme, control, open, playButton, reset } from './helpers.js';
 
 const BASE = {
   id: 'e2e-seq', name: 'E2E', mode: 'arrangement', snap: 1,
@@ -68,8 +68,8 @@ test('a clip added in the editor plays, and the lane cursor moves', async ({ pag
   await page.getByRole('button', { name: 'Edit' }).click();
   await page.getByRole('button', { name: 'Add clip' }).click();
   await expect(page.locator('.seq-block')).toHaveCount(1);
-  await page.getByRole('combobox', { name: 'Programme', exact: true }).selectOption('sequence');
-  await page.getByRole('group', { name: 'Global show controls' }).getByRole('button', { name: 'Start', exact: true }).click();
+  await chooseProgramme(page, 'sequence');
+  await playButton(page, 'Start', 'sequence').click();
   await expect(page.locator('.seq-now')).toContainText('Playing');
   const before = await cursorLeft(page);
   await expect.poll(() => cursorLeft(page), { timeout: 4000 }).toBeGreaterThan(before);
@@ -89,10 +89,10 @@ test('a sequence starts through global controls, stops and unloads without start
   await length.fill('64');
   await length.press('Enter');
   await expect(page.locator('.seq-block')).toHaveAttribute('aria-label', /beats 0 to 64/);
-  await page.getByRole('combobox', { name: 'Programme', exact: true }).selectOption('sequence');
-  await page.getByRole('group', { name: 'Global show controls' }).getByRole('button', { name: 'Start', exact: true }).click();
+  await chooseProgramme(page, 'sequence');
+  await playButton(page, 'Start', 'sequence').click();
   await expect(page.locator('.seq-now')).toContainText('Playing');
-  await page.getByRole('group', { name: 'Global show controls' }).getByRole('button', { name: 'Stop', exact: true }).click();
+  await playButton(page, 'Stop', 'sequence').click();
   page.once('dialog', (dialog) => dialog.accept());
   await page.getByRole('button', { name: 'Unload' }).click();
   await expect(page.locator('.seq-now')).toContainText('No sequence loaded');
@@ -192,8 +192,8 @@ test('a pad hit while recording is kept as a clip', async ({ page, request }) =>
   expect(put.ok(), await put.text()).toBe(true);
   await open(page, 'sequence');
   await page.getByLabel('Count-in beats').selectOption('0');
-  await page.getByRole('combobox', { name: 'Programme', exact: true }).selectOption('sequence');
-  await page.getByRole('group', { name: 'Global show controls' }).getByRole('button', { name: 'Start', exact: true }).click();
+  await chooseProgramme(page, 'sequence');
+  await playButton(page, 'Start', 'sequence').click();
   await page.getByRole('button', { name: 'Record' }).click();
   await expect(page.getByRole('button', { name: 'Keep take' })).toBeVisible();
   const hit = await request.post('/api/pads/0/0/once', { data: {} });

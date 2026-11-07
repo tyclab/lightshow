@@ -77,3 +77,18 @@ export async function loadTrack(request) {
 export async function unloadTrack(request) {
   await request.post('/api/auto/reset', { data: {} });
 }
+
+const PROGRAMME_NAMES = { look: 'Look', auto: 'Auto show', sequence: 'Sequence' };
+
+/** The header's one play button: "Start Look" while stopped, "Stop Look" while the programme plays. */
+export function playButton(page, action, programme = 'look') {
+  return page.getByRole('group', { name: 'Global show controls' })
+    .getByRole('button', { name: `${action} ${PROGRAMME_NAMES[programme]}`, exact: true });
+}
+
+/** Choose what the play button starts, from its menu (only while stopped). */
+export async function chooseProgramme(page, programme) {
+  await page.getByRole('group', { name: 'Global show controls' }).getByRole('button', { name: 'Programme', exact: true }).click();
+  await page.getByRole('menuitemradio', { name: PROGRAMME_NAMES[programme], exact: true }).click();
+  await expect(playButton(page, 'Start', programme)).toBeVisible();
+}
