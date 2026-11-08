@@ -2,6 +2,7 @@
 
 import { logger } from './log.ts';
 import { wledLive } from './wled.ts';
+import { isWled } from '../shared/placement.ts';
 import { messageOf } from '../errors.ts';
 import type { Logger } from 'pino';
 import type { Fixture } from '../types/rig.ts';
@@ -60,7 +61,7 @@ const keyOf = (host: string) => host.toLowerCase();
 function wledBoards(fixtures: readonly Pick<Fixture, 'id' | 'label' | 'output'>[]): WledBoard[] {
   const boards = new Map<string, WledBoard>();
   for (const fix of fixtures) {
-    if (fix.output?.protocol !== 'ddp') continue;
+    if (fix.output?.protocol !== 'ddp' || !isWled(fix)) continue;
     const key = keyOf(fix.output.host);
     const board = boards.get(key) || { host: fix.output.host, fixtures: [] };
     board.fixtures.push({ id: fix.id, label: fix.label });

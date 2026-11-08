@@ -7,7 +7,7 @@ import { spawn } from 'node:child_process';
 import { state, universeOf, wireUniverses, countUniverses } from './state.ts';
 import { hueChannels } from '../shared/hue-lamp.ts';
 import { getProfile } from './profiles.ts';
-import { fitIssue, footprintOf, overlaps, hasNoAddress } from '../shared/placement.ts';
+import { fitIssue, footprintOf, overlaps, hasNoAddress, isWled } from '../shared/placement.ts';
 import { ddpRoutes } from './ddp-routes.ts';
 import { openrgbRoutes } from './openrgb-routes.ts';
 import { MAX_UNIVERSES } from './universes.ts';
@@ -353,10 +353,11 @@ function checkSacn(): Check {
 /**
  * The WLEDs in the patch: does each answer, and is it still the length it was
  * patched as? A WLED re-set to fewer LEDs takes the pixels past its end
- * nowhere; one given more leaves them to its own effects.
+ * nowhere; one given more leaves them to its own effects. Another DDP
+ * receiver has no API to ask, so it is left out.
  */
 async function checkWled(client: Pick<WledClient, 'info'> = wledClient): Promise<Check> {
-  const wleds = state.fixtures.filter((f) => f.output?.protocol === 'ddp');
+  const wleds = state.fixtures.filter(isWled);
   if (!wleds.length) {
     return { id: 'wled', label: 'WLED', status: INFO, detail: 'None in the patch. Add one under Settings → Output → WLED.' };
   }
@@ -679,9 +680,13 @@ function checkPatch(): Check {
 
 /** The fixtures sent to devices of their own, counted by kind: "2 Hue lamps and 1 WLED". */
 function deviceCounts(fixtures: readonly Fixture[]): string {
-  const kinds: [string, string, string][] = [['hue', 'Hue lamp', 'Hue lamps'], ['ddp', 'WLED', 'WLEDs'], ['openrgb', 'OpenRGB device', 'OpenRGB devices']];
-  const parts = kinds.map(([protocol, one, many]) => {
-    const n = fixtures.filter((f) => f.output?.protocol === protocol).length;
+  const on = (protocol: string) => (f: Fixture) => f.output?.protocol === protocol;
+  const kinds: [(f: Fixture) => boolean, string, string][] = [
+    [on('hue'), 'Hue lamp', 'Hue lamps'], [isWled, 'WLED', 'WLEDs'],
+    [(f) => on('ddp')(f) && !isWled(f), 'DDP device', 'DDP devices'], [on('openrgb'), 'OpenRGB device', 'OpenRGB devices'],
+  ];
+  const parts = kinds.map(([kind, one, many]) => {
+    const n = fixtures.filter(kind).length;
     return n ? `${n} ${n === 1 ? one : many}` : null;
   }).filter((part): part is string => part !== null);
   return parts.length > 1 ? `${parts.slice(0, -1).join(', ')} and ${parts[parts.length - 1]}` : parts[0];

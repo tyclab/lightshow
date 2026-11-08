@@ -10,10 +10,10 @@ import { ARTNET, SACN, HUE } from './specs.js';
 /**
  * Where the rig's DMX goes, and what is out there to send it to: Art-Net
  * nodes that answer a poll, other sACN sources on the network, WLEDs that
- * announce themselves, a PC's OpenRGB devices and the Hue bridges. Each can
- * be made to show itself — a node's locate LEDs and the fixtures on its
- * universes, a WLED's pixels, a PC's keyboard, a Hue lamp — so a device on a
- * list is a device on the truss.
+ * announce themselves, other DDP pixel devices added by address and size, a
+ * PC's OpenRGB devices and the Hue bridges. Each can be made to show itself —
+ * a node's locate LEDs and the fixtures on its universes, a WLED's pixels, a
+ * PC's keyboard, a Hue lamp — so a device on a list is a device on the truss.
  */
 
 const OPENRGB_PORT = 6742;
@@ -342,6 +342,46 @@ function Wled() {
           <button type="button" class="btn sm" disabled={!host.trim()} onClick={() => add(host.trim(), true)}>Add each segment</button>
         </form>
       </div>
+    </section>
+  );
+}
+
+// ── Other DDP pixel devices ──────────────────────────────────────────────────
+
+/** A DDP receiver that is not a WLED: it has nothing to ask, so its size is typed in (server/ddp-device.ts). */
+function DdpDevice() {
+  const [host, setHost] = useState('');
+  const [label, setLabel] = useState('');
+  const [columns, setColumns] = useState(32);
+  const [rows, setRows] = useState(8);
+  const [status, setStatus] = useState('');
+  const size = (set) => (e) => set(Math.max(1, Math.min(4096, Math.round(Number(e.target.value)) || 1)));
+  const add = async () => {
+    setStatus(`Adding ${host.trim()}…`);
+    const res = await post('/api/ddp/add', { host: host.trim(), ...(label.trim() ? { label: label.trim() } : {}), columns, rows });
+    if (!res.ok) { setStatus(res.error); return; }
+    setStatus(`Added "${res.fixture.label}": ${res.profile.modeName}. Place it on the plan.`);
+    toast.info(`Added ${res.fixture.label} to the patch`);
+  };
+  return (
+    <section class="panel" aria-labelledby="ddp-title">
+      <header class="panel-head"><h2 class="panel-title" id="ddp-title">Other DDP pixel devices</h2></header>
+      <p class="section-desc">A DDP receiver that is not a WLED, such as an LED matrix on its own firmware. It cannot be asked what
+        it is, so give its RGB pixels as columns and rows, the first at the top left and each row left to right. It is only sent
+        frames: the pre-show check and the armed WLED watch leave it out.</p>
+      <form class="inline-form" onSubmit={(e) => { e.preventDefault(); if (host.trim()) add(); }}>
+        <label for="ddp-host">Address</label>
+        <input id="ddp-host" type="text" maxLength={253} placeholder="192.168.1.60 or matrix.local" value={host}
+          onInput={(e) => setHost(e.target.value)} />
+        <label for="ddp-label">Label</label>
+        <input id="ddp-label" type="text" maxLength={64} value={label} onInput={(e) => setLabel(e.target.value)} />
+        <label for="ddp-columns">Columns</label>
+        <input id="ddp-columns" type="number" min="1" max="4096" value={columns} onChange={size(setColumns)} />
+        <label for="ddp-rows">Rows</label>
+        <input id="ddp-rows" type="number" min="1" max="4096" value={rows} onChange={size(setRows)} />
+        <button type="submit" class="btn sm active" disabled={!host.trim()}>Add</button>
+      </form>
+      <p class="setting-help" role="status">{status}</p>
     </section>
   );
 }
@@ -754,6 +794,7 @@ export function Outputs() {
       <div class="setup-col">
         <Universes nodes={nodes} />
         <Wled />
+        <DdpDevice />
         <OpenRgb />
         <Hue />
       </div>

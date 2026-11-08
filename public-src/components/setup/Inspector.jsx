@@ -6,7 +6,7 @@ import { buildRig, lineOf } from '../../../src/shared/rig.ts';
 import { clamp, geometryOf, round1 } from '../../stage-geometry.js';
 import { rigSelectionSig, identifyFixtures } from '../../rig-ui.js';
 import { FieldInput } from './FieldInput.jsx';
-import { hasNoAddress, isHueLamp } from '../../../src/shared/placement.ts';
+import { hasNoAddress, isHueLamp, isWled } from '../../../src/shared/placement.ts';
 import { hueChannels, hueChannelsLabel } from '../../../src/shared/hue-lamp.ts';
 import { hueBridgeLabel } from '../../utils.js';
 
@@ -71,7 +71,7 @@ export function Inspector() {
   const trimPct = Math.round(((fix.maxBrightness ?? 255) / 255) * 100);
   const addressless = hasNoAddress(fix);
   const hueLamp = isHueLamp(fix);
-  const wled = !!(fix.output && fix.output.protocol === 'ddp');
+  const ddp = !!(fix.output && fix.output.protocol === 'ddp');
   const openrgb = !!(fix.output && fix.output.protocol === 'openrgb');
 
   return (
@@ -86,11 +86,11 @@ export function Inspector() {
         <span class="inspector-key">Profile</span>
         <span class="inspector-value">{profile ? `${profile.name}${profile.modeName ? ` — ${profile.modeName}` : ''}` : fix.profileId}
           {profile && <small> · {profile.channelCount} ch{bar ? `, ${grid ? `${grid.columns} × ${grid.rows}` : rig.ranges[index].count} cells` : ''}</small>}</span>
-        {wled && <><span class="inspector-key">Resolution</span>
+        {ddp && <><span class="inspector-key">Resolution</span>
           <span class="inspector-value">{rig.ranges[index].count} effect cells → {fix.output.leds || rig.ranges[index].count} physical LEDs.
             {fix.output.leds > rig.ranges[index].count ? ' Each cell repeats across several LEDs; fine spatial motion needs a pixel profile.' : ' Every LED retains its own animation value.'}</span></>}
         <span class="inspector-key">Output</span>
-        <span class="inspector-value">{wled ? `WLED at ${fix.output.host}, over DDP`
+        <span class="inspector-value">{ddp ? `${isWled(fix) ? 'WLED' : 'DDP device'} at ${fix.output.host}, over DDP`
           : openrgb ? `OpenRGB device #${fix.output.device}${profile ? ` (${profile.name})` : ''} at ${fix.output.host}${fix.output.port ? `:${fix.output.port}` : ''}, over the SDK`
             : hueLamp ? `Hue ${hueChannelsLabel(hueChannels(fix.output))} of ${hueBridgeLabel(s.hueBridges, fix.output.bridge)}` : 'DMX (Art-Net, sACN)'}</span>
         {!addressless && <>

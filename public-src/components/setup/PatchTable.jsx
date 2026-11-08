@@ -1,7 +1,7 @@
 import { useState } from 'preact/hooks';
 import { pick, connectedSig, emitFixture, api, toast } from '../../state.js';
 import { post } from '../../setup-state.js';
-import { footprintOf, overlaps, hasNoAddress, isHueLamp } from '../../../src/shared/placement.ts';
+import { footprintOf, overlaps, hasNoAddress, isHueLamp, isWled } from '../../../src/shared/placement.ts';
 import { isHueProfile, hueChannelsLabel, hueChannels } from '../../../src/shared/hue-lamp.ts';
 import { rigSelectionSig, selectOnly, toggleSelected, identifyFixtures } from '../../rig-ui.js';
 import { FieldInput } from './FieldInput.jsx';
@@ -107,7 +107,7 @@ export function PatchTable() {
         {conflicts.size > 0 && <span class="panel-tag warn">{conflicts.size} overlapping</span>}
       </header>
       <p class="section-desc">Each fixture's profile, universe and first DMX address. Addresses only collide within the same
-        universe. A Hue lamp, a WLED or an OpenRGB device has none: it is added from Rig → Outputs and sent to the
+        universe. A Hue lamp, a WLED, another DDP device or an OpenRGB device has none: it is added from Rig → Outputs and sent to the
         device, whose address is shown instead.</p>
       <div class="table-scroll">
         <table class="patch-table">
@@ -128,6 +128,7 @@ export function PatchTable() {
             const cells = cellCount(profile);
             const clash = conflicts.has(fix.id);
             const isSelected = selected.includes(fix.id);
+            const ddpName = isWled(fix) ? 'WLED' : 'DDP device';
             return (<tr key={fix.id} class={`${isSelected ? 'selected' : ''} ${identifying.has(fix.id) ? 'identifying' : ''}`} onClick={(e) => {
                     if (e.target.closest('input, select, button'))
                         return;
@@ -155,8 +156,8 @@ export function PatchTable() {
                     </td>) : hasNoAddress(fix) ? (<td colSpan={2}>
 
                       <span class="patch-wled">
-                        <span class="addr-range">{fix.output.protocol === 'ddp' ? 'WLED' : 'OpenRGB'}</span>
-                        <FieldInput value={fix.output.host} class="wled-host" aria-label={`${fix.output.protocol === 'ddp' ? 'WLED' : 'OpenRGB server'} address of ${fix.label}`} title={fix.output.protocol === 'ddp' ? 'Sent to this WLED over DDP; it has no DMX address.'
+                        <span class="addr-range">{fix.output.protocol === 'ddp' ? (isWled(fix) ? 'WLED' : 'DDP') : 'OpenRGB'}</span>
+                        <FieldInput value={fix.output.host} class="wled-host" aria-label={`${fix.output.protocol === 'ddp' ? ddpName : 'OpenRGB server'} address of ${fix.label}`} title={fix.output.protocol === 'ddp' ? `Sent to this ${ddpName} over DDP; it has no DMX address.`
                         : `Device #${fix.output.device}${profile ? ` (${profile.name})` : ''} of the OpenRGB server at this address; it has no DMX address.`} onCommit={(host) => { if (host.trim())
                     send({ id: fix.id, output: { ...fix.output, host: host.trim() } }); }}/>
                         {fix.output.protocol === 'openrgb' && <span class="addr-range">#{fix.output.device}{profile ? ` ${profile.name}` : ''}</span>}

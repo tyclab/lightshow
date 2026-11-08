@@ -33,8 +33,9 @@ import type { WledClient } from '../wled.ts';
  *                                 fixtures on the universes it outputs
  *   GET  /api/sacn/sources        the other sACN sources on the network, and
  *                                 any universe one of them shares with the rig
- *   POST /api/wled/identify       a WLED: through the patch when it is in it,
- *                                 else streamed its picture directly
+ *   POST /api/wled/identify       a WLED or another DDP device: through the
+ *                                 patch when it is in it, else a WLED
+ *                                 streamed its picture directly
  *   POST /api/openrgb/identify    an OpenRGB device: the same, over the SDK
  *   POST /api/hue/identify        a Hue channel: through its lamp in the
  *                                 patch, else the bridge's own identify
