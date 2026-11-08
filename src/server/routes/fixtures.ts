@@ -3,7 +3,7 @@ import { resizeFixtureBuffers } from '../engine.ts';
 import { parseGDTF } from '../../gdtf.ts';
 import { BUILTIN_PROFILE_ID, HUE_BY_HAND, isBuiltinProfile, MAX_FIXTURES, UNIVERSE_SIZE, endChannel, fitsInUniverse, universeOverflow, registerProfile, unregisterProfile, listProfiles, getProfile, unitCapOverflow } from '../profiles.ts';
 import { MAX_UNIVERSES } from '../universes.ts';
-import { INTERNAL_UNIVERSE, footprintOf, hasNoAddress, isHueLamp, universeCount } from '../../shared/placement.ts';
+import { INTERNAL_UNIVERSE, footprintOf, hasNoAddress, isHueLamp, isWled, universeCount } from '../../shared/placement.ts';
 import { isHueProfile, hueSections, hueChannels } from '../../shared/hue-lamp.ts';
 import { geometryUnitIssue } from '../../shared/rig.ts';
 import { refreshHueFixtures } from '../hue-migration.ts';
@@ -16,7 +16,8 @@ import { barProfile } from '../bar-profile.ts';
 import { parseOfl } from '../ofl.ts';
 import { DEFAULT_WLED_MODE, wledProfile, wledSeat, wledSpan } from '../wled.ts';
 import type { WledLook } from '../wled.ts';
-import { profileSchema, fixtureRestoreSchema, fixtureAddSchema, wledAddSchema, hueAddSchema, validate } from '../validation.ts';
+import { ddpDeviceProfile, ddpDeviceProfileId } from '../ddp-device.ts';
+import { profileSchema, fixtureRestoreSchema, fixtureAddSchema, wledAddSchema, ddpAddSchema, hueAddSchema, validate } from '../validation.ts';
 import * as output from '../output.ts';
 import { defaultHueBridgeId } from '../settings.ts';
 import { messageOf, statusOf } from '../../errors.ts';
@@ -27,8 +28,8 @@ import type { RouteContext } from './common.ts';
 
 /**
  * The patch: fixture profiles (GDTF, the Open Fixture Library, a bar built
- * from its manual), WLEDs, Hue lamps, the fixtures themselves, and the show
- * file. OpenRGB devices are routes/openrgb.ts.
+ * from its manual), WLEDs and other DDP pixel devices, Hue lamps, the fixtures
+ * themselves, and the show file. OpenRGB devices are routes/openrgb.ts.
  */
 export function attachFixtureRoutes(app: Express, ctx: RouteContext): void {
   const { integrations, oflLibrary, wled, hueAreas } = ctx;
@@ -116,9 +117,10 @@ export function attachFixtureRoutes(app: Express, ctx: RouteContext): void {
       if (state.fixtures.length >= MAX_FIXTURES) {
         return res.status(400).json({ ok: false, error: `Patch is full (${MAX_FIXTURES} fixtures)` });
       }
-      if (bySegment) return await addSegments(res, host, label, look);
+      // A DDP device that is not a WLED is never asked for its info, segments or not.
       const sameHost = state.fixtures.find((f) => f.output?.protocol === 'ddp' && f.output.host.toLowerCase() === host.toLowerCase());
-      if (sameHost) return res.status(409).json({ ok: false, error: `${host} is patched already, as "${sameHost.label}"` });
+      if (sameHost && (!bySegment || !isWled(sameHost))) return res.status(409).json({ ok: false, error: `${host} is patched already, as "${sameHost.label}"` });
+      if (bySegment) return await addSegments(res, host, label, look);
 
       const info = await wled.info(host);
       const profile = wledProfile(info, host, null, look);
@@ -204,6 +206,49 @@ export function attachFixtureRoutes(app: Express, ctx: RouteContext): void {
     integrations.broadcast();
     return res.json({ ok: true, fixtures: draft, profiles: fresh.map(({ profile }) => profile), info, segments: fresh.length });
   }
+
+  // ─── DDP pixel devices ────────────────────────────────────────────────────
+  // A DDP receiver that is not a WLED has nothing to ask, so its size comes
+  // with the request. Its output says so, and it is only ever sent frames.
+  app.post('/api/ddp/add', (req, res) => {
+    try {
+      const { host, label, columns, rows, position } = validate(ddpAddSchema, req.body || {}, 'ddp');
+      if (state.fixtures.length >= MAX_FIXTURES) {
+        return res.status(400).json({ ok: false, error: `Patch is full (${MAX_FIXTURES} fixtures)` });
+      }
+      const sameHost = state.fixtures.find((f) => f.output?.protocol === 'ddp' && f.output.host.toLowerCase() === host.toLowerCase());
+      if (sameHost) return res.status(409).json({ ok: false, error: `${host} is patched already, as "${sameHost.label}"` });
+      const name = label || host;
+      // A profile of that id another fixture is on stays its own.
+      const used = new Set(state.fixtures.map((f) => f.profileId));
+      const base = ddpDeviceProfileId(host);
+      let id = base;
+      for (let n = 2; used.has(id); n++) id = `${base.slice(0, 120)}-${n}`;
+      const profile = ddpDeviceProfile({ host, label: name, columns, rows }, id);
+      const fixture: Fixture = {
+        id: -1, label: name.slice(0, 64), address: 1, universe: INTERNAL_UNIVERSE, profileId: profile.id, maxBrightness: 255,
+        override: null, position: position ? { ...position } : null, group: null, geometry: null,
+        output: { protocol: 'ddp', host, device: 'generic' },
+      };
+      const profileOf = (f: Pick<Fixture, 'profileId'>) => (f.profileId === profile.id ? profile : getProfile(f));
+      const next = [...state.fixtures.map((f) => ({ ...f })), fixture];
+      placeAddresslessFixtures(next, profileOf);
+      const problem = unitCapOverflow(next, profileOf) || ddpConflict(next, profileOf)
+        || (countUniverses(next, profileOf) > MAX_UNIVERSES
+          ? `${name} would put the patch on more than the ${MAX_UNIVERSES} universes this server transmits` : null);
+      if (problem) return res.status(400).json({ ok: false, error: problem });
+      if (!registerProfile(profile)) return res.status(400).json({ ok: false, error: 'Invalid profile' });
+      fixture.id = allocateFixtureId();
+      state.fixtures.push(fixture);
+      placeAddresslessFixtures();
+      resizeFixtureBuffers();
+      showStore.scheduleSave();
+      integrations.broadcast();
+      res.json({ ok: true, fixture, profile });
+    } catch (err) {
+      res.status(statusOf(err) || 400).json({ ok: false, error: messageOf(err) });
+    }
+  });
 
   app.post('/api/profiles', (req, res) => {
     try {

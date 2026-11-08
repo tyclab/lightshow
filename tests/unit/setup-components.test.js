@@ -26,6 +26,7 @@ async function load() {
         export { SERVER, ENGINE, LIVE, SHOW } from './public-src/components/setup/specs.js';
         export { PatchTable, conflictsOf } from './public-src/components/setup/PatchTable.jsx';
         export { Inspector } from './public-src/components/setup/Inspector.jsx';
+        export { Outputs } from './public-src/components/setup/Outputs.jsx';
         export { rowPositions, endToEnd } from './public-src/components/setup/PlanEditor.jsx';
         export { PreflightReport } from './public-src/components/setup/PreflightView.jsx';
       `,
@@ -155,6 +156,26 @@ test('the inspector: one fixture in full, a bar with its line', () => {
   assert.match(ui.html(ui.h(ui.Inspector, {})), /2 fixtures/);
   ui.rigSelectionSig.value = [];
   assert.match(ui.html(ui.h(ui.Inspector, {})), /Select a fixture/);
+});
+
+test('a DDP device that is not a WLED is named for what it is, and Outputs offers to add one by size', () => {
+  given({ fixtures: [
+    fixture(1, 1, 60000, 'bar', { output: { protocol: 'ddp', host: 'matrix.local', device: 'generic' } }),
+    fixture(2, 1, 60001, 'bar', { output: { protocol: 'ddp', host: '10.0.0.50' } }),
+  ] });
+  const table = ui.html(ui.h(ui.PatchTable, {}));
+  assert.match(table, /aria-label="DDP device address of F1"/);
+  assert.match(table, /aria-label="WLED address of F2"/);
+  ui.rigSelectionSig.value = [1];
+  assert.match(ui.html(ui.h(ui.Inspector, {})), /DDP device at matrix\.local, over DDP/);
+  ui.rigSelectionSig.value = [2];
+  assert.match(ui.html(ui.h(ui.Inspector, {})), /WLED at 10\.0\.0\.50, over DDP/);
+  ui.rigSelectionSig.value = [];
+
+  const outputs = ui.html(ui.h(ui.Outputs, {}));
+  assert.match(outputs, /<h2 class="panel-title" id="ddp-title">Other DDP pixel devices<\/h2>/);
+  for (const id of ['ddp-host', 'ddp-label', 'ddp-columns', 'ddp-rows']) assert.match(outputs, new RegExp(`<label for="${id}">`), id);
+  assert.match(outputs, /id="ddp-columns" type="number" min="1" max="4096" value="32"/);
 });
 
 test('a bar drawn from its first cell to its last', () => {

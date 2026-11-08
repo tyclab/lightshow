@@ -180,6 +180,7 @@ export {
   isInternalUniverse,
   hasNoAddress,
   isHueLamp,
+  isWled,
   placeAddressless,
   stripOf,
   stripIssue,
@@ -199,6 +200,11 @@ function isHueLamp(fixture: {
     } | null;
 }): boolean {
     return !!fixture.output && fixture.output.protocol === 'hue';
+}
+
+// A DDP output names no device when it is a WLED: shows from before other DDP receivers stay WLEDs.
+function isWled(fixture: { output?: { protocol: string; device?: unknown } | null }): boolean {
+  return !!fixture.output && fixture.output.protocol === 'ddp' && fixture.output.device !== 'generic';
 }
 
 const DEVICE_PROTOCOLS = new Set(['hue', 'ddp', 'openrgb']);

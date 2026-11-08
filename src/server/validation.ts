@@ -70,6 +70,7 @@ const hueOutput = z.object({
 const ddpOutput = z.object({
     protocol: z.literal('ddp'),
     host: z.string().regex(HOSTNAME_RE, 'is not a hostname or an IPv4 address'),
+    device: z.literal('generic').optional(),
     port: z.number().int().min(1).max(65535).optional(),
     at: z.number().int().min(0).max(65535).optional(),
     rowStride: z.number().int().min(1).max(4096).optional(),
@@ -400,6 +401,16 @@ const wledAddSchema = z.object({
   zones: z.number().int().min(2).max(64).optional(),
 }).strict();
 
+const ddpAddSchema = z.object({
+  host: z.string().regex(HOSTNAME_RE, 'is not a hostname or an IPv4 address'),
+  label: z.string().trim().min(1).max(64).optional(),
+  columns: gridSize,
+  rows: gridSize,
+  position: fixturePosition.nullable().optional(),
+}).strict().refine((body) => body.columns * body.rows >= 2 && body.columns * body.rows <= MAX_CELLS_PER_FIXTURE, {
+  message: `columns × rows must come to 2–${MAX_CELLS_PER_FIXTURE} pixels`,
+});
+
 const openrgbHostSchema = z.object({
   host: z.string().regex(HOSTNAME_RE, 'is not a hostname or an IPv4 address'),
   port: z.coerce.number().int().min(1).max(65535).optional(),
@@ -484,6 +495,7 @@ export {
   hueAddSchema,
   hueDisconnectSchema,
   wledAddSchema,
+  ddpAddSchema,
   fixtureAddSchema,
   overlaySchema,
   validate,

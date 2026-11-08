@@ -3,7 +3,7 @@ import { state, getClientState, getFixture, countUniverses, universeOf, placeAdd
 import { applyPatch, applyOverride, processTap } from './patch.ts';
 import { overrideMessageSchema, fixtureMessageSchema, validate } from './validation.ts';
 import { listProfiles, getProfile, universeOverflow, unitCapOverflow, HUE_BY_HAND, DEVICE_BY_HAND } from './profiles.ts';
-import { INTERNAL_UNIVERSE, hasNoAddress, isHueLamp } from '../shared/placement.ts';
+import { INTERNAL_UNIVERSE, hasNoAddress, isHueLamp, isWled } from '../shared/placement.ts';
 import { isHueProfile } from '../shared/hue-lamp.ts';
 import { geometryUnitIssue } from '../shared/rig.ts';
 import { showStore } from './show-store.ts';
@@ -239,7 +239,8 @@ function attachSockets(io: Server, { midi, integrations }: {
           return;
         }
         const nextOutput = output !== undefined ? output : fixture.output ?? null;
-        if (addressless !== hasNoAddress({ output: nextOutput }) || (nextOutput && nextOutput.protocol !== fixture.output?.protocol)) {
+        if (addressless !== hasNoAddress({ output: nextOutput }) || (nextOutput && nextOutput.protocol !== fixture.output?.protocol)
+          || isWled({ output: nextOutput }) !== isWled(fixture)) {
           socket.emit('error-msg', { source: 'fixture', message: DEVICE_BY_HAND });
           return;
         }

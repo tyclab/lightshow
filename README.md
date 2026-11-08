@@ -820,6 +820,7 @@ Undo for 12 seconds; restore still checks patch conflicts.
 | Art-Net | UDP 6454, universes from 0 | Broadcast, unicast, or discovered-node routing; optional ArtSync |
 | sACN/E1.31 | UDP 5568, universes from 1 | Multicast `239.255.x.y` or unicast; default offset +1 from the patch |
 | WLED/DDP | Device host, optional port and LED offset | Discover by mDNS or add by address; no DMX address |
+| Other DDP pixel device | Device host, columns × rows | Add by address and size; no DMX address, never asked over HTTP |
 | OpenRGB | TCP SDK server, default port 6742 | Enable the SDK server, discover devices and add those with direct LED control |
 | Hue Entertainment | Bridge and entertainment-area channel | Pair bridge, select area, add its lamps |
 
@@ -866,6 +867,26 @@ makes the status `degraded`). Two missed polls in a row report the board as
 `checking`, `live`, `override`, `not-live` or `unreachable` and `problem` the
 sentence to show, or null; the list is empty while disarmed, and it changes only
 on a transition.
+
+### Other DDP pixel devices
+
+A DDP receiver that is not a WLED, such as an LED matrix running its own
+firmware, has no API to say what it is. Rig → Outputs → **Other DDP pixel
+devices**, or `POST /api/ddp/add`, adds one from its address, a label and its
+size in columns and rows. Its profile is one RGB cell per pixel, numbered row by
+row from the top left (a grid when both sizes are above 1, a strip otherwise),
+and DDP sends the pixels in that order from offset 0 to port 4048. A panel wired
+in a serpentine or from another corner remaps on the device. Like a WLED it has
+no DMX address, takes internal rendering space and counts against the 64
+fixtures, the 4096 cells the engine renders and the 64 universes.
+
+Its output is `{ protocol: 'ddp', host, device: 'generic' }`; a DDP output with
+no `device` is a WLED, so shows saved before keep their meaning. The server
+never sends a generic device an HTTP request: the WLED pre-show check, the
+armed `/json/si` watch, and therefore `/api/health`, leave it out, and
+`POST /api/wled/identify` with its host identifies it through the patch. Edits
+can change its host but not turn it into a WLED or a WLED into one. Removing it
+offers the same undo as any fixture, and it is saved with the show.
 
 ### Screen pictures on an LED panel
 
@@ -1974,6 +1995,7 @@ Transport routes answer `{ ok, status }`; with no sequence loaded they answer
 | GET · POST | `/api/show` | Export / import the patch |
 | GET | `/api/wled/discover` | Ask the network for WLEDs (mDNS): `{ devices: [{ host, name, leds, rgbw, matrix, version, segments, patched }] }` |
 | POST | `/api/wled/add` | Add a WLED to the patch from `{ host, label?, segments? }`: its profile from `/json/info`, with internal allocation and no DMX address, sent DDP. With `segments: true`, a fixture for each segment in its `/json/state` not patched yet: `{ fixtures, profiles, info, segments }` |
+| POST | `/api/ddp/add` | Add a DDP pixel device that is not a WLED from `{ host, label?, columns, rows, position? }`: 2–4096 RGB pixels row by row from the top left, internal allocation, no DMX address, output `device: 'generic'`; `position` is `{ x, y, height? }` as on the plan. Answers `{ fixture, profile }`; a host already patched is 409 |
 | GET | `/api/openrgb/discover?host=&port=` | Ask an OpenRGB SDK server for its devices: `{ host, port, devices: [{ index, name, type, leds, direct, location, patched }] }` |
 | POST | `/api/openrgb/add` | Add devices of an OpenRGB server to the patch from `{ host, port?, devices?: [index], label? }` — those named, or every one with LEDs not patched yet — each a fixture with a cell per LED and no DMX address, sent over the SDK: `{ fixtures, profiles, devices }` |
 
@@ -1993,7 +2015,7 @@ Transport routes answer `{ ok, status }`; with no sequence loaded they answer
 |--------|------|-------------|
 | POST | `/api/identify` | `{ fixtures?: [ids], universes?: [n], seconds? }` — those fixtures, and everything on those universes, show themselves for `seconds` (default 8, up to 60; 0 stops). Answers `{ ids, remainingMs }`; the live state carries it as `identify` |
 | POST | `/api/identify/stop` | Stop identifying, a streamed WLED or OpenRGB device included |
-| POST | `/api/wled/identify` | `{ host, seconds? }`: through the patch when the WLED is in it (`via: 'patch'`), else its picture streamed over DDP (`via: 'device'`) |
+| POST | `/api/wled/identify` | `{ host, seconds? }`: through the patch when the WLED or another DDP device is in it (`via: 'patch'`), else a WLED's picture streamed over DDP (`via: 'device'`) |
 | POST | `/api/openrgb/identify` | `{ host, port?, device, seconds? }`: through the patch when the device is in it (`via: 'patch'`), else its picture streamed over the SDK (`via: 'device'`, with `leds` and `name`) and the device put back after |
 | POST | `/api/hue/:bridge/identify` | `{ lamp, seconds? }` (legacy `{ channel, seconds? }` also accepted): the lamp of the bridge's area through the patch (`via: 'fixture'`), else the bridge's own identify (`via: 'bridge'`) |
 

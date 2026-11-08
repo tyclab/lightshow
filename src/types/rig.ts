@@ -174,6 +174,8 @@ export type FixtureOutput = DdpOutput | OpenRgbOutput | HueOutput;
 export interface DdpOutput {
   protocol: 'ddp';
   host: string;
+  /** Absent: a WLED, also asked over its HTTP API. `generic`: any other DDP receiver, only ever sent frames. */
+  device?: 'generic';
   port?: number;
   at?: number;
   rowStride?: number;

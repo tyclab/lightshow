@@ -1,6 +1,6 @@
 import { hueChannelsLabel, hueChannels, isHueProfile } from '../src/shared/hue-lamp.ts';
 import { hueSectionColour } from '../src/shared/hue-colour.ts';
-import { channelReader, hasNoAddress } from '../src/shared/placement.ts';
+import { channelReader, hasNoAddress, isWled } from '../src/shared/placement.ts';
 
 // Scale emitter mixes proportionally so white-heavy swatches retain their colour temperature.
 export function colorToCss({ r, g, b, w = 0, a = 0, uv = 0 }) {
@@ -182,5 +182,11 @@ export function rigLights(fixtures, state, dmxSnapshot, rig) {
 
 export function deviceLabel(fix) {
     const out = fix.output;
-    return out.protocol === 'ddp' ? `WLED at ${out.host}` : `OpenRGB device #${out.device}${out.name ? ` ${out.name}` : ''} at ${out.host}`;
+    return out.protocol === 'ddp' ? `${isWled(fix) ? 'WLED' : 'DDP device'} at ${out.host}` : `OpenRGB device #${out.device}${out.name ? ` ${out.name}` : ''} at ${out.host}`;
+}
+
+/** What a fixture with no DMX address is sent to, in a word. */
+export function deviceKind(fix) {
+    const protocol = fix.output.protocol;
+    return protocol === 'hue' ? 'Hue' : protocol === 'openrgb' ? 'OpenRGB' : isWled(fix) ? 'WLED' : 'DDP';
 }
