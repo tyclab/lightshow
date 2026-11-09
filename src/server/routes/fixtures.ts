@@ -15,9 +15,12 @@ import { showStore, snapshotShow } from '../show-store.ts';
 import { barProfile } from '../bar-profile.ts';
 import { parseOfl } from '../ofl.ts';
 import { DEFAULT_WLED_MODE, wledProfile, wledSeat, wledSpan } from '../wled.ts';
-import type { WledLook } from '../wled.ts';
+import type { WledClient, WledInfo, WledLedmap, WledLook } from '../wled.ts';
+import { remapRoomCells } from '../wled-refresh.ts';
+import { sharedRoomScene } from '../room-scene-store.ts';
+import { roomSceneSchema } from '../../shared/room-scene.ts';
 import { ddpDeviceProfile, ddpDeviceProfileId } from '../ddp-device.ts';
-import { profileSchema, fixtureRestoreSchema, fixtureAddSchema, wledAddSchema, ddpAddSchema, hueAddSchema, validate } from '../validation.ts';
+import { profileSchema, fixtureRestoreSchema, fixtureAddSchema, wledAddSchema, wledRefreshSchema, ddpAddSchema, hueAddSchema, validate } from '../validation.ts';
 import * as output from '../output.ts';
 import { defaultHueBridgeId } from '../settings.ts';
 import { messageOf, statusOf } from '../../errors.ts';
@@ -123,7 +126,8 @@ export function attachFixtureRoutes(app: Express, ctx: RouteContext): void {
       if (bySegment) return await addSegments(res, host, label, look);
 
       const info = await wled.info(host);
-      const profile = wledProfile(info, host, null, look);
+      const ledmap = await ledmapFor(wled, host, info, look);
+      const profile = wledProfile(info, host, null, look, ledmap);
       // The profile is named for the WLED's own address (its MAC), so the same
       // device found at a new IP is the fixture that is already there, in
       // whatever mode it was patched.
@@ -135,7 +139,7 @@ export function attachFixtureRoutes(app: Express, ctx: RouteContext): void {
       // No DMX address: the server places it on universes of its own.
       const fixture: Fixture = {
         id: -1, label: (label || info.name).slice(0, 64), address: 1, universe: INTERNAL_UNIVERSE, profileId: profile.id, maxBrightness: 255,
-        override: null, position: null, group: null, geometry: null, output: { protocol: 'ddp', host, ...wledSpan(info, null, look) },
+        override: null, position: null, group: null, geometry: null, output: { protocol: 'ddp', host, ...wledSpan(info, null, look, ledmap) },
       };
       const profileOf = (f: Pick<Fixture, 'profileId'>) => (f.profileId === profile.id ? profile : getProfile(f));
       const next = [...state.fixtures.map((f) => ({ ...f })), fixture];
@@ -168,7 +172,8 @@ export function attachFixtureRoutes(app: Express, ctx: RouteContext): void {
     const info = await wled.info(host);
     const segments = await wled.segments(host, info);
     if (!segments.length) return res.status(400).json({ ok: false, error: `${info.name} has no segments with LEDs in them` });
-    const built = segments.map((segment) => ({ segment, profile: wledProfile(info, host, segment, look) }));
+    const ledmap = await ledmapFor(wled, host, info, look);
+    const built = segments.map((segment) => ({ segment, profile: wledProfile(info, host, segment, look, ledmap) }));
     const patchedSeats = new Set(state.fixtures.map((f) => wledSeat(f.profileId)));
     const fresh = built.filter(({ profile }) => !patchedSeats.has(wledSeat(profile.id)));
     if (!fresh.length) return res.status(409).json({ ok: false, error: `Every segment of ${info.name} is patched already` });
@@ -181,7 +186,7 @@ export function attachFixtureRoutes(app: Express, ctx: RouteContext): void {
         id: -1 - draft.length, label: `${label || info.name} · ${segment.name}`.slice(0, 64), address: 1, universe: INTERNAL_UNIVERSE,
         profileId: profile.id, maxBrightness: 255, override: null, position: null, group: null, geometry: null,
         output: {
-          protocol: 'ddp', host, at: segment.at, ...(segment.rowStride ? { rowStride: segment.rowStride } : {}), ...wledSpan(info, segment, look),
+          protocol: 'ddp', host, at: segment.at, ...(segment.rowStride ? { rowStride: segment.rowStride } : {}), ...wledSpan(info, segment, look, ledmap),
         },
       });
     }
@@ -206,6 +211,66 @@ export function attachFixtureRoutes(app: Express, ctx: RouteContext): void {
     integrations.broadcast();
     return res.json({ ok: true, fixtures: draft, profiles: fresh.map(({ profile }) => profile), info, segments: fresh.length });
   }
+
+  /**
+   * A patched WLED read again: its LEDs, its segment and the ledmap it has loaded, under the same
+   * profile id, so the fixture keeps its place in the patch, its shows and its id. When the cells
+   * change on the same grid, the Stage room's bindings follow each cell to its new index, and a
+   * binding whose LED the ledmap no longer keeps is dropped.
+   */
+  app.post('/api/wled/refresh', asyncHandler(async (req, res) => {
+    try {
+      const { fixtureId } = validate(wledRefreshSchema, req.body || {}, 'wled');
+      const fixture = state.fixtures.find((f) => f.id === fixtureId);
+      if (!fixture || !isWled(fixture) || fixture.output?.protocol !== 'ddp') {
+        return res.status(404).json({ ok: false, error: `Fixture ${fixtureId} is not a WLED in the patch` });
+      }
+      const seat = wledSeat(fixture.profileId);
+      if (seat !== fixture.profileId) {
+        return res.status(400).json({ ok: false, error: `"${fixture.label}" is patched as a wash, zones or a strobe panel: only a fixture patched pixel by pixel takes its LEDs from the ledmap` });
+      }
+      const output = fixture.output, host = output.host, look: WledLook = { mode: 'pixels' };
+      const info = await wled.info(host);
+      const segmentId = seat.match(/-seg(\d+)$/)?.[1];
+      let segment = null;
+      if (segmentId !== undefined) {
+        if (!wled.segments) return res.status(501).json({ ok: false, error: 'This server cannot read WLED segments' });
+        segment = (await wled.segments(host, info)).find((entry) => entry.id === Number(segmentId)) ?? null;
+        if (!segment) return res.status(409).json({ ok: false, error: `${info.name} has no segment ${Number(segmentId) + 1} any more: patch its segments again` });
+      }
+      const ledmap = await ledmapFor(wled, host, info, look);
+      const profile = wledProfile(info, host, segment, look, ledmap) as Profile;
+      if (profile.id !== fixture.profileId) {
+        return res.status(409).json({ ok: false, error: `${host} answers as another WLED (${info.name}): change "${fixture.label}"'s address first` });
+      }
+      const before = getProfile(fixture);
+      const next: Fixture = { ...fixture, output: { protocol: 'ddp', host, ...(output.port ? { port: output.port } : {}),
+        ...(segment ? { at: segment.at, ...(segment.rowStride ? { rowStride: segment.rowStride } : {}) } : {}), ...wledSpan(info, segment, look, ledmap) } };
+      const draft = state.fixtures.map((f) => (f.id === fixtureId ? next : { ...f }));
+      const profileOf = (f: Pick<Fixture, 'profileId'>) => (f.profileId === profile.id ? profile : getProfile(f));
+      placeAddresslessFixtures(draft, profileOf);
+      const problem = geometryUnitIssue(fixture.geometry, profile) || unitCapOverflow(draft, profileOf) || ddpConflict(draft, profileOf)
+        || (countUniverses(draft, profileOf) > MAX_UNIVERSES ? `${info.name} would put the patch on more than the ${MAX_UNIVERSES} universes this server transmits` : null);
+      if (problem) return res.status(400).json({ ok: false, error: problem });
+      // The held room, not a copy: the remap builds a new room and leaves this one as it is.
+      const rooms = ctx.roomScene ?? sharedRoomScene();
+      const { room } = rooms.peek();
+      const remap = room ? remapRoomCells(room, fixtureId, before, profile) : null;
+      const remapped = remap && (remap.moved || remap.dropped) ? roomSceneSchema.safeParse(remap.room) : null;
+      if (remapped && !remapped.success) return res.status(400).json({ ok: false, error: 'The Stage room would not hold the refreshed cells', issues: remapped.error.issues });
+      if (!registerProfile(profile)) return res.status(400).json({ ok: false, error: 'Invalid profile' });
+      state.fixtures = draft;
+      placeAddresslessFixtures();
+      resizeFixtureBuffers();
+      if (remapped?.success) rooms.save(remapped.data);
+      showStore.scheduleSave();
+      integrations.broadcast();
+      res.json({ ok: true, fixture: next, profile, info, cells: { before: before.cells?.length ?? 1, after: profile.cells?.length ?? 1 },
+        ledmap: ledmap ? { width: ledmap.width, height: ledmap.height } : null, room: remap ? { moved: remap.moved, dropped: remap.dropped } : null });
+    } catch (err) {
+      res.status(statusOf(err) || 400).json({ ok: false, error: messageOf(err) });
+    }
+  }));
 
   // ─── DDP pixel devices ────────────────────────────────────────────────────
   // A DDP receiver that is not a WLED has nothing to ask, so its size comes
@@ -693,4 +758,9 @@ export function attachFixtureRoutes(app: Express, ctx: RouteContext): void {
 
 function hueProfileBlocked(profile: Profile): string | null {
     return isHueProfile(profile) || isHueProfile(listProfiles()[profile.id]) ? HUE_BY_HAND : null;
+}
+
+// Only a patch pixel by pixel takes its cells from the ledmap; zones and strobe panels spread over every LED.
+async function ledmapFor(wled: WledClient, host: string, info: WledInfo, look: WledLook): Promise<WledLedmap | null> {
+  return (look.mode ?? DEFAULT_WLED_MODE) === 'pixels' && info.matrix && wled.ledmap ? wled.ledmap(host, info) : null;
 }

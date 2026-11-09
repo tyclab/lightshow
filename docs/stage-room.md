@@ -25,7 +25,10 @@ location is invented. Cells left unbound in a partly bound fixture (a pixel map'
 not drawn either.
 One output unit can have several visual bindings when a shared channel drives
 several physical lights. `unit` is the zero-based light/cell within a fixture,
-not a DMX channel or an index in the entire rig.
+not a DMX channel or an index in the entire rig. On a panel whose grid has places
+without a cell (a WLED read with its ledmap), `unit` counts the cells there are, in
+row-major order, not the grid's places; reading such a WLED again in Rig → Outputs
+moves the room's bindings for it to the cells at their columns and rows.
 
 ## Room format
 

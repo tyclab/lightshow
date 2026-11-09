@@ -10,7 +10,7 @@ import { auditionSig, setAudition, useAuditionSampler } from '../audition.js';
 import { NowPlaying } from './NowPlaying.jsx';
 import { useTimeline } from '../use-timeline.js';
 import { stagePositions } from '../../src/shared/stage.ts';
-import { buildRig, lineOf, rigSignature } from '../../src/shared/rig.ts';
+import { buildRig, gridLabel, lineOf, rigSignature } from '../../src/shared/rig.ts';
 import { STAGE_EDGES, clamp, geometryOf, placeAt, pointIn, surfaceStyle } from '../stage-geometry.js';
 import { layoutOf, paintLayer, useCellLayer } from '../cell-layer.js';
 
@@ -190,12 +190,12 @@ export function StagePreview({ controls = true } = {}) {
         // A panel's line is its top edge, as wide as its columns (shared/rig.js).
         const grid = rig.grids[i];
         const line = bar ? lineOf(fix, grid ? grid.columns : count, fix.position ? 0 : unplaced) : null;
-        const shape = grid ? `a panel of ${grid.columns} × ${grid.rows} cells` : `a bar of ${count} cells`;
+        const shape = grid ? `a panel of ${gridLabel(grid, count)}` : `a bar of ${count} cells`;
         const turnHelp = bar ? ' [ and ] turn it, minus and equals change its length, 0 resets both.' : '';
         return <button key={fix.id} type="button" class={`stage-fixture ${bar ? 'bar' : ''}`}
           style={placeAt(point)}
           aria-label={`${fix.label}${bar ? `, ${shape}` : ''}, position ${Math.round(point.x)}, ${Math.round(point.y)}${edit ? `. Arrow keys move, Shift moves faster.${turnHelp}` : ''}`}
-          title={`${fix.label} · ${patchedAt(fix)}${bar ? ` · ${grid ? `${grid.columns} × ${grid.rows}` : count} cells` : ''}`}
+          title={`${fix.label} · ${patchedAt(fix)}${bar ? ` · ${grid ? gridLabel(grid, count) : `${count} cells`}` : ''}`}
           onPointerDown={(event) => grab(event, fix.id)}
           onPointerMove={move} onPointerUp={(event) => finish(event, true)}
           onPointerCancel={(event) => finish(event, false)} onLostPointerCapture={(event) => finish(event, false)}

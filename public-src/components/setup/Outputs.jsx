@@ -253,6 +253,54 @@ const WLED_MODES = [
   { id: 'strobe', label: 'Strobe panel', help: 'A matrix as a strobe panel: a line of white segments across its middle, lit only by strobes and blinders, with square colour zones above and below.' },
 ];
 
+/**
+ * The WLEDs in the patch, each read again from its device on request (server/routes/fixtures.ts):
+ * its LEDs, its segment and its ledmap, so a ball whose ledmap keeps 80 of its 120 grid cells
+ * becomes those 80 cells, and the Stage room's bindings follow them.
+ */
+function PatchedWleds() {
+  const s = pick(['fixtures', 'profiles']);
+  const [status, setStatus] = useState('');
+  const patched = (s.fixtures || []).filter((f) => f.output?.protocol === 'ddp' && f.output.device !== 'generic');
+  if (!patched.length) return null;
+  const cellsOf = (f) => {
+    const profile = s.profiles?.[f.profileId], count = profile?.cells?.length ?? 1, grid = profile?.grid;
+    return grid ? (count === grid.columns * grid.rows ? `${grid.columns} × ${grid.rows}` : `${count} on ${grid.columns} × ${grid.rows}`) : String(count);
+  };
+  const refresh = async (fixture) => {
+    setStatus(`Asking ${fixture.output.host}…`);
+    const res = await post('/api/wled/refresh', { fixtureId: fixture.id });
+    if (!res.ok) { setStatus(res.error); return; }
+    const room = res.room && (res.room.moved || res.room.dropped)
+      ? ` The Stage room's bindings follow their cells: ${res.room.moved} moved, ${res.room.dropped} without an LED dropped.` : '';
+    setStatus(`"${fixture.label}": ${res.cells.before} cells before, ${plural(res.cells.after, 'cell')} now${res.ledmap ? `, from its ${res.ledmap.width} × ${res.ledmap.height} ledmap` : ''}.${room}`);
+  };
+  return (
+    <div class="discovery">
+      <p class="setting-help">In the patch. <em>Read again</em> asks the WLED for its LEDs and its ledmap: a matrix whose ledmap leaves cells
+        without an LED keeps only the LEDs there are, at their columns and rows.</p>
+      <div class="table-scroll">
+        <table class="patch-table">
+          <thead><tr><th scope="col">Fixture</th><th scope="col">Address</th><th scope="col">Cells</th><th scope="col"><span class="sr-only">Actions</span></th></tr></thead>
+          <tbody>
+            {patched.map((f) => (
+              <tr key={f.id}>
+                <td>{f.label}</td>
+                <td class="mono">{f.output.host}</td>
+                <td>{cellsOf(f)}</td>
+                <td class="patch-actions-cell">
+                  <button type="button" class="btn sm" aria-label={`Read ${f.label} again from its WLED`} onClick={() => refresh(f)}>Read again</button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <p class="setting-help" role="status">{status}</p>
+    </div>
+  );
+}
+
 function Wled() {
   const [devices, setDevices] = useState(null);
   const [status, setStatus] = useState('');
@@ -290,7 +338,8 @@ function Wled() {
       <p class="section-desc">WLED strips and panels, sent their pixels over DDP rather than Art-Net. Adding one reads its LED
         count (and its grid, set up as a panel) from the device and patches it, with no DMX address, as a wash, in zones
         or pixel by pixel. <em>Add each segment</em> makes every segment set up in WLED a fixture of its own — the front of
-        the booth and its sides, or a panel's halves — to be placed on the plan one by one.</p>
+        the booth and its sides, or a panel's halves — to be placed on the plan one by one. Pixel by pixel, a matrix with a
+        ledmap keeps only the cells it routes to an LED.</p>
       <div class="inline-form wled-mode">
         <label for="wled-mode">Patch as</label>
         <select id="wled-mode" value={mode} onChange={(e) => setMode(e.target.value)}>
@@ -342,6 +391,7 @@ function Wled() {
           <button type="button" class="btn sm" disabled={!host.trim()} onClick={() => add(host.trim(), true)}>Add each segment</button>
         </form>
       </div>
+      <PatchedWleds />
     </section>
   );
 }

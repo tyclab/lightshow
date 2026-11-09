@@ -849,6 +849,28 @@ overlap. A panel rectangle uses its LED offset and row stride; WLED resolves
 its own wiring order. All segments of one device are delivered as one frame.
 LEDs outside patched segments keep their previous values.
 
+Patched pixel by pixel, a matrix also reads the ledmap WLED has loaded
+(`/json/state`'s `ledmap`, `0` being `/ledmap.json`; a 404 means none). A ledmap
+that routes some grid cells to `-1` (or past the strip) leaves only the cells with
+an LED: each becomes a cell of the fixture at its column and row (the profile's
+`cells[].at`, its grid the matrix or segment), in row-major order, and the output
+carries `leds`, `columns` and one `areas` entry per cell, so DDP still sends the
+whole matrix in WLED's logical order with the cells without an LED black; WLED maps
+the rest as before. A ledmap that keeps every cell changes nothing. A ball wired as
+a 20 × 6 matrix whose ledmap keeps rings of 5, 15, 20, 20, 15 and 5 LEDs is a
+fixture of 80 cells. Zones, washes and strobe panels ignore the ledmap.
+
+A fixture already in the patch takes a new ledmap when it is read again: **Read
+again** beside it in Rig → Outputs → WLED (`POST /api/wled/refresh` with
+`{ fixtureId }`) asks its WLED for its LEDs, its segment and its ledmap and
+rebuilds its profile under the same id, so shows, sequences and its place keep
+resolving it. When the cells change on the same grid, the Stage room's bindings
+follow each cell to its new index by column and row; a binding (or a weighted
+source) whose cell no longer has an LED is dropped, and a furniture object it lit
+loses only the light. A fixture patched as zones, a wash or a strobe panel, or one
+whose explicit cell map no longer matches, is refused, and so is a host answering
+with another device's MAC. Nothing is read again on its own.
+
 RGB and RGBW fixtures can share a controller. RGB sections retain their colour
 with a zero white channel; RGBW sections retain the palette's white value.
 WLED's own auto-white and white-balance settings can still alter received colours.
@@ -933,7 +955,9 @@ with centre-cover cropping by default. The helper defaults to 44 frames per
 second; `--fps 1` through `--fps 60` selects a requested rate, capped by the
 server's advertised `maxFps`. Older servers continue to work at their lower cap.
 Include gaps in the supplied grid dimensions; WLED applies its physical map once.
-A sparse curtain displays large shapes and colours rather than fine text.
+A sparse curtain displays large shapes and colours rather than fine text. A WLED
+read with its ledmap is not a full grid, so the helper leaves it out of `--panels`
+and it takes the room picture instead.
 
 The server accepts up to 60 frames per second per input lease and keeps only
 the latest accepted picture. Its lighting engine currently renders and sends

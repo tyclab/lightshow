@@ -82,6 +82,11 @@ function gridOf(profile: Pick<Profile, 'cells' | 'grid'> | null | undefined): (G
   };
 }
 
+/** A panel's size for labels: "20 × 6 cells", or "80 cells on 20 × 6" when some grid places hold no cell. */
+function gridLabel(grid: Grid, count: number): string {
+  return count < grid.columns * grid.rows ? `${count} cells on ${grid.columns} × ${grid.rows}` : `${grid.columns} × ${grid.rows} cells`;
+}
+
 function unitCount(profile: Pick<Profile, 'cells'> | null | undefined): number {
   const cells = cellsOf(profile);
   return cells ? cells.length : 1;
@@ -394,6 +399,7 @@ export {
   MAX_PROFILE_CHANNELS,
   cellsOf,
   gridOf,
+  gridLabel,
   unitCount,
   geometryUnitIssue,
   countUnits,

@@ -401,6 +401,9 @@ const wledAddSchema = z.object({
   zones: z.number().int().min(2).max(64).optional(),
 }).strict();
 
+// A WLED fixture read again from its device: its LED count, grid and ledmap.
+const wledRefreshSchema = z.object({ fixtureId }).strict();
+
 const ddpAddSchema = z.object({
   host: z.string().regex(HOSTNAME_RE, 'is not a hostname or an IPv4 address'),
   label: z.string().trim().min(1).max(64).optional(),
@@ -495,6 +498,7 @@ export {
   hueAddSchema,
   hueDisconnectSchema,
   wledAddSchema,
+  wledRefreshSchema,
   ddpAddSchema,
   fixtureAddSchema,
   overlaySchema,
