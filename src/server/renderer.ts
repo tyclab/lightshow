@@ -11,7 +11,7 @@ import { HardwareClock } from '../shared/hardware-clock.ts';
 import { hueLightMeasure } from '../shared/hue-light.ts';
 import type { LightMeasure } from '../shared/hardware-guard.ts';
 import { OutputGuard } from '../shared/output-guard.ts';
-import { drawnByTheShow, strobeLevel } from '../shared/strobe-fx.ts';
+import { RAPID_PATTERNS, drawnByTheShow, strobeLevel } from '../shared/strobe-fx.ts';
 import { hardwareStrobe } from '../shared/hardware-strobe.ts';
 import { hardwareOf } from '../shared/hardware.ts';
 import type { HardwareCaps, HardwareSettings } from '../shared/hardware.ts';
@@ -661,8 +661,10 @@ function createRenderer({ profileOf, profilesRevision = () => 0, now = performan
     if (baseKinds) { baseKind.fill(null); baseKinds = false; }
     const pixelPattern = rigNow.hasPixels && input.pixelPattern ? input.pixelPattern : null;
     const panelPattern = rigNow.hasPanels && input.panelPattern && PATTERN_FUNCS[input.panelPattern] ? input.panelPattern : null;
-    const known = !!PATTERN_FUNCS[input.pattern];
-    const knownPixel = !!pixelPattern && !!PATTERN_FUNCS[pixelPattern];
+    // A classic program that strikes flashes draws nothing until the photosensitivity acknowledgement.
+    const allowed = (id: string) => input.safety.acknowledged || !RAPID_PATTERNS.has(id);
+    const known = !!PATTERN_FUNCS[input.pattern] && allowed(input.pattern);
+    const knownPixel = !!pixelPattern && !!PATTERN_FUNCS[pixelPattern] && allowed(pixelPattern);
     const colours = input.paletteOverride ?? fixedColours(input.basePalette, [input.colorA, input.colorB, input.colorC, input.colorD].map((i) => COLOR_PRESETS[i]));
     const look = {
       pattern: input.pattern,
@@ -675,7 +677,7 @@ function createRenderer({ profileOf, profilesRevision = () => 0, now = performan
       pixelFrom: input.pixelFrom ?? null,
       panelPattern,
     };
-    if (!known && !knownPixel && !panelPattern) {
+    if (!known && !knownPixel && !(panelPattern && allowed(panelPattern))) {
       if (!hidden) renderLayer(rigNow, look, null, setUnitColor, { skipPattern: true, skipPixelPattern: true, skipPanelPattern: true });
       return;
     }
@@ -697,8 +699,8 @@ function createRenderer({ profileOf, profilesRevision = () => 0, now = performan
       skipPixelPattern = key === lastPixelRandomKey;
       lastPixelRandomKey = key;
     }
-    let skipPanelPattern = !panelPattern;
-    if (panelPattern && RANDOM_PATTERNS.has(panelPattern)) {
+    let skipPanelPattern = !panelPattern || !allowed(panelPattern);
+    if (!skipPanelPattern && panelPattern && RANDOM_PATTERNS.has(panelPattern)) {
       const key = `${lookKey}${pixels}|${input.pattern}|${pixelPattern}`;
       skipPanelPattern = key === lastPanelRandomKey;
       lastPanelRandomKey = key;

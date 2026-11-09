@@ -29,7 +29,7 @@ test('the decode table is the IEC 61966-2-1 curve at every byte', () => {
 const par = { id: 'srgb-par', name: 'Par', channelCount: 3, channelMap: { red: 0, green: 1, blue: 2 } };
 const lamp = getProfile({ profileId: HUE_COLOR_PROFILE_ID });
 const fixture = (id, profileId, universe, hueLamp) => ({ id, profileId, address: 1, universe, maxBrightness: 255, override: null, hue: hueLamp,
-  position: { x: id * 30, y: 50 }, group: null, geometry: null, output: hueLamp ? { protocol: 'hue', channel: 0 } : { protocol: 'ddp', host: '127.0.0.1' } });
+  position: { x: id * 30, y: 50 }, group: null, geometry: null, output: hueLamp ? { protocol: 'hue', channels: [0] } : { protocol: 'ddp', host: '127.0.0.1' } });
 const profiles = { [par.id]: par, [lamp.id]: lamp };
 const frameInput = (bytes, patch) => ({
   running: true, pattern: 'solid', colorA: 0, colorB: 5, colorC: 0, colorD: 5, split: null, pixelMap: 'stage',

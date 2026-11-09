@@ -600,7 +600,7 @@ async function checkHueBridge(bridge: Settings['hue']['bridges'][number], lamps:
         };
     }
     const resectioned = lamps.filter((f) => {
-        if (getProfile(f).hue?.legacy || getProfile(f).hue?.partial || f.output?.protocol === 'hue' && f.output.channel !== undefined) return false;
+        if (getProfile(f).hue?.legacy || getProfile(f).hue?.partial) return false;
         const channels = channelsOf(f);
         const lamp = area.lamps?.find((l) => l.channels.includes(channels[0]));
         return lamp && (lamp.channels.length !== channels.length || lamp.channels.some((ch, k) => ch !== channels[k]));

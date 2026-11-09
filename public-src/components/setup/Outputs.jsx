@@ -97,23 +97,8 @@ function Artnet({ nodes, setNodes }) {
   const s = pick(['artnet']);
   const live = { artnet: s.artnet || {} };
   const apply = patch => saveSettings(patch);
-  const conflict = settingsSig.value?.rig?.routingConflict;
-  const [resolution, setResolution] = useState('');
-  const resolve = async source => {
-    setResolution('Saving routing…');
-    const result = await post('/api/rig/resolve-routing', { source });
-    await loadSettings();
-    setResolution(result.ok ? '' : result.error || 'Routing was not applied');
-  };
   return (
     <SettingsSection {...ARTNET} stored={(path) => at(live, path)} onApply={apply}>
-      {conflict && <div role="alert">
-        <p>The saved show and previous settings have different Art-Net routes. Outputs stay disarmed until you choose. Fixture universe assignments are preserved.</p>
-        <p>Show: {conflict.show.host}:{conflict.show.port}, default universe {conflict.show.universe}. Previous settings: {conflict.settings.host}:{conflict.settings.port}, default universe {conflict.settings.universe}.</p>
-        <button type="button" class="btn" onClick={() => resolve('show')}>Use show routing</button>
-        <button type="button" class="btn" onClick={() => resolve('settings')}>Use previous settings</button>
-      </div>}
-      {resolution && <p role="status">{resolution}</p>}
       <ArtnetNodes nodes={nodes} setNodes={setNodes} />
     </SettingsSection>
   );

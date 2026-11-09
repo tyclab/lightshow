@@ -12,7 +12,7 @@ function fixtureSocket() {
   const io = { on(event, fn) { if (event === 'connection') connect = fn; }, emit() {} };
   attachSockets(io, {
     midi: { onLearn() {}, enabled: false, listPorts: () => [] },
-    integrations: { broadcast() {}, publisher: {} },
+    integrations: { broadcast() {}, publisher: { snapshot: () => ({}) } },
   });
   connect({
     id: 'fixture-position-test', handshake: { auth: {} }, join() {},
