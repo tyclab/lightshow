@@ -1,6 +1,16 @@
 // Classic and party pattern ids that play a v2 preset instead of their pattern function, each with the
 // reason it moved. The operator decides each move by A/B test on the rig; every other classic id keeps its function.
-export const CLASSIC_REDIRECTS: Readonly<Record<string, string>> = Object.freeze({});
+export const CLASSIC_REDIRECTS: Readonly<Record<string, string>> = Object.freeze({
+  twinkle: 'Scatter on the v2 engine (option C), merged only once the operator chose B in A/B migration.twinkle',
+  sparkle: 'Scatter on the v2 engine (option C), merged only once the operator chose B in A/B migration.sparkle',
+  'random-flash': 'Scatter on the v2 engine (option C), merged only once the operator chose B in A/B migration.random-flash',
+  'flash-scatter': 'Scatter on the v2 engine (option C), merged only once the operator chose B in A/B migration.flash-scatter',
+  'ramp-scatter': 'Scatter on the v2 engine (option C), merged only once the operator chose B in A/B migration.ramp-scatter',
+  'decay-scatter': 'Scatter on the v2 engine (option C), merged only once the operator chose B in A/B migration.decay-scatter',
+  starlight: 'Scatter on the v2 engine (option C), merged only once the operator chose B in A/B migration.starlight',
+  confetti: 'Scatter on the v2 engine (option C), merged only once the operator chose B in A/B migration.confetti',
+  flashes: 'Scatter on the v2 engine (option C), merged only once the operator chose B in A/B migration.flashes',
+});
 
 // The classic and party looks on the v2 engine: for each id, the v2 spec closest to its own pattern on the
 // diff rig (scripts/effects-v2-alias-diff.js --classic) and that diff as [largest channel, mean absolute
@@ -37,23 +47,23 @@ export const CLASSIC_V2: Readonly<Record<string, ClassicLook>> = {
   meter: { family: 'Wall', name: 'Meter', pixel: true, diff: [255, 8.934, 129],
     spec: { kind: 'v2.sweep', params: { space: 'plan', profile: 'fill', fillSource: 'volume', width: 0.3, azimuthDeg: 90, colour: 'solid', background: 0.18 } } },
   // Scatter
-  twinkle: { family: 'Scatter', name: 'Twinkle', diff: [255, 81.537, 129],
+  twinkle: { family: 'Scatter', name: 'Twinkle', desc: 'A fifth of the lamps lighting at random every sixteenth and fading over two beats', diff: [255, 81.537, 129],
     spec: { kind: 'v2.scatter', params: { space: 'plan', envelope: { curve: 'linear', attack: 0, hold: 0.1, release: 2 }, density: 0.2, selection: 'lamps' } } },
-  sparkle: { family: 'Scatter', name: 'Sparkle', diff: [255, 36.284, 129],
+  sparkle: { family: 'Scatter', name: 'Sparkle', desc: 'Random lights switching on and off every thirty-second note', diff: [255, 36.284, 129],
     spec: { kind: 'v2.scatter', params: { space: 'plan', envelope: { curve: 'linear', attack: 0, hold: 0.05, release: 0 }, stepBeats: 0.125 } } },
-  'random-flash': { family: 'Scatter', name: 'Random Flash', diff: [255, 17.796, 129],
+  'random-flash': { family: 'Scatter', name: 'Random Flash', desc: 'A random light or two in the first colour, lit for half of every beat, over a dim floor in the look\'s last colour', diff: [255, 17.796, 129],
     spec: { kind: 'v2.scatter', params: { space: 'plan', stepBeats: 1, envelope: { curve: 'linear', attack: 0, hold: 0.5, release: 0 }, density: 0.01, colour: 'solid', background: 0.1 } } },
-  'flash-scatter': { family: 'Scatter', name: 'Flash Scatter', pixel: true, diff: [255, 39.44, 129],
+  'flash-scatter': { family: 'Scatter', name: 'Flash Scatter', desc: 'Random lights flashing briefly every thirty-second note', pixel: true, diff: [255, 39.44, 129],
     spec: { kind: 'v2.scatter', params: { space: 'plan', envelope: { curve: 'linear', attack: 0, hold: 0.03, release: 0.02 }, stepBeats: 0.125 } } },
-  'ramp-scatter': { family: 'Scatter', name: 'Random Ramps', pixel: true, diff: [249, 10.546, 64],
+  'ramp-scatter': { family: 'Scatter', name: 'Random Ramps', desc: 'A quarter of the lamps swelling up at random every quarter beat, then cut', pixel: true, diff: [249, 10.546, 64],
     spec: { kind: 'v2.scatter', params: { space: 'plan', envelope: { curve: 'easeIn', attack: 0.25, hold: 0, release: 0 }, density: 0.25, selection: 'lamps' } } },
-  'decay-scatter': { family: 'Scatter', name: 'Random Hits', pixel: true, diff: [255, 15.923, 129],
+  'decay-scatter': { family: 'Scatter', name: 'Random Hits', desc: 'A quarter of the lights hitting at random every half beat and dying away', pixel: true, diff: [255, 15.923, 129],
     spec: { kind: 'v2.scatter', params: { space: 'plan', envelope: { curve: 'easeOut', attack: 0, hold: 0, release: 0.25 }, density: 0.25, stepBeats: 0.5 } } },
-  starlight: { family: 'Scatter', name: 'Starlight', diff: [255, 25.924, 129],
+  starlight: { family: 'Scatter', name: 'Starlight', desc: 'A quarter of the lights lighting at random every half beat and fading, over a dim floor in the look\'s last colour', diff: [255, 25.924, 129],
     spec: { kind: 'v2.scatter', params: { space: 'plan', envelope: { curve: 'easeOut', attack: 0, hold: 0.08, release: 0.5 }, density: 0.25, stepBeats: 0.5, background: 0.07 } } },
-  confetti: { family: 'Scatter', name: 'Confetti', diff: [255, 25.071, 129],
+  confetti: { family: 'Scatter', name: 'Confetti', desc: 'Three lights in four popping on every bass hit and dying away', diff: [255, 25.071, 129],
     spec: { kind: 'v2.scatter', params: { space: 'plan', envelope: { curve: 'easeOut', attack: 0, hold: 0.1, release: 0.3 }, density: 0.75, stepBeats: 1, trigger: { mode: 'beatAccent', band: 'bass', beatInterval: 1, threshold: 0.15, reactiveDepth: 1 } } } },
-  flashes: { family: 'Scatter', name: 'Flashes', diff: [255, 31.108, 129],
+  flashes: { family: 'Scatter', name: 'Flashes', desc: 'A quarter of the lights flashing at random every half beat, over a dim floor in the look\'s last colour', diff: [255, 31.108, 129],
     spec: { kind: 'v2.scatter', params: { space: 'plan', envelope: { curve: 'linear', attack: 0, hold: 0.06, release: 0 }, density: 0.25, stepBeats: 0.5, background: 0.07 } } },
   // Ripple
   burst: { family: 'Ripple', name: 'Burst', pixel: true, diff: [192, 10.994, 129],
