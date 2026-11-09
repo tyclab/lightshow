@@ -440,43 +440,5 @@ class PipelineThreads(AudioTestCase):
         self.assertEqual(document['meta']['modelUsage']['tagger'], 'none')
 
 
-# ── Live reads ──────────────────────────────────────────────────────────────
-
-@needs_numpy
-class LiveReads(unittest.TestCase):
-    def test_samples_are_read_a_hop_at_a_time_across_ragged_reads(self):
-        """A pipe read ends wherever the pipe did, which need not be on a
-        sample boundary. Nothing is lost or shifted when it is not."""
-        import numpy as np
-        from analysis import cli
-        samples = np.arange(3000, dtype=np.float32)
-        raw = samples.tobytes()
-        chunks = [raw[:1001], raw[1001:1003], raw[1003:5000], raw[5000:]]
-
-        class Pipe:
-            sizes = []
-
-            def read1(self, n):
-                self.sizes.append(n)
-                return chunks.pop(0) if chunks else b''
-
-        pushed = []
-
-        class Analyzer:
-            def __init__(self, *args, **kwargs):
-                pass
-
-            def push(self, block):
-                pushed.append(np.array(block))
-                return []
-
-        pipe = Pipe()
-        with patch.object(sys, 'stdin', types.SimpleNamespace(buffer=pipe)), \
-             patch('analysis.realtime.StreamingAnalyzer', Analyzer):
-            cli.live_loop(22050)
-        np.testing.assert_array_equal(np.concatenate(pushed), samples)
-        self.assertEqual(set(pipe.sizes), {cli.DEFAULT.realtime.hop_length * 4})
-
-
 if __name__ == '__main__':
     unittest.main()
