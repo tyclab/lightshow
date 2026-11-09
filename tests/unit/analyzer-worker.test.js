@@ -374,6 +374,28 @@ test('a restart when idle lets the running analysis finish first', async () => {
   } finally { w.shutdown(); }
 });
 
+// Standby (analysis-router.ts) ends the idle worker while a GPU worker is
+// ready: nothing starts again on its own, and the next track starts it.
+test('a restart when idle with nothing queued leaves no process until the next analysis', async () => {
+  const w = worker('ok');
+  try {
+    assert.strictEqual(w.state(), 'standby');
+    w.prewarm();
+    assert.strictEqual(w.state(), 'warm');
+    const before = w._proc.pid;
+    w.restart('standby while a GPU worker is ready', { whenIdle: true });
+    assert.strictEqual(w._proc, null);
+    assert.strictEqual(w.state(), 'standby');
+    await new Promise((r) => setTimeout(r, 200));
+    assert.strictEqual(w._proc, null, 'nothing started again on its own');
+    const running = w.analyze('/tmp/a.wav', null);
+    assert.strictEqual(w.state(), 'busy');
+    assert.notStrictEqual(w._proc.pid, before, 'the track started a new worker');
+    assert.deepStrictEqual(await running, { bpm: 128, source: '/tmp/a.wav' });
+    assert.strictEqual(w.state(), 'warm');
+  } finally { w.shutdown(); }
+});
+
 // Changing the separator (or the interpreter) restarts the worker. Work that
 // was running must go to the new process, not sit on the killed one until the
 // timeout.

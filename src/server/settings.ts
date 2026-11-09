@@ -140,6 +140,8 @@ const DEFAULTS: Settings = {
     structureModel: 'auto',
     // Offload models on small GPUs so all analysis models need not fit in VRAM together.
     gpuMemory: 'auto',
+    // Standby ends this machine's analyser while a GPU worker is ready, freeing its ~0.9 GB.
+    localWorker: 'standby',
     // Blank turns remote GPU workers off; the token opens only their job routes, never the UI or API.
     workerToken: '',
     remoteWaitMs: 120000,
@@ -319,6 +321,7 @@ const schema = z.object({
     separator: z.enum(['demucs', 'bs-roformer']),
     structureModel: z.enum(['auto', 'songformer', 'off']),
     gpuMemory: z.enum(['auto', 'offload', 'resident']),
+    localWorker: z.enum(['resident', 'standby']),
     workerToken: z.string().max(512),
     // How long a prefetch waits for a busy remote worker before this machine analyses it.
     remoteWaitMs: z.number().int().min(0).max(900000),

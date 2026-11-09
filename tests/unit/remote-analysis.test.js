@@ -22,7 +22,7 @@ const MAIN_TOKEN = 'main-token-for-the-ui';
 const WORKER_TOKEN = 'worker-token-for-analysis';
 const VERSION = '2.2+0123456789abcdef';
 
-async function harness(t, { token = WORKER_TOKEN, models = ['beat_this', 'htdemucs'], timeoutMs = 60_000, offerTimeoutMs = 2000 } = {}) {
+async function harness(t, { token = WORKER_TOKEN, models = ['beat_this', 'htdemucs'], timeoutMs = 60_000, offerTimeoutMs = 2000, status } = {}) {
   const app = express();
   const server = http.createServer(app);
   const auth = createAuth({ token: MAIN_TOKEN });
@@ -37,7 +37,7 @@ async function harness(t, { token = WORKER_TOKEN, models = ['beat_this', 'htdemu
   pool.attach(io);
   app.use(HTTP_BASE, pool.httpRouter());
   app.use('/api', auth.httpMiddleware);
-  pool.attachStatusRoute(app);
+  pool.attachStatusRoute(app, status);
   app.get('/api/ping', (_req, res) => res.json({ ok: true }));
   await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
   const base = `http://127.0.0.1:${server.address().port}`;
@@ -305,7 +305,7 @@ test('with the router: a track a worker dropped mid-job is finished here, and th
   const local = [];
   const router = new AnalysisRouter({
     analyze: (source, target, options) => new Promise((resolve) => local.push({ source, options, resolve })),
-    cancel: () => true, promote() {}, setQueueOrder() {}, pause() {}, resume() {}, restart() {}, prewarm() {}, shutdown() {},
+    cancel: () => true, state: () => 'warm', promote() {}, setQueueOrder() {}, pause() {}, resume() {}, restart() {}, prewarm() {}, shutdown() {},
   }, { waitForRemoteMs: () => 60_000 });
   router.attachRemote(h.pool);
   const offered = h.once(socket, 'job');
@@ -333,6 +333,26 @@ test('with the router: a track a worker dropped mid-job is finished here, and th
 const until = async (check, ms = 3000) => {
   for (const end = Date.now() + ms; !check(); await new Promise((r) => setTimeout(r, 10))) if (Date.now() > end) throw new Error('timed out');
 };
+
+test('the status names the analyser here: its mode, and standby while a ready worker takes the work', async (t) => {
+  const local = {
+    loaded: true, state() { return this.loaded ? 'warm' : 'standby'; },
+    restart() { this.loaded = false; }, prewarm() { this.loaded = true; },
+    analyze: () => new Promise(() => {}), cancel: () => true, promote() {}, setQueueOrder() {}, pause() {}, resume() {}, shutdown() {},
+  };
+  const router = new AnalysisRouter(local, { localWorker: () => 'standby', armed: () => false });
+  const h = await harness(t, { status: () => ({ queue: router.counts(), local: router.localStatus() }) });
+  router.attachRemote(h.pool);
+  const read = async () => (await (await fetch(`${h.base}/api/analysis/workers`, { headers: { 'X-Lightshow-Token': MAIN_TOKEN } })).json()).local;
+  assert.deepEqual(await read(), { mode: 'standby', state: 'warm' });
+  const socket = await h.worker();
+  await h.hello(socket);
+  await until(() => !local.loaded);
+  assert.deepEqual(await read(), { mode: 'standby', state: 'standby' });
+  socket.close();
+  await until(() => local.loaded);
+  assert.deepEqual(await read(), { mode: 'standby', state: 'warm' }, 'loaded again once the worker is gone');
+});
 
 test('a worker gets the local analyser\'s limit for the request, which grows with the track', (t) => {
   const pool = new RemoteAnalysisPool({ token: () => '', version: VERSION, serverModels: async () => [] });

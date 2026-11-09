@@ -263,6 +263,14 @@ test('model memory policy defaults follow card size', () => {
   assert.ok(!mode(''));
 });
 
+test('the analyser here waits on standby while a GPU worker is ready, unless kept resident', () => {
+  assert.strictEqual(DEFAULTS.analysis.localWorker, 'standby', 'the memory is free while the GPU does the work');
+  const mode = (localWorker) => schema.safeParse({ ...DEFAULTS, analysis: { ...DEFAULTS.analysis, localWorker } }).success;
+  for (const ok of ['resident', 'standby']) assert.ok(mode(ok), ok);
+  assert.ok(!mode('off'));
+  assert.ok(!mode(''));
+});
+
 // Whatever pythonPath names is executed, so it has to be named like a Python.
 test('pythonPath only accepts a Python interpreter', () => {
   const ok = (v) => patchSchema.safeParse({ analysis: { pythonPath: v } }).success;

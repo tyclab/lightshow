@@ -23,8 +23,8 @@ import * as ytdlp from './ytdlp.ts';
 import * as tools from './tools.ts';
 import { messageOf, cancelledError, isCancelled } from './errors.ts';
 import type { AnalysisCache, CacheMeta } from './analysis-cache.ts';
-import type { AnalysisPriority } from './analyzer-worker.ts';
-import type { RemotePool } from './analysis-router.ts';
+import type { AnalysisPriority, LocalState } from './analyzer-worker.ts';
+import type { LocalWorkerMode, RemotePool } from './analysis-router.ts';
 import type { BeatGrid } from './shared/beat-clock.ts';
 import type { PatternDescriptor } from './show/director.ts';
 import type { Intent } from './show/intents.ts';
@@ -363,6 +363,14 @@ class AutoShow {
 
   analysisCounts(): { queued: number; local: number; remote: number } {
     return this._worker.counts();
+  }
+
+  localAnalysis(): { mode: LocalWorkerMode; state: LocalState } {
+    return this._worker.localStatus();
+  }
+
+  settleLocalAnalysis(): void {
+    if (this._worker) this._worker.settleLocal();
   }
 
   pauseAnalysis(reason: string): void {

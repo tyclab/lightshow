@@ -7,6 +7,7 @@ import type { ChildProcessWithoutNullStreams } from 'node:child_process';
 import type { Analysis } from './show/score.ts';
 
 export type AnalysisPriority = 'current' | 'high' | 'normal';
+export type LocalState = 'standby' | 'warm' | 'busy';
 
 export interface AnalyzeOptions {
   priority?: AnalysisPriority | string;
@@ -126,6 +127,12 @@ class AnalyzerWorker {
   // Preload analysis imports during startup so the first track does not pay their cold-start cost.
   prewarm(): void {
     if (!this._proc && !this._shuttingDown && !this._paused) this._spawn();
+  }
+
+  /** 'standby': no process, the next analysis starts one and loads the models first. */
+  state(): LocalState {
+    if (this._pending) return 'busy';
+    return this._proc ? 'warm' : 'standby';
   }
 
   pause(reason: string): void {
