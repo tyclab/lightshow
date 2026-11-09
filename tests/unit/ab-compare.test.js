@@ -160,11 +160,11 @@ test('the default decision log is the ab component, as Loki reads it', async (t)
   assert.deepEqual(entries[0].data, { key: 'solid-vs-wash', choice: 'b', note: 'keep the wash' });
 });
 
-test('the duplicates harness: 25 classic rows in six families, deterministic renders and its difference measures', async () => {
+test('the duplicates harness: 27 classic rows in six families, deterministic renders and its difference measures', async () => {
   const dup = await import('../../scripts/ab-duplicates.js');
   const rows = Object.values(dup.B_FAMILIES).flat();
-  assert.equal(rows.length, 25);
-  assert.equal(new Set(rows).size, 25);
+  assert.equal(rows.length, 27);
+  assert.equal(new Set(rows).size, 27);
   for (const id of rows) assert.ok(Object.hasOwn(PATTERN_FUNCS, id), id);
   const solid = dup.render('solid'), again = dup.render('solid');
   assert.deepEqual(dup.diff(solid, again), { maxChannel: 0, meanAbs: 0, framesDiffering: 0, frames: dup.FRAMES.length });

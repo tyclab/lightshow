@@ -21,7 +21,7 @@ export const B_FAMILIES = {
   Scatter: ['twinkle', 'sparkle', 'random-flash'],
   Blocks: ['split', 'sections'],
   Flash: ['flash-chase', 'flash-scatter', 'flash-fill', 'flash-alternate', 'ramp', 'ramp-scatter', 'decay-scatter', 'flash-burst'],
-  Ring: ['burst', 'impact'],
+  Ring: ['burst', 'impact', 'ring-strobe', 'ring-backlit'],
 };
 // Rows whose lamps are picked by chance (dice, or a fixed hash): a byte match is luck, so they are fitted on the rig's level over time.
 export const RANDOM_ROWS = new Set(['twinkle', 'sparkle', 'random-flash', 'flash-scatter', 'ramp-scatter', 'decay-scatter']);
@@ -29,6 +29,7 @@ const KINDS = {
   Wash: ['v2.wash'], Chase: ['v2.step'], Scatter: ['v2.scatter'], Blocks: ['v2.zones', 'v2.step'], Ring: ['v2.shell'],
   'flash-chase': ['v2.step'], 'flash-scatter': ['v2.scatter'], 'flash-fill': ['v2.shell', 'v2.wash'], 'flash-alternate': ['v2.zones', 'v2.step'],
   ramp: ['v2.shell', 'v2.wash'], 'ramp-scatter': ['v2.scatter'], 'decay-scatter': ['v2.scatter'], 'flash-burst': ['v2.zones', 'v2.step'],
+  'ring-strobe': ['v2.step', 'v2.zones'], 'ring-backlit': ['v2.step', 'v2.zones'],
 };
 export const familyOf = (id) => Object.keys(B_FAMILIES).find((family) => B_FAMILIES[family].includes(id)) ?? null;
 export const kindsFor = (id) => KINDS[id] ?? KINDS[familyOf(id)];
