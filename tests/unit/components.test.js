@@ -938,13 +938,15 @@ test('pad editor offers playable presets and migrated legacy looks', () => {
   const values = presets.map((c) => c.value);
   // Every saved and built-in preset once, by its own id, whatever the id looks like.
   assert.deepStrictEqual([...values].sort(), ['preset:u1', ...PRESET_ROWS.map((r) => `preset:${r.id}`)].sort());
-  // The favourites lead: chase is no preset and offers none; confetti offers Voltage Confetti, under its own name.
-  assert.deepStrictEqual(presets.slice(0, 2), [
-    { value: 'preset:hd.voltageConfetti', name: 'Voltage Confetti' }, { value: 'preset:u1', name: 'My Domino' },
-  ]);
+  // The favourites lead: a legacy chase is no preset and offers none; a legacy confetti offers Voltage Confetti, under its
+  // own name; a redirected one is a preset of its own.
+  const favourite = (id, link) => (Object.hasOwn(CLASSIC_REDIRECTS, id) ? [{ value: `preset:${id}`, name: PRESET_ROWS.find((r) => r.id === id).name }]
+    : link ? [{ value: `preset:${link.id}`, name: link.name }] : []);
+  const led = [...favourite('chase'), ...favourite('confetti', { id: 'hd.voltageConfetti', name: 'Voltage Confetti' })];
+  assert.deepStrictEqual(presets.slice(0, led.length + 1), [...led, { value: 'preset:u1', name: 'My Domino' }]);
   // Then the other looks' presets in the looks' order, before the rest of the catalogue.
   const linked = LEGACY_ROWS.filter((r) => r.preset && r.id !== 'confetti').map((r) => `preset:${r.preset}`);
-  assert.deepStrictEqual(values.slice(2, 2 + linked.length), linked);
+  assert.deepStrictEqual(values.slice(led.length + 1, led.length + 1 + linked.length), linked);
   assert.deepStrictEqual(patterns, [{ value: 'pattern:groove', name: 'Groove' }, { value: 'pattern:p2', name: 'p2' }]);
   assert.deepStrictEqual(drops, [{ value: 'sequencePattern:groove', name: 'Groove' }, { value: 'sequencePattern:p2', name: 'p2' }]);
   assert.deepStrictEqual(ui.padBody({ label: '', accent: '#123456', content: 'sequencePattern:groove', launch: 'once', quantise: 4, targets: [] }).content,
