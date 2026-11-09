@@ -90,7 +90,6 @@ const PATTERNS = [
   { id: 'impact',   name: 'Impact',   desc: 'A ring thrown out from the centre on every step, with sparks on every kick', pixel: true },
   { id: 'bars',     name: 'Bars',     desc: 'A spectrum analyser: kick, bass, drums, snare, band, voice and hats as columns, as high as each plays', pixel: true },
   { id: 'fire',     name: 'Fire',     desc: 'Flames licking up a panel, taller with the bass, flaring on the kick', pixel: true },
-  { id: 'rain',     name: 'Rain',     desc: 'Drops falling down every column in time, the hats shaking loose more', pixel: true },
   { id: 'flash-chase',     name: 'Flash Chase',     desc: 'One flash stepping zone to zone, a lap a step', pixel: true },
   { id: 'flash-scatter',   name: 'Flash Scatter',   desc: 'Random zones strobing, more of them halfway between steps', pixel: true },
   { id: 'flash-fill',      name: 'Flash Fill',      desc: 'Every step fills from the middle out, holds, and cuts to black', pixel: true },

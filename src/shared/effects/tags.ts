@@ -86,7 +86,6 @@ const LEGACY: Readonly<Record<string, LookTags>> = Object.freeze({
   impact: tagged(['bands', 'bars'], ['track']),
   bars: tagged(['bands', 'bars'], ['track']),
   fire: tagged(['bands', 'bars'], ['track']),
-  rain: tagged(['bands', 'bars'], ['track']),
   'flash-chase': tagged(['beat', 'bars']),
   'flash-scatter': tagged(['beat', 'bars']),
   'flash-fill': tagged(['beat', 'bars']),
@@ -111,7 +110,6 @@ const LEGACY: Readonly<Record<string, LookTags>> = Object.freeze({
   'room-wave': tagged(['beat']),
   'ring-strobe': tagged(['beat']),
   'ring-backlit': tagged(['beat']),
-  fireworks: tagged(['beat']),
   flashes: tagged(['beat']),
   swirl: tagged(['beat']),
 });

@@ -64,7 +64,6 @@ export const PATTERNS = [
 	{ id: 'impact', name: 'Impact', pixel: true },
 	{ id: 'bars', name: 'Bars', pixel: true },
 	{ id: 'fire', name: 'Fire', pixel: true },
-	{ id: 'rain', name: 'Rain', pixel: true },
 	{ id: 'flash-chase', name: 'Flash Chase', pixel: true },
 	{ id: 'flash-scatter', name: 'Flash Scatter', pixel: true },
 	{ id: 'flash-fill', name: 'Flash Fill', pixel: true },
@@ -89,7 +88,6 @@ export const PATTERNS = [
 	{ id: 'room-wave', name: 'Room Wave' },
 	{ id: 'ring-strobe', name: 'Ring Strobe' },
 	{ id: 'ring-backlit', name: 'Ring Backlit' },
-	{ id: 'fireworks', name: 'Fireworks' },
 	{ id: 'flashes', name: 'Flashes' },
 	{ id: 'swirl', name: 'Swirl' },
 ]
