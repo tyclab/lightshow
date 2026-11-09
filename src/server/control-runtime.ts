@@ -18,7 +18,7 @@ export function configureControls({ integrations, applier, autoShow }: Pick<Rout
     paused: () => control.programme === 'sequence' && sequencer.status().paused,
     arm(on, origin) {
       const rig = showStore.status();
-      if (on && (rig.pending || rig.error || rig.routingConflict)) {
+      if (on && (rig.pending || rig.error)) {
         throw new HttpError(409, 'Resolve the rig settings and wait for the renderer before arming outputs');
       }
       applier.applyChanged(settings.update({ outputs: { armed: on } }), origin ?? { via: 'control' });

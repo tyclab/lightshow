@@ -743,27 +743,11 @@ Other settings apply immediately. The UI lists pending restart keys.
 | `logs/` | Structured logs |
 | `.venv/` | Managed analysis environment |
 
-Settings and rig files use versioned envelopes. Legacy files are validated and
-backed up privately as `.pre-v1-*` before migration. The existing legacy picture-grade
-and source-name migrations still run once. Choices saved in the versioned format
-remain explicit, including values equal to former defaults. Unknown future versions
-refuse writes.
-If legacy settings and show routing disagree, outputs remain disarmed and Rig →
-Outputs offers both routes for an explicit choice. Existing fixture universes are
-preserved when resolving that conflict.
-
-For a downgrade, export compatible settings and show files together:
-
-```sh
-node scripts/export-config-rollback.ts ./config ../lightshow-rollback
-```
-
-The destination must be new. It contains private files and a `COMPLETE.txt` marker;
-the running configuration is untouched. After the normal safe-stop checks, restore
-both files with the matching old binary. Never start an old strict loader against
-the new envelope. Preserve the original backups too. Legacy binaries apply the
-former-default migrations to flat files, so recheck intentional picture-grade and
-source-name choices after rollback.
+Settings and rig files use versioned envelopes. Unversioned files are validated and
+backed up privately as `.pre-v1-*` before they are rewritten in the envelope, and
+Art-Net routing then lives only in the rig file. Unknown future versions refuse
+writes. Builds from before the envelope cannot read these files; the `.pre-v1-*`
+backups are their copy.
 
 The checkout is the default data directory. `LIGHTSHOW_DATA_DIR` moves the
 whole data tree; `LIGHTSHOW_CONFIG_DIR`, `LIGHTSHOW_CACHE_DIR` and
@@ -771,9 +755,8 @@ whole data tree; `LIGHTSHOW_CONFIG_DIR`, `LIGHTSHOW_CACHE_DIR` and
 JSON store files are moved aside as `.invalid-<timestamp>` and defaults load.
 Stored secrets are never returned by the settings API.
 
-A `.env` in the startup directory is still loaded, but old output/source
-configuration variables are ignored and named in a startup warning. Use the
-settings API or UI for them. Supported environment controls are listed in
+A `.env` in the startup directory is still loaded, but output and source
+configuration is not read from it: use the settings API or UI. Supported environment controls are listed in
 [.env.example](.env.example), including `ARTNET_PYTHON`, `DEBUG_MIDI`, log
 settings and data paths.
 
