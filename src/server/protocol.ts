@@ -12,7 +12,7 @@ export const TOPICS = { dmx: ROOM.dmx, audio: ROOM.audio, picture: ROOM.picture 
 export type Domain = 'look' | 'rig' | 'show' | 'sources' | 'audio' | 'sequence' | 'catalogs' | 'library' | 'voices' | 'pads' | 'system';
 export const DOMAINS: readonly Domain[] = ['look', 'rig', 'show', 'sources', 'audio', 'sequence', 'catalogs', 'library', 'voices', 'pads', 'system'];
 
-const DOMAIN_OF: Readonly<Record<string, Domain>> = {
+export const DOMAIN_OF: Readonly<Record<string, Domain>> = {
   control: 'system',
   bpm: 'look', clock: 'look', tempoMode: 'look', beatDivision: 'look', running: 'look', pattern: 'look',
   colorA: 'look', colorB: 'look', colorC: 'look', colorD: 'look', palette: 'look',

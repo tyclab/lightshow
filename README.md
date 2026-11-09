@@ -1186,7 +1186,7 @@ reads **Hue busy**, and its **Hue** pill reads **busy** and leads to Rig → Out
 and the app id holding it, and preflight warns. The live state's `hue` list
 carries one entry per enabled, set-up bridge, `{ id, label, status, occupiedBy,
 problem }`, with `occupiedBy` `{ areaId, area, streamer }` or null and `problem`
-the sentence to show, so a Home Assistant sensor polling `/api/state` sees it as
+the sentence to show, so a Home Assistant sensor polling `/api/state/live` sees it as
 well. The lightshow never stops another app's stream; it is logged once when it
 starts and once when it ends. An enabled, configured bridge whose stream fails degrades health
 while outputs are armed. Starts require a verified application identity and a readable
@@ -1839,7 +1839,8 @@ and leaves background settings and the other global controls unchanged.
 
 ## Home Assistant integration surface
 
-Use authenticated REST commands and a sensor polling `/api/state`; the server
+Use authenticated REST commands and a sensor polling `/api/state/live` (every
+live key of `/api/state`, without its catalogues); the server
 requires no Home Assistant-specific transport. Supply `X-Lightshow-Token` and
 `Content-Type: application/json` for JSON bodies. Keep GET polling separate
 from POST/PUT/DELETE actions.
@@ -1887,6 +1888,7 @@ All endpoints return JSON. When a token is configured, send it as an
 | Method | Path | Description |
 |--------|------|-------------|
 | GET | `/api/state` | Full current state (`armed` says whether anything leaves the machine; `wled`, while armed, whether each WLED takes the stream — see [WLED](#wled); `hue`, which Hue bridge another app's area holds — see [Philips Hue](#philips-hue)) |
+| GET | `/api/state/live` | The live state alone: `/api/state` without the built-in catalogues (the `catalogs` keys, about 117 KB) or `dmxSnapshot`, for a poller such as a Home Assistant sensor |
 | GET · PUT · DELETE | `/api/stage/room` | Private Stage room model; writes require the current `If-Match` revision. See [room format](docs/stage-room.md) |
 | GET | `/api/stage/room/report` | Read-only: `{ ok, revision, units, unbound, shared, far }`, where the [Spatial effects](#spatial-effects) place each unit against the room bindings and the Rig plot |
 | POST | `/api/set` | Patch state fields (JSON body) |

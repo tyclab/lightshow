@@ -18,6 +18,8 @@ import type { RouteContext } from './common.ts';
 export function attachLookRoutes(app: Express, ctx: RouteContext): void {
   // ─── State ────────────────────────────────────────────────────────────────
   app.get('/api/state', (_req, res) => res.json(getClientState()));
+  // For a poller that reads only live keys (Home Assistant every 5 s): no catalogues, no DMX snapshot.
+  app.get('/api/state/live', (_req, res) => res.json(getLiveState()));
 
   // Answers with the live state: the catalogues (about 75 KB of built-ins)
   // are GET /api/state's and the socket's first snapshot's, not every patch's.
