@@ -517,7 +517,15 @@ uses the effect's authored background colours and movement; **Fixed colour** is 
 colour of your own, picked by hue, saturation and brightness (or the colour well) plus
 white, amber and UV; **Off** removes the background.
 The background level is independent of the effect editor's foreground brightness.
-Effects without an ambient field stay dark between their notes in Follow mode.
+Under Follow, **Between notes** decides what the main effect's gaps (below) show. **Off**,
+the default, leaves them as the effect draws them, so effects without an ambient field stay
+dark between their notes. **Glow** lights them in the effect's own colour at the classic
+Fade floor (25 of 255) times the background level; **Full** lights them in that colour at
+the background level, as a Fixed colour fills them with yours. Either way the fill follows
+the share the light leaves uncovered. The colour is the first the main effect plays: the
+palette override's while one is on, else its own palette's, else the look's. Beds, Keep
+dark, explicit dark cues, pads, clips, voices and the visualizer pictures are untouched,
+and the rehearsal preview shows the same fill.
 
 A Fixed colour is the layer under everything the show plays: the main effect of every
 family, classic patterns, pattern pads and other voices, sequence clips, and the
@@ -530,9 +538,9 @@ emitter, so its black shows the whole colour and full colours cover it. Explicit
 stay dark: strobe and rapid-flash rests, Kill, a foreground drawn black at full opacity (the
 Blackout scene), the classic flash patterns and ring strobe, fixture overrides and blackouts,
 and the master blackout. An effect set to **Keep dark** under **Between effect hits**, below,
-keeps its own black too. Follow and Off never light a lamp the effect leaves dark, and
-neither does a black Fixed colour (no emitter lit), on every profile, a dimmer-only lamp
-included.
+keeps its own black too. Off and Follow with Between notes off never light a lamp the
+effect leaves dark, and neither does a black Fixed colour (no emitter lit), on every profile,
+a dimmer-only lamp included.
 
 **Fixtures** chooses what the card reaches: **Whole rig** (the default), **Wash
 fixtures** or **Selected fixtures…**, ticked from the patch. Wash fixtures are the
@@ -540,7 +548,7 @@ single-light fixtures, those whose profile has no cells (lamps, PARs, Hue lamps,
 WLED washes): the part of the rig a look's pattern paints when a pixel pattern takes
 the bars. There is no wash role to assign; the auto show's split wash is a separate
 setting. Fixtures outside the scope keep the effect's own background, as Follow
-effect at 100 % leaves it. Overrides, a fixture's blackout, Kill and the master
+effect at 100 % with Between notes off leaves it. Overrides, a fixture's blackout, Kill and the master
 blackout win inside the scope as everywhere, and the rehearsal preview applies the
 same scope as the rig. Selected fixtures are stored by fixture id, which belongs to
 one patch: a cue recalled with **Restore saved background on recall** under another
@@ -574,8 +582,9 @@ a background. Each dark or partly dark pixel is one of three things:
   each OG Groove Wave swell not yet lit, so the Fixed colour fades out as the swell fades
   in, the trough of a wave and the dark side of Swirl and Beacon.
   **Reveal background** lets the Fixed colour into it, in proportion to the uncovered
-  share; **Keep dark** leaves the gap the effect's own black. Follow and Off put nothing
-  there under either setting, on every profile, a dimmer-only lamp included. Rotation,
+  share, and Follow's Glow or Full the main effect's colour; **Keep dark** leaves the gap
+  the effect's own black. Off, and Follow with Between notes off, put nothing there under
+  either setting, on every profile, a dimmer-only lamp included. Rotation,
   the noise fields, the travelling room waves and Studio draw their dark parts in colour at
   full level or over an authored bed, so they leave no gap.
 - An **explicit dark cue**: black the effect authors, dark under both settings and
@@ -620,9 +629,10 @@ Restore that copy when rolling back to a build without background support: its
 strict look and library readers cannot load the new fields and version and would
 move the files aside. The same holds for the sequences file once a clip or a
 pattern pad carries a **Between effect hits** choice, and for a cue or restart
-record with a fixture scope: a build without them cannot read those files, and only
-the effect library keeps an older copy by itself. The whole rig and the default
-**Between effect hits** (Reveal background) store nothing new.
+record with a fixture scope or Follow's **Between notes** on Glow or Full: a build
+without them cannot read those files, and only the effect library keeps an older copy
+by itself. The whole rig, the default **Between effect hits** (Reveal background) and
+**Between notes** Off store nothing new.
 
 Known limitations of the background, pending the operator's decision because fixing
 them changes Off, Fixed or Follow output against earlier builds:

@@ -1,4 +1,4 @@
-import { DEFAULT_BACKGROUND } from '../src/shared/background.ts';
+import { DEFAULT_BACKGROUND, followFilling } from '../src/shared/background.ts';
 import { NOW_PLAYING_FIELDS, playingState } from './now-playing.js';
 
 /** The running look, named apart from the Background card it sits on. */
@@ -6,6 +6,7 @@ export const MAIN_EFFECT = 'Main effect';
 /** The Background card's words, which the card and the picture layers both read. */
 export const BACKGROUND_LABELS = {
   mode: { follow: 'Follow effect', fixed: 'Fixed colour', off: 'Off' },
+  followFill: { off: 'Off', glow: 'Glow', full: 'Full' },
   fixtures: { rig: 'Whole rig', wash: 'Wash fixtures', selected: 'Selected fixtures…' },
 };
 export const PICTURE_LAYER_FIELDS = [...NOW_PLAYING_FIELDS, 'background'];
@@ -61,6 +62,7 @@ export function pictureLayers(s) {
   return [
     { id: 'above', name: 'Pads and overrides', value: namesText(above), title: above.join(', ') },
     { id: 'main', name: MAIN_EFFECT, value: mainEffectText(playing) },
-    { id: 'background', name: 'Background', value: `${BACKGROUND_LABELS.mode[background.mode] ?? background.mode} · ${scopeText(background, fixtures)}` },
+    { id: 'background', name: 'Background', value: `${BACKGROUND_LABELS.mode[background.mode] ?? background.mode}${followFilling(background)
+      ? ` (gaps: ${BACKGROUND_LABELS.followFill[background.followFill]})` : ''} · ${scopeText(background, fixtures)}` },
   ];
 }
