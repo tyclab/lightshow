@@ -202,7 +202,8 @@ is not read.
 ## Troubleshooting
 
 `GET /api/analysis/workers` (UI token) shows each worker's compatibility and
-why not, its availability and why not, the job it runs and the last jobs.
+why not, its availability and why not, the job it runs and the last jobs, and
+`local`: whether the server's own analyser is on standby, warm or busy.
 
 | The server says | Means |
 |-----------------|-------|

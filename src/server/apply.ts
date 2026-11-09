@@ -34,7 +34,7 @@ export interface ApplierDeps {
   live?: { start(options: { source: 'loopback' | 'input'; device?: string; latencyMs?: number }): void; stop(): void } | null;
   midiClock?: { setPort(port: string): void } | null;
   deezer: { init(arl: string): Promise<unknown>; canDecrypt?(): boolean };
-  autoShow?: { restartWorker?(reason: string): void } | null;
+  autoShow?: { restartWorker?(reason: string): void; settleLocalAnalysis?(): void } | null;
   applyPatch(patch: unknown): unknown;
   broadcast(): void;
   voices?: { stopAll(): number };
@@ -181,6 +181,11 @@ function createApplier({ midi, spotify, smtc, live = null, midiClock = null, dee
     if (autoShow && autoShow.restartWorker) autoShow.restartWorker('GPU memory changed');
   }
 
+  function applyLocalWorker() {
+    console.log(`[analysis] local worker is now ${settings.get('analysis.localWorker')}`);
+    if (autoShow && autoShow.settleLocalAnalysis) autoShow.settleLocalAnalysis();
+  }
+
   function applyDeezer() {
     const arl = settings.get('deezer.arl');
     if (!arl) return;
@@ -234,6 +239,7 @@ function createApplier({ midi, spotify, smtc, live = null, midiClock = null, dee
     { match: (k) => k === 'analysis.separator', run: applySeparator },
     { match: (k) => k === 'analysis.structureModel', run: applyStructureModel },
     { match: (k) => k === 'analysis.gpuMemory', run: applyGpuMemory },
+    { match: (k) => k === 'analysis.localWorker', run: applyLocalWorker },
     { match: (k) => k === 'safety.flashLimit', run: applySafety },
     { match: (k) => k === 'clock.tempoMode', run: applyClock },
     { match: (k) => k === 'outputs.armed', run: (origin) => applyOutputs({ origin }) },

@@ -216,6 +216,14 @@ export const ANALYSIS = {
         + 'kept in RAM, each goes onto the card for its own pass — a fraction of a second, not a reload from disk — and '
         + 'the card has room for it. A pass that still runs out of memory is run again on the CPU. Changing it restarts '
         + 'the analyser.' },
+    { path: 'analysis.localWorker', label: 'Local analyser', type: 'select',
+      options: () => [
+        { value: 'standby', label: 'Standby while a GPU worker is ready' },
+        { value: 'resident', label: 'Resident (loaded all the time)' },
+      ],
+      help: 'Standby frees about 0.9 GB while a GPU worker is connected: the first track that falls back to this '
+        + 'machine loads the models first, seconds from disk. When the last worker disconnects, the analyser loads '
+        + 'again only while the outputs are disarmed. Resident keeps it loaded from start-up.' },
     { path: 'analysis.analyzerTimeoutMs', label: 'Analysis Timeout', type: 'number', unit: 'ms', min: 60000, max: 3600000,
       help: 'How long one track may analyse before the worker is considered wedged and recycled. A long track gets '
         + 'longer: see the next field.' },

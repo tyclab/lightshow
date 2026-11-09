@@ -39,7 +39,7 @@ import { cacheDir, dataDir } from './server/config-dir.ts';
 import { openBrowser, shouldOpenBrowser } from './server/open-browser.ts';
 import { createApplier } from './server/apply.ts';
 import { createIdleDisarm } from './server/idle-disarm.ts';
-import { isArmed } from './server/armed.ts';
+import { isArmed, onDisarm } from './server/armed.ts';
 import { startWledWatch, wledBoards } from './server/wled-watch.ts';
 import { pixelInputs } from './server/pixel-input-live.ts';
 import { midiMap } from './server/midi-map.ts';
@@ -137,6 +137,8 @@ autoShow.useRemoteAnalysis(remoteAnalysis);
 settings.onChange((changed) => {
   if (changed.includes('analysis.workerToken')) remoteAnalysis.disconnectAll('the worker token changed');
 });
+// A standby analyser that had to wait for the disarm loads now.
+onDisarm(() => autoShow.settleLocalAnalysis());
 
 const integrations = setupIntegrations({ io, midi, spotify, nowPlaying, deezerSource, prolink, autoShow, analysisCache, liveInput });
 
@@ -204,7 +206,7 @@ spotify.onTokens((refreshToken) => {
 
 configureControls({ integrations, applier, autoShow }, () => { lookStore.save(currentLook(autoShow, integrations.resolveAutoSource())); });
 
-remoteAnalysis.attachStatusRoute(app, () => ({ queue: autoShow.analysisCounts() }));
+remoteAnalysis.attachStatusRoute(app, () => ({ queue: autoShow.analysisCounts(), local: autoShow.localAnalysis() }));
 attachRoutes(app, { midi, autoShow, spotify, nowPlaying, deezerSource, prolink, analysisCache, integrations, applier, restart: restartServer });
 attachSockets(io, { midi, integrations });
 

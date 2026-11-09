@@ -7,6 +7,7 @@ import type { ChildProcessWithoutNullStreams } from 'node:child_process';
 import type { Analysis } from './show/score.ts';
 
 export type AnalysisPriority = 'current' | 'high' | 'normal';
+export type LocalState = 'standby' | 'warm' | 'busy';
 
 export interface AnalyzeOptions {
   priority?: AnalysisPriority | string;
@@ -126,6 +127,12 @@ class AnalyzerWorker {
   // Preload analysis imports during startup so the first track does not pay their cold-start cost.
   prewarm(): void {
     if (!this._proc && !this._shuttingDown && !this._paused) this._spawn();
+  }
+
+  /** 'standby': no process, the next analysis starts one and loads the models first. */
+  state(): LocalState {
+    if (this._pending) return 'busy';
+    return this._proc ? 'warm' : 'standby';
   }
 
   pause(reason: string): void {
@@ -258,6 +265,7 @@ class AnalyzerWorker {
 
   // Recycle without rejecting pending jobs so a replacement process can continue the queue.
   _recycleProcess(): void {
+    this._recycleWhenIdle = null;   // it was about this process
     if (!this._proc) return;
     // Detach the old process first so late exit handlers cannot reject the replacement’s queue.
     const proc = this._proc;
@@ -327,6 +335,7 @@ class AnalyzerWorker {
     if (!this._proc) return;
     this._proc = null;
     this._stdoutBuf = '';
+    this._recycleWhenIdle = null;
     if (!this._shuttingDown && this._pending) {
       console.warn(`[analyzer] ${reason} — pending request will be rejected`);
     } else if (!this._shuttingDown) {

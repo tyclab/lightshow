@@ -1,12 +1,15 @@
 import { compareSlots, rankOf, supersededError } from './analyzer-worker.ts';
 import { cancelledError, isCancelled, messageOf } from './errors.ts';
 import { settings } from './server/settings.ts';
+import { isArmed } from './server/armed.ts';
 import type AnalyzerWorker from './analyzer-worker.ts';
-import type { AnalysisPriority, AnalyzeOptions } from './analyzer-worker.ts';
+import type { AnalysisPriority, AnalyzeOptions, LocalState } from './analyzer-worker.ts';
 import type { Analysis } from './show/score.ts';
 
 export type LocalAnalyzer = Pick<AnalyzerWorker,
-  'analyze' | 'cancel' | 'promote' | 'setQueueOrder' | 'pause' | 'resume' | 'restart' | 'prewarm' | 'shutdown'>;
+  'analyze' | 'cancel' | 'promote' | 'setQueueOrder' | 'pause' | 'resume' | 'restart' | 'prewarm' | 'state' | 'shutdown'>;
+
+export type LocalWorkerMode = 'resident' | 'standby';
 
 export interface RemoteRequest {
   source: string;
@@ -27,7 +30,10 @@ export interface RemoteHandle {
 export interface RemotePool {
   eligible(source: unknown): boolean;
   idleWorker(): string | null;
+  /** A worker takes jobs now, or runs one. */
   hasCompatible(): boolean;
+  /** A compatible worker is connected, taking jobs or not. */
+  hasWorker(): boolean;
   run(worker: string, request: RemoteRequest): RemoteHandle;
   onChange(fn: () => void): void;
 }
@@ -57,7 +63,10 @@ const RANKS: Record<string, true | undefined> = { current: true, high: true, nor
  * runs the rest on this machine. The playing track starts here at once when no
  * worker is idle, and a worker that frees up runs it too: the first answer wins.
  * A prefetch waits up to `analysis.remoteWaitMs` for a busy worker. Whatever a
- * worker fails or drops comes back to this machine.
+ * worker fails or drops comes back to this machine. With `analysis.localWorker`
+ * 'standby' this machine's analyser ends once a worker takes the work, and is
+ * loaded again when the last one disconnects, but never while the outputs are
+ * armed.
  */
 class AnalysisRouter {
   declare _local: LocalAnalyzer;
@@ -70,13 +79,32 @@ class AnalysisRouter {
   declare _paused: string | null;
   declare _shuttingDown: boolean;
   declare _wake: ReturnType<typeof setTimeout> | null;
+  declare _mode: () => LocalWorkerMode;
+  declare _armed: () => boolean;
+  declare _remote: () => boolean;
+  declare _standby: boolean;
+  declare _covered: boolean;
+  declare _attended: boolean;
+  declare _standbyDue: boolean;
+  declare _warmDue: string | null;
 
-  constructor(local: LocalAnalyzer, { waitForRemoteMs = () => settings.get('analysis.remoteWaitMs'), now = () => Date.now() }:
-    { waitForRemoteMs?: () => number; now?: () => number } = {}) {
+  constructor(local: LocalAnalyzer, { waitForRemoteMs = () => settings.get('analysis.remoteWaitMs'), now = () => Date.now(),
+    localWorker = () => settings.get('analysis.localWorker'), armed = isArmed,
+    remoteEnabled = () => !!settings.get('analysis.workerToken') }:
+    { waitForRemoteMs?: () => number; now?: () => number; localWorker?: () => LocalWorkerMode; armed?: () => boolean;
+      remoteEnabled?: () => boolean } = {}) {
     this._local = local;
     this._pool = null;
     this._waitMs = waitForRemoteMs;
     this._now = now;
+    this._mode = localWorker;
+    this._armed = armed;
+    this._remote = remoteEnabled;
+    this._standby = localWorker() === 'standby';
+    this._covered = false;
+    this._attended = false;
+    this._standbyDue = false;
+    this._warmDue = null;
     this._queue = [];
     this._live = new Set();
     this._nextId = 1;
@@ -153,7 +181,18 @@ class AnalysisRouter {
 
   restart(reason?: string, opts?: { whenIdle?: boolean }): void { this._local.restart(reason, opts); }
 
-  prewarm(): void { this._local.prewarm(); }
+  // With remote analysis on a worker is expected, and what loads ahead of it ends when it connects.
+  prewarm(): void {
+    if (this._mode() === 'standby' && this._remote()) return;
+    this._local.prewarm();
+  }
+
+  // Later, not now: the outputs' disarm listeners run before the armed flag drops.
+  settleLocal(): void { queueMicrotask(() => this._settleLocal()); }
+
+  localStatus(): { mode: LocalWorkerMode; state: LocalState } {
+    return { mode: this._mode(), state: this._local.state() };
+  }
 
   shutdown(): void {
     this._shuttingDown = true;
@@ -226,6 +265,7 @@ class AnalysisRouter {
     this._preemptRemote();
     this._dispatchLocal();
     this._armWake();
+    this._settleLocal();
   }
 
   _dispatchRemote(): void {
@@ -328,6 +368,38 @@ class AnalysisRouter {
         if (!entry.remote || isCancelled(err)) this._settle(entry, err);
         this._pump();
       });
+  }
+
+  /**
+   * Standby once a worker takes jobs and nothing runs here; loaded again, while
+   * disarmed, once the last worker has disconnected or the mode is resident. A
+   * connected worker between jobs (a cancelled one stopping, a decline) is neither.
+   */
+  _settleLocal(): void {
+    if (this._shuttingDown || this._paused) return;
+    const standby = this._mode() === 'standby';
+    const covered = standby && !!this._pool?.hasCompatible();
+    const attended = standby && !!this._pool?.hasWorker();
+    if (covered && !this._covered) this._standbyDue = true;
+    if (!covered) this._standbyDue = false;
+    if (standby !== this._standby || (attended && !this._attended)) this._warmDue = null;
+    const why = !standby && this._standby ? 'analysis.localWorker is resident'
+      : standby && this._attended && !attended ? 'no GPU worker is connected' : null;
+    if (why && this._local.state() === 'standby') this._warmDue = this._armed() ? `the outputs are disarmed and ${why}` : why;
+    this._standby = standby;
+    this._covered = covered;
+    this._attended = attended;
+    if (this._standbyDue && !this._localEntries().length) {
+      this._local.restart('standby while a GPU worker is ready; a track analysed here starts it again', { whenIdle: true });
+      this._standbyDue = false;
+    }
+    if (this._warmDue && !this._armed()) {
+      if (this._local.state() === 'standby') {
+        console.log(`[analyzer] prewarming worker: ${this._warmDue}`);
+        this._local.prewarm();
+      }
+      this._warmDue = null;
+    }
   }
 
   _armWake(): void {

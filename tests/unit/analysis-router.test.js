@@ -6,6 +6,7 @@ import assert from 'node:assert/strict';
 
 import AnalysisRouter from '../../src/analysis-router.ts';
 import { cancelledError, isCancelled } from '../../src/errors.ts';
+import { isArmed, onDisarm, setArmedFlag } from '../../src/server/armed.ts';
 
 const tick = (ms = 0) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -23,7 +24,9 @@ function fakeLocal() {
     cancelled: [],
     analyze(source, target, options) {
       const job = { source, target, options, ...deferred() };
+      job.promise.then(() => { job.settled = true; }, () => { job.settled = true; });
       jobs.push(job);
+      this.loaded = true;
       return job.promise;
     },
     cancel(tag) {
@@ -33,7 +36,11 @@ function fakeLocal() {
       return open.length > 0;
     },
     running(tag) { return jobs.find((j) => j.options.tag === tag && !j.done); },
-    promote() {}, setQueueOrder() {}, pause() {}, resume() {}, restart() {}, prewarm() {}, shutdown() {},
+    loaded: false, prewarms: 0, restarts: [],
+    state() { return jobs.some((j) => !j.done && !j.settled) ? 'busy' : this.loaded ? 'warm' : 'standby'; },
+    prewarm() { this.prewarms++; this.loaded = true; },
+    restart(reason, opts) { if (!this.loaded) return; this.restarts.push({ reason, opts }); this.loaded = false; },
+    promote() {}, setQueueOrder() {}, pause() {}, resume() {}, shutdown() {},
   };
 }
 
@@ -41,13 +48,14 @@ function remoteError(kind, message = kind) {
   return Object.assign(new Error(message), { remote: kind });
 }
 
-/** The pool of remote workers: `idle` says whether its one worker can take a job. */
+/** The pool of remote workers: `idle` says whether its one worker can take a job, `away` that it is connected but not taking any. */
 function fakePool({ idle = true, compatible = true } = {}) {
   const pool = {
-    idle, compatible, runs: [], listeners: [],
+    idle, compatible, away: false, runs: [], listeners: [],
     eligible: (source) => typeof source === 'string' && !/^https?:/.test(source),
     idleWorker() { return this.compatible && this.idle ? 'gpu-1' : null; },
     hasCompatible() { return this.compatible; },
+    hasWorker() { return this.compatible || this.away; },
     run(worker, request) {
       this.idle = false;
       const run = { worker, request, cancelled: null, ...deferred() };
@@ -60,15 +68,21 @@ function fakePool({ idle = true, compatible = true } = {}) {
     },
     onChange(fn) { this.listeners.push(fn); },
     free() { this.idle = true; for (const fn of this.listeners) fn(); },
+    /** A worker connects and is ready (true), or the last one disconnects (false). */
+    ready(on) { this.compatible = on; this.away = false; for (const fn of this.listeners) fn(); },
+    /** The connected worker stops taking jobs for the moment (false), or takes them again (true). */
+    taking(on) { this.compatible = on; this.away = !on; for (const fn of this.listeners) fn(); },
   };
   return pool;
 }
 
-function router(pool, { waitMs = 60_000 } = {}) {
+function router(pool, { waitMs = 60_000, mode = 'standby', remote = true } = {}) {
   const local = fakeLocal();
-  const r = new AnalysisRouter(local, { waitForRemoteMs: () => waitMs });
+  const ctl = { mode, armed: false, remote };
+  const r = new AnalysisRouter(local, { waitForRemoteMs: () => waitMs, localWorker: () => ctl.mode, armed: () => ctl.armed,
+    remoteEnabled: () => ctl.remote });
   if (pool) r.attachRemote(pool);
-  return { r, local };
+  return { r, local, ctl };
 }
 
 test('without a remote worker every analysis runs on this machine', async () => {
@@ -254,4 +268,159 @@ test('shutdown fails what is queued and stops the remote work', async () => {
   r.shutdown();
   await assert.rejects(queued, /shutting down/);
   await assert.rejects(r.analyze('/music/b.wav', null), /shutting down/);
+});
+
+// Standby (analysis.localWorker): while a GPU worker is ready this machine's
+// analyser holds no process, and nothing reloads it while the outputs are armed.
+test('standby: nothing loads at start while remote analysis is on; with it off, as before', () => {
+  const { r, local } = router(fakePool({ compatible: false }));
+  r.prewarm();
+  assert.equal(local.prewarms, 0, 'a worker is expected: what loads now ends when it connects');
+  const off = router(fakePool({ compatible: false }), { remote: false });
+  off.r.prewarm();
+  assert.equal(off.local.prewarms, 1);
+  const resident = router(fakePool({ compatible: false }), { mode: 'resident' });
+  resident.r.prewarm();
+  assert.equal(resident.local.prewarms, 1);
+});
+
+test('standby: a worker that becomes ready ends the idle analyser here until a track needs it', (t) => {
+  const pool = fakePool({ compatible: false });
+  const { r, local, ctl } = router(pool, { remote: false });
+  r.prewarm();
+  ctl.remote = true;
+  pool.ready(true);
+  assert.equal(local.restarts.length, 1);
+  assert.deepEqual(local.restarts[0].opts, { whenIdle: true });
+  assert.match(local.restarts[0].reason, /^standby while a GPU worker is ready/);
+  pool.free();
+  assert.equal(local.restarts.length, 1, 'once, not on every change of the pool');
+  const logged = [];
+  t.mock.method(console, 'log', (line) => logged.push(String(line)));
+  r.analyze('https://example.invalid/a.mp3', null, { priority: 'normal', tag: 'url' });
+  assert.equal(local.jobs.length, 1, 'a track that falls back runs here, and starts it');
+  assert.equal(local.prewarms, 1);
+  assert.deepEqual(logged, []);
+});
+
+test('standby: a worker ready while a track runs here ends the analyser once that run is over', async () => {
+  const pool = fakePool({ compatible: false, idle: false });
+  const { r, local } = router(pool);
+  const done = r.analyze('/music/a.wav', null, { priority: 'normal', tag: 'a' });
+  pool.ready(true);
+  assert.equal(local.restarts.length, 0, 'the run here is not cut short');
+  local.jobs[0].resolve({ by: 'cpu' });
+  assert.deepEqual(await done, { by: 'cpu' });
+  assert.equal(local.restarts.length, 1);
+});
+
+test('standby: when the last worker goes the analyser loads again, only while the outputs are disarmed', async (t) => {
+  const logged = [];
+  t.mock.method(console, 'log', (line) => logged.push(String(line)));
+  const pool = fakePool();
+  const { local } = router(pool);
+  pool.ready(false);
+  assert.equal(local.prewarms, 1);
+  assert.deepEqual(logged, ['[analyzer] prewarming worker: no GPU worker is connected']);
+
+  const armedPool = fakePool();
+  const armed = router(armedPool);
+  armed.ctl.armed = true;
+  armedPool.ready(false);
+  armed.r.settleLocal();
+  await tick();
+  assert.equal(armed.local.prewarms, 0, 'no model load while the outputs are armed');
+  armed.ctl.armed = false;
+  armed.r.settleLocal();
+  await tick();
+  assert.equal(armed.local.prewarms, 1, 'loaded once they are disarmed');
+  assert.match(logged.at(-1), /^\[analyzer\] prewarming worker: .*disarmed/);
+  armed.r.settleLocal();
+  await tick();
+  assert.equal(armed.local.prewarms, 1, 'and only once');
+
+  const backPool = fakePool();
+  const back = router(backPool);
+  back.ctl.armed = true;
+  backPool.ready(false);
+  backPool.ready(true);
+  back.ctl.armed = false;
+  back.r.settleLocal();
+  await tick();
+  assert.equal(back.local.prewarms, 0, 'a worker back before the disarm leaves nothing to load');
+});
+
+// The pool marks a worker unavailable for a moment after a cancelled job, a
+// decline or its own restart; standby follows the connection, not that.
+test('standby: a connected worker between jobs loads nothing here; the last one disconnecting does', async (t) => {
+  const logged = [];
+  t.mock.method(console, 'log', (line) => logged.push(String(line)));
+  const pool = fakePool({ compatible: false });
+  const { r, local } = router(pool);
+  pool.ready(true);
+  assert.equal(local.state(), 'standby');
+  pool.taking(false);
+  assert.equal(local.prewarms, 0, 'stopping a cancelled job is not the worker leaving');
+  const done = r.analyze('/music/a.wav', null, { priority: 'normal', tag: 'a' });
+  assert.equal(local.jobs.length, 1, 'a track meanwhile runs here, and starts it');
+  pool.taking(true);
+  assert.equal(local.restarts.length, 0, 'the run here is not cut short');
+  local.jobs[0].resolve({ by: 'cpu' });
+  await done;
+  assert.equal(local.state(), 'standby', 'and standby again once the worker takes jobs');
+  pool.taking(false);
+  pool.ready(false);
+  assert.equal(local.prewarms, 1);
+  assert.deepEqual(logged, ['[analyzer] prewarming worker: no GPU worker is connected']);
+});
+
+test('resident: the analyser here loads at start and stays, whatever the workers do', () => {
+  const pool = fakePool();
+  const { r, local } = router(pool, { mode: 'resident' });
+  r.prewarm();
+  assert.equal(local.prewarms, 1);
+  pool.ready(false);
+  pool.ready(true);
+  assert.equal(local.prewarms, 1);
+  assert.deepEqual(local.restarts, []);
+});
+
+test('a changed mode applies at once: standby ends the idle analyser while a worker is ready, resident loads it', async () => {
+  const pool = fakePool();
+  const { r, local, ctl } = router(pool, { mode: 'resident' });
+  r.prewarm();
+  ctl.mode = 'standby';
+  r.settleLocal();
+  await tick();
+  assert.equal(local.restarts.length, 1);
+  assert.equal(local.state(), 'standby');
+  ctl.mode = 'resident';
+  r.settleLocal();
+  await tick();
+  assert.equal(local.prewarms, 2);
+  assert.deepEqual(r.localStatus(), { mode: 'resident', state: 'warm' });
+
+  const cold = router(fakePool({ compatible: false }));
+  cold.r.prewarm();
+  cold.ctl.mode = 'resident';
+  cold.r.settleLocal();
+  await tick();
+  assert.equal(cold.local.prewarms, 1, 'resident loads it with no worker connected too');
+});
+
+// armed.ts calls its disarm listeners before the flag drops: a listener that
+// looked at once would still read armed.
+test('standby: the disarm hook sees the outputs disarmed, and loads then', async (t) => {
+  t.mock.method(console, 'log', () => {});
+  const pool = fakePool();
+  const local = fakeLocal();
+  const r = new AnalysisRouter(local, { waitForRemoteMs: () => 60_000, localWorker: () => 'standby', armed: isArmed, remoteEnabled: () => true });
+  r.attachRemote(pool);
+  onDisarm(() => r.settleLocal());
+  setArmedFlag(true);
+  pool.ready(false);
+  assert.equal(local.prewarms, 0);
+  setArmedFlag(false);
+  await tick();
+  assert.equal(local.prewarms, 1);
 });

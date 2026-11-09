@@ -1005,6 +1005,10 @@ MuQ and MuQ-MuLan are built from their configs and then pointed at their
 checkpoint files (`models.map_weights`), so what stays resident is page cache
 the kernel can reclaim. Building them at start-up, with no track in memory, is
 also when their construction costs least.
+With `analysis.localWorker: 'standby'` (the default) the process ends once a
+remote GPU worker takes the work, and loads at start-up only when no worker
+token is set; the next track analysed here starts it and pays the load first.
+See README → Remote GPU analysis.
 
 Curves are decimated to one point every half second before they enter the
 document. Undecimated, eleven curves on a four-minute track is tens of megabytes
@@ -1013,7 +1017,8 @@ of JSON travelling to a browser that draws it 900 pixels wide.
 ### Memory
 
 The worker's peak is a fixed part — about 0.6 GB of libraries and resident
-weights, plus one model pass's working memory, of which Demucs's is the largest
+weights (held only while the process runs: in standby, not while a GPU worker
+is ready), plus one model pass's working memory, of which Demucs's is the largest
 at about 1 GB — and a part per second of audio. Measured with a container per
 run: on tychome, the 16 GB, no-swap CPU host shared with Home Assistant and
 voice services, capped so that 2 GB of the host stayed free; and, uncapped for

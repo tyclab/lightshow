@@ -198,3 +198,16 @@ test('a cancelled analysis answers as cancelled, not as an error', async (t) => 
     assert.strictEqual(autoShow.startPending, null);
   });
 });
+
+test('a changed analysis.localWorker reaches the analyser without a restart', (t) => {
+  t.mock.method(console, 'log', () => {});
+  let settled = 0;
+  const applier = createApplier({
+    midi: { close() {}, connect() { return true; }, setControlFeedback() {} },
+    spotify: { localCallbackUrl: '', setLoopbackPort() {}, configure() {} },
+    smtc: { start() {}, stop() {} }, deezer: { init: async () => {} }, applyPatch, broadcast() {},
+    autoShow: { settleLocalAnalysis() { settled++; } },
+  });
+  applier.applyChanged(['analysis.localWorker']);
+  assert.strictEqual(settled, 1);
+});

@@ -374,6 +374,45 @@ test('a restart when idle lets the running analysis finish first', async () => {
   } finally { w.shutdown(); }
 });
 
+// Standby (analysis-router.ts) ends the idle worker while a GPU worker is
+// ready: nothing starts again on its own, and the next track starts it.
+test('a restart when idle with nothing queued leaves no process until the next analysis', async () => {
+  const w = worker('ok');
+  try {
+    assert.strictEqual(w.state(), 'standby');
+    w.prewarm();
+    assert.strictEqual(w.state(), 'warm');
+    const before = w._proc.pid;
+    w.restart('standby while a GPU worker is ready', { whenIdle: true });
+    assert.strictEqual(w._proc, null);
+    assert.strictEqual(w.state(), 'standby');
+    await new Promise((r) => setTimeout(r, 200));
+    assert.strictEqual(w._proc, null, 'nothing started again on its own');
+    const running = w.analyze('/tmp/a.wav', null);
+    assert.strictEqual(w.state(), 'busy');
+    assert.notStrictEqual(w._proc.pid, before, 'the track started a new worker');
+    assert.deepStrictEqual(await running, { bpm: 128, source: '/tmp/a.wav' });
+    assert.strictEqual(w.state(), 'warm');
+  } finally { w.shutdown(); }
+});
+
+// Standby asks for a restart when idle while a track runs here; the track is
+// then cancelled or its process dies. The process the next track starts is not
+// the one that request was about.
+test('a restart when idle is forgotten with the process it was for', async () => {
+  const w = worker('hangslow');
+  try {
+    const slow = w.analyze('/tmp/slow.wav', null, { tag: 'slow' });
+    await new Promise((r) => setTimeout(r, 50));
+    w.restart('standby while a GPU worker is ready', { whenIdle: true });
+    w.cancel('slow');
+    await assert.rejects(slow, /cancelled/);
+    assert.strictEqual(w._proc, null);
+    assert.deepStrictEqual(await w.analyze('/tmp/late.wav', null), { bpm: 128, source: '/tmp/late.wav', pid: w._proc.pid });
+    assert.strictEqual(w.state(), 'warm', 'the process that answered stays');
+  } finally { w.shutdown(); }
+});
+
 // Changing the separator (or the interpreter) restarts the worker. Work that
 // was running must go to the new process, not sit on the killed one until the
 // timeout.

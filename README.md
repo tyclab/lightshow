@@ -704,7 +704,7 @@ New mapping revisions discard delayed and partially staged colours.
 | `strobe` | Palette, rate, clock, background behaviour and brightness; see [Strobe](#strobe) |
 | `midi` | `input: ''`, `output: ''`, `clockOutput: ''`, `controlFeedback: true` |
 | `engine` | `thread: 'worker'`; `'main'` is available for diagnosis |
-| `analysis` | `analyzerTimeoutMs: 600000`, `analyzerTimeoutMsPerSec: 1500`, `downloadTimeoutMs: 300000`, `localRoot: ''`, `pythonPath: ''`, `separator: 'demucs'`, `structureModel: 'auto'`, `gpuMemory: 'auto'`; `workerToken: ''` (write-only; blank turns [remote GPU workers](#remote-gpu-analysis) off), `remoteWaitMs: 120000` |
+| `analysis` | `analyzerTimeoutMs: 600000`, `analyzerTimeoutMsPerSec: 1500`, `downloadTimeoutMs: 300000`, `localRoot: ''`, `pythonPath: ''`, `separator: 'demucs'`, `structureModel: 'auto'`, `gpuMemory: 'auto'`, `localWorker: 'standby'` (`'resident'` keeps this machine's analyser loaded from start-up); `workerToken: ''` (write-only; blank turns [remote GPU workers](#remote-gpu-analysis) off), `remoteWaitMs: 120000` |
 | `setup` | `completed: false` until the first-run wizard is completed or skipped |
 
 `server.host`, `server.port`, `server.token`, engine thread and the first Deezer
@@ -1585,7 +1585,8 @@ environment supplies yt-dlp, Deno and ffmpeg; a tool already on `PATH` takes
 precedence. The analysis needs torch; manual control does not.
 
 Analysis settings select Demucs or BS-RoFormer separation, structure model,
-GPU memory policy and timeouts. `analysis.pythonPath` selects an interpreter;
+GPU memory policy, whether this machine's analyser waits on standby while a GPU
+worker is ready, and timeouts. `analysis.pythonPath` selects an interpreter;
 `ARTNET_PYTHON` overrides discovery. See
 [Audio analysis](docs/audio-analysis.md) for the analysis schema and controls.
 
@@ -1647,6 +1648,19 @@ sequenceDiagram
   takes a worker from a prefetch, which goes back in the queue. A prefetch waits
   up to `analysis.remoteWaitMs` for a busy worker, then runs here. Links and
   anything a worker fails, drops or times out on run here.
+- **Standby.** With `analysis.localWorker: 'standby'` (the default) this
+  machine's analyser process ends, freeing about 0.9 GB, when a compatible
+  worker becomes ready (after the track running here, if there is one). The
+  next track that runs here starts it and loads the models from disk inside
+  its own time limit; it then stays until a worker becomes ready again. A
+  connected worker that takes no jobs for the moment (stopping a cancelled
+  one, declining, restarting its analyser) changes nothing here. When the
+  last compatible worker disconnects, the analyser is loaded again only while
+  the outputs are disarmed, else at the next disarm; while armed the first
+  track here loads it. At start-up with a worker token set nothing loads
+  until a track needs it or a worker has come and gone; with no token it
+  loads at start-up. `'resident'` keeps it loaded from start-up. A change
+  applies at once.
 - **Version.** The analysis version is `<schema>+<digest>` of the Python
   package, its launcher, `scripts/download-models.py`, `scripts/setup-panns.py`,
   `pyproject.toml` and `uv.lock`. A worker takes jobs only at the server's
@@ -1660,8 +1674,11 @@ sequenceDiagram
   here, from the track's length.
 
 `GET /api/analysis/workers` lists the connected workers, their state and
-counts, the last jobs (worker, track, outcome, seconds) and the queue; the log
-names each job's worker and time under `[analyzer] remote …`.
+counts, the last jobs (worker, track, outcome, seconds), the queue and `local`:
+this machine's analyser, `{ mode, state }` with state `standby` (no process),
+`warm` or `busy`. The log names each job's worker and time under
+`[analyzer] remote …`, and standby under `[analyzer] recycling worker: standby …`
+and `[analyzer] prewarming worker: …`.
 
 ### Playback sources
 
@@ -2124,7 +2141,7 @@ a file from before several bridges were possible loads its one bridge as
 | PUT | `/api/settings` | Update selected settings groups/fields |
 | POST | `/api/settings/token/suggest` | Generate a token suggestion; apply it through settings |
 | GET | `/api/models` | Model availability and current download job; `?refresh=1` refreshes the listing |
-| GET | `/api/analysis/workers` | [Remote GPU workers](#remote-gpu-analysis): connection, compatibility, availability, counts, recent jobs, the analysis queue |
+| GET | `/api/analysis/workers` | [Remote GPU workers](#remote-gpu-analysis): connection, compatibility, availability, counts, recent jobs, the analysis queue, this machine's analyser (`local`: mode, standby/warm/busy) |
 | GET | `/api/analysis-worker/jobs/:id/audio` | A worker's job audio; worker token and job key, not the UI token |
 | POST | `/api/analysis-worker/jobs/:id/result` | A worker's document or error, `{ version, result \| error, recycle?, yielded?, seconds? }`, gzip allowed, up to 64 MB; 409 for another analysis version |
 | POST | `/api/models/download` | Download selected models with `{ ids }` |

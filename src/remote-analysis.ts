@@ -203,8 +203,15 @@ export class RemoteAnalysisPool implements RemotePool {
     return null;
   }
 
+  /** A worker takes jobs now, or runs one: the routing's reason to wait for it. */
   hasCompatible(): boolean {
     for (const w of this._workers.values()) if (this._ready(w) && (w.available || w.job)) return true;
+    return false;
+  }
+
+  /** A compatible worker is connected, taking jobs or not: standby's reason to hold no analyser here. */
+  hasWorker(): boolean {
+    for (const w of this._workers.values()) if (this._ready(w)) return true;
     return false;
   }
 
