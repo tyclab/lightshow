@@ -2156,11 +2156,13 @@ the state in one of two forms, chosen when the client connects:
   `rig`, `show`, `sources`, `audio`, `sequence`, `catalogs`, `library`,
   `voices`, `pads`, `system`) and numbered per domain:
   `{ d, v, set, del? }`. A client that sees a gap in a domain's numbers sends
-  `sync` (with an ack) for a new snapshot. DMX goes out as `dmx-frame`, binary
-  (`src/shared/dmx-frame.ts`: per universe its number, its length and its
-  bytes), at the engine's frame rate while it changes — volatile, and only
-  to clients that sent `subscribe: ['dmx']` (and until `unsubscribe`). The
-  `audio` topic works the same way: after `subscribe: ['audio']` the client
+  `sync` (with an ack) for a new snapshot; `sync` with `{ live: true }` leaves
+  out the `catalogs` keys, as the browser helper's state poll does. DMX goes
+  out as `dmx-frame`, binary (`src/shared/dmx-frame.ts`: per universe its
+  number, its length and its bytes), at the engine's frame rate while it
+  changes — volatile, and only to clients that sent `subscribe: ['dmx']` (and
+  until `unsubscribe`). The `audio` topic works the same way: after
+  `subscribe: ['audio']` the client
   gets `audio` events, volatile, up to thirty a second and only when they
   change — `{ t, party: { full, bass, mid, high }, disco: { gate, level, hit }, spl: { db, level, beat, section, eventT? } }`
   — and `audio` with `null` when the input has gone. After

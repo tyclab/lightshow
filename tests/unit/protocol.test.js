@@ -176,6 +176,31 @@ test('protocol 2 subscribers receive snapshots followed by deltas', async () => 
   }
 });
 
+// The browser helper refreshes its state every 750 ms on each of its sockets
+// and reads no catalogue: about 117 KB of each full answer it never used.
+test('a sync asked for live leaves out the catalogues and keeps the versions', async () => {
+  const s = await serve();
+  try {
+    const v2 = s.client({ protocol: 2 });
+    await next(v2, 'snapshot');
+    const full = await v2.emitWithAck('sync');
+    const live = await v2.timeout(5000).emitWithAck('sync', { live: true });
+    const catalogues = Object.keys(full.state).filter((key) => domainOf(key) === 'catalogs');
+    assert.ok(catalogues.includes('patterns') && catalogues.includes('families'), 'a plain sync still carries them');
+    assert.strictEqual(live.protocol, 2);
+    assert.deepStrictEqual(live.versions, full.versions);
+    assert.deepStrictEqual(Object.keys(live.state).sort(), Object.keys(full.state).filter((key) => !catalogues.includes(key)).sort(),
+      'every live key, no catalogue');
+    assert.strictEqual(live.state.dmxSnapshot, undefined);
+
+    const unasked = arrives(v2, 'snapshot');
+    v2.emit('sync', { live: true });
+    assert.deepStrictEqual(Object.keys((await unasked).state).sort(), Object.keys(live.state).sort(), 'without an ack, as a snapshot event');
+  } finally {
+    await s.close();
+  }
+});
+
 test('DMX goes out as bytes only to the pages that subscribed to it', async () => {
   const s = await serve();
   try {
