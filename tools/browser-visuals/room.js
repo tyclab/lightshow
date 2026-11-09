@@ -55,13 +55,17 @@ export async function connectRoom(settings, capture, source, report) {
     capture, fixtureId: 0, width: settings.roomWidth, height: settings.roomHeight, fps: settings.fps, now: () => performance.now(), report,
     protocol: roomProtocol,
     target: () => targetWithSource(source, () => roomTarget(mirror.base(), units)),
+    // A Stage room import moves the signature with no rig patch to say so: the server's STALE is the news.
+    refused: (code) => { if (code === 'STALE') void refreshUnits(); },
   });
   const refreshUnits = async () => {
     if (!socket.connected || stopped) return;
     try {
       const answer = await request('picture:units');
       if (answer?.ok && Array.isArray(answer.list) && typeof answer.signature === 'string') {
-        if (!units || units.signature !== answer.signature) { units = { signature: answer.signature, list: answer.list }; pump.units = answer.list; await pump.invalidate(); }
+        if (!units || units.signature !== answer.signature) {
+          units = { signature: answer.signature, list: answer.list }; pump.units = answer.list; await pump.invalidate(); pump.retryNow();
+        }
         unitsAt = performance.now();
       }
     } catch { /* the next tick asks again */ }
