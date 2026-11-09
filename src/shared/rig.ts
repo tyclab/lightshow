@@ -41,6 +41,8 @@ export interface LayoutLamps {
   slots: number[][];
   lampOf: number[];
   cellAlong: number[];
+  // A cell's row on its panel, 0 (top) to 1; 0.5 off a panel.
+  cellAcross: number[];
   xs: number[] | null;
   plan: StagePlan | null;
 }
@@ -356,7 +358,7 @@ function layoutOf(rig: Rig, split: number | null | undefined, pixelMap: string |
       return lamp;
     });
     layout.lamps = {
-      slots, lampOf, cellAlong: list.map((u) => local[u]),
+      slots, lampOf, cellAlong: list.map((u) => local[u]), cellAcross: list.map((u) => localY[u]),
       xs: mirrored ? (xs ?? order.map((_, i) => i / (order.length - 1))).map((x) => Math.abs(2 * x - 1)) : xs,
       plan: !mirrored && members.some((i) => isPlaced(fixtures[i].position)) ? {
         x: order.map((k) => centreOf(rig, members[k]).x / 100),

@@ -9,6 +9,7 @@ import './zones.ts';
 import './noise.ts';
 import './particles.ts';
 import './visualizer.ts';
+import './globe.ts';
 import { validateSpec } from '../registry.ts';
 import type { EffectSpec } from '../types.ts';
 
@@ -104,6 +105,10 @@ const RAW: Raw[] = [
     'v2.visualizer', { profile: 'orbit' }],
   ['visualizerDrift', 'Visualizer Drift', 'The room picture supplies only palette and motion speed to a drifting three dimensional cloud field',
     'v2.visualizer', { profile: 'noise' }],
+  ['globeSpectrum', 'Globe Spectrum', 'The spectrum in rings round each light, bass at its equator and highs at its poles, two lobes turning a step on every beat and a bright spot marking where they face',
+    'v2.globe', { rings: 'spectrum' }],
+  ['globePulse', 'Globe Pulse', 'Every beat leaves each light\'s equator for its poles, as strong as the music, while three lobes turn once every two bars',
+    'v2.globe', { rings: 'pulse', lobes: 3 }],
 ];
 
 export const V2_PRESETS: readonly V2Preset[] = RAW.flatMap(([id, name, desc, kind, params, extra]) => [

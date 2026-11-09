@@ -123,7 +123,7 @@ function planRoom(layout: Layout): Room {
   const hue = noFlash && lamps.slots.map((slots) => noFlash[slots[0]]);
   const room: Room = { ...cells, lamps: {
     ...roomOf({ fixtureCount: lamps.slots.length, xs: lamps.xs, ys: null, plan: lamps.plan, noFlash: hue }),
-    cells, slots: lamps.slots, lampOf: lamps.lampOf, cellAlong: lamps.cellAlong,
+    cells, slots: lamps.slots, lampOf: lamps.lampOf, cellAlong: lamps.cellAlong, cellAcross: lamps.cellAcross,
   } };
   effectRooms.set(layout.units, room);
   return room;

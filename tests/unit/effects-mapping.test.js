@@ -6,7 +6,7 @@ import { PRESET_ROWS } from '../../src/server/presets.ts';
 import { frameAt, syntheticRoom, renderKind } from '../helpers/v2-frames.js';
 
 test('pickers offer one entry per spatial look and overlay while retaining every alias', () => {
-  assert.equal(PRESET_ROWS.filter((p) => p.family === 'spatial' && !p.retired).length, 39);
+  assert.equal(PRESET_ROWS.filter((p) => p.family === 'spatial' && !p.retired).length, 41);
   assert.equal(PRESET_ROWS.filter((p) => p.id.startsWith('overlay.') && !p.retired).length, 4);
   for (const row of CATALOGUE.filter((p) => p.variantOf)) {
     assert.equal(row.retired, true);

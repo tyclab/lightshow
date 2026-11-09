@@ -37,6 +37,7 @@ export interface LampRoom extends Room {
   slots: readonly (readonly number[])[];
   lampOf: readonly number[];
   cellAlong: readonly number[];
+  cellAcross?: readonly number[];
 }
 
 export function xOf(ctx: Pick<PatternContext, 'xs' | 'fixtureCount'>, i: number): number {

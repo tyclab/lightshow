@@ -401,7 +401,7 @@ panels looks, patterns every other look; retired ids are in none.
 
 ### Spatial effects
 
-The Effects list has one entry for each of the 39 spatial looks, over eleven
+The Effects list has one entry for each of the 41 spatial looks, over twelve
 generators. Open an effect's editor to choose its
 **Mapping** when its motion or selection uses positions:
 
@@ -446,6 +446,20 @@ flowchart LR
 | Noise | continuous clouds, aurora or flames sampled in space | Drifting Clouds, Aurora, Fire |
 | Particles | soft objects and ballistic sparks, trails, falling drops and floor splashes | Light Orbs, Orb Collision, Fireworks, Rain |
 | Visualizer | the incoming picture's palette and motion speed drive an independent spatial field | Visualizer Flow, Visualizer Drift |
+| Globe | each light's own sphere: rings carry the spectrum (bass at the equator, highs at the poles) or the beat leaving the equator, lobes turn a quarter-beat step on every beat, and a white spot marks where they face | Globe Spectrum, Globe Pulse |
+
+Globe reads each light as a sphere. Through the room, a light the Stage room places
+as a solid (see [Room picture](#room-picture)) takes each cell's latitude from its
+height over the cells' centre and its longitude round the vertical axis, longitude 0
+facing the listener; across the layout, and for any other light, its panel rows are
+the rings (the top row at the top pole) and its columns go once round. A lamp of one
+cell sits on the equator without lobes or a spot. Three bands fill six rings: bass
+the two by the equator, mids the next two, highs the two by the poles. Live audio
+sets them; without it the beat clock plays bass on every beat, mids on two and four
+and highs on the off-beats. A pulse leaves the equator's rings on each beat, passes
+the poles three quarters of a beat later and is as strong as the live level (full
+without one). **Turn beats** is one turn round the axis; 0 holds the lobes and the
+spot still. The live input is mono, so the turn follows the beat, not the stereo image.
 
 Rising Wall fills from the floor with build-section progress. Falling Wall releases
 that fill from ceiling to floor over one bar before a drop detonates into a shockwave,

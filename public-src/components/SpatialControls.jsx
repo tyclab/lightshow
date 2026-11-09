@@ -67,6 +67,7 @@ export function SpatialControls({ spec, setParam, advancedControls }) {
   const draw = (entries) => <div class="insp-grid">{entries.map(([key, child]) => <SchemaField key={key} schema={child} value={spec.params?.[key]} path={key} setParam={setParam} />)}</div>;
   return <div class="spatial-controls">
     <datalist id="spatial-room-anchors">{anchors.map((id) => <option key={id} value={id} />)}</datalist>
+    {spec.kind === 'v2.globe' && <p class="look-note">Draws on each light's own globe: a WLED ball read from its ledmap and placed as a sphere in the Stage room takes its rings from its LEDs' heights and faces the listener; another panel takes its rows as rings and its columns once round. Without live sound the beat clock plays bass, mids and highs.</p>}
     {spec.kind === 'v2.visualizer' && <p class="look-note">Uses the incoming room picture's colours and motion to animate the room. Choose Colour + motion as the room source and keep the picture sender running. Without a picture feed this effect goes dark. Audition supplies a demo picture signal.</p>}
     {mapping && <div class="effect-mapping-control">
       <label for="spatial-space">Mapping</label>
