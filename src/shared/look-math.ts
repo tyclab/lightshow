@@ -76,15 +76,6 @@ function holdStrobeFlash(beatPos: number, bpm: number | null | undefined, maxHz:
   return { index, sinceMs: (pos - index) * periodMs, periodMs };
 }
 
-function holdStrobeLook(palette: readonly Colour[], flash: HoldFlash, hue: boolean): EnergyLook | null {
-  const n = Math.max(1, palette.length);
-  const col = palette[((flash.index % n) + n) % n] || { r: 0, g: 0, b: 0, w: 0, a: 0, uv: 0 };
-  if (hue) return { col, dim: huePulseLevel(flash.sinceMs), strobe: 0 };
-  if (flash.sinceMs < HOLD_FLASH_MS) return { col, dim: 255, strobe: 0 };
-  if (flash.sinceMs < HOLD_FLASH_MS + HOLD_BLACK_MS) return { col: { r: 0, g: 0, b: 0, w: 0, a: 0, uv: 0 }, dim: 0, strobe: 0 };
-  return null;
-}
-
 function huePulseLevel(sinceMs: number, floor = HUE_PULSE_FLOOR): number {
   const fall = Math.max(0, Math.min(1, sinceMs / HUE_PULSE_MS));
   return Math.round(255 - (255 - floor) * fall);
@@ -185,7 +176,6 @@ export {
   HUE_PULSE_FLOOR,
   holdStrobeDivision,
   holdStrobeFlash,
-  holdStrobeLook,
   huePulseLevel,
   tempoOf,
   fadeBrightness,

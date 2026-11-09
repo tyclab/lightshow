@@ -89,7 +89,7 @@ const DEFAULT_ADDRESSES = [1, 13, 25, 37];
 
 const state: ShowState = {
   background: structuredClone(DEFAULT_BACKGROUND),
-  // The default universe: new fixtures land on it, and fixtures on it follow it (setDefaultUniverse).
+  // The default universe: new fixtures land on it.
   artnet: settings.group('artnet'),
   bpm: 120,
   // The clock's default; apply.ts restores the stored mode through applyPatch, which tells the clock.
@@ -261,6 +261,7 @@ function placeAddresslessFixtures(fixtures: Fixture[] = state.fixtures,
 }
 
 // Holds edits to the output cap before the render loop; profileOf can be an incoming show's profiles.
+// The default universe counts as used, since new fixtures land on it.
 function countUniverses(fixtures: readonly Pick<Fixture, 'universe' | 'profileId'>[],
   profileOf: (fixture: Pick<Fixture, 'profileId'>) => Profile = getProfile): number {
   const seen = new Set([state.artnet.universe]);
@@ -270,19 +271,6 @@ function countUniverses(fixtures: readonly Pick<Fixture, 'universe' | 'profileId
   }
   return seen.size;
 }
-
-// Fixtures on the old default follow ("put the rig over there"); ones patched elsewhere stay.
-function setDefaultUniverse(next: number): void {
-  const previous = state.artnet.universe;
-  if (next === previous) return;
-  for (const fix of state.fixtures) {
-    if (universeOf(fix) === previous) fix.universe = next;
-  }
-  state.artnet.universe = next;
-}
-
-// The default universe counts as used, since new fixtures land on it.
-function getFixtureCount(): number { return state.fixtures.length; }
 
 function getFixture(id: number): Fixture | null {
   return state.fixtures.find((fixture) => fixture.id === id) || null;
@@ -540,8 +528,6 @@ export {
   wireUniverses,
   placeAddresslessFixtures,
   countUniverses,
-  setDefaultUniverse,
-  getFixtureCount,
   getFixture,
   allocateFixtureId,
   getDmxSnapshotSize,

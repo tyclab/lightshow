@@ -10,17 +10,12 @@ import { messageOf, statusOf } from '../errors.ts';
 const savedSchema = z.object({
   savedAt: z.string().max(40),
   look: lookSchema,
-  auto: z.object({
-    running: z.boolean(),
-    key: z.string().max(2048).nullable(),
-    track: z.record(z.string(), z.unknown()).nullable(),
-    source: z.string().max(16),
-    positionMs: z.number().finite().min(0).nullable(),
-  }).strict().nullable(),
+  // Older files carry an auto show block that nothing reads.
+  auto: z.unknown().optional(),
 }).strict();
 
 export type SavedLook = z.output<typeof savedSchema>;
-type Unsaved = Omit<SavedLook, 'savedAt'>;
+type Unsaved = Omit<SavedLook, 'savedAt' | 'auto'>;
 
 export class LookStore extends JsonStore {
   declare _last: string | null;
@@ -48,23 +43,9 @@ export class LookStore extends JsonStore {
   }
 }
 
-export interface ResumableShow {
-  running: boolean;
-  analysisKey: string | null;
-  track: Record<string, unknown> | null;
-  getPositionMs(): number;
-}
-
-export function currentLook(autoShow: ResumableShow | null, source = 'timer'): Unsaved {
-  const auto = autoShow && autoShow.running && autoShow.analysisKey ? {
-    running: true,
-    key: autoShow.analysisKey,
-    track: autoShow.track ? { ...autoShow.track } : null,
-    source,
-    positionMs: source === 'timer' ? Math.max(0, Math.round(autoShow.getPositionMs())) : null,
-  } : null;
-  // Retain the legacy field for file compatibility; startup restores content and Blackout, never transport.
-  return { look: lookSchema.parse({ ...captureLook(), running: state.running }), auto };
+// Retain the legacy field for file compatibility; startup restores content and Blackout, never transport.
+export function currentLook(): Unsaved {
+  return { look: lookSchema.parse({ ...captureLook(), running: state.running }) };
 }
 
 // Keep current settings on recovery so an older look snapshot cannot undo saved safety or audio changes.
@@ -84,10 +65,4 @@ export function putBack(saved: SavedLook): boolean {
     console.warn(`[look] could not put back the look from ${saved.savedAt}: ${messageOf(err)}`);
     return false;
   }
-}
-
-export function resumeAt(saved: SavedLook, now = Date.now()): number | null {
-  if (!saved.auto || saved.auto.positionMs === null) return null;
-  const since = now - Date.parse(saved.savedAt);
-  return saved.auto.positionMs + (Number.isFinite(since) && since > 0 ? since : 0);
 }

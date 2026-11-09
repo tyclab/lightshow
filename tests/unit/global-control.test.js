@@ -9,10 +9,44 @@ function setup(frame = async () => {}) {
   control.configure({ armed: () => armed, blackout: () => blackout,
     arm: on => { armed = on; calls.push(['arm', on]); },
     setBlackout: on => { blackout = on; calls.push(['blackout', on]); },
-    validateStart() {}, start: programme => calls.push(['start', programme]), stop: () => calls.push(['stop']), changed() {}, frame });
+    validateStart: programme => { if (refuse.has(programme)) throw Object.assign(new Error(`cannot start ${programme}`), { status: 409 }); },
+    start: programme => calls.push(['start', programme]), switchTo: programme => calls.push(['switch', programme]),
+    stop: () => calls.push(['stop']), changed() {}, frame });
+  const refuse = new Set();
   const act = (action, extra = {}) => control.execute({ ...control.snapshot(), action, ...extra });
-  return { control, calls, act };
+  return { control, calls, act, refuse };
 }
+
+// The operator, 2026-11-07: "why also only changeable after stoping?"
+test('choosing another programme while one plays switches in one go; Freeze, Blackout and pads stay', async () => {
+  const { control, calls, act } = setup();
+  await act('start'); await act('freeze'); await act('blackout');
+  calls.length = 0;
+  await act('select', { programme: 'auto' });
+  assert.deepEqual(calls, [['switch', 'auto']], 'no Stop: pads are not cleared, nothing else is touched');
+  assert.deepEqual([control.programme, control.playing, control.frozen, control.snapshot().blackout], ['auto', true, true, true]);
+  await act('start', { programme: 'sequence' });
+  assert.deepEqual(calls.at(-1), ['switch', 'sequence'], 'Start naming another programme switches too');
+  assert.equal(control.programme, 'sequence');
+  await act('select', { programme: 'sequence' });
+  await act('start', { programme: 'sequence' });
+  assert.equal(calls.length, 2, 'the programme already playing is no switch');
+});
+
+test('a switch the next programme cannot start is refused before the playing one ends', async () => {
+  const { control, calls, act, refuse } = setup();
+  await act('start');
+  refuse.add('sequence');
+  calls.length = 0;
+  const revision = control.revision;
+  await assert.rejects(act('select', { programme: 'sequence' }), /cannot start sequence/);
+  assert.deepEqual(calls, []);
+  assert.deepEqual([control.programme, control.playing, control.revision], ['look', true, revision]);
+  await act('stop');
+  await act('select', { programme: 'sequence' });
+  assert.equal(control.programme, 'sequence', 'while stopped, choosing never starts anything');
+  assert.deepEqual(calls.at(-1), ['stop']);
+});
 
 test('global hold, blackout, permission and programme actions remain independent', async () => {
   const { control, act } = setup();

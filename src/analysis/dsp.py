@@ -35,16 +35,6 @@ def unit_norm(arr):
     return (arr - lo) / (hi - lo)
 
 
-def safe_div(a, b, default=0.0):
-    """Element-wise a/b with zeros where b is ~0, instead of inf/nan."""
-    a = np.asarray(a, dtype=float)
-    b = np.asarray(b, dtype=float)
-    out = np.full(np.broadcast(a, b).shape, float(default))
-    np.divide(a, b, out=out, where=np.abs(b) > 1e-12)
-    return out
-
-
-
 def moving_average(x, width):
     """Centred box filter with edge-preserving ends. `width` in samples."""
     x = np.asarray(x, dtype=float)
@@ -71,28 +61,6 @@ def median_smooth(x, width):
         padded = np.pad(x, (pad, pad), mode='edge')
         strided = np.lib.stride_tricks.sliding_window_view(padded, width)
         return np.median(strided, axis=-1)
-
-
-def envelope_follower(x, attack_frames, release_frames):
-    """
-    Asymmetric one-pole follower — the same thing a compressor's detector does.
-    Rises in `attack_frames`, falls in `release_frames`. Used to measure how
-    percussive a band is: a kick has a short attack and a short release, a pad
-    has a long attack and a very long release.
-    """
-    x = np.asarray(x, dtype=float)
-    if x.size == 0:
-        return x.copy()
-    a_att = np.exp(-1.0 / max(1e-6, float(attack_frames)))
-    a_rel = np.exp(-1.0 / max(1e-6, float(release_frames)))
-    out = np.empty_like(x)
-    y = float(x[0])
-    for i, v in enumerate(x):
-        coeff = a_att if v > y else a_rel
-        y = coeff * y + (1.0 - coeff) * v
-        out[i] = y
-    return out
-
 
 
 def adaptive_peaks(x, pre=30, post=30, delta=0.07, wait=10, floor_ratio=0.02):
