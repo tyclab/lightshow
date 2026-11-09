@@ -73,9 +73,6 @@ const PATTERNS = [
   { id: 'split',        name: 'Split',         desc: 'Palette colours alternating per fixture' },
   { id: 'sections',     name: 'Sections',      desc: 'Rig splits into one block per palette colour, blocks swap each beat' },
 
-  { id: 'twinkle',      name: 'Twinkle',       desc: 'Soft random levels, nothing goes fully dark' },
-  { id: 'sparkle',      name: 'Sparkle',       desc: 'Hard random on/off, instant' },
-  { id: 'random-flash', name: 'Random Flash',  desc: 'One random fixture pops each beat' },
   { id: 'ensemble', name: 'Ensemble', desc: 'Bass at the edges, vocals in the centre, airy moving accents' },
   { id: 'ribbon', name: 'Ribbon', desc: 'Continuous palette ribbons shaped by musical texture and width' },
 
@@ -92,12 +89,9 @@ const PATTERNS = [
   { id: 'fire',     name: 'Fire',     desc: 'Flames licking up a panel, taller with the bass, flaring on the kick', pixel: true },
   { id: 'rain',     name: 'Rain',     desc: 'Drops falling down every column in time, the hats shaking loose more', pixel: true },
   { id: 'flash-chase',     name: 'Flash Chase',     desc: 'One flash stepping zone to zone, a lap a step', pixel: true },
-  { id: 'flash-scatter',   name: 'Flash Scatter',   desc: 'Random zones strobing, more of them halfway between steps', pixel: true },
   { id: 'flash-fill',      name: 'Flash Fill',      desc: 'Every step fills from the middle out, holds, and cuts to black', pixel: true },
   { id: 'flash-alternate', name: 'Flash Alternate', desc: 'Odd zones flash on the step, even ones between', pixel: true },
   { id: 'ramp',            name: 'Ramp',            desc: 'Every step swells from black to full from the middle, cut on the beat', pixel: true },
-  { id: 'ramp-scatter',    name: 'Random Ramps',    desc: 'Every zone swells up and cuts at its own random moment', pixel: true },
-  { id: 'decay-scatter',   name: 'Random Hits',     desc: 'Every zone hits full at its own random moment and dies away', pixel: true },
   { id: 'flash-burst',     name: 'Flash Burst',     desc: 'A burst of flashes every four steps, odd and even zones in turn, then a break', pixel: true },
   { id: 'core',            name: 'Strobe Core',     desc: 'A colour wash with a white core striking on every kick', pixel: true },
   ...CATALOGUE.filter((p) => p.legacy).map(({ id, name, desc, party, preset }) => ({ id, name, desc, party, ...(preset ? { preset } : {}) })),
