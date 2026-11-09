@@ -5,7 +5,7 @@ for (const [id, name] of [['party.fire', 'Fire'], ['party.ice', 'Ice']]) {
   test(`${name} opens as an editable built-in effect`, async ({ page }) => {
     await open(page, 'effects');
     await page.getByLabel('Search effects').fill(name);
-    await page.locator(`.effect-pad[data-id="${id}"]`).getByRole('button', { name: `Edit ${name}`, exact: true }).click();
+    await page.locator('.effect-row', { has: page.locator(`.pattern-btn[data-id="${id}"]`) }).getByRole('button', { name: `Edit ${name}`, exact: true }).click();
     const sheet = page.getByRole('dialog', { name: 'Edit effect' });
     await expect(sheet.getByRole('button', { name: 'Save as…', exact: true })).toBeEnabled();
     await expect(sheet.getByLabel('Attack', { exact: true })).toBeEditable();

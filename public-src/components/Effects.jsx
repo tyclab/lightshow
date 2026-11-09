@@ -10,14 +10,14 @@ import { ComparePanel } from './Compare.jsx';
 import { Photosensitivity as PhotosensitivityConfirm, acknowledgeThen } from './Photosensitivity.jsx';
 import { mappingOf, MAPPING_LABELS } from '../../src/shared/effects/mapping.ts';
 import { REACTIVE_TAGS, SOURCES, TAG_AXES, TAG_NOTES, TAGS } from '../../src/shared/effects/tags.ts';
+import { CARDS } from '../../src/shared/effects/cards.ts';
 
 /**
- * The Effects view: an instrument first, an editor second. At the top a deck
- * of big pads — the favourites, the presets saved here and the party looks —
- * with the one on stage marked; under a sticky search, the tag filters, then
- * every look in one list, A to Z, each with the tags its code states. A plain
- * tap puts a row on stage and nothing else; its pencil, or a long press, opens
- * the inspector for it, in a sheet over the page.
+ * The Effects view: an instrument first, an editor second. Under a sticky search
+ * and the tag filters, one list of cards, one per effect: the starred first, then
+ * A to Z. A card's presets are chips; a plain tap on the card plays the preset it
+ * shows (the one on stage, the last one played from it, or its first), a tap on a
+ * chip plays that one. Its pencil, or a long press, opens the inspector in a sheet.
  */
 
 // One chip per tag, but the four narrow reactions fold into Reactive; each stays a badge on its rows.
@@ -33,6 +33,7 @@ const FILTER_CHIPS = FILTER_AXES.flatMap((axis) => axis.chips);
 const TAG_ICONS = [['energy', '◉'], ['room', '◎'], ['bars', '▤'], ['rig', '●']];
 const BY_NAME = new Intl.Collator('en', { sensitivity: 'base', numeric: true });
 const FAVOURITES_KEY = 'lightshow.effects.favourites';
+const CARD_PRESETS_KEY = 'lightshow.effects.cardPresets';
 const LONG_PRESS_MS = 500;
 
 /** The preset the inspector is open on, or null: one editor for the page, so a pad elsewhere can open it too. */
@@ -140,7 +141,55 @@ export function catalogueOf(s, lib, families, favourites) {
   return { allRows, rows, playingId, savedPins, pins, familyId };
 }
 
-/** The deck: the favourites in the order they were starred, then the presets saved here, then the party looks. */
+/** The rows as cards in catalogue order: a card names its presets, which are its chips; a row alone is its own card. */
+export function cardsOf(rows) {
+  const cards = new Map();
+  for (const row of rows) {
+    const id = row.card || row.id;
+    if (!cards.has(id)) {
+      const info = CARDS[id];
+      cards.set(id, { id, name: info?.name ?? row.name, desc: info?.desc ?? row.desc, icon: info?.icon ?? null, presets: [] });
+    }
+    cards.get(id).presets.push(row);
+  }
+  return [...cards.values()];
+}
+
+/** The cards the search lets through, each with the presets it found (all of them when the card's own name matches). */
+export function searchCards(cards, q, families) {
+  return cards.flatMap((card) => {
+    const named = !!q && [card.name, card.desc].some((text) => text && text.toLowerCase().includes(q));
+    const found = card.presets.filter((row) => named || matchesSearch(row, q, families));
+    return found.length ? [{ ...card, found }] : [];
+  });
+}
+
+/** The found cards the chips let through, with the presets they leave: the starred first, in the order starred, then A to Z. */
+export function filterCards(cards, active, pins = []) {
+  const rank = (card) => {
+    const at = pins.findIndex((id) => card.presets.some((row) => row.id === id));
+    return at < 0 ? pins.length : at;
+  };
+  return cards.flatMap((card) => {
+    const shown = filterByChips(card.found ?? card.presets, active);
+    return shown.length ? [{ ...card, shown }] : [];
+  }).sort((a, b) => rank(a) - rank(b) || BY_NAME.compare(a.name, b.name));
+}
+
+/** Each chip's count in cards: those it would list with the other axes' chips as they are. */
+export function cardCounts(cards, active) {
+  return new Map(FILTER_CHIPS.map((chip) => [chip.id,
+    cards.filter((card) => filterByChips(card.found ?? card.presets, active, chip.axis).some((row) => chipMatches(row, chip))).length]));
+}
+
+/** The preset a tap on a card plays: the one on stage, the last one played from it, a starred one, the first that does not strobe, or the first. */
+export function currentPreset(card, playingId, last = {}, pins = []) {
+  const pool = card.shown ?? card.presets;
+  return pool.find((row) => row.id === playingId) ?? pool.find((row) => row.id === last[card.id])
+    ?? pins.flatMap((id) => pool.filter((row) => row.id === id))[0] ?? pool.find((row) => !row.rapidFlash) ?? pool[0];
+}
+
+/** The favourites in the order they were starred, then the presets saved here, then the party looks: the Pads view's first shelf. */
 export function quickDeck(rows, favourites = []) {
   const byId = new Map(rows.map((r) => [r.id, r]));
   const pinned = favourites.flatMap((id) => (byId.has(id) ? [byId.get(id)] : []));
@@ -168,6 +217,21 @@ export function readFavourites() {
 }
 function writeFavourites(ids) {
   try { localStorage.setItem(FAVOURITES_KEY, JSON.stringify(ids)); } catch { /* private mode */ }
+}
+
+/** The preset last played from each card, by card id, in this browser. */
+export function readCardPresets() {
+  try {
+    const map = JSON.parse(localStorage.getItem(CARD_PRESETS_KEY) || '{}');
+    return map && typeof map === 'object' && !Array.isArray(map) ? map : {};
+  } catch {
+    return {};
+  }
+}
+export function writeCardPreset(card, id) {
+  const next = { ...readCardPresets(), [card]: id };
+  try { localStorage.setItem(CARD_PRESETS_KEY, JSON.stringify(next)); } catch { /* private mode */ }
+  return next;
 }
 
 /** Does a row match the search: its name, description, id or family as before, or its tags and where it reacts from. */
@@ -267,43 +331,43 @@ function EditButton({ row, onEdit }) {
   );
 }
 
-/** A deck pad: the name large, its tags under it, the one on stage marked. */
-function Pad({ row, active, favourite, onTap, onEdit, onToggleFavourite }) {
+/** A preset chip on its card: a tap plays it, a long press opens it in the inspector. */
+function Chip({ row, active, onTap, onEdit }) {
   const press = usePress(() => onTap(row), () => onEdit(row.id));
   return (
-    <div class={`effect-pad ${active ? 'active' : ''}`} data-id={row.id} data-layer={active ? 'base' : undefined}>
-      <button type="button" class="effect-pad-tap" aria-pressed={active} title={row.desc || row.name} {...press}>
-        <span class="effect-pad-name">{row.name}</span>
-        <Mapping row={row} />
-        <TagBadges row={row} />
-        {active && <span class="effect-pad-now">Main effect</span>}
-      </button>
-      <div class="effect-pad-tools">
-        <Star row={row} on={favourite} onToggle={onToggleFavourite} />
-        <EditButton row={row} onEdit={onEdit} />
-      </div>
-    </div>
+    <button type="button" class={`effect-preset${active ? ' active' : ''}${row.user ? ' yours' : ''}`} data-preset={row.id} aria-pressed={active}
+      title={row.desc || row.name} {...press}>
+      {row.name}{row.rapidFlash && <span class="effect-preset-rapid" aria-label=", flashes fast"> ⚡</span>}
+    </button>
   );
 }
 
-/** A catalogue row: the pattern button as the Manual view has always had it, with the star and the pencil beside. */
-function Row({ row, active, onBars, onPanels, favourite, onTap, onEdit, onToggleFavourite }) {
-  const press = usePress(() => onTap(row), () => onEdit(row.id));
+/** A card: the effect button, playing the preset it shows, with the star and the pencil beside and its presets as chips under it. */
+function CardRow({ card, current, playingId, onBars, onPanels, favourite, onTap, onEdit, onToggleFavourite }) {
+  const press = usePress(() => onTap(card, current), () => onEdit(current.id));
+  const active = card.presets.some((row) => row.id === playingId);
   const where = [onBars && 'the bars', onPanels && 'the panels'].filter(Boolean).join(' and ');
+  // The card's tags are its presets' together, in the vocabulary's order.
+  const tags = { ...current, tags: Object.keys(TAGS).filter((tag) => card.presets.some((row) => tagsOf(row).includes(tag))),
+    via: Object.keys(SOURCES).filter((source) => card.presets.some((row) => row.via?.includes(source))) };
+  const chips = card.presets.length > 1 ? card.shown ?? card.presets : [];
   return (
-    <div class="effect-row">
-      <button type="button" class={`pattern-btn ${active ? 'active' : ''} ${where ? 'on-bars' : ''}`} data-id={row.id}
-        aria-pressed={active} title={row.desc || row.name} {...press}>
-        <span class="icon" aria-hidden="true">{iconOf(row)}</span>
+    <div class="effect-row effect-card" data-card={card.id}>
+      <button type="button" class={`pattern-btn ${active ? 'active' : ''} ${where ? 'on-bars' : ''}`} data-id={current.id}
+        aria-pressed={active} title={current.desc || card.desc || card.name} {...press}>
+        <span class="icon" aria-hidden="true">{card.icon || iconOf(current)}</span>
         <span class="body">
-          <span class="name">{row.name}{active && <span class="layer-tag" data-layer="base"> · Main effect</span>}{where && <span class="layer-tag"> · on {where}</span>}</span>
-          <Mapping row={row} />
-          {row.desc && <span class="effect-row-desc">{row.desc}</span>}
-          <TagBadges row={row} />
+          <span class="name">{card.name}{active && <span class="layer-tag" data-layer="base"> · Main effect</span>}{where && <span class="layer-tag"> · on {where}</span>}</span>
+          <Mapping row={current} />
+          {card.desc && <span class="effect-row-desc">{card.desc}</span>}
+          <TagBadges row={tags} />
         </span>
       </button>
-      <Star row={row} on={favourite} onToggle={onToggleFavourite} />
-      <EditButton row={row} onEdit={onEdit} />
+      <Star row={card} on={favourite} onToggle={() => onToggleFavourite(card, current)} />
+      <EditButton row={current} onEdit={onEdit} />
+      {chips.length > 0 && <div class="effect-presets" role="group" aria-label={`${card.name} presets`}>
+        {chips.map((row) => <Chip key={row.id} row={row} active={row.id === playingId} onTap={(r) => onTap(card, r)} onEdit={onEdit} />)}
+      </div>}
     </div>
   );
 }
@@ -321,15 +385,16 @@ export function Effects() {
   const acknowledged = !!(s.safety && s.safety.photosensitivityAcknowledged);
 
   const { allRows, rows, playingId, savedPins, pins, familyId } = catalogueOf(s, lib, families, favourites);
+  const [lastPresets, setLastPresets] = useState(readCardPresets);
   const query = q.trim().toLowerCase();
-  const found = rows.filter((r) => matchesSearch(r, query, families));
-  const visible = filterByChips(found, filters);
-  const counts = chipCounts(found, filters);
-  const deck = quickDeck(visible, pins);
-  const list = byName(visible);
+  const cards = cardsOf(rows);
+  const found = searchCards(cards, query, families);
+  const list = filterCards(found, filters, pins);
+  const counts = cardCounts(found, filters);
   const toggleChip = (id) => { filtersSig.value = filters.includes(id) ? filters.filter((x) => x !== id) : [...filters, id]; };
 
   const tap = (row) => tapRow(row, acknowledged, setConfirm);
+  const tapCard = (card, row) => { setLastPresets(writeCardPreset(card.id, row.id)); tap(row); };
   const confirmPlay = async () => {
     const row = confirm;
     setConfirm(null);
@@ -340,8 +405,10 @@ export function Effects() {
     if (row) tap(row); else send({ pattern: id });
   };
   const edit = (id) => { editingSig.value = id; };
-  const toggleFavourite = (id) => {
-    const next = pins.includes(id) ? savedPins.filter((x) => familyId(x) !== familyId(id)) : [...savedPins, id];
+  // A star marks the card: it keeps the preset the card showed, and comes off for every preset of the card.
+  const toggleFavourite = (card, current) => {
+    const on = card.presets.some((row) => pins.includes(row.id));
+    const next = on ? savedPins.filter((x) => !card.presets.some((row) => familyId(row.id) === familyId(x))) : [...savedPins, current.id];
     setFavourites(next);
     writeFavourites(next);
   };
@@ -359,9 +426,6 @@ export function Effects() {
   const pixel = (s.patterns || []).filter((p) => p.pixel && !p.retired);
   // Along each bar is across the stage on a rig without bars.
   const map = !bars && s.pixelMap === 'bar' ? 'stage' : (s.pixelMap || 'stage');
-  const rowProps = (row) => ({
-    row, active: playingId === row.id, favourite: pins.includes(row.id), onTap: tap, onEdit: edit, onToggleFavourite: toggleFavourite,
-  });
 
   return <>
     <div class="card effects">
@@ -397,16 +461,14 @@ export function Effects() {
         {filters.length > 0 && <button type="button" class="effects-chip effects-chip-clear" onClick={() => { filtersSig.value = []; }}>Clear</button>}
       </div>
       <PlayingVoices stopAll />
-      <div class="effects-deck" role="group" aria-label="Favourites, your presets and party effects">
-        {deck.length === 0 && <p class="effects-empty">{query || filters.length ? 'No featured effects match.' : 'Star an effect to pin it here.'}</p>}
-        {deck.map((row) => <Pad key={row.id} {...rowProps(row)} />)}
-      </div>
       <div class="effects-catalogue">
-        <div class="effects-list-title">All effects <span class="effects-list-count">{list.length === rows.length ? rows.length : `${list.length} of ${rows.length}`}</span></div>
+        {(query || filters.length > 0) && <p class="effects-list-count" role="status">{list.length} of {cards.length} match</p>}
         {list.length === 0 && <p class="effects-empty">Nothing matches.</p>}
         <div class="pattern-grid">
-          {list.map((row) => (
-            <Row key={row.id} {...rowProps(row)} onBars={onBars === row.id} onPanels={onPanels === row.id} />
+          {list.map((card) => (
+            <CardRow key={card.id} card={card} current={currentPreset(card, playingId, lastPresets, pins)} playingId={playingId}
+              onBars={card.presets.some((row) => row.id === onBars)} onPanels={card.presets.some((row) => row.id === onPanels)}
+              favourite={card.presets.some((row) => pins.includes(row.id))} onTap={tapCard} onEdit={edit} onToggleFavourite={toggleFavourite} />
           ))}
         </div>
       </div>

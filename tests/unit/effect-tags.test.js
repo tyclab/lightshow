@@ -145,6 +145,53 @@ test('every visible look carries the tags pinned for it, and no look is missing 
   for (const row of VISIBLE) assert.equal(pinOf(row), PINNED[row.id], row.id);
 });
 
+// The cards the pickers list (src/shared/effects/cards.ts): a kind with labelled controls is one card holding its
+// presets as chips, a sweep two (Wave and Wall); every other look is a card of its own.
+const CARDED = {
+  'effect.wave': ['v2.grooveWave', 'v2.bigRoomWave', 'v2.ascent', 'v2.doubleWave', 'v2.swagger', 'v2.beatAccentWash', 'v2.volumeGateWash'],
+  'effect.wall': ['v2.risingWall', 'v2.fallingWall'],
+  'effect.ripple': ['v2.impact', 'v2.vortex', 'v2.speakerShockwave'],
+  'effect.chase': ['v2.chase', 'v2.pathRunner', 'v2.surround'],
+  'effect.zones': ['v2.zones', 'v2.surroundAnswer', 'v2.nearFar', 'v2.stemsSpace'],
+  'effect.orbit': ['v2.rotation', 'v2.swirl', 'v2.beacon'],
+  'effect.scatter': ['v2.scatterStrobe', 'v2.scatterFade', 'v2.scatterGrow', 'v2.frequencyBurst'],
+  'effect.clouds': ['v2.noise', 'v2.aurora', 'v2.fire'],
+  'effect.particles': ['v2.lightOrbs', 'v2.orbCollision', 'v2.fireworks', 'v2.rain'],
+  'effect.neural': ['v2.neural', 'v2.neuralDistance'],
+  'effect.globe': ['v2.globeSpectrum', 'v2.globePulse'],
+  'effect.screen': ['v2.visualizerFlow', 'v2.visualizerDrift'],
+  'effect.wash': ['v2.wash', 'v2.breathe'],
+  'effect.strobe': ['energy.whiteStrobe', 'energy.colorStrobe', 'palette-strobe', 'overlay.all', 'overlay.step', 'overlay.scatter', 'overlay.zone'],
+};
+
+test('the 113 visible looks make 79 cards: fourteen effects with their presets as chips, and 65 looks that are their own card', () => {
+  const cards = new Map();
+  for (const row of VISIBLE) cards.set(row.card, [...(cards.get(row.card) ?? []), row.id]);
+  assert.equal(cards.size, 79);
+  assert.deepEqual(Object.fromEntries([...cards].filter(([, ids]) => ids.length > 1)), CARDED);
+  for (const [card, ids] of cards) if (!(card in CARDED)) assert.deepEqual(ids, [card], `${card} is its own card`);
+  for (const row of PRESET_ROWS.filter((r) => r.variantOf)) {
+    assert.equal(row.card, PRESET_ROWS.find((r) => r.id === row.variantOf)?.card ?? row.card, `${row.id} sits on its root's card`);
+  }
+  // A card's tags are its presets' together: what each card reacts to and where it draws, counted per tag.
+  const tagged = (tag) => [...cards.values()].filter((ids) => ids.some((id) => VISIBLE.find((r) => r.id === id).tags.includes(tag))).length;
+  assert.deepEqual(Object.fromEntries(Object.keys(TAGS).map((tag) => [tag, tagged(tag)])), {
+    beat: 57, static: 7, bands: 17, level: 4, sections: 3, screen: 1,
+    rig: 13, room: 13, bars: 21, ownColours: 8, energy: 5, rapid: 9,
+  });
+});
+
+test('a saved preset sits on its kind\'s card; a wall fill on the Wall, another sweep on the Wave', (t) => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cards-'));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  const library = new EffectLibrary(path.join(dir, 'effects.json'));
+  library.create({ name: 'My wall', spec: { kind: 'v2.sweep', params: { profile: 'fill' } } });
+  library.create({ name: 'My wave', spec: { kind: 'v2.sweep', params: {} } });
+  const domino = library.create({ name: 'My domino', spec: { kind: 'hd.positionChase' } });
+  const cards = Object.fromEntries(library.summaries().map((row) => [row.name, row.card]));
+  assert.deepEqual(cards, { 'My wall': 'effect.wall', 'My wave': 'effect.wave', 'My domino': domino.id }, 'a kind without labelled controls is its own card');
+});
+
 test('every visible look says what it reacts to, and only a reactive one says where from', () => {
   const reacts = TAG_AXES.find((axis) => axis.id === 'reacts').tags;
   for (const row of VISIBLE) {

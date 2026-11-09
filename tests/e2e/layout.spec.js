@@ -28,7 +28,7 @@ test('short landscape keeps blackout and tap in reach', async ({ page }) => {
 test('catalogue tools leave the first favourite reachable', async ({ page }) => {
   await page.setViewportSize({ width: 1024, height: 768 });
   await open(page, 'effects');
-  const star = page.locator('.effects-deck .effect-star').first();
+  const star = page.locator('.effects-catalogue .effect-star').first();
   await star.click({ trial: true });
 });
 

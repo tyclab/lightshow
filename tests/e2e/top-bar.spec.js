@@ -131,8 +131,11 @@ test('E opens the picker with the search ready, and the search narrows the list'
   const list = picker.getByRole('group', { name: 'Every effect' });
   await expect(list.locator('[data-id="swirl"]')).toBeVisible();
   await expect(list.locator('[data-id="chase"]')).toHaveCount(0);
-  await expect(list.locator('[data-id="swirl"] .picker-desc'), 'two looks named Swirl say which is which').toBeVisible();
-  await list.locator('[data-id="v2.swirl"]').click();
+  // The other Swirl is a preset on the Orbit card: found by its old name, one tap as a chip.
+  const orbit = list.locator('[data-card="effect.orbit"]');
+  await expect(orbit.locator('.picker-name')).toHaveText('Orbit');
+  await expect(orbit.locator('[data-preset]')).toHaveText(['Swirl']);
+  await orbit.locator('[data-preset="v2.swirl"]').click();
   await until(request, (s) => s.pattern === 'v2.swirl');
   // A press outside the picker closes it.
   await page.mouse.click(1200, 600);

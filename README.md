@@ -172,9 +172,10 @@ the same on every view, including while scrolling through Show:
 
 - **Picture source** comes first. **Effects** and **Colour + motion** name the
   main effect when chosen (**Effects: Swirl**); pressing that segment, or **E**
-  anywhere, opens the effect picker: favourites, your presets and the party
-  looks, then every look A to Z with a search. A tap puts a look on stage and
-  leaves the picker open for the next one; Escape or a press outside closes it.
+  anywhere, opens the effect picker: one list of cards, the starred first, then
+  A to Z, with a search. A tap on a card or one of its preset chips puts it on
+  stage at once and leaves the picker open for the next one; Escape or a press
+  outside closes it.
   While an Audio-reactive look plays, the picker also offers the other
   Audio-reactive looks (Active and Mellow) and their colours. **Visualizer**
   names no effect and opens nothing: the segment reads **Visualizer**, its
@@ -331,12 +332,18 @@ selects theme, screen wake lock and fullscreen for the current device.
 
 ### Effects catalogue and tags
 
-Effects opens on the deck: the starred favourites, the presets saved on this
-server, then the party looks. Under it one list holds every current look and every
-saved preset, A to Z by name; looks that share a name keep the order the server
-sends them in. Each row carries the tags its code states: what the look reads, where
-it draws, whose colours it plays and what it is for. A tag makes no claim about how
-a look appears.
+Effects holds one list of cards, one per effect: the starred first, in the order
+starred, then A to Z by name. A kind with labelled controls is one card whose
+presets are chips (`src/shared/effects/cards.ts`): the 41 spatial presets sit on
+thirteen cards (Wave and Wall share the sweep generator) and the six strobe rows on
+Strobe; every classic pattern, party look, energy hold and saved preset of another
+kind is a card of its own, 79 in all. A saved preset of a carded kind is a chip on
+its card, marked Yours. A tap on a card plays the preset it shows (the one on stage,
+the last one played from it here, a starred one, else its first that does not
+strobe); a tap on a chip plays that preset; the star and the pencil act on the
+preset the card shows. Each card carries the tags its presets' code states, together:
+what the look reads, where it draws, whose colours it plays and what it is for. A
+tag makes no claim about how a look appears.
 
 | Axis | Tag | The look… |
 |------|-----|-----------|
@@ -363,12 +370,14 @@ the Rig plot (every classic pattern that uses positions) carries no surface tag;
 variant's card reads **Across layout**. A badge's tooltip adds what a setting outside
 the look changes: on Strobe, that the Ramp, Random and Burst functions follow the beat.
 
-The chips under the search filter the deck and the list. Chips in one row (Reacts to,
-Surface, Colour, Use & safety) show the looks that carry any of them; rows combine,
-so a look must match every row that has a chip on. **Reactive** stands for the four
-reactions. Each chip counts the looks it would show with the other rows as they are
-and is disabled at zero; **Clear** turns every chip off. The search matches name,
-description, id and family, and also the tag names, Reactive and the source marks.
+The chips under the search filter the list. Chips in one row (Reacts to, Surface,
+Colour, Use & safety) show the looks that carry any of them; rows combine, so a look
+must match every row that has a chip on. A card is listed while one of its presets
+passes, and shows the presets that pass as its chips. **Reactive** stands for the four
+reactions. Each chip counts the cards it would show with the other rows as they are
+and is disabled at zero; **Clear** turns every chip off. The search matches a card's
+name and description, and each preset's name, description, id and family, its tag
+names, Reactive and the source marks, so an old name finds its chip.
 The search stays above the list as it scrolls; the chips scroll with the page, and on
 a phone they wrap under the search without scrolling sideways.
 
@@ -1318,8 +1327,8 @@ their output; Colour Strobe and Glow follow the override's first colour.
 
 ## Looks, palettes and cues
 
-The base `pattern` accepts classic pattern ids or effect-preset ids. Effects lists the catalogue A to Z with
-code-derived tags, filters it by tag chips and supports favourites; see
+The base `pattern` accepts classic pattern ids or effect-preset ids. Effects lists the catalogue as cards A to Z with
+code-derived tags, filters it by tag chips and puts favourites first; see
 [Effects catalogue and tags](#effects-catalogue-and-tags).
 Editing a built-in saves a copy; user presets are editable and deletable.
 `GET /api/effects` exposes family parameter schemas and preset metadata.
