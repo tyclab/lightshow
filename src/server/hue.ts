@@ -479,6 +479,8 @@ async function setStreaming(host: string, key: string, configId: string, active:
 
 // Entertainment ownership is bridge-wide, even when the selected area is inactive.
 type Ownership = { kind: 'available' | 'owned' } | { kind: 'occupied'; area: ClipEntertainmentConfig };
+// What the area was before a handshake try and when its start returned, for the try's log line.
+interface OpenedSession { before: Ownership['kind']; startedAt: number }
 
 const AREAS_PATH = '/clip/v2/resource/entertainment_configuration';
 
@@ -776,12 +778,13 @@ class HueSession {
     }
     if (!current()) return;
     if (!identity) throw new Error('could not verify the application identity; pair this bridge again');
-    if (await this.openSession(config, identity, current)) this.handshake(config, identity, 1);
+    const opened = await this.openSession(config, identity, current);
+    if (opened) this.handshake(config, identity, 1, opened);
   }
 
-  private async openSession(config: HueBridgeConfig, identity: string, current: () => boolean, restart = false): Promise<boolean> {
+  private async openSession(config: HueBridgeConfig, identity: string, current: () => boolean, restart = false): Promise<OpenedSession | null> {
     const before = await ownership(config, identity);
-    if (!current()) return false;
+    if (!current()) return null;
     this.noteOccupant(before.kind === 'occupied' ? before.area : null);
     if (before.kind === 'occupied') {
       this.sessionConfig = null;
@@ -790,25 +793,31 @@ class HueSession {
     if (restart) {
       if (before.kind === 'owned') await setStreaming(config.host, config.username, config.entertainmentId, false);
       this.sessionConfig = null;
-      if (!current()) return false;
-      return this.openSession(config, identity, current);
+      if (!current()) return null;
+      const opened = await this.openSession(config, identity, current);
+      // A retry reports the area before its stop: whether the bridge still held the try that timed out.
+      return opened && { ...opened, before: before.kind };
     }
     // A cancelled or failed request may still have changed the bridge.
     this.sessionConfig = { config, identity };
     await setStreaming(config.host, config.username, config.entertainmentId, true);
-    if (!current()) return false;
+    const startedAt = Date.now();
+    if (!current()) return null;
     const after = await ownership(config, identity);
-    if (!current()) return false;
+    if (!current()) return null;
     this.noteOccupant(after.kind === 'occupied' ? after.area : null);
     if (after.kind === 'occupied') {
       this.sessionConfig = null;
       throw new Error(busyMessage(after.area));
     }
     if (after.kind !== 'owned') throw new Error('could not verify Entertainment ownership after start');
-    return true;
+    return { before: before.kind, startedAt };
   }
 
-  private handshake(config: HueBridgeConfig, identity: string, attempt: number): void {
+  private handshake(config: HueBridgeConfig, identity: string, attempt: number, opened: OpenedSession): void {
+    // Tells, on the next arm, a bridge that ignored a socket (a late try connects at once) from a slow one.
+    const settled = (outcome: string) => console.log(`[hue] ${this.name}: handshake try ${attempt} ${outcome} after `
+      + `${Date.now() - opened.startedAt} ms (ownership before: ${opened.before})`);
     let pending: dtls.Socket;
     try {
       pending = dtls.createSocket({
@@ -829,6 +838,7 @@ class HueSession {
         try { pending.close(); } catch (_) { /* already gone */ }
         return;
       }
+      settled('connected');
       this.status = STREAMING;
       this.lastError = null;
       this.retryDelay = RETRY_BASE_MS;
@@ -837,14 +847,16 @@ class HueSession {
 
     pending.on('error', (err: Error) => {
       if (this.socket !== pending) return;
-      if (/timed out/.test(err.message) && attempt < HANDSHAKE_TRIES && this.status === CONNECTING && this.sessionConfig) {
+      const timedOut = /timed out/.test(err.message);
+      if (timedOut) settled('timed out');
+      if (timedOut && attempt < HANDSHAKE_TRIES && this.status === CONNECTING && this.sessionConfig) {
         console.warn(`[hue] ${this.name}: ${err.message}, try ${attempt + 1} of ${HANDSHAKE_TRIES}`);
         this.socket = null;
         try { pending.close(); } catch (_) { /* already gone */ }
         const epoch = this.connectEpoch;
         const current = () => this.connectEpoch === epoch && this.status === CONNECTING;
-        this.track(this.openSession(config, identity, current, true).then((opened) => {
-          if (opened) this.handshake(config, identity, attempt + 1);
+        this.track(this.openSession(config, identity, current, true).then((next) => {
+          if (next) this.handshake(config, identity, attempt + 1, next);
         }).catch((error) => {
           if (current()) this.fail(messageOf(error));
         }));
