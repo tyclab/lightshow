@@ -31,7 +31,7 @@ const fixture = (id, address, profileId = BUILTIN_PROFILE_ID, extra = {}) => ({
 
 // Ids that are not slot numbers, and a Hue lamp among the pars.
 const PARS = [fixture(10, 1), fixture(11, 13), fixture(12, 25), fixture(13, 37)];
-const LAMP = fixture(14, 60, HUE_COLOR_PROFILE_ID, { hue: true, output: { protocol: 'hue', channel: 1 } });
+const LAMP = fixture(14, 60, HUE_COLOR_PROFILE_ID, { hue: true, output: { protocol: 'hue', channels: [1] } });
 const RIG = [...PARS, LAMP];
 
 // A bar of four bare RGB cells: no fixture dimmer, so every cell drives as the preview counts it.

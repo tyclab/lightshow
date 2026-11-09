@@ -22,7 +22,7 @@ const fixture = (id, address, profileId, extra = {}) => ({
 });
 
 const PAR = fixture(0, 1, BUILTIN_PROFILE_ID);
-const LAMP = fixture(1, 20, HUE_COLOR_PROFILE_ID, { hue: true, output: { protocol: 'hue', channel: 1 } });
+const LAMP = fixture(1, 20, HUE_COLOR_PROFILE_ID, { hue: true, output: { protocol: 'hue', channels: [1] } });
 
 // Red over blue, so a flash in colour B is told from the look in colour A.
 const LOOK = { pattern: 'solid', colorA: 0, colorB: 5, colorC: 0, colorD: 5, bpm: 120, beatDivision: 1 };

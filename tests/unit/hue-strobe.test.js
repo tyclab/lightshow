@@ -16,7 +16,7 @@ const fixture = (id, address, profileId = BUILTIN_PROFILE_ID, extra = {}) => ({
 });
 
 const LEFT = fixture(0, 1);
-const LAMP = fixture(1, 20, HUE_COLOR_PROFILE_ID, { hue: true, output: { protocol: 'hue', channel: 1 } });
+const LAMP = fixture(1, 20, HUE_COLOR_PROFILE_ID, { hue: true, output: { protocol: 'hue', channels: [1] } });
 const RIGHT = fixture(2, 40);
 const HUE_RIG = [LEFT, LAMP, RIGHT];
 const PAR_RIG = [LEFT, fixture(1, 20), RIGHT];

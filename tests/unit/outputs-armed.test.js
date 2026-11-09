@@ -145,7 +145,7 @@ test('Hue streams close on disarm and reopen on arm', async () => {
   const saved = { fixtures: state.fixtures, next: state.nextFixtureId, hue: output.getHueConfig(), artnet: { ...state.artnet } };
   state.fixtures = [{
     id: 500, label: 'Lamp', address: 1, universe: 0, profileId: HUE_COLOR_PROFILE_ID, maxBrightness: 255, override: null,
-    output: { protocol: 'hue', bridge: 'b1', channel: 0 },
+    output: { protocol: 'hue', bridge: 'b1', channels: [0] },
   }];
   placeAddresslessFixtures();
   state.artnet.enabled = false;

@@ -1275,9 +1275,8 @@ fixture's pixels. It is never transmitted over Art-Net or sACN. `hue.latencyMs`
 delays the other outputs relative to Hue; use `/api/hue/sync-test` to compare them.
 
 Existing Hue fixtures retain their IDs, positions, geometry, hardware limits and
-channel bindings when loaded. Legacy `{ channel }` outputs become `{ channels: [channel] }`;
-their compatibility profiles retain the original colour rendering even when a bridge
-is offline. **Refresh lamp profiles** reads current capabilities while preserving
+channel bindings when loaded. Their compatibility profiles retain the original
+colour rendering even when a bridge is offline. **Refresh lamp profiles** reads current capabilities while preserving
 fixture and section identities. It keeps old strip sections as separate fixtures so
 sequence, MIDI and room bindings remain valid. Unreadable or ambiguous lamps and
 changed section counts are retained and listed in the response for review.
@@ -2104,7 +2103,7 @@ Transport routes answer `{ ok, status }`; with no sequence loaded they answer
 | POST | `/api/identify/stop` | Stop identifying, a streamed WLED or OpenRGB device included |
 | POST | `/api/wled/identify` | `{ host, seconds? }`: through the patch when the WLED or another DDP device is in it (`via: 'patch'`), else a WLED's picture streamed over DDP (`via: 'device'`) |
 | POST | `/api/openrgb/identify` | `{ host, port?, device, seconds? }`: through the patch when the device is in it (`via: 'patch'`), else its picture streamed over the SDK (`via: 'device'`, with `leds` and `name`) and the device put back after |
-| POST | `/api/hue/:bridge/identify` | `{ lamp, seconds? }` (legacy `{ channel, seconds? }` also accepted): the lamp of the bridge's area through the patch (`via: 'fixture'`), else the bridge's own identify (`via: 'bridge'`) |
+| POST | `/api/hue/:bridge/identify` | `{ lamp, seconds? }`: the lamp of the bridge's area through the patch (`via: 'fixture'`), else the bridge's own identify (`via: 'bridge'`) |
 
 ### Cues
 
@@ -2183,10 +2182,7 @@ Transport routes answer `{ ok, status }`; with no sequence loaded they answer
 | POST | `/api/hue/:bridge/disconnect` | Forget that bridge, keys and all. `409` while its lamps are in the patch unless `{ removeFixtures: true }` takes them along |
 | POST | `/api/hue/sync-test` | Flash every fixture white once a second for 10 s, to tune `hue.latencyMs` |
 
-`:bridge` is an id from `/api/hue/status`. The routes from before there could
-be several bridges — `/api/hue/areas`, `/lamps`, `/add`, `/identify` — still
-answer, for the first bridge; `/api/hue/disconnect` does not, since it would
-have to guess which. Credentials are never returned by any of these —
+`:bridge` is an id from `/api/hue/status`. Credentials are never returned by any of these —
 `/api/hue/status` reports only whether a pairing exists, and `GET /api/settings`
 lists the bridges with their keys blanked. The bridges themselves are ordinary
 settings under `hue.bridges`, saved through `PUT /api/settings`: an entry sent
