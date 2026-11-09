@@ -8,7 +8,8 @@ export const CLASSIC_REDIRECTS: Readonly<Record<string, string>> = Object.freeze
 // The classic and party looks on the v2 engine: for each id, the v2 spec closest to its own pattern on the
 // diff rig (scripts/effects-v2-alias-diff.js --classic) and that diff as [largest channel, mean absolute
 // difference, frames differing of 129]. Until CLASSIC_REDIRECTS lists an id it keeps its pattern function and
-// this spec plays only as a hidden row (`classic.<id>`) for the operator's A/B test.
+// this spec plays only as a hidden row (`classic.<id>`) for the operator's A/B test. A classic flash program's v2 form
+// asks for the photosensitivity acknowledgement as the program did (rapidFlash where its params alone do not).
 
 // A redirected classic id takes its picker description from here (a party look's stays in the catalogue).
 export interface ClassicLook {
@@ -123,14 +124,14 @@ export const CLASSIC_V2: Readonly<Record<string, ClassicLook>> = {
   'ring-strobe': { family: 'Chase', name: 'Ring Strobe', diff: [255, 13.029, 129],
     spec: { kind: 'v2.step', params: { space: 'plan', trail: 0, envelope: { curve: 'linear', attack: 0, hold: 0.06, release: 0.02 }, steps: 10, stepBeats: 0.25, colour: 'solid' } } },
   'ring-backlit': { family: 'Chase', name: 'Ring Backlit', diff: [225, 38.425, 129],
-    spec: { kind: 'v2.step', params: { space: 'plan', trail: 0, envelope: { curve: 'linear', attack: 0, hold: 0.06, release: 0.02 }, steps: 10, stepBeats: 1, background: 0.3 } } },
+    spec: { rapidFlash: true, kind: 'v2.step', params: { space: 'plan', trail: 0, envelope: { curve: 'linear', attack: 0, hold: 0.06, release: 0.02 }, steps: 10, stepBeats: 1, background: 0.3 } } },
   // Zones
   split: { family: 'Zones', name: 'Split', diff: [0, 0, 0],
     spec: { kind: 'v2.zones', params: { space: 'plan', envelope: { curve: 'linear', attack: 0, hold: 1, release: 0 }, partition: 'patch', mode: 'swap' } } },
   sections: { family: 'Zones', name: 'Sections', diff: [0, 0, 0],
     spec: { kind: 'v2.zones', params: { space: 'plan', envelope: { curve: 'linear', attack: 0, hold: 1, release: 0 }, partition: 'blocks', mode: 'swap' } } },
   'flash-alternate': { family: 'Zones', name: 'Flash Alternate', pixel: true, diff: [255, 47.544, 129],
-    spec: { kind: 'v2.zones', params: { space: 'plan', stepBeats: 0.5, envelope: { curve: 'linear', attack: 0, hold: 0.06, release: 0 }, partition: 'frontBack' } } },
+    spec: { rapidFlash: true, kind: 'v2.zones', params: { space: 'plan', stepBeats: 0.5, envelope: { curve: 'linear', attack: 0, hold: 0.06, release: 0 }, partition: 'frontBack' } } },
   stems: { family: 'Zones', name: 'Stems', pixel: true, diff: [255, 25.382, 129],
     spec: { kind: 'v2.zones', params: { space: 'plan', partition: 'stems' } } },
   halves: { family: 'Zones', name: 'Halves', diff: [0, 0, 0],
@@ -152,5 +153,5 @@ export const CLASSIC_V2: Readonly<Record<string, ClassicLook>> = {
   bars: { family: 'Distinct', name: 'Bars', pixel: true, diff: [255, 14.904, 129],
     spec: { kind: 'v2.neural', params: { space: 'plan', layout: 'columns', smoothing: 0, pitchColour: false, background: 0.07 } } },
   core: { family: 'Distinct', name: 'Strobe Core', pixel: true, diff: [255, 13.4, 129],
-    spec: { kind: 'v2.wash', params: { space: 'plan', colour: 'solid', trigger: { mode: 'beatAccent', band: 'full', beatInterval: 1, threshold: 0.15, reactiveDepth: 0.4 }, envelope: { curve: 'linear', attack: 0, hold: 0.05, release: 0.1 } } } },
+    spec: { rapidFlash: true, kind: 'v2.wash', params: { space: 'plan', colour: 'solid', trigger: { mode: 'beatAccent', band: 'full', beatInterval: 1, threshold: 0.15, reactiveDepth: 0.4 }, envelope: { curve: 'linear', attack: 0, hold: 0.05, release: 0.1 } } } },
 };

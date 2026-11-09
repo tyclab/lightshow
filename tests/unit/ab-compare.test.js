@@ -62,7 +62,7 @@ test('an ad-hoc side plays under an ab: id that resolves to one frozen spec, and
 
 test('the effect library resolves classic and unknown ab: ids to no spec, and its presets as before', (t) => {
   const library = new EffectLibrary(tempFile(t, 'effects.json')).load();
-  assert.equal(library.resolve('solid'), null);
+  assert.equal(library.resolve('strobe'), null);
   assert.equal(library.resolve('ab:missing:b'), null);
   assert.equal(library.resolve('v2.wash'), presetById('v2.wash').spec);
 });

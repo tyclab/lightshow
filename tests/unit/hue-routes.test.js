@@ -28,7 +28,7 @@ const B2 = { id: 'b2', label: 'Party', enabled: false, host: '10.0.0.10', userna
 const par = (id, address) => ({ id, label: `Par ${id}`, address, universe: 0, profileId: BUILTIN_PROFILE_ID, maxBrightness: 255, override: null });
 const lamp = (id, bridge, channel = 0) => ({
   id, label: `Lamp ${id}`, address: 1, universe: 0, profileId: HUE_COLOR_PROFILE_ID, maxBrightness: 255, override: null,
-  output: { protocol: 'hue', bridge, channel },
+  output: { protocol: 'hue', bridge, channels: [channel] },
 });
 
 /**
@@ -123,13 +123,11 @@ test('area routes resolve the requested bridge', async () => {
   await withApp({ bridges: [B1, B2] }, async ({ call }) => {
     const named = await call('GET', '/api/hue/b1/areas');
     assert.deepStrictEqual([named.body.bridge, named.body.areas.map((a) => a.id)], [{ id: 'b1', label: 'Lounge' }, [AREA]]);
-    const legacy = await call('GET', '/api/hue/areas');
-    assert.deepStrictEqual(legacy.body.bridge, { id: 'b1', label: 'Lounge' });
     assert.strictEqual((await call('GET', '/api/hue/b2/areas')).status, 409, 'not paired yet');
     assert.strictEqual((await call('GET', '/api/hue/zz/areas')).status, 404);
   });
   await withApp({ bridges: [] }, async ({ call }) => {
-    assert.strictEqual((await call('GET', '/api/hue/areas')).status, 409, 'nothing paired at all');
+    assert.strictEqual((await call('GET', '/api/hue/b1/areas')).status, 404, 'nothing paired at all');
   });
 });
 
@@ -139,9 +137,6 @@ test('forgetting a bridge requires consent to remove patched lamps', async () =>
     assert.strictEqual(kept.status, 409);
         assert.deepStrictEqual(kept.body.fixtures, [1]);
     assert.deepStrictEqual(settings.get('hue.bridges').map((b) => b.id), ['b1', 'b2'], 'still there');
-
-    const which = await call('POST', '/api/hue/disconnect', {});
-    assert.strictEqual(which.status, 400);
 
     const gone = await call('POST', '/api/hue/b1/disconnect', { removeFixtures: true });
     assert.deepStrictEqual(gone.body, { ok: true, removed: [1] });

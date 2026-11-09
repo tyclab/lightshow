@@ -48,7 +48,7 @@ test('deltas version changed keys independently by domain', () => {
 
 // The change check is the per-key diff itself: no whole-state string beside it.
 // Live values are edited in place, so the publisher compares contents, never references.
-test('a broadcast stringifies each key once and sends only what changed, to both protocols', (t) => {
+test('a broadcast stringifies each key once and sends only what changed', (t) => {
   const sent = [];
   const io = { emit() { throw new Error('every emit goes to a room'); }, to: (name) => ({ emit: (event, payload) => sent.push([name, event, payload]) }) };
   const publisher = createPublisher(io);
@@ -62,14 +62,13 @@ test('a broadcast stringifies each key once and sends only what changed, to both
   };
 
   assert.deepStrictEqual(broadcast(), { calls: 4, sent: [
-    [ROOM.v1, 'state', null],
     [ROOM.v2, 'patch', { masterDimmer: 255, pattern: 'chase' }],
     [ROOM.v2, 'patch', { fixtures: live.fixtures }],
     [ROOM.v2, 'patch', { spotify: { ok: true } }],
   ] }, 'the first broadcast: everything, one stringify per key');
-  assert.deepStrictEqual(broadcast(), { calls: 4, sent: [] }, 'nothing changed: nothing to either room');
+  assert.deepStrictEqual(broadcast(), { calls: 4, sent: [] }, 'nothing changed: nothing sent');
   live.fixtures[0].label = 'Right';
-  assert.deepStrictEqual(broadcast(), { calls: 4, sent: [[ROOM.v1, 'state', null], [ROOM.v2, 'patch', { fixtures: [{ id: 0, label: 'Right' }] }]] },
+  assert.deepStrictEqual(broadcast(), { calls: 4, sent: [[ROOM.v2, 'patch', { fixtures: [{ id: 0, label: 'Right' }] }]] },
     'a value edited in place is a change: one patch');
 });
 
@@ -199,26 +198,6 @@ test('the profiles go out when one registers or goes, and the fixtures stay put'
   assert.deepStrictEqual(publish().filter((p) => p.d === 'rig'), [], 'and then nothing');
 });
 
-test('protocol 1 still gets the whole state, rig included, and only while it has a client', (t) => {
-  withMappedRig(t);
-  const { sent, publish } = recorded();
-  applyPatch({ masterDimmer: 78 });
-  t.after(() => applyPatch({ masterDimmer: 255 }));
-  publish();
-  const whole = sent.find(([room]) => room === ROOM.v1)?.[2];
-  assert.ok(Array.isArray(whole?.fixtures) && whole.profiles && whole.masterDimmer === 78);
-  const rooms = new Map([[ROOM.v2, new Set(['page'])]]);
-  const emitted = [];
-  const io = { sockets: { adapter: { rooms } }, to: (name) => ({ emit: (event) => emitted.push([name, event]) }) };
-  const publisher = createPublisher(io);
-  publisher.publishState(getLiveState(), rigSource);
-  assert.deepStrictEqual(emitted.filter(([room]) => room === ROOM.v1), [], 'no protocol 1 client: no whole state built or encoded');
-  rooms.set(ROOM.v1, new Set(['old page']));
-  applyPatch({ masterDimmer: 79 });
-  publisher.publishState(getLiveState(), rigSource);
-  assert.deepStrictEqual(emitted.filter(([room]) => room === ROOM.v1), [[ROOM.v1, 'state']]);
-});
-
 test('a DMX frame is each universe\'s channels as bytes, and reads back the same', () => {
   const a = Uint8Array.from({ length: 512 }, (_, i) => i & 0xff);
   const b = Uint8Array.from([255, 0, 128]);
@@ -295,25 +274,20 @@ test('protocol 2 subscribers receive snapshots followed by deltas', async () => 
   const s = await serve();
   try {
     const v2 = s.client({ protocol: 2 });
-    const v1 = s.client();
-    const [snapshot, full] = await Promise.all([next(v2, 'snapshot'), next(v1, 'state')]);
+    const snapshot = await next(v2, 'snapshot');
     assert.strictEqual(snapshot.protocol, 2);
     assert.ok(Array.isArray(snapshot.state.fixtures) && Array.isArray(snapshot.state.colorPresets), 'the whole state, catalogues included');
     assert.strictEqual(snapshot.state.dmxSnapshot, undefined, 'DMX has its own feed');
-    assert.ok(full.dmxSnapshot, 'protocol 1 as it always was');
     s.integrations.broadcast();
     await new Promise((r) => setTimeout(r, 50));
 
     const patch = next(v2, 'patch');
-    const whole = next(v1, 'state');
     applyPatch({ masterDimmer: 77 });
     s.integrations.broadcast();
-    const [p, w] = await Promise.all([patch, whole]);
+    const p = await patch;
     assert.strictEqual(p.d, 'look');
     assert.deepStrictEqual(p.set, { masterDimmer: 77 });
     assert.ok(p.v > snapshot.versions.look);
-    assert.strictEqual(w.masterDimmer, 77);
-    assert.ok(Array.isArray(w.fixtures), 'protocol 1: everything, every time');
 
     const resync = await v2.emitWithAck('sync');
     assert.strictEqual(resync.state.masterDimmer, 77);
@@ -324,46 +298,24 @@ test('protocol 2 subscribers receive snapshots followed by deltas', async () => 
   }
 });
 
-// The whole state for protocol 1 is built only while such a client is connected. One that connects after
-// broadcasts nobody on protocol 1 heard gets the rig as it is then, and every change after it whole.
-test('a protocol 1 client that connects after rig edits it missed gets the current rig, then each change whole', async (t) => {
-  withMappedRig(t);
+// The original protocol, a whole state on every change, is gone: a client that asks for no protocol is answered in protocol 2.
+test('a client that asks for no protocol gets the protocol 2 snapshot and patches', async () => {
   const s = await serve();
   try {
-    const v2 = s.client({ protocol: 2 });
-    await next(v2, 'snapshot');
+    const old = s.client();
+    let whole = false;
+    old.on('state', () => { whole = true; });
+    const snapshot = await arrives(old, 'snapshot');
+    assert.strictEqual(snapshot.protocol, 2);
     const patches = [];
-    v2.on('patch', (p) => patches.push(p));
-    state.fixtures[0].maxBrightness = 33;
-    s.integrations.broadcast();
+    old.on('patch', (p) => patches.push(p));
     applyPatch({ masterDimmer: 70 });
     s.integrations.broadcast();
     for (const end = Date.now() + 5000; !patches.some((p) => p.set.masterDimmer === 70);) {
-      assert.ok(Date.now() < end, 'the page has both edits');
+      assert.ok(Date.now() < end, 'the fader as a patch');
       await new Promise((r) => setTimeout(r, 5));
     }
-    assert.ok(patches.some((p) => p.set.fixtures?.[0].maxBrightness === 33));
-
-    const v1 = s.client();
-    const first = await arrives(v1, 'state');
-    assert.strictEqual(first.fixtures[0].maxBrightness, 33, 'the rig as it is, not as it was');
-    assert.strictEqual(first.masterDimmer, 70);
-    assert.ok(first.profiles && first.rigRevision === getLiveState().rigRevision);
-
-    let whole = arrives(v1, 'state');
-    state.fixtures[0].maxBrightness = 44;
-    s.integrations.broadcast();
-    const edited = await whole;
-    assert.strictEqual(edited.fixtures[0].maxBrightness, 44, 'a rig edit, whole');
-    assert.deepStrictEqual(edited.fixtures, getRigState().fixtures);
-    assert.ok(edited.profiles && edited.rigRevision === getLiveState().rigRevision);
-
-    whole = arrives(v1, 'state');
-    applyPatch({ masterDimmer: 71 });
-    s.integrations.broadcast();
-    const faded = await whole;
-    assert.strictEqual(faded.masterDimmer, 71);
-    assert.ok(Array.isArray(faded.fixtures) && faded.fixtures[0].maxBrightness === 44 && faded.profiles, 'a look change carries the rig too');
+    assert.strictEqual(whole, false, 'no whole-state messages');
   } finally {
     applyPatch({ masterDimmer: 255 });
     await s.close();
@@ -550,7 +502,7 @@ test('every key of the live state names its domain, the tempo mode the look\'s',
 
 // The live state is published when something in it changed, by every
 // broadcast and the once-a-second sweep. A clock read afresh each time must
-// not make every one of them a change, to either protocol.
+// not make every one of them a change.
 test('a beat that moves as it should adds nothing to the broadcasts', async () => {
   const s = await serve();
   const pause = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -565,31 +517,24 @@ test('a beat that moves as it should adds nothing to the broadcasts', async () =
   };
   try {
     const v2 = s.client({ protocol: 2 });
-    const v1 = s.client();
-    await Promise.all([next(v2, 'snapshot'), next(v1, 'state')]);
+    await next(v2, 'snapshot');
     const patches = [];
-    const states = [];
     v2.on('patch', (p) => patches.push(p));
-    v1.on('state', (w) => states.push(w));
-    // Once both have this fader, everything sent before it has arrived too.
+    // Once it has this fader, everything sent before it has arrived too.
     applyPatch({ masterDimmer: 76 });
     s.integrations.broadcast();
-    await until(() => patches.some((p) => p.set.masterDimmer === 76) && states.some((w) => w.masterDimmer === 76), 'the first broadcast');
+    await until(() => patches.some((p) => p.set.masterDimmer === 76), 'the first broadcast');
     patches.length = 0;
-    states.length = 0;
 
     for (let i = 0; i < 20; i++) { s.integrations.broadcast(); await pause(10); }
     await pause(50);
-    assert.deepStrictEqual([patches.length, states.length], [0, 0], 'twenty sweeps of a running clock: nothing to send');
+    assert.deepStrictEqual(patches.length, 0, 'twenty sweeps of a running clock: nothing to send');
 
-    const sentAfter = Date.now();
     applyPatch({ masterDimmer: 77 });
     s.integrations.broadcast();
-    await until(() => patches.length && states.length, 'the fader');
+    await until(() => patches.length, 'the fader');
     await pause(50);
     assert.deepStrictEqual(patches.map((p) => p.set), [{ masterDimmer: 77 }], 'the fader, without the clock');
-    assert.strictEqual(states.length, 1);
-    assert.ok(states[0].clock.at >= sentAfter, 'protocol 1 gets the whole state, the clock read with it');
 
     // The clock stopping is news once, and standing still is not.
     conductor.setRunning(false);
@@ -601,11 +546,10 @@ test('a beat that moves as it should adds nothing to the broadcasts', async () =
     conductor.setRunning(true);
     await pause(30);
     s.integrations.broadcast();
-    await until(() => patches.length >= 3 && states.length >= 3, 'moving again');
+    await until(() => patches.length >= 3, 'moving again');
     await pause(50);
     assert.strictEqual(patches.length, 3, 'moving again is news');
     assert.ok(patches[2].set.clock.beatPos >= stopped.beatPos && patches[2].set.clock.epoch === stopped.epoch);
-    assert.strictEqual(states.length, 3, 'protocol 1 is sent exactly when protocol 2 is');
   } finally {
     conductor.setRunning(true);
     applyPatch({ masterDimmer: 255 });
