@@ -430,13 +430,13 @@ flowchart LR
 | Generator | What moves | Presets |
 |-----------|------------|---------|
 | Sweep | a plane through the room by azimuth and elevation (90° runs floor to ceiling): crest, line, comet, gradient or stripe, looping, bouncing or random | Groove Wave, Big Room Wave, Ascent, Double Wave, Swagger, Beat Accent Wash, Volume Gate Wash |
-| Shell | rings from a speaker anchor, the listener, the centre or a random light, outward or inward, optionally twisted into a vortex | Impact, Vortex, Speaker Shockwave |
+| Shell | rings from a speaker anchor, the listener, the centre or a random light, outward or inward, optionally twisted into a vortex, optionally with sparks in the last colour on each launch | Impact, Vortex, Speaker Shockwave |
 | Orbit | a beam, sectors or a colour wheel turning round the listener from their facing | Rotation, Swirl, Beacon |
 | Scatter | random places, fixtures and physical segments, optionally only on band hits | Scatter Strobe, Scatter Fade, Scatter Grow, Frequency Burst |
-| Neural | bass, mids and highs placed by height, by distance from the speakers, or by zone round the listener | Neural, Neural Distance |
+| Neural | bass, mids and highs placed by height, by distance from the speakers, by zone round the listener, as three level columns side by side, or bass thrown out from the middle with mids at both ends and highs scattered | Neural, Neural Distance |
 | Wash | a steady colour or a shared breathing envelope | Wash, Breathe |
-| Step | a pulse following an axis, each strip's cell order, height or listener azimuth | Chase, Path Runner, Surround |
-| Zones | alternating or filling sides, height bands, distances or stem regions | Zones, Surround Answer, Near and Far, Stems in Space |
+| Step | a pulse following an axis, each strip's cell order, height, listener azimuth or the patch order lamp by lamp | Chase, Path Runner, Surround |
+| Zones | alternating, filling, covering in the next colour or swapping colours between sides, height bands, distances, stem regions, odd and even lamps, palette blocks, diagonals, corners, or halves that turn every other step | Zones, Surround Answer, Near and Far, Stems in Space |
 | Noise | continuous clouds, aurora or flames sampled in space | Drifting Clouds, Aurora, Fire |
 | Particles | soft objects and ballistic sparks, trails, falling drops and floor splashes | Light Orbs, Orb Collision, Fireworks, Rain |
 | Visualizer | the incoming picture's palette and motion speed drive an independent spatial field | Visualizer Flow, Visualizer Drift |
@@ -665,6 +665,8 @@ generator; **Show all** retains every historical palette id.
 
 Every generator shares one trigger: the timeline, a beat accent (a pulse per interval,
 as strong as its band with live audio) or a volume gate (the band above its threshold).
+Colours follow position, time, the first palette colour, or step: the next palette
+colour on every trigger interval.
 Positions come from the Stage room: point bindings place their light, a strip path
 spreads its cells along the path, and a weighted mean gives each source the lamp's
 position. A light without a binding keeps its Rig plot position scaled into the room;
@@ -747,27 +749,11 @@ Other settings apply immediately. The UI lists pending restart keys.
 | `logs/` | Structured logs |
 | `.venv/` | Managed analysis environment |
 
-Settings and rig files use versioned envelopes. Legacy files are validated and
-backed up privately as `.pre-v1-*` before migration. The existing legacy picture-grade
-and source-name migrations still run once. Choices saved in the versioned format
-remain explicit, including values equal to former defaults. Unknown future versions
-refuse writes.
-If legacy settings and show routing disagree, outputs remain disarmed and Rig →
-Outputs offers both routes for an explicit choice. Existing fixture universes are
-preserved when resolving that conflict.
-
-For a downgrade, export compatible settings and show files together:
-
-```sh
-node scripts/export-config-rollback.ts ./config ../lightshow-rollback
-```
-
-The destination must be new. It contains private files and a `COMPLETE.txt` marker;
-the running configuration is untouched. After the normal safe-stop checks, restore
-both files with the matching old binary. Never start an old strict loader against
-the new envelope. Preserve the original backups too. Legacy binaries apply the
-former-default migrations to flat files, so recheck intentional picture-grade and
-source-name choices after rollback.
+Settings and rig files use versioned envelopes. Unversioned files are validated and
+backed up privately as `.pre-v1-*` before they are rewritten in the envelope, and
+Art-Net routing then lives only in the rig file. Unknown future versions refuse
+writes. Builds from before the envelope cannot read these files; the `.pre-v1-*`
+backups are their copy.
 
 The checkout is the default data directory. `LIGHTSHOW_DATA_DIR` moves the
 whole data tree; `LIGHTSHOW_CONFIG_DIR`, `LIGHTSHOW_CACHE_DIR` and
@@ -775,9 +761,8 @@ whole data tree; `LIGHTSHOW_CONFIG_DIR`, `LIGHTSHOW_CACHE_DIR` and
 JSON store files are moved aside as `.invalid-<timestamp>` and defaults load.
 Stored secrets are never returned by the settings API.
 
-A `.env` in the startup directory is still loaded, but old output/source
-configuration variables are ignored and named in a startup warning. Use the
-settings API or UI for them. Supported environment controls are listed in
+A `.env` in the startup directory is still loaded, but output and source
+configuration is not read from it: use the settings API or UI. Supported environment controls are listed in
 [.env.example](.env.example), including `ARTNET_PYTHON`, `DEBUG_MIDI`, log
 settings and data paths.
 
@@ -1298,9 +1283,8 @@ fixture's pixels. It is never transmitted over Art-Net or sACN. `hue.latencyMs`
 delays the other outputs relative to Hue; use `/api/hue/sync-test` to compare them.
 
 Existing Hue fixtures retain their IDs, positions, geometry, hardware limits and
-channel bindings when loaded. Legacy `{ channel }` outputs become `{ channels: [channel] }`;
-their compatibility profiles retain the original colour rendering even when a bridge
-is offline. **Refresh lamp profiles** reads current capabilities while preserving
+channel bindings when loaded. Their compatibility profiles retain the original
+colour rendering even when a bridge is offline. **Refresh lamp profiles** reads current capabilities while preserving
 fixture and section identities. It keeps old strip sections as separate fixtures so
 sequence, MIDI and room bindings remain valid. Unreadable or ambiguous lamps and
 changed section counts are retained and listed in the response for review.
@@ -1626,7 +1610,12 @@ shelf summaries. The shelf permits 64 saved sequences.
 
 `photosensitivityAcknowledged` starts false and persists when acknowledged via
 `POST /api/safety/acknowledge`. Until then, rapid-flash presets/voices,
-strobes, rapid sequence content and rapid Matrix modes are refused. REST
+strobes, rapid sequence content and rapid Matrix modes are refused, and so are
+the seven classic programs that strike flashes (Flash Chase, Flash Scatter,
+Flash Alternate, Flash Burst, Strobe Core, Ring Strobe, Ring Backlit, marked
+Rapid ⚡). Named by hand they are refused; reached any other way (a saved bar
+picture, a track edit) they render and preview dark, and the automatic show
+plans none of them until the acknowledgement, re-planning when it is given. REST
 returns `409 photosensitivity acknowledgement required`; socket commands
 return `error-msg`; MIDI/Companion report the refusal. Stop/release remains
 available. The acknowledgement indicator in the header's status details and in Perform opens the warning.
@@ -2131,7 +2120,7 @@ Transport routes answer `{ ok, status }`; with no sequence loaded they answer
 | POST | `/api/identify/stop` | Stop identifying, a streamed WLED or OpenRGB device included |
 | POST | `/api/wled/identify` | `{ host, seconds? }`: through the patch when the WLED or another DDP device is in it (`via: 'patch'`), else a WLED's picture streamed over DDP (`via: 'device'`) |
 | POST | `/api/openrgb/identify` | `{ host, port?, device, seconds? }`: through the patch when the device is in it (`via: 'patch'`), else its picture streamed over the SDK (`via: 'device'`, with `leds` and `name`) and the device put back after |
-| POST | `/api/hue/:bridge/identify` | `{ lamp, seconds? }` (legacy `{ channel, seconds? }` also accepted): the lamp of the bridge's area through the patch (`via: 'fixture'`), else the bridge's own identify (`via: 'bridge'`) |
+| POST | `/api/hue/:bridge/identify` | `{ lamp, seconds? }`: the lamp of the bridge's area through the patch (`via: 'fixture'`), else the bridge's own identify (`via: 'bridge'`) |
 
 ### Cues
 
@@ -2210,10 +2199,7 @@ Transport routes answer `{ ok, status }`; with no sequence loaded they answer
 | POST | `/api/hue/:bridge/disconnect` | Forget that bridge, keys and all. `409` while its lamps are in the patch unless `{ removeFixtures: true }` takes them along |
 | POST | `/api/hue/sync-test` | Flash every fixture white once a second for 10 s, to tune `hue.latencyMs` |
 
-`:bridge` is an id from `/api/hue/status`. The routes from before there could
-be several bridges — `/api/hue/areas`, `/lamps`, `/add`, `/identify` — still
-answer, for the first bridge; `/api/hue/disconnect` does not, since it would
-have to guess which. Credentials are never returned by any of these —
+`:bridge` is an id from `/api/hue/status`. Credentials are never returned by any of these —
 `/api/hue/status` reports only whether a pairing exists, and `GET /api/settings`
 lists the bridges with their keys blanked. The bridges themselves are ordinary
 settings under `hue.bridges`, saved through `PUT /api/settings`: an entry sent
@@ -2252,10 +2238,10 @@ The UI token does not open it and the worker token opens nothing else.
 The UI uses Socket.IO rather than polling. Clients send `set`, `override`,
 `fixture`, `tap`, `voice-hold`, `energy-hold` and `midi-connect`; the server emits
 `auto-position`, `midi-status`, `midi-map`, `midi-learn` and `error-msg`, and
-the state in one of two forms, chosen when the client connects:
+the state in protocol 2:
 
-- **Protocol 2** — asked for with `auth: { protocol: 2 }`; what the live page
-  uses. A `snapshot` on connect (`{ protocol, versions, state }`), then
+- **Protocol 2** — asked for with `auth: { protocol: 2 }`; a client that asks
+  for none is answered the same way. A `snapshot` on connect (`{ protocol, versions, state }`), then
   `patch` events carrying only the keys that changed, grouped by domain (`look`,
   `rig`, `show`, `sources`, `audio`, `sequence`, `catalogs`, `library`,
   `voices`, `pads`, `system`) and numbered per domain:
@@ -2281,12 +2267,6 @@ the state in one of two forms, chosen when the client connects:
   once on subscribing. The live page holds the DMX and picture topics only
   while its tab is visible: hidden, it unsubscribes, and shown again it
   subscribes.
-- **Protocol 1** — anything that does not ask, such as the Companion module
-  before 2.1: `state` (the full snapshot on connect, the
-  whole live state, fixtures and profiles included, again whenever any of it
-  changes) and `dmx` (channel values
-  as JSON, keyed by universe, ten times a second — built only while such a
-  client is connected).
 
 The `voice-hold` message holds a voice while a button is down:
 `{ action: 'press' | 'renew' | 'release', token, pad?: { bank, slot }, effect?, targets? }`.
@@ -2341,7 +2321,7 @@ supervisor and effect/voice/sequence counts. Disarmed is informational. In
 pre-show engine check and the Settings → Engine note read the last minute only,
 so a stall at start-up stops warning a minute later. `renderedTotal` counts the
 ticks that rendered a frame. `idle` is true while the outputs are disarmed, no
-page watches the DMX feed or protocol 1 and no identify runs: the engine then
+page watches the DMX feed and no identify runs: the engine then
 renders every ninth tick (about 5 a second), and every tick again as soon as a
 change, an effect command or an Art-Net retirement waits on a frame. `eventLoop`
 gives the main thread's delay in milliseconds over the last 30 s window: the
@@ -2376,10 +2356,10 @@ both are null while the engine renders on the main thread, and from a start or a
 thread restart until that thread's first report. `liveQuiet` is true while the live input hears digital
 silence and reports four states a second, false while it hears sound, and null
 while it is not listening. `awake` lists what keeps the engine from idling:
-`armed`, `dmx` (a page on the DMX feed), `v1` (a client on the original
-protocol) or `identify`; an empty list with `idle` false means a frame is still
+`armed`, `dmx` (a page on the DMX feed) or `identify`; an empty list with `idle` false means a frame is still
 owed (a barrier wait, an effect command or an Art-Net route). Each client's
-connect line names its protocol, address and user agent.
+connect line names the protocol it asked for (`none` for a client too old to ask),
+its address and its user agent.
 
 The existing Docker log collector can query these records without another
 endpoint or credential. For example, in Loki:

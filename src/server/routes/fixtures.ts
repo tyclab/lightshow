@@ -497,7 +497,7 @@ export function attachFixtureRoutes(app: Express, ctx: RouteContext): void {
   }
 
   /** The lamps of the area a bridge streams, their sections, and what each can show. */
-  app.get(['/api/hue/lamps', '/api/hue/:bridge/lamps'], asyncHandler(async (req, res) => {
+  app.get('/api/hue/:bridge/lamps', asyncHandler(async (req, res) => {
     const bridge = resolveHueBridge(req, res);
     if (!bridge) return;
     const area = await hueArea(bridge, res);
@@ -512,7 +512,7 @@ export function attachFixtureRoutes(app: Express, ctx: RouteContext): void {
   }));
 
   /** Patch lamps of a bridge's area: those named, or every one not patched yet. */
-  app.post(['/api/hue/add', '/api/hue/:bridge/add'], asyncHandler(async (req, res) => {
+  app.post('/api/hue/:bridge/add', asyncHandler(async (req, res) => {
     let body;
     try {
       body = validate(hueAddSchema, req.body || {}, 'hue add');
@@ -561,7 +561,7 @@ export function attachFixtureRoutes(app: Express, ctx: RouteContext): void {
     res.json({ ok: true, fixtures: added.fixtures, profiles, bridge: { id: bridge.id, label: bridge.label }, area: { id: area.id, name: area.name } });
   }));
 
-  app.post(['/api/hue/refresh', '/api/hue/:bridge/refresh'], asyncHandler(async (req, res) => {
+  app.post('/api/hue/:bridge/refresh', asyncHandler(async (req, res) => {
     const bridge = resolveHueBridge(req, res);
     if (!bridge) return;
     const area = await hueArea(bridge, res);

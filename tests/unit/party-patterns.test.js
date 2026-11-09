@@ -373,7 +373,7 @@ test('swirl: the crest goes round the ring, a turn every eight steps', () => {
 
 test('layer context provides placement and Hue membership', () => {
   const fixtures = [
-    { position: { x: 80, y: 20 }, group: 'back', output: { protocol: 'hue', channel: 1 } },
+    { position: { x: 80, y: 20 }, group: 'back', output: { protocol: 'hue', channels: [1] } },
     { position: { x: 10, y: 60 } },
     { position: { x: 45, y: 40 }, group: 'front' },
   ];
@@ -402,7 +402,7 @@ test('layer context provides placement and Hue membership', () => {
 
 test('layer rendering pulses Hue ring lamps while flashing pars', () => {
   const fixtures = [
-    { position: { x: 10, y: 90 }, output: { protocol: 'hue', channel: 1 } },
+    { position: { x: 10, y: 90 }, output: { protocol: 'hue', channels: [1] } },
     { position: { x: 90, y: 90 } },
     { position: { x: 90, y: 10 } },
     { position: { x: 10, y: 10 } },
