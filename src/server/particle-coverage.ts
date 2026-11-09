@@ -23,8 +23,9 @@ export async function measureParticleCoverage(room: Room, cancelled = () => fals
     await pause();
     if (cancelled()) return { eligible, darkBeats };
     const spec = validateSpec(preset.spec), def = kindOf(spec.kind)!;
+    // Gaps unrevealed: only the level is read, and a background object per dark cell is a third of the garbage.
     const frame: EffectFrame = { beatPos: 0, anchorBeat: 0, bpm: 120, nowMs: 0, dtMs: 62.5, spec,
-      palette: [WHITE], lookPalette: [WHITE], paletteOverride: null, roll: 0, audio: null,
+      palette: [WHITE], lookPalette: [WHITE], paletteOverride: null, roll: 0, audio: null, revealGaps: false,
       audioMode: 'tempo', master: { ...HD_MASTER_DEFAULTS }, seed: [1, 2, 3, 4], acknowledged: false, hueStrobe: 'flash' };
     const state = def.init(spec.params, room, frame);
     const out: EffectSlot[] = Array.from({ length: room.n }, () => ({ colour: WHITE, level: 0, strength: 0 }));
@@ -46,28 +47,62 @@ export async function measureParticleCoverage(room: Room, cancelled = () => fals
   return { eligible, darkBeats };
 }
 
+const sameSet = (a: ReadonlySet<string>, b: ReadonlySet<string>): boolean => a.size === b.size && [...a].every((id) => b.has(id));
+
 // Keep only the current geometry. Profile/order changes replace Rig; room edits replace UnitSpace.
+// Only an automatic show reads the result, so a measurement (hundreds of renders) runs only while one is wanted:
+// with the show off a changed rig waits, and the set is empty unless the stored result is this rig's.
 export class ParticleCoverage {
+  /** The set last handed out: a measurement that finds the same ids keeps it, so nothing re-plans. */
   allowed: ReadonlySet<string> = EMPTY;
   ready: Promise<void> = Promise.resolve();
   private rig: Rig | null = null;
   private space: UnitSpace | null = null;
+  private result: { rig: Rig; space: UnitSpace | null } | null = null;
+  private wanted = false;
   private generation = 0;
   private changed: () => void;
   constructor(changed: () => void) { this.changed = changed; }
   forRig(rig: Rig, space: UnitSpace | null): ReadonlySet<string> {
-    if (rig === this.rig && space === this.space) return this.allowed;
-    this.rig = rig; this.space = space; this.allowed = EMPTY;
+    if (rig !== this.rig || space !== this.space) {
+      this.rig = rig; this.space = space;
+      if (this.wanted) this.measure(rig, space);
+      else this.cancel();
+    }
+    if (!this.wanted && !this.holds(rig, space)) this.allowed = EMPTY;
+    return this.allowed;
+  }
+  /** Whether an automatic show wants the result: turning it on measures a rig that changed meanwhile. */
+  want(on: boolean): void {
+    if (on === this.wanted) return;
+    this.wanted = on;
+    if (!on) this.cancel();
+    else if (this.rig && !this.holds(this.rig, this.space)) this.measure(this.rig, this.space);
+  }
+  private holds(rig: Rig, space: UnitSpace | null): boolean {
+    return this.result?.rig === rig && this.result.space === space;
+  }
+  private cancel(): void {
+    this.generation++;
+    this.ready = Promise.resolve();
+  }
+  private measure(rig: Rig, space: UnitSpace | null): void {
     const generation = ++this.generation, cancelled = () => generation !== this.generation;
     this.ready = yieldFrame().then(async () => {
       if (cancelled()) return;
       const result = await measureParticleCoverage(effectRoom(voiceLayout(rig), space), cancelled);
       if (cancelled()) return;
+      this.result = { rig, space };
+      if (sameSet(result.eligible, this.allowed)) return;
       this.allowed = result.eligible;
       this.changed();
     }).catch(() => {
-      if (!cancelled()) console.warn('[auto-show] particle coverage unavailable; keeping broad spatial effects');
+      if (cancelled()) return;
+      console.warn('[auto-show] particle coverage unavailable; keeping broad spatial effects');
+      // The set still out was measured on another rig: without a result for this one, no particle looks.
+      if (this.allowed.size === 0) return;
+      this.allowed = EMPTY;
+      this.changed();
     });
-    return this.allowed;
   }
 }

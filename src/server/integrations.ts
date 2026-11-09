@@ -404,6 +404,8 @@ function setupIntegrations({ io, midi, spotify, nowPlaying, deezerSource, prolin
     const source = resolveAutoSource();
     showWanted = true;
     showGeneration++;
+    // A rig changed while the show was off is measured now; the show re-plans when its result lands.
+    particleCoverage.want(true);
     if (source === 'live') {
       syncLiveDirector();
       return source;
@@ -430,6 +432,7 @@ function setupIntegrations({ io, midi, spotify, nowPlaying, deezerSource, prolin
   function stopAutoShow(): void {
     showWanted = false;
     showGeneration++;
+    particleCoverage.want(false);
     autoShow.stop();
     syncLiveDirector();
   }
@@ -1022,6 +1025,7 @@ function setupIntegrations({ io, midi, spotify, nowPlaying, deezerSource, prolin
     startAutoShow,
     stopAutoShow,
     resolveAutoSource,
+    particleCoverage,
     analyseCdjTrack,
     lockToPlayingTrack,
     onDeezerState(payload: DeezerState | null | undefined) {
