@@ -257,7 +257,7 @@ const WLED_MODES = [
  * The WLEDs in the patch, each read again from its device on request (server/routes/fixtures.ts):
  * its LEDs, its segment and its ledmap, so a ball whose ledmap keeps 80 of its 120 grid cells
  * becomes those 80 cells, and the Stage room's bindings follow them. A read that would change a
- * fixture's cell count changes nothing until the count it shows is confirmed here.
+ * fixture's cell count or its grid changes nothing until the count and grid it shows are confirmed here.
  */
 function PatchedWleds() {
   const s = pick(['fixtures', 'profiles']);
@@ -275,25 +275,31 @@ function PatchedWleds() {
     ? ` ${plural(room.stale, 'Stage room binding')} for it ${would ? 'would ' : ''}still ${room.stale === 1 && !would ? 'names' : 'name'} its old cells: export the room again.`
     : room && (room.moved || room.dropped)
       ? ` The Stage room's bindings ${would ? 'would follow' : 'follow'} their cells: ${room.moved} moved, ${room.dropped} without an LED dropped.` : '');
+  // The cells of one side of an answer, with its grid when the grid changes.
+  const cellsIn = (res, side) => {
+    const size = res.grid?.[side], other = res.grid?.[side === 'before' ? 'after' : 'before'];
+    const moved = size !== other && (!size || !other || size.columns !== other.columns || size.rows !== other.rows);
+    return `${plural(res.cells[side], 'cell')}${moved && size ? ` on ${size.columns} × ${size.rows}` : ''}`;
+  };
   const refresh = async (fixture, confirm = null) => {
     setPending(null);
     setStatus(`Asking ${fixture.output.host}…`);
     const res = await post('/api/wled/refresh', { fixtureId: fixture.id, ...(confirm ? { confirm } : {}) });
     if (!res.ok) { setStatus(res.error); return; }
     if (!res.applied) {
-      const grid = res.profile?.grid;
+      const grid = res.grid?.before;
       const feed = res.fullGrid?.before && !res.fullGrid.after && grid
         ? ` It is a full ${grid.columns} × ${grid.rows} grid now and would not be after: a pixel feed sized to that grid (the browser helper's --panels, the curtain feed) no longer reaches it.` : '';
-      setStatus(`"${fixture.label}" would go from ${plural(res.cells.before, 'cell')} to ${plural(res.cells.after, 'cell')}${ledmapOf(res)}. Nothing has changed yet.${feed}${roomOf(res.room, true)}`);
-      setPending({ fixture, cells: res.cells.after });
+      setStatus(`"${fixture.label}" would go from ${cellsIn(res, 'before')} to ${cellsIn(res, 'after')}${ledmapOf(res)}. Nothing has changed yet.${feed}${roomOf(res.room, true)}`);
+      setPending({ fixture, label: `Apply ${cellsIn(res, 'after')}`, confirm: { cells: res.cells.after, grid: res.grid?.after ?? null } });
       return;
     }
-    setStatus(`"${fixture.label}": ${plural(res.cells.before, 'cell')} before, ${plural(res.cells.after, 'cell')} now${ledmapOf(res)}.${roomOf(res.room, false)}`);
+    setStatus(`"${fixture.label}": ${cellsIn(res, 'before')} before, ${cellsIn(res, 'after')} now${ledmapOf(res)}.${roomOf(res.room, false)}`);
   };
   return (
     <div class="discovery">
       <p class="setting-help">In the patch. <em>Read again</em> asks the WLED for its LEDs and its ledmap: a matrix whose ledmap leaves cells
-        without an LED keeps only the LEDs there are, at their columns and rows. A change in a fixture's cell count waits for you to apply it.</p>
+        without an LED keeps only the LEDs there are, at their columns and rows. A change in a fixture's cell count or grid waits for you to apply it.</p>
       <div class="table-scroll">
         <table class="patch-table">
           <thead><tr><th scope="col">Fixture</th><th scope="col">Address</th><th scope="col">Cells</th><th scope="col"><span class="sr-only">Actions</span></th></tr></thead>
@@ -313,7 +319,7 @@ function PatchedWleds() {
       </div>
       <p class="setting-help" role="status">{status}</p>
       {pending && <div class="inline-form">
-        <button type="button" class="btn sm active" onClick={() => refresh(pending.fixture, pending.cells)}>Apply {plural(pending.cells, 'cell')}</button>
+        <button type="button" class="btn sm active" onClick={() => refresh(pending.fixture, pending.confirm)}>{pending.label}</button>
         <button type="button" class="btn sm" onClick={() => { setPending(null); setStatus(`"${pending.fixture.label}" is left as it was.`); }}>Keep as is</button>
       </div>}
     </div>

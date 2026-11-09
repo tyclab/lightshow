@@ -402,11 +402,13 @@ const wledAddSchema = z.object({
 }).strict();
 
 // A WLED fixture read again from its device: its LED count, grid and ledmap. A refresh that changes the
-// fixture's cell count only answers what it would change, until it is sent again confirming the count it showed.
+// fixture's cell count or its grid only answers what it would change, until it is sent again confirming the
+// count and the grid it showed (grid null for a strip).
+const refreshGrid = z.object({ columns: z.number().int().min(1).max(MAX_CELLS_PER_FIXTURE), rows: z.number().int().min(1).max(MAX_CELLS_PER_FIXTURE) }).strict();
 const wledRefreshSchema = z.object({
   fixtureId,
   dryRun: z.boolean().optional(),
-  confirm: z.number().int().min(1).max(MAX_CELLS_PER_FIXTURE).optional(),
+  confirm: z.object({ cells: z.number().int().min(1).max(MAX_CELLS_PER_FIXTURE), grid: refreshGrid.nullable() }).strict().optional(),
 }).strict();
 
 const ddpAddSchema = z.object({

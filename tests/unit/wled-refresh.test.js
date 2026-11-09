@@ -31,6 +31,8 @@ test.after(() => { stopEngine(); fs.rmSync(configDir, { recursive: true, force: 
 
 const PAR = { id: 0, label: 'Par', address: 1, universe: 0, profileId: 'cameo-root-par-6-12ch', maxBrightness: 255, override: null };
 const CENTRE = { x: -1, y: 0.9, z: 0.5 };
+// What Read again confirms: the cell count and the grid the first answer showed.
+const shown = (cells, columns, rows) => ({ cells, grid: { columns, rows } });
 const ball = (profile, output = { protocol: 'ddp', host: '127.0.0.1', at: 0 }) => ({ id: 38, label: 'GLORB', address: 1, universe: INTERNAL_UNIVERSE,
   profileId: profile.id, maxBrightness: 255, override: null, position: { x: 33, y: 80, height: 30 }, group: null, geometry: { length: 3, angle: 0 }, output });
 // The room as exported against the 120-cell patch: one binding per LED the ledmap keeps, by grid index.
@@ -93,7 +95,7 @@ test('reading the ball again asks it only GET requests: its info, its state and 
       state.fixtures = [{ ...PAR }, ball(plain)];
       const asked = await call({ fixtureId: 38 });
       assert.deepEqual([asked.status, asked.body.applied, asked.body.cells], [200, false, { before: 120, after: 80 }]);
-      const res = await call({ fixtureId: 38, confirm: 80 });
+      const res = await call({ fixtureId: 38, confirm: shown(80, 20, 6) });
       assert.equal(res.status, 200, JSON.stringify(res.body));
       assert.deepEqual([res.body.applied, res.body.cells], [true, { before: 120, after: 80 }]);
     });
@@ -116,7 +118,7 @@ test('a ball that lost its ledmap is read back to its 120 grid cells, and the ro
   try {
     await withApp(wled.client, rooms, async (call) => {
       state.fixtures = [{ ...PAR }, ball(sparse, { protocol: 'ddp', host: '127.0.0.1', at: 0, leds: 120, columns: 20, areas: sparse.cells.map(({ at }) => [at.x, at.y, 1, 1]) })];
-      const res = await call({ fixtureId: 38, confirm: 120 });
+      const res = await call({ fixtureId: 38, confirm: shown(120, 20, 6) });
       assert.equal(res.status, 200, JSON.stringify(res.body));
       assert.deepEqual([res.body.cells, res.body.ledmap, res.body.room], [{ before: 80, after: 120 }, null, { moved: 79, dropped: 0 }]);
       assert.deepEqual(getProfile(state.fixtures[1]), plain);
@@ -147,7 +149,7 @@ test('a ball set up as another grid takes it, and the room\'s bindings that stil
   try {
     await withApp(wled.client, rooms, async (call) => {
       state.fixtures = [{ ...PAR }, ball(sparse, { protocol: 'ddp', host: '127.0.0.1', at: 0, leds: 120, columns: 20, areas: sparse.cells.map(({ at }) => [at.x, at.y, 1, 1]) })];
-      const res = await call({ fixtureId: 38, confirm: 120 });
+      const res = await call({ fixtureId: 38, confirm: shown(120, 10, 12) });
       assert.equal(res.status, 200, JSON.stringify(res.body));
       assert.deepEqual([res.body.cells, res.body.profile.grid, res.body.room], [{ before: 80, after: 120 }, { columns: 10, rows: 12 }, { moved: 0, dropped: 0, stale: 80 }]);
       assert.equal(rooms.snapshot().revision, revision, 'the room is left as it was');
@@ -155,8 +157,19 @@ test('a ball set up as another grid takes it, and the room\'s bindings that stil
       rooms.replace(gridRoom());
       registerProfile(glorbProfile({ ledmap: false }));
       state.fixtures = [{ ...PAR }, ball(glorbProfile({ ledmap: false }))];
+      // The same count on another grid asks first too: the answer shows both grids and the bindings that would go stale.
+      const plain = glorbProfile({ ledmap: false }), roomBefore = rooms.snapshot().revision;
       const regridded = await call({ fixtureId: 38 });
-      assert.deepEqual([regridded.status, regridded.body.applied, regridded.body.cells, regridded.body.room], [200, true, { before: 120, after: 120 }, { moved: 0, dropped: 0, stale: 80 }]);
+      assert.deepEqual([regridded.status, regridded.body.applied, regridded.body.cells, regridded.body.grid, regridded.body.room],
+        [200, false, { before: 120, after: 120 }, { before: { columns: 20, rows: 6 }, after: { columns: 10, rows: 12 } }, { moved: 0, dropped: 0, stale: 80 }]);
+      assert.deepEqual([getProfile(state.fixtures[1]), rooms.snapshot().revision], [plain, roomBefore], 'nothing changed yet');
+      const counted = await call({ fixtureId: 38, confirm: shown(120, 20, 6) });
+      assert.deepEqual([counted.status, /120 cells on 10 × 12, not the 120 cells on 20 × 6 confirmed/.test(counted.body.error)], [409, true], 'the count alone does not confirm another grid');
+      assert.equal((await call({ fixtureId: 38, confirm: shown(120, 10, 6) })).status, 409, 'nor do the columns alone');
+      assert.deepEqual(getProfile(state.fixtures[1]), plain);
+      const applied = await call({ fixtureId: 38, confirm: shown(120, 10, 12) });
+      assert.deepEqual([applied.status, applied.body.applied, applied.body.profile.grid, applied.body.room],
+        [200, true, { columns: 10, rows: 12 }, { moved: 0, dropped: 0, stale: 80 }]);
     });
     // The grid as it was: every binding already names its cell.
     const again = await device(files);
@@ -164,7 +177,8 @@ test('a ball set up as another grid takes it, and the room\'s bindings that stil
       await withApp(again.client, rooms, async (call) => {
         state.fixtures = [{ ...PAR }, ball(getProfile({ profileId: sparse.id }))];
         const same = await call({ fixtureId: 38 });
-        assert.deepEqual([same.status, same.body.room], [200, { moved: 0, dropped: 0 }]);
+        assert.deepEqual([same.status, same.body.applied, same.body.grid, same.body.room],
+          [200, true, { before: { columns: 10, rows: 12 }, after: { columns: 10, rows: 12 } }, { moved: 0, dropped: 0 }], 'the same count on the same grid applies at once');
       });
     } finally {
       await again.close();
@@ -187,7 +201,7 @@ test('an edit that lands while the ball answers is kept: a move is built on, a r
   registerProfile(plain);
   const midway = (call, edit) => new Promise((resolve, reject) => {
     reached = () => { edit(); setImmediate(() => release()); };
-    call({ fixtureId: 38, confirm: 80 }).then(resolve, reject);
+    call({ fixtureId: 38, confirm: shown(80, 20, 6) }).then(resolve, reject);
   });
   try {
     await withApp(client, rooms, async (call) => {
@@ -238,7 +252,7 @@ test('while the ball is read again, the engine\'s rig and unit space are the old
     await withApp(wled.client, null, async (call) => {
       state.fixtures = [{ ...PAR }, ball(plain)];
       sample();
-      const res = await call({ fixtureId: 38, confirm: 80 });
+      const res = await call({ fixtureId: 38, confirm: shown(80, 20, 6) });
       assert.equal(res.status, 200, JSON.stringify(res.body));
       assert.deepEqual(res.body.room, { moved: 79, dropped: 0 });
       await new Promise((resolve) => setImmediate(resolve));
@@ -284,17 +298,18 @@ test('reading the curtain again changes nothing until its new cell count is conf
       const first = await call({ fixtureId: 53 });
       assert.equal(first.status, 200, JSON.stringify(first.body));
       const moved = kept.filter((k, c) => k !== c).length;
-      assert.deepEqual([first.body.applied, first.body.cells, first.body.fullGrid, first.body.ledmap, first.body.room],
-        [false, { before: 2856, after: 1560 }, { before: true, after: false }, { width: 68, height: 42 }, { moved, dropped: 0 }]);
+      assert.deepEqual([first.body.applied, first.body.cells, first.body.grid, first.body.fullGrid, first.body.ledmap, first.body.room],
+        [false, { before: 2856, after: 1560 }, { before: { columns: 68, rows: 42 }, after: { columns: 68, rows: 42 } }, { before: true, after: false },
+          { width: 68, height: 42 }, { moved, dropped: 0 }]);
       unchanged();
-      const dry = await call({ fixtureId: 53, dryRun: true, confirm: 1560 });
+      const dry = await call({ fixtureId: 53, dryRun: true, confirm: shown(1560, 68, 42) });
       assert.deepEqual([dry.status, dry.body.applied], [200, false], 'a dry run never writes');
       unchanged();
-      const wrong = await call({ fixtureId: 53, confirm: 2856 });
-      assert.deepEqual([wrong.status, /1560 cells, not the 2856 confirmed/.test(wrong.body.error)], [409, true]);
+      const wrong = await call({ fixtureId: 53, confirm: shown(2856, 68, 42) });
+      assert.deepEqual([wrong.status, /1560 cells on 68 × 42, not the 2856 cells on 68 × 42 confirmed/.test(wrong.body.error)], [409, true]);
       unchanged();
 
-      const confirmed = await call({ fixtureId: 53, confirm: 1560 });
+      const confirmed = await call({ fixtureId: 53, confirm: shown(1560, 68, 42) });
       assert.deepEqual([confirmed.status, confirmed.body.applied, confirmed.body.cells], [200, true, { before: 2856, after: 1560 }]);
       assert.equal(getProfile(state.fixtures[1]).cells.length, 1560);
       assert.notEqual(rooms.snapshot().revision, revision);
@@ -348,6 +363,32 @@ test('a ledmap whose entries do not fill the matrix is no ledmap: add and refres
   } finally {
     for (const id of added) unregisterProfile(id);
     unregisterProfile(plain.id);
+    await wled.close();
+    done();
+  }
+});
+
+test('a matrix that now answers as a strip of as many LEDs asks first too, and Apply confirms it has no grid', async () => {
+  const { wledProfile } = await import('../../src/server/wled.ts');
+  const strip = { ...GLORB_INFO, leds: { count: 120, lc: 1, rgbw: false } };
+  const wled = await device({ '/json/info': strip, '/json/state': { ledmap: 0, seg: [{ id: 0, start: 0, stop: 120, n: 'Segment 1' }] } });
+  const whole = wledProfile(readInfo(GLORB_INFO, '127.0.0.1'), '127.0.0.1', null, { mode: 'pixels' });
+  const { rooms, done } = tempRooms();
+  registerProfile(whole);
+  try {
+    await withApp(wled.client, rooms, async (call) => {
+      state.fixtures = [{ ...PAR }, ball(whole, { protocol: 'ddp', host: '127.0.0.1' })];
+      const asked = await call({ fixtureId: 38 });
+      assert.deepEqual([asked.status, asked.body.applied, asked.body.cells, asked.body.grid], [200, false, { before: 120, after: 120 }, { before: { columns: 20, rows: 6 }, after: null }]);
+      assert.deepEqual(getProfile(state.fixtures[1]), whole);
+      assert.equal((await call({ fixtureId: 38, confirm: shown(120, 20, 6) })).status, 409);
+      const applied = await call({ fixtureId: 38, confirm: { cells: 120, grid: null } });
+      assert.deepEqual([applied.status, applied.body.applied, applied.body.profile.grid], [200, true, undefined]);
+      const again = await call({ fixtureId: 38 });
+      assert.deepEqual([again.status, again.body.applied, again.body.grid], [200, true, { before: null, after: null }], 'a strip read again as a strip applies at once');
+    });
+  } finally {
+    unregisterProfile(whole.id);
     await wled.close();
     done();
   }
