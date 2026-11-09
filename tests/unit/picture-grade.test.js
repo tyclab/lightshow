@@ -8,13 +8,13 @@ import express from 'express';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { blackPointGain, gradeColour, pictureLift, PICTURE_BLACK_POINT_DEFAULT, PICTURE_GRADE_DEFAULTS, PICTURE_GRADE_GUESSED,
+import { blackPointGain, gradeColour, pictureLift, PICTURE_BLACK_POINT_DEFAULT, PICTURE_GRADE_DEFAULTS,
   pictureBlackPointSchema, pictureGradeSchema } from '../../src/shared/picture-grade.ts';
 import { SRGB_DECODE, toLch } from '../../src/shared/color.ts';
 import { createRenderer } from '../../src/server/renderer.ts';
 import { allocateShared, createUniverseStore } from '../../src/server/universes.ts';
 import { channelReader } from '../../src/shared/placement.ts';
-import { SettingsStore, DEFAULTS, retireGuessedGrade, schema, settings } from '../../src/server/settings.ts';
+import { SettingsStore, DEFAULTS, schema, settings } from '../../src/server/settings.ts';
 import { attachRoutes } from '../../src/server/routes.ts';
 
 const IDENTITY = { enabled: true, whiteLimit: 0, saturation: 1, ceiling: 1, hueCeiling: 1 };
@@ -222,23 +222,6 @@ test('settings default to the grade off, and a file from before it gains the def
   assert.throws(() => loaded.update({ picture: { blackPoint: 0.6 } }));
   assert.throws(() => loaded.update({ picture: { decode: 'on' } }));
   assert.equal(loaded.get('picture.blackPoint'), 0.3, 'a refused patch changes nothing');
-});
-
-test('a stored copy of the first, guessed defaults loads with the grade off; a tuned grade is kept', () => {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'lightshow-grade-'));
-  const load = (grade) => {
-    const file = path.join(dir, `settings-${Math.random().toString(36).slice(2)}.json`);
-    fs.writeFileSync(file, JSON.stringify({ picture: { source: 'visualizer', grade } }));
-    return new SettingsStore(file).load();
-  };
-  const reordered = Object.fromEntries(Object.entries(PICTURE_GRADE_GUESSED).reverse());
-  assert.deepEqual(load(reordered).get('picture.grade'), PICTURE_GRADE_DEFAULTS);
-  assert.equal(load(reordered).get('picture.source'), 'visualizer');
-  const tuned = { ...PICTURE_GRADE_GUESSED, whiteLimit: 0.5 };
-  assert.deepEqual(load(tuned).get('picture.grade'), tuned);
-  assert.deepEqual(load({ ...PICTURE_GRADE_GUESSED, enabled: false }).get('picture.grade'), { ...PICTURE_GRADE_GUESSED, enabled: false });
-  assert.equal(retireGuessedGrade({ artnet: {} }), false);
-  assert.equal(retireGuessedGrade(null), false);
 });
 
 test('POST /api/picture/grade merges the fields it is sent and refuses a bad one', async () => {

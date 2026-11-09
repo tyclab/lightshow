@@ -299,7 +299,7 @@ import { HUE_COLOR_PROFILE_ID } from '../../src/server/profiles.ts';
 
 const lamp = (id, channel, bridge = 'b1') => ({
   id, label: `Lamp ${id}`, address: 1, universe: 60000, profileId: HUE_COLOR_PROFILE_ID, maxBrightness: 255, override: null,
-  output: { protocol: 'hue', bridge, channel },
+  output: { protocol: 'hue', bridge, channels: [channel] },
 });
 const OFF = { id: 'b1', label: 'Lounge', enabled: false, host: '', username: '', clientKey: '', applicationId: '', entertainmentId: '' };
 const PAIRED = {

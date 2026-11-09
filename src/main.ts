@@ -34,7 +34,7 @@ import { attachRoutes } from './server/routes.ts';
 import { attachSockets } from './server/sockets.ts';
 import { createAuth, configError, hostOfUrl, sourceMapsForLoopback } from './server/auth.ts';
 import { isLoopback } from './server/loopback.ts';
-import { settings, CONFIG_FILE, warnAboutLegacyEnv } from './server/settings.ts';
+import { settings, CONFIG_FILE } from './server/settings.ts';
 import { cacheDir, dataDir } from './server/config-dir.ts';
 import { openBrowser, shouldOpenBrowser } from './server/open-browser.ts';
 import { createApplier } from './server/apply.ts';
@@ -65,8 +65,6 @@ const supervised = supervision();
 if (supervised.restarts) {
   console.warn(`[supervisor] restart ${supervised.restarts}: the last run ${supervised.lastExit ? supervised.lastExit.reason : 'ended'}`);
 }
-
-warnAboutLegacyEnv();
 
 const HOST = settings.get('server.host');
 const LIGHTSHOW_TOKEN = settings.get('server.token');

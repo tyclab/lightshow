@@ -113,12 +113,4 @@ export function attachSetupRoutes(app: Express, ctx: RouteContext): void {
   app.post('/api/settings/token/suggest', (_req, res) => {
     res.json({ ok: true, token: generateToken() });
   });
-
-  app.post('/api/rig/resolve-routing', asyncHandler(async (req, res) => {
-    const source = req.body?.source;
-    if (source !== 'show' && source !== 'settings') throw new HttpError(400, 'Choose show or settings routing');
-    const result = await showStore.resolveRouting(source);
-    ctx.integrations.broadcast();
-    res.status(result.applied ? 200 : 503).json({ ok: result.applied, ...result, rig: showStore.status() });
-  }));
 }
