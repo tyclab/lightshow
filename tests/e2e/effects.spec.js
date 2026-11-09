@@ -40,7 +40,7 @@ test('a built-in, changed and saved as a copy, lists as a preset of your own', a
   const sheet = page.getByRole('dialog', { name: 'Edit effect' });
   await expect(sheet.locator('.effect-inspector-head strong')).toHaveText('Chase');
   await expect(sheet.locator('.effect-inspector-head')).toContainText('Built-in');
-  await sheet.getByLabel('Step Beats', { exact: true }).fill('0.25');
+  await sheet.getByLabel('Step', { exact: true }).fill('0.25');
   await expect(sheet.locator('.insp-dirty')).toHaveText('Changed');
 
   await sheet.getByRole('button', { name: 'Save as…' }).click();
@@ -90,7 +90,7 @@ async function editedDomino(page) {
   await page.getByLabel('Search effects').fill('Chase');
   await page.getByRole('button', { name: 'Edit Chase', exact: true }).first().click();
   const sheet = page.getByRole('dialog', { name: 'Edit effect' });
-  await sheet.getByLabel('Step Beats', { exact: true }).fill('0.25');
+  await sheet.getByLabel('Step', { exact: true }).fill('0.25');
   return sheet;
 }
 
