@@ -1111,13 +1111,15 @@ left-to-right and the plot's top (the room's front) is the picture's top, so a
 sweep across the screen sweeps across the room. Grid fixtures, including keyboards,
 take the room picture when they have no live pixel feed. A valid pixel feed has
 priority; when it expires, the grid returns to the room picture. A panel the Stage
-room places as a solid rather than a surface (its bound cells at least a quarter as
-thick as they are wide, such as a WLED ball whose cells sit on a sphere) samples
-the picture where its cells are: each bound cell at the fixture's plot centre plus
-its room offset from the cells' centre across and along the floor, so the ball's
-front and back take different parts of the picture. A flat panel or a curtain keeps
-its flat place on the plot. The unit list's signature then carries the room's
-revision, so a sender fetches the positions again after a room import. Update the browser
+room places on a ball (its bound cells on one sphere, within 8 % of its radius,
+such as a WLED ball) samples the picture where its cells are: each bound cell at
+the fixture's plot centre plus its room offset from the cells' centre across and
+along the floor, so the ball's front and back take different parts of the
+picture. A flat panel, a curtain, and any other 3-D body (a box, a panel round a
+corner, whose wall columns would fold onto one point of the floor) keep their flat
+place on the plot. The unit list's signature then carries the room's revision: after
+a room import the server answers the helper's next claim `STALE`, and the helper
+fetches the positions again at once and claims anew. Update the browser
 helper with the server so it samples grid cells too. Voices, pads, Identify, overrides and
 blackouts stay above it, the master and trims still apply, and two seconds
 without a frame shows the effects again. With **Effects** selected the server
