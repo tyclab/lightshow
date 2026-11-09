@@ -284,14 +284,27 @@ function anchorPattern(anchorMs: number | undefined): void {
   state.patternAnchor = { step: anchorStep(beatPos, state.beatDivision || 1), epoch: reading.epoch };
 }
 
-function applyOverride(id: number, rawOverride: unknown): void {
+function setOverride(id: number, rawOverride: unknown): boolean {
   const fixture = getFixture(id);
-  if (!fixture) return;
+  if (!fixture) return false;
   const override = rawOverride === null
     ? null
     : validate(overrideSchema, rawOverride, 'override');
   fixture.override = override;
-  hooks.broadcast();
+  return true;
+}
+
+function applyOverride(id: number, rawOverride: unknown): void {
+  if (setOverride(id, rawOverride)) hooks.broadcast();
+}
+
+// A cue sets every fixture's override: one broadcast for the lot, not one per fixture.
+function applyOverrides(overrides: Iterable<readonly [number, unknown]>): void {
+  try {
+    for (const [id, override] of overrides) setOverride(id, override);
+  } finally {
+    hooks.broadcast();
+  }
 }
 
 // Apart from applyOverride: a trim is no look, survives clearing it, and is never cued.
@@ -332,6 +345,7 @@ export {
   flushPendingPersist,
   applyPatch,
   applyOverride,
+  applyOverrides,
   setFixtureMaxBrightness,
   processTap,
   setHooks,
