@@ -1,4 +1,5 @@
 import { parentPort, workerData } from 'node:worker_threads';
+import { getHeapStatistics } from 'node:v8';
 
 import { createRenderer } from './renderer.ts';
 import { allocateShared, createUniverseStore } from './universes.ts';
@@ -11,7 +12,7 @@ import { hueProfile } from './hue-profile.ts';
 import { HOLD_STROBE } from '../shared/look-math.ts';
 import { guarded } from './guard.ts';
 import type { MusicalTime } from './conductor.ts';
-import type { EngineWorkerData, FromWorker, RenderedFrames, ToWorker } from './engine-messages.ts';
+import type { EngineHeap, EngineWorkerData, FromWorker, RenderedFrames, ToWorker } from './engine-messages.ts';
 import type { Ticker } from './frame-clock.ts';
 import type { RenderInput } from './renderer.ts';
 import type { SequenceTable } from '../shared/effects/sequence.ts';
@@ -95,6 +96,11 @@ function takeSequence(): void {
 
 let lastStatsAt = -Infinity;
 
+function heap(): EngineHeap {
+  const { used_heap_size: usedBytes, total_heap_size: totalBytes } = getHeapStatistics();
+  return { usedBytes, totalBytes };
+}
+
 function setProfiles(profiles: Profile[] | null | undefined): void {
   clearNonBuiltinProfiles();
   for (const profile of profiles || []) registerProfile(profile);
@@ -129,7 +135,7 @@ function postCommands(): void {
 function renderTick(due: number, now: number): void {
   if (now - lastStatsAt >= 1000) {
     lastStatsAt = now;
-    if (ticker) post({ type: 'stats', stats: ticker.stats.summary() });
+    if (ticker) post({ type: 'stats', stats: ticker.stats.summary(), heap: heap() });
   }
   // Idle effects step about 0.2 s per render (effDt is unclamped, beats capped at 4): nobody can see it.
   if (snapshot?.idle && !fresh) return;

@@ -15,7 +15,7 @@ import { baseIntentOf, createRenderer } from './renderer.ts';
 import { createTicker, hrtimeMs, FRAME_MS } from './frame-clock.ts';
 import { messageOf } from '../errors.ts';
 import { createIdentify } from './identify.ts';
-import type { FromWorker, ToWorker } from './engine-messages.ts';
+import type { EngineHeap, FromWorker, ToWorker } from './engine-messages.ts';
 import type { FrameSummary, Ticker } from './frame-clock.ts';
 import type { CommandResult, FadeRequest, RenderInput, SyncTestRequest, VoiceFrame } from './renderer.ts';
 import type { Profile, PulseReading } from '../types/rig.ts';
@@ -43,6 +43,8 @@ export type EngineStatus = {
   fellBack: string | null;
   commands: { submitted: number; processed: number; applied: number };
   idle: boolean;
+  /** The engine thread's heap from its last report; null while it renders on the main thread. */
+  heap: EngineHeap | null;
 } & Partial<FrameSummary>;
 
 // Send control snapshots ahead of the deadline so the worker has them before rendering.
@@ -471,6 +473,7 @@ let ticker: Ticker | null = null;               // this thread's frame loop, or 
 let worker: Worker | null = null;               // the engine thread, while one is running
 let thread: EngineThread | null = null;         // null while stopped
 let workerStats: FrameSummary | null = null;    // the worker's last timing report
+let workerHeap: EngineHeap | null = null;       // and its heap, from the same report
 let fellBack: string | null = null;             // why the engine is here and not in its worker
 let crashes: number[] = [];
 let postedRevision = -1;
@@ -601,6 +604,7 @@ function onWorkerMessage(msg: FromWorker | null): void {
       break;
     case 'stats':
       workerStats = msg.stats;
+      workerHeap = msg.heap ?? null;
       break;
     case 'commands':
       settleCommands(msg.results, { processed: msg.processed, applied: msg.applied });
@@ -633,6 +637,7 @@ function spawnWorker(epochMs: number): void {
   w.on('exit', (code) => {
     if (worker !== w) return;           // a worker already replaced or stopped
     worker = null;
+    workerHeap = null;                  // that isolate is gone; a replacement reports its own
     ready = false;
     control.rendererLost();
     frames.fail('The renderer restarted before acknowledging this change');
@@ -724,6 +729,7 @@ function stopEngine(): Promise<void> {
   thread = null;
   worker = null;
   workerStats = null;
+  workerHeap = null;
   lastPosted = null;
   mainGridOrigin = undefined;
   failPendingCommands();
@@ -776,6 +782,7 @@ function engineStatus(): EngineStatus {
     commands: { submitted: commandSeq, processed: commandsProcessed, applied: commandsApplied },
     ...(stats || {}),
     idle: isIdle(),
+    heap: thread === 'worker' ? workerHeap : null,
   };
 }
 

@@ -2286,7 +2286,12 @@ advanced. Check `engineSampleAgeMs` for stale worker reports. `windowFrames` and
 for the current ticker, while `intervalSkipped` covers `intervalMs`.
 `eventLoopP50Ms`, `eventLoopP99Ms` and `eventLoopMaxMs` exclude the 10 ms
 sampling interval. These are engine timings, not confirmation that a device
-displayed every frame. `liveQuiet` is true while the live input hears digital
+displayed every frame. `rssBytes` is the whole process; `heapUsedBytes` and
+`heapTotalBytes` are the main thread's used and committed V8 heap.
+`engineHeapUsedBytes` and `engineHeapTotalBytes` are the engine thread's own
+heap from its last once-a-second report, which the main heap does not include;
+both are null while the engine renders on the main thread, and from a start or a
+thread restart until that thread's first report. `liveQuiet` is true while the live input hears digital
 silence and reports four states a second, false while it hears sound, and null
 while it is not listening. `awake` lists what keeps the engine from idling:
 `armed`, `dmx` (a page on the DMX feed), `v1` (a client on the original

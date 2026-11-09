@@ -92,7 +92,7 @@ const timing = {
   frames: 40, lateFrames: 1, skippedFramesTotal: 2, skippedFramesLastMinute: 2,
   renderMs: { p50: 1, p95: 2, max: 5 }, lateMs: { p50: 0, p95: 3, max: 10 },
 };
-const memory = { rss: 1024, heapUsed: 512 };
+const memory = { rss: 1024, heapUsed: 512, heapTotal: 768 };
 const sample = (engine, previous = null, now = 31_010) => performanceSample(engine, fine.eventLoop, memory, false, previous, now);
 
 test('performance summaries measure elapsed throughput without leaking health details', (t) => {
@@ -116,6 +116,21 @@ test('performance summaries measure elapsed throughput without leaking health de
   assert.equal(s.armed, false);
   assert.ok(!JSON.stringify(s).includes('private'));
   assert.ok(Object.values(s).every((value) => value === null || ['boolean', 'number', 'string'].includes(typeof value)));
+});
+
+test('performance summaries carry the committed main heap and the engine thread\'s heap, null without a worker report', () => {
+  const reported = sample({ ...timing, heap: { usedBytes: 40_000_000, totalBytes: 96_000_000 } });
+  assert.deepStrictEqual([reported.heapUsedBytes, reported.heapTotalBytes, reported.engineHeapUsedBytes, reported.engineHeapTotalBytes],
+    [512, 768, 40_000_000, 96_000_000]);
+  for (const engine of [{ ...timing, heap: null }, { ...timing, thread: 'main', heap: null }, timing, { running: false, heap: null }]) {
+    const s = sample(engine);
+    assert.strictEqual(s.heapTotalBytes, 768, 'the main heap is always measured');
+    assert.strictEqual(s.engineHeapUsedBytes, null, JSON.stringify(engine));
+    assert.strictEqual(s.engineHeapTotalBytes, null);
+  }
+  for (const key of ['heapTotalBytes', 'engineHeapUsedBytes', 'engineHeapTotalBytes']) {
+    assert.strictEqual(typeof reported[key], 'number', key);
+  }
 });
 
 test('performance summaries count rendered frames apart from ticks, and say whether the engine idles', () => {

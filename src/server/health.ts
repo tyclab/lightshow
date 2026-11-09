@@ -112,7 +112,7 @@ export function setAwakeProvider(fn: (() => string[]) | null): void { awakeProvi
 export function performanceSample(
   engine: EngineStatus,
   eventLoop: EventLoopDelay | null,
-  memory: Pick<NodeJS.MemoryUsage, 'rss' | 'heapUsed'>,
+  memory: Pick<NodeJS.MemoryUsage, 'rss' | 'heapUsed' | 'heapTotal'>,
   armed: boolean,
   previous: EngineStatus | null,
   nowMs = hrtimeMs(),
@@ -155,6 +155,10 @@ export function performanceSample(
     eventLoopMaxMs: eventLoop?.maxMs ?? null,
     rssBytes: memory.rss,
     heapUsedBytes: memory.heapUsed,
+    heapTotalBytes: metric(memory.heapTotal),
+    // The engine thread's isolate, which heapUsedBytes and heapTotalBytes do not include.
+    engineHeapUsedBytes: metric(engine.heap?.usedBytes),
+    engineHeapTotalBytes: metric(engine.heap?.totalBytes),
   };
 }
 
