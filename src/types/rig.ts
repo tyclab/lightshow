@@ -200,7 +200,6 @@ export interface HueOutput {
   protocol: 'hue';
   bridge: string;
   channels?: number[];
-  channel?: number;
 }
 
 /** Expression values are normalized to 0–1. */
