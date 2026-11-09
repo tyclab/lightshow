@@ -528,7 +528,7 @@ test("preview crossfades start from the prior base frame", () => {
     const scene = t >= 505 ? 2 : t >= 310 ? 1 : 0;
     return {
       pattern: ['ldj.FadeCycle', 'ldj.StrobeCycle', 'chase'][scene],
-      effect: [FADE, preset('ldj.StrobeCycle'), null][scene],
+      effect: [FADE, preset('ldj.StrobeCycle'), resolveEffect('chase')][scene],
       patternAnchor: { step: [0, anchorStep(beat(310)), anchorStep(beat(505))][scene], epoch: 0 },
       fade: scene === 2 ? { seq: 2, ms: 300, at: 505 } : scene === 1 ? { seq: 1, ms: 400, at: 310 } : null,
       voices: t < 1300 ? [voice('pad:b', BLINDER, { targets: [PARS[0].id] })] : [],
@@ -845,10 +845,10 @@ test("unresolved preview effects use legacy patterns", () => {
   // A timeline with voices still plays its legacy look under them.
   const times = frames(0, 400);
   const mixed = createPreviewSampler([
-    { timeMs: 0, action: 'patch', data: { pattern: 'chase', ...LOOK } },
+    { timeMs: 0, action: 'patch', data: { pattern: 'strobe', ...LOOK } },
     { timeMs: 0, action: 'voice', data: { id: 'p', effect: BLINDER, targets: [PARS[0].id], tier: 'voice', launchSeq: 1 } },
   ], GRID, { resolveEffect });
-  const rig = rigRun(PARS, times, () => ({ pattern: 'chase', voices: [voice('p', BLINDER, { targets: [PARS[0].id] })] }));
+  const rig = rigRun(PARS, times, () => ({ pattern: 'strobe', voices: [voice('p', BLINDER, { targets: [PARS[0].id] })] }));
   assertSame(rig, previewRun(mixed, PARS, times), times);
 });
 
