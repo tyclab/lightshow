@@ -20,6 +20,11 @@ const MIN_PHRASE_BARS = 2;
 const PHRASE_BARS = 8;
 const HOT_ROLES = new Set(['chorus', 'drop']);
 
+/** A blend over eight beats at `bpm` (120 when unknown), at most MAX_FADE_MS. */
+function blendMs(bpm: number): number {
+  return Math.min(MAX_FADE_MS, Math.round((BLEND_BEATS * 60000) / (bpm > 0 ? bpm : 120)));
+}
+
 function transitionFor({ analysis, positionMs, bpm, change }: {
   analysis: Analysis | null | undefined;
   positionMs: number;
@@ -30,7 +35,7 @@ function transitionFor({ analysis, positionMs, bpm, change }: {
   const tempo = bpm > 0 ? bpm : finite(analysis?.bpm, 120) || 120;
   const beatMs = 60000 / tempo;
   if (change.overlapMs < CUT_BEATS * beatMs) return { fadeMs: 0, reason: 'cut' };
-  const blend: Transition = { fadeMs: Math.min(MAX_FADE_MS, Math.round(BLEND_BEATS * beatMs)), reason: 'blend' };
+  const blend: Transition = { fadeMs: blendMs(tempo), reason: 'blend' };
   if (!analysis || !Number.isFinite(positionMs)) return blend;
 
   const rate = tempo / (finite(analysis.bpm, tempo) || tempo);
@@ -61,4 +66,4 @@ function transitionFor({ analysis, positionMs, bpm, change }: {
   return blend;
 }
 
-export { transitionFor, MAX_FADE_MS };
+export { transitionFor, blendMs, MAX_FADE_MS };
