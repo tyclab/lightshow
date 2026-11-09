@@ -86,7 +86,7 @@ export function playButton(page, action, programme = 'look') {
     .getByRole('button', { name: `${action} ${PROGRAMME_NAMES[programme]}`, exact: true });
 }
 
-/** Choose what the play button starts, from its menu (only while stopped). */
+/** Choose what the play button starts, from its menu, while stopped (while one plays, the choice switches to it). */
 export async function chooseProgramme(page, programme) {
   await page.getByRole('group', { name: 'Global show controls' }).getByRole('button', { name: 'Programme', exact: true }).click();
   await page.getByRole('menuitemradio', { name: PROGRAMME_NAMES[programme], exact: true }).click();

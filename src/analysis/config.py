@@ -1,7 +1,7 @@
 """Every tuning constant in the analysis pipeline; re-tune by passing a modified AnalysisConfig to pipeline.analyze().
 Fields named *_ratio or *_score are 0..1 fractions."""
 
-from dataclasses import dataclass, field, replace
+from dataclasses import dataclass, field
 from typing import Dict, Tuple
 
 
@@ -41,12 +41,9 @@ class RhythmConfig:
     tempo_max: float = 200.0
     tempo_prior_bpm: float = 120.0
     tempo_prior_std: float = 1.0
-    #: Window over which local tempo is measured, seconds.
-    tempo_window_sec: float = 8.0
     onset_delta: float = 0.07
     #: Minimum gap between onsets, seconds. Two hits closer than this are one.
     onset_min_gap_sec: float = 0.03
-    downbeat_tolerance_ratio: float = 0.25
     meters: Tuple[int, ...] = (4, 3)
 
 
@@ -130,10 +127,6 @@ class AnalysisConfig:
     parallel: bool = True
     # None reads ARTNET_STRUCTURE_MODEL, which the server sets from settings.
     structure_model: str = None
-
-    def tuned(self, **overrides) -> 'AnalysisConfig':
-        """Return a copy with top-level fields replaced. Useful from tests."""
-        return replace(self, **overrides)
 
 
 DEFAULT = AnalysisConfig()

@@ -64,7 +64,7 @@ async function harness(t, { token = WORKER_TOKEN, models = ['beat_this', 'htdemu
     socket.once('connect_error', reject);
   });
   const hello = (socket, extra = {}) => socket.timeout(3000).emitWithAck('hello', {
-    protocol: 1, name: 'gamertyc', version: VERSION, models: ['htdemucs', 'beat_this'],
+    protocol: 1, name: 'stage-pc', version: VERSION, models: ['htdemucs', 'beat_this'],
     device: { kind: 'cuda', name: 'NVIDIA GeForce RTX 2080 SUPER', vramMiB: 8192 }, available: true, ...extra,
   });
   const once = (socket, event) => new Promise((resolve) => socket.once(event, (...args) => resolve(args)));
@@ -113,7 +113,7 @@ test('hello answers whether the worker runs this server\'s analysis code and mod
   assert.equal(gpu.compatible, true, 'SongFormer is what structure "auto" uses on a GPU');
 
   const listed = h.pool.status().workers.map((w) => [w.name, w.compatible]);
-  assert.deepEqual(listed.sort(), [['gamertyc', true], ['gpu-pc', true], ['old-pc', false], ['thin-pc', false]]);
+  assert.deepEqual(listed.sort(), [['gpu-pc', true], ['old-pc', false], ['stage-pc', true], ['thin-pc', false]]);
 });
 
 test('a job goes to the worker, which fetches the audio with its key and posts the document back', async (t) => {
@@ -144,7 +144,7 @@ test('a job goes to the worker, which fetches the audio with its key and posts t
   const status = await (await fetch(`${h.base}/api/analysis/workers`, { headers: { 'X-Lightshow-Token': MAIN_TOKEN } })).json();
   assert.equal(status.workers[0].stats.jobs, 1);
   assert.deepEqual([status.recent[0].worker, status.recent[0].outcome, status.recent[0].file, status.recent[0].tag],
-    ['gamertyc', 'done', 'track.flac', 'file:track']);
+    ['stage-pc', 'done', 'track.flac', 'file:track']);
   assert.equal(status.recent[0].workerSeconds, 41.2);
   assert.doesNotMatch(JSON.stringify(status), new RegExp(`${offer.key}|${WORKER_TOKEN}|${h.base.split('//')[1]}/|${path.dirname(file)}`));
 });
@@ -204,7 +204,7 @@ test('a worker\'s status is logged when it flips or its reason changes beyond it
   const socket = await h.worker();
   await h.hello(socket);
   const logged = t.mock.method(console, 'log', () => {});
-  const lines = () => logged.mock.calls.map((c) => c.arguments.join(' ')).filter((l) => /remote gamertyc (is ready|is not taking)/.test(l));
+  const lines = () => logged.mock.calls.map((c) => c.arguments.join(' ')).filter((l) => /remote stage-pc (is ready|is not taking)/.test(l));
   const report = async (status) => {
     socket.emit('status', status);
     await until(() => {
@@ -217,12 +217,12 @@ test('a worker\'s status is logged when it flips or its reason changes beyond it
   await report({ available: false, reason: vram(4120) });
   await report({ available: false, reason: vram(5002) });
   assert.equal(h.pool.status().workers[0].reason, vram(5002), 'the worker state keeps the exact reason');
-  assert.deepEqual(lines(), [`[analyzer] remote gamertyc is not taking jobs: ${vram(4113)}`], 'only the numbers moved: logged once');
+  assert.deepEqual(lines(), [`[analyzer] remote stage-pc is not taking jobs: ${vram(4113)}`], 'only the numbers moved: logged once');
   await report({ available: false, reason: 'a fullscreen program is in front (game.exe)' });
   await report({ available: true });
   assert.deepEqual(lines().slice(1), [
-    '[analyzer] remote gamertyc is not taking jobs: a fullscreen program is in front (game.exe)',
-    '[analyzer] remote gamertyc is ready for jobs',
+    '[analyzer] remote stage-pc is not taking jobs: a fullscreen program is in front (game.exe)',
+    '[analyzer] remote stage-pc is ready for jobs',
   ], 'another reason, then ready again');
 });
 
@@ -317,7 +317,7 @@ test('with the router: a track a worker dropped mid-job is finished here, and th
   socket.close();
   await until(() => local.length === 1);
   const fresh = await h.worker();
-  await h.hello(fresh, { name: 'gamertyc-2' });
+  await h.hello(fresh, { name: 'stage-pc-2' });
   await new Promise((resolve) => setTimeout(resolve, 50));
   assert.equal(h.pool.status().recent.length, 1, 'a job a worker dropped is not sent to a worker again');
   local[0].resolve({ by: 'cpu' });
