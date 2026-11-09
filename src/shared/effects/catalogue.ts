@@ -339,7 +339,12 @@ const modern = V2_PRESETS.map((preset): CataloguePreset => ({ ...preset,
 }));
 const available = new Set(modern.map((row) => row.id));
 const compatibility = LEGACY_PRESETS.filter((row) => !available.has(V2_ALIASES[row.id])).map((row) => ({ ...row, ...(row.id.startsWith('party.') ? {} : { retired: true }) }));
-export const CATALOGUE: readonly CataloguePreset[] = deepFreeze([...compatibility, ...CONTROL_ROWS, ...OVERLAY_ROWS, ...modern, ...CLASSIC_ROWS]);
+// Party looks keep their order wherever their rows come from, so the deck does not reshuffle as looks move.
+const PARTY_ORDER = [...OWN_LOOKS.map(([id]) => id), 'party.fire', 'party.ice'];
+const listed = [...compatibility, ...CONTROL_ROWS, ...OVERLAY_ROWS, ...modern, ...CLASSIC_ROWS];
+const party = listed.filter((row) => row.party).sort((a, b) => PARTY_ORDER.indexOf(a.id) - PARTY_ORDER.indexOf(b.id));
+let partyAt = 0;
+export const CATALOGUE: readonly CataloguePreset[] = deepFreeze(listed.map((row) => (row.party ? party[partyAt++] : row)));
 const INDEX = presetIndex(CATALOGUE);
 for (const id of Object.keys(CLASSIC_REDIRECTS)) {
   const known = Object.hasOwn(PATTERN_FUNCS, id) || (id.startsWith('party.') && Object.hasOwn(CLASSIC_V2, id));

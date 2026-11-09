@@ -313,7 +313,7 @@ test("invalid voice requests launch nothing", async (t) => {
     {}, { effect: FADE, preset: 'blinder' }, { preset: 'blinder', ms: 100, beats: 1 }, { preset: 'blinder', mode: 'latched', ms: 100 },
     { preset: 'blinder', mode: 'hold' }, { preset: 'blinder', ms: 0 }, { preset: 'blinder', ms: -5 }, { preset: 'blinder', targets: 'all' },
     { preset: 'blinder', targets: [999999] }, { preset: 'blinder', targets: [0.5] },
-    { preset: 'no-such-preset' }, { preset: 'chase' }, { effect: { kind: 'no.such' } }, { spec: FADE },
+    { preset: 'no-such-preset' }, { preset: 'strobe' }, { effect: { kind: 'no.such' } }, { spec: FADE },
     ...['tier', 'source', 'owner', 'token', 'key', 'seed', 'maxLatchMs', 'quantise', 'sequence', 'id'].map((field) => ({ preset: 'blinder', [field]: 'x' })),
   ];
   for (const body of bad) {
