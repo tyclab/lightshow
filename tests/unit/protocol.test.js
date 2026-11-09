@@ -324,6 +324,52 @@ test('protocol 2 subscribers receive snapshots followed by deltas', async () => 
   }
 });
 
+// The whole state for protocol 1 is built only while such a client is connected. One that connects after
+// broadcasts nobody on protocol 1 heard gets the rig as it is then, and every change after it whole.
+test('a protocol 1 client that connects after rig edits it missed gets the current rig, then each change whole', async (t) => {
+  withMappedRig(t);
+  const s = await serve();
+  try {
+    const v2 = s.client({ protocol: 2 });
+    await next(v2, 'snapshot');
+    const patches = [];
+    v2.on('patch', (p) => patches.push(p));
+    state.fixtures[0].maxBrightness = 33;
+    s.integrations.broadcast();
+    applyPatch({ masterDimmer: 70 });
+    s.integrations.broadcast();
+    for (const end = Date.now() + 5000; !patches.some((p) => p.set.masterDimmer === 70);) {
+      assert.ok(Date.now() < end, 'the page has both edits');
+      await new Promise((r) => setTimeout(r, 5));
+    }
+    assert.ok(patches.some((p) => p.set.fixtures?.[0].maxBrightness === 33));
+
+    const v1 = s.client();
+    const first = await arrives(v1, 'state');
+    assert.strictEqual(first.fixtures[0].maxBrightness, 33, 'the rig as it is, not as it was');
+    assert.strictEqual(first.masterDimmer, 70);
+    assert.ok(first.profiles && first.rigRevision === getLiveState().rigRevision);
+
+    let whole = arrives(v1, 'state');
+    state.fixtures[0].maxBrightness = 44;
+    s.integrations.broadcast();
+    const edited = await whole;
+    assert.strictEqual(edited.fixtures[0].maxBrightness, 44, 'a rig edit, whole');
+    assert.deepStrictEqual(edited.fixtures, getRigState().fixtures);
+    assert.ok(edited.profiles && edited.rigRevision === getLiveState().rigRevision);
+
+    whole = arrives(v1, 'state');
+    applyPatch({ masterDimmer: 71 });
+    s.integrations.broadcast();
+    const faded = await whole;
+    assert.strictEqual(faded.masterDimmer, 71);
+    assert.ok(Array.isArray(faded.fixtures) && faded.fixtures[0].maxBrightness === 44 && faded.profiles, 'a look change carries the rig too');
+  } finally {
+    applyPatch({ masterDimmer: 255 });
+    await s.close();
+  }
+});
+
 // The browser helper refreshes its state every 750 ms on each of its sockets
 // and reads no catalogue: about 117 KB of each full answer it never used.
 test('a sync asked for live leaves out the catalogues and keeps the versions', async () => {
