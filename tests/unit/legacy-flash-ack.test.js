@@ -19,6 +19,8 @@ import { ACKNOWLEDGEMENT_REQUIRED } from '../../src/server/safety.ts';
 import { RAPID_PATTERNS } from '../../src/shared/strobe-fx.ts';
 import { ShowDirector } from '../../src/show/director.ts';
 import { acknowledgeFlashes } from '../helpers/acknowledged.js';
+import { CATALOGUE, CLASSIC_REDIRECTS, presetById, presetIndex } from '../../src/shared/effects/index.ts';
+import { requiresAcknowledgement, validateSpec } from '../../src/shared/effects/registry.ts';
 
 test.after(() => stopEngine());
 
@@ -95,4 +97,21 @@ test('the automatic show plans none of them before the acknowledgement', () => {
   };
   assert.ok(used(true).length > 0, 'negative control: acknowledged, the show reaches for them');
   assert.deepEqual(used(false), []);
+});
+
+// Option C moves classic ids onto v2 presets (CLASSIC_REDIRECTS); a flash program moved there must not lose the gate.
+test('a redirected flash program keeps the acknowledgement: the catalogue refuses a preset that does not ask for it', () => {
+  const calm = validateSpec({ kind: 'energy.kill' });
+  const rapid = CATALOGUE.find((row) => row.spec && requiresAcknowledgement(row.spec)).spec;
+  assert.equal(requiresAcknowledgement(calm), false);
+  const row = (spec, aliases) => ({ id: 'x', name: 'x', desc: '', app: 'own', family: 'own', spec, aliases });
+  for (const id of SEVEN) {
+    const redirects = { [id]: 'moved after the A/B test' };
+    assert.throws(() => presetIndex([row(calm, [id])], redirects), new RegExp(`${id}.*acknowledgement`), id);
+    assert.equal(presetIndex([row(rapid, [id])], redirects).get(id).id, 'x', id);
+  }
+  assert.equal(presetIndex([row(calm, ['chase'])], { chase: 'not a flash program' }).get('chase').id, 'x');
+  for (const id of Object.keys(CLASSIC_REDIRECTS).filter((key) => RAPID_PATTERNS.has(key))) {
+    assert.ok(requiresAcknowledgement(presetById(id).spec), id);
+  }
 });
