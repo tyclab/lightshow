@@ -20,7 +20,7 @@ import './v2/orbit.ts';
 import './v2/scatter.ts';
 import './v2/neural.ts';
 // The catalogue comes last: building it validates specs of every kind above.
-export { BUILTIN_PALETTES, CATALOGUE, FAMILIES, LDJ_PRESETS, deepFreeze, presetById, presetIndex } from './catalogue.ts';
+export { BUILTIN_PALETTES, CATALOGUE, CLASSIC_REDIRECTS, FAMILIES, LDJ_PRESETS, deepFreeze, presetById, presetIndex } from './catalogue.ts';
 export type { CatalogueFamily, CataloguePreset } from './catalogue.ts';
 export { LDJ_IDS } from './ldj-ids.ts';
 export type { LdjClass, LdjEngine } from './ldj-ids.ts';

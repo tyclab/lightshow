@@ -53,13 +53,16 @@ export function lookInput(id, fixtures, effectOf = null) {
   };
 }
 
-export function renderLookBytes(id, fixtures, effectOf = null) {
-  const last = Math.max(...fixtures.map((f) => f.address - 1 + getProfile(f).channelCount));
+// `inputAt(ms)` adds live input (audio, modulation, pulse) to each sampled frame; `space` is the rig's room.
+export function renderLookBytes(id, fixtures, effectOf = null, { profileOf = getProfile, beats = BEATS, space = null, inputAt = null } = {}) {
+  const last = Math.max(...fixtures.map((f) => f.address - 1 + profileOf(f).channelCount));
   const input = lookInput(id, fixtures, effectOf);
   // Reuse one renderer so later samples retain the running show’s original step anchor.
-  const renderer = createRenderer({ profileOf: getProfile, profilesRevision, now: 0 });
+  const renderer = createRenderer({ profileOf, profilesRevision, now: 0 });
+  if (space) renderer.setSpace(space);
   const store = universes.createUniverseStore(universes.allocateShared());
-  return BEATS.map((beatPos) => {
+  return beats.map((beatPos) => {
+    if (inputAt) Object.assign(input, inputAt(beatPos * MS_PER_BEAT));
     renderer.frame(input, { beatPos, bpm: BPM, epoch: 0 }, beatPos * MS_PER_BEAT, store);
     return Array.from(store.getBuffer(0).subarray(0, last));
   });
