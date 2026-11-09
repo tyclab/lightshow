@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { ShowDirector } from '../../src/show/director.ts';
 import { renderIntents } from '../../src/show/render.ts';
-import { PATTERNS, COLOR_PRESETS } from '../../src/server/presets.ts';
+import { COLOR_PRESETS, CLASSIC_LOOKS } from '../../src/server/presets.ts';
 import { patchSchema } from '../../src/server/validation.ts';
 import { makeScore, semantics } from '../../src/show/score.ts';
 import { PATTERN_FUNCS } from '../../src/shared/patterns.ts';
@@ -17,7 +17,7 @@ function track(extra = {}) {
     events: [{ t: 8, type: 'BASS_HIT', confidence: .9 }, { t: 22, type: 'DROP', confidence: .95 }],
     ...extra };
 }
-const plan = (a, intensity = 50) => new ShowDirector({ patterns: PATTERNS, colorPresets: COLOR_PRESETS, intensity }).plan(a);
+const plan = (a, intensity = 50) => new ShowDirector({ patterns: CLASSIC_LOOKS, colorPresets: COLOR_PRESETS, intensity }).plan(a);
 const expressions = p => p.intents.filter(i => i.kind === 'EXPRESSION' && i.source === 'music');
 
 test('semantic evidence changes the palette, ties keep the key/mood fallback', () => {
