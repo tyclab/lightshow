@@ -82,3 +82,45 @@ test('two balls of 80 cells: the Stage counts and places every cell, the plot la
     await request.delete(`/api/profiles/${PROFILE.id}`);
   }
 });
+
+test('Read again shows what the server answers: its refusal word for word, and the cells and room bindings it moved', async ({ page, request }) => {
+  const grid = { ...PROFILE, id: 'e2e-wled-grid', modeName: '120 pixels, RGB, 20 × 6', channelCount: 360,
+    cells: Array.from({ length: 120 }, (_, c) => ({ channelMap: { red: 3 * c, green: 3 * c + 1, blue: 3 * c + 2 } })) };
+  let id = null;
+  try {
+    expect((await request.post('/api/profiles', { data: grid })).ok()).toBe(true);
+    // A WLED at an address with nothing listening on its HTTP port, patched as a saved show brings it back: the server's own refusal.
+    const restored = await request.post('/api/fixtures/restore', { data: { index: 0, fixture: { label: 'GLORB', profileId: grid.id, output: { protocol: 'ddp', host: '127.0.0.1' } } } });
+    expect(restored.ok(), await restored.text()).toBe(true);
+    id = (await restored.json()).id;
+    const refused = await (await request.post('/api/wled/refresh', { data: { fixtureId: id } })).json();
+    expect(refused.ok).toBe(false);
+
+    await open(page, 'rig/outputs');
+    const section = page.locator('section[aria-labelledby="wled-title"]');
+    const row = section.locator('tr', { hasText: 'GLORB' });
+    await expect(row).toContainText('20 × 6');
+    const status = section.locator('p[role="status"]').last();
+    await row.getByRole('button', { name: 'Read GLORB again from its WLED' }).click();
+    await expect(status).toHaveText(refused.error);
+
+    // The answers the server gives for the balls (tests/unit/wled-ledmap.test.js, wled-refresh.test.js), as the button words them.
+    const answers = [
+      [{ cells: { before: 120, after: 80 }, ledmap: { width: 20, height: 6 }, room: { moved: 79, dropped: 0 } },
+        '"GLORB": 120 cells before, 80 cells now, from its 20 × 6 ledmap. The Stage room\'s bindings follow their cells: 79 moved, 0 without an LED dropped.'],
+      [{ cells: { before: 80, after: 80 }, ledmap: { width: 20, height: 6 }, room: { moved: 0, dropped: 0 } },
+        '"GLORB": 80 cells before, 80 cells now, from its 20 × 6 ledmap.'],
+      [{ cells: { before: 80, after: 120 }, ledmap: null, room: { moved: 0, dropped: 0, stale: 80 } },
+        '"GLORB": 80 cells before, 120 cells now. 80 Stage room bindings for it still name its old cells: export the room again.'],
+    ];
+    for (const [answer, text] of answers) {
+      await page.route('**/api/wled/refresh', (route) => route.fulfill({ json: { ok: true, ...answer } }));
+      await row.getByRole('button', { name: 'Read GLORB again from its WLED' }).click();
+      await expect(status).toHaveText(text);
+      await page.unroute('**/api/wled/refresh');
+    }
+  } finally {
+    if (id !== null) await request.delete(`/api/fixtures/${id}`);
+    await request.delete(`/api/profiles/${grid.id}`);
+  }
+});

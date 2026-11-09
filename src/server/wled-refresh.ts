@@ -1,4 +1,4 @@
-import { gridOf } from '../shared/rig.ts';
+import { gridOf, unitCount } from '../shared/rig.ts';
 import type { RoomScene } from '../shared/room-scene.ts';
 import type { Profile } from '../types/rig.ts';
 
@@ -51,4 +51,18 @@ export function remapRoomCells(room: RoomScene, fixtureId: number, before: Pick<
     return rest;
   });
   return { room: { ...room, bindings, objects }, moved, dropped };
+}
+
+/** How many of a room's bindings light a unit of the fixture, alone or as a weighted source. */
+export function bindingsOf(room: RoomScene, fixtureId: number): number {
+  return room.bindings.filter((binding) => ('sources' in binding
+    ? binding.sources.some((source) => source.fixtureId === fixtureId) : binding.fixtureId === fixtureId)).length;
+}
+
+/** Whether every unit of `before` names the same cell in `after`: as many cells, at the same places of the same grid. */
+export function sameCells(before: Pick<Profile, 'cells' | 'grid'>, after: Pick<Profile, 'cells' | 'grid'>): boolean {
+  if (unitCount(before) !== unitCount(after)) return false;
+  const from = gridOf(before), to = gridOf(after);
+  if (!from || !to) return !from && !to;
+  return from.columns === to.columns && from.rows === to.rows && from.at.every((point, c) => point.x === to.at[c].x && point.y === to.at[c].y);
 }

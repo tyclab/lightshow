@@ -271,9 +271,11 @@ function PatchedWleds() {
     setStatus(`Asking ${fixture.output.host}…`);
     const res = await post('/api/wled/refresh', { fixtureId: fixture.id });
     if (!res.ok) { setStatus(res.error); return; }
-    const room = res.room && (res.room.moved || res.room.dropped)
-      ? ` The Stage room's bindings follow their cells: ${res.room.moved} moved, ${res.room.dropped} without an LED dropped.` : '';
-    setStatus(`"${fixture.label}": ${res.cells.before} cells before, ${plural(res.cells.after, 'cell')} now${res.ledmap ? `, from its ${res.ledmap.width} × ${res.ledmap.height} ledmap` : ''}.${room}`);
+    const room = res.room?.stale
+      ? ` ${plural(res.room.stale, 'Stage room binding')} for it still ${res.room.stale === 1 ? 'names' : 'name'} its old cells: export the room again.`
+      : res.room && (res.room.moved || res.room.dropped)
+        ? ` The Stage room's bindings follow their cells: ${res.room.moved} moved, ${res.room.dropped} without an LED dropped.` : '';
+    setStatus(`"${fixture.label}": ${plural(res.cells.before, 'cell')} before, ${plural(res.cells.after, 'cell')} now${res.ledmap ? `, from its ${res.ledmap.width} × ${res.ledmap.height} ledmap` : ''}.${room}`);
   };
   return (
     <div class="discovery">

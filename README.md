@@ -881,9 +881,12 @@ rebuilds its profile under the same id, so shows, sequences and its place keep
 resolving it. When the cells change on the same grid, the Stage room's bindings
 follow each cell to its new index by column and row; a binding (or a weighted
 source) whose cell no longer has an LED is dropped, and a furniture object it lit
-loses only the light. A fixture patched as zones, a wash or a strobe panel, or one
+loses only the light. When the device is now set up as another grid, the bindings
+cannot be followed: they stay as they are, the answer counts them, and the room
+needs exporting again. A fixture patched as zones, a wash or a strobe panel, or one
 whose explicit cell map no longer matches, is refused, and so is a host answering
-with another device's MAC. Nothing is read again on its own.
+with another device's MAC, or a fixture re-patched or removed while its WLED was
+being read. Nothing is read again on its own.
 
 RGB and RGBW fixtures can share a controller. RGB sections retain their colour
 with a zero white channel; RGBW sections retain the palette's white value.

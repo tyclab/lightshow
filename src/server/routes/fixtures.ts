@@ -16,7 +16,7 @@ import { barProfile } from '../bar-profile.ts';
 import { parseOfl } from '../ofl.ts';
 import { DEFAULT_WLED_MODE, wledProfile, wledSeat, wledSpan } from '../wled.ts';
 import type { WledClient, WledInfo, WledLedmap, WledLook } from '../wled.ts';
-import { remapRoomCells } from '../wled-refresh.ts';
+import { bindingsOf, remapRoomCells, sameCells } from '../wled-refresh.ts';
 import { sharedRoomScene } from '../room-scene-store.ts';
 import { roomSceneSchema } from '../../shared/room-scene.ts';
 import { ddpDeviceProfile, ddpDeviceProfileId } from '../ddp-device.ts';
@@ -230,6 +230,7 @@ export function attachFixtureRoutes(app: Express, ctx: RouteContext): void {
         return res.status(400).json({ ok: false, error: `"${fixture.label}" is patched as a wash, zones or a strobe panel: only a fixture patched pixel by pixel takes its LEDs from the ledmap` });
       }
       const output = fixture.output, host = output.host, look: WledLook = { mode: 'pixels' };
+      const asked = JSON.stringify([fixture.profileId, output]);
       const info = await wled.info(host);
       const segmentId = seat.match(/-seg(\d+)$/)?.[1];
       let segment = null;
@@ -239,23 +240,30 @@ export function attachFixtureRoutes(app: Express, ctx: RouteContext): void {
         if (!segment) return res.status(409).json({ ok: false, error: `${info.name} has no segment ${Number(segmentId) + 1} any more: patch its segments again` });
       }
       const ledmap = await ledmapFor(wled, host, info, look);
-      const profile = wledProfile(info, host, segment, look, ledmap) as Profile;
-      if (profile.id !== fixture.profileId) {
-        return res.status(409).json({ ok: false, error: `${host} answers as another WLED (${info.name}): change "${fixture.label}"'s address first` });
+      // The device answers over several requests: build on the fixture as it is now, and only if its patch did not change meanwhile.
+      const current = state.fixtures.find((f) => f.id === fixtureId);
+      if (!current || JSON.stringify([current.profileId, current.output]) !== asked) {
+        return res.status(409).json({ ok: false, error: `"${fixture.label}" was re-patched or removed while its WLED was read: read it again` });
       }
-      const before = getProfile(fixture);
-      const next: Fixture = { ...fixture, output: { protocol: 'ddp', host, ...(output.port ? { port: output.port } : {}),
+      const profile = wledProfile(info, host, segment, look, ledmap) as Profile;
+      if (profile.id !== current.profileId) {
+        return res.status(409).json({ ok: false, error: `${host} answers as another WLED (${info.name}): change "${current.label}"'s address first` });
+      }
+      const before = getProfile(current);
+      const next: Fixture = { ...current, output: { protocol: 'ddp', host, ...(output.port ? { port: output.port } : {}),
         ...(segment ? { at: segment.at, ...(segment.rowStride ? { rowStride: segment.rowStride } : {}) } : {}), ...wledSpan(info, segment, look, ledmap) } };
       const draft = state.fixtures.map((f) => (f.id === fixtureId ? next : { ...f }));
       const profileOf = (f: Pick<Fixture, 'profileId'>) => (f.profileId === profile.id ? profile : getProfile(f));
       placeAddresslessFixtures(draft, profileOf);
-      const problem = geometryUnitIssue(fixture.geometry, profile) || unitCapOverflow(draft, profileOf) || ddpConflict(draft, profileOf)
+      const problem = geometryUnitIssue(current.geometry, profile) || unitCapOverflow(draft, profileOf) || ddpConflict(draft, profileOf)
         || (countUniverses(draft, profileOf) > MAX_UNIVERSES ? `${info.name} would put the patch on more than the ${MAX_UNIVERSES} universes this server transmits` : null);
       if (problem) return res.status(400).json({ ok: false, error: problem });
       // The held room, not a copy: the remap builds a new room and leaves this one as it is.
       const rooms = ctx.roomScene ?? sharedRoomScene();
       const { room } = rooms.peek();
       const remap = room ? remapRoomCells(room, fixtureId, before, profile) : null;
+      // Cells on another grid cannot be followed: the room's bindings for the fixture still name the old cells.
+      const stale = room && !remap && !sameCells(before, profile) ? bindingsOf(room, fixtureId) : 0;
       const remapped = remap && (remap.moved || remap.dropped) ? roomSceneSchema.safeParse(remap.room) : null;
       if (remapped && !remapped.success) return res.status(400).json({ ok: false, error: 'The Stage room would not hold the refreshed cells', issues: remapped.error.issues });
       if (!registerProfile(profile)) return res.status(400).json({ ok: false, error: 'Invalid profile' });
@@ -266,7 +274,8 @@ export function attachFixtureRoutes(app: Express, ctx: RouteContext): void {
       showStore.scheduleSave();
       integrations.broadcast();
       res.json({ ok: true, fixture: next, profile, info, cells: { before: before.cells?.length ?? 1, after: profile.cells?.length ?? 1 },
-        ledmap: ledmap ? { width: ledmap.width, height: ledmap.height } : null, room: remap ? { moved: remap.moved, dropped: remap.dropped } : null });
+        ledmap: ledmap ? { width: ledmap.width, height: ledmap.height } : null,
+        room: remap ? { moved: remap.moved, dropped: remap.dropped } : stale ? { moved: 0, dropped: 0, stale } : null });
     } catch (err) {
       res.status(statusOf(err) || 400).json({ ok: false, error: messageOf(err) });
     }
