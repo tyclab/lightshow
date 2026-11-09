@@ -124,6 +124,39 @@ test('events, status and the envelope for lining a track up', () => {
   assert.ok(c.live.status().error);
 });
 
+test('quiet states four a second keep the input listening, and each change is logged once', (t) => {
+  const logged = [];
+  t.mock.method(console, 'log', (...args) => { logged.push(args.join(' ')); });
+  const c = clocked();
+  c.live.handleLine(state());
+  assert.strictEqual(c.live.status().quiet, false);
+  const statuses = [];
+  c.live.onStatus((s) => statuses.push(s.quiet));
+  let at = 10;
+  for (let i = 0; i < 12; i++) {
+    c.advance(250);
+    at += 0.25;
+    c.live.handleLine(state({ t: at, captured: at + 0.035, quiet: true }));
+    assert.deepStrictEqual([c.live.status().listening, c.live.status().quiet], [true, true]);
+  }
+  c.advance(280);
+  assert.strictEqual(c.live.status().listening, true, 'between two quiet states: up to 280 ms when the sound card is read eight hops at a time');
+  for (let i = 0; i < 3; i++) {
+    c.advance(11.6);
+    at += 0.0116;
+    c.live.handleLine(state({ t: at, captured: at + 0.035 }));
+  }
+  assert.deepStrictEqual([c.live.status().listening, c.live.status().quiet], [true, false]);
+  const QUIET = '[live] quiet: silence, four states a second until sound';
+  assert.deepStrictEqual(logged, [QUIET, '[live] sound again']);
+  assert.deepStrictEqual(statuses, [true, false], 'a status for each change');
+  // A new process reads every hop for its first 3 s, silent or not: that is no sound.
+  c.live.handleLine(state({ t: at + 0.25, captured: at + 0.285, quiet: true }));
+  c.live._forgetStream();
+  c.live.handleLine(state({ t: 0.0116, captured: 0.0116 }));
+  assert.deepStrictEqual(logged, [QUIET, '[live] sound again', QUIET]);
+});
+
 // ── The process ───────────────────────────────────────────────────────────────
 
 /** A stand-in process; `asked` holds the lines written to its stdin. Without `stdin` it takes none. */

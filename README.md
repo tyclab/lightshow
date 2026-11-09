@@ -1677,6 +1677,11 @@ server machine. For a remote tablet, use the configured OAuth proxy. The
 optional Deezer ARL enables ISRC-matched downloads; its first configuration
 requires restart. Without it, downloads use the search path.
 
+The live input analyses every hop (256 samples at 22.05 kHz, about 86 a second)
+and reports each one until it has heard 3 s of digital silence under −80 dBFS;
+then it reports four states a second, marked `quiet` in the state's `live` block.
+The first sound returns it to every hop at once, at most 93 ms late that once.
+
 Set-list warming accepts one artist/title per line, explicit track objects,
 a Spotify queue or playlist. It prepares analysis ahead of playback. Cache
 management is available in Auto Show and through `/api/auto/cache`.
@@ -2237,7 +2242,9 @@ advanced. Check `engineSampleAgeMs` for stale worker reports. `windowFrames` and
 for the current ticker, while `intervalSkipped` covers `intervalMs`.
 `eventLoopP50Ms`, `eventLoopP99Ms` and `eventLoopMaxMs` exclude the 10 ms
 sampling interval. These are engine timings, not confirmation that a device
-displayed every frame.
+displayed every frame. `liveQuiet` is true while the live input hears digital
+silence and reports four states a second, false while it hears sound, and null
+while it is not listening.
 
 The existing Docker log collector can query these records without another
 endpoint or credential. For example, in Loki:

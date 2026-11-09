@@ -21,7 +21,8 @@ each, and the Node server (src/live-input.ts) reads them:
 
 `captured` is the stream time of the newest sample read, which is the moment
 the line is written: the reader maps it onto its own clock. `beat` is the
-analyser's continuous beat position at stream time `t`.
+analyser's continuous beat position at stream time `t`. After 3 s under
+−80 dBFS states come a quarter second apart, with `"quiet": true`, until sound.
 
 With `--bands lo-hi,...` (Hz) each state also carries the newest frame's
 `spectrum` for the party effects, on the party engine's scale — `|X|²` per bin of
@@ -70,6 +71,14 @@ N_FFT = 1024
 
 # Frames are dated by window start but onsets register about half a window in: 23 ms, 15-33 ms measured (test_live.py).
 WINDOW_LAG_SEC = N_FFT / 2 / SAMPLE_RATE
+
+# −80 dBFS: an idle sink's digital silence sits below it, the quietest music the show follows far above.
+QUIET_RMS = 1e-4
+# Longer than any rest within a track, so music is never thinned out, yet short enough to idle soon after it stops.
+QUIET_AFTER_SEC = 3.0
+# Four states a second stay inside the server's 500 ms freshness and audio-gap limits.
+QUIET_STATE_SEC = 0.25
+QUIET_BLOCK = 8
 
 MAX_BANDS = 12
 BAND_HZ_MAX = SAMPLE_RATE / 2.0
@@ -172,6 +181,9 @@ class LiveService:
             self.band_bins = band_bins(check_bands(bands, self.top_hz), sample_rate)
         self.analyzer = StreamingAnalyzer(live_config(), sample_rate=sample_rate)
         self.captured = 0
+        self.quiet = False
+        self._silent_samples = 0
+        self._next_quiet_state = 0.0
         self._requests = collections.deque()
 
     def ask(self, line):
@@ -200,14 +212,38 @@ class LiveService:
         if block.ndim > 1:
             block = block.mean(axis=1)
         self.captured += block.size
+        self._listen(block)
         before = self.analyzer._frame_index
         events = self.analyzer.push(block)
         for event in events:
             out = event.to_dict()
             out['t'] = round(out['t'] + WINDOW_LAG_SEC, 3)
             self.emitter.send({'type': 'event', 'event': out})
-        if self.analyzer._frame_index != before:
+        if self.analyzer._frame_index != before and self._state_due():
             self.emitter.send(self.state())
+
+    def _listen(self, block):
+        if not block.size:
+            return
+        rms = math.sqrt(float(np.dot(block, block)) / block.size)
+        self._silent_samples = self._silent_samples + block.size if rms < QUIET_RMS else 0
+        quiet = self._silent_samples >= QUIET_AFTER_SEC * self.sample_rate
+        if quiet and not self.quiet:
+            self._next_quiet_state = self.captured
+        self.quiet = quiet
+
+    def _state_due(self):
+        if not self.quiet:
+            return True
+        if self.captured < self._next_quiet_state:
+            return False
+        while self._next_quiet_state <= self.captured:
+            self._next_quiet_state += QUIET_STATE_SEC * self.sample_rate
+        return True
+
+    def block_frames(self):
+        """Next read for the sound card loop: a hop, or QUIET_BLOCK hops while quiet (sound then at most 93 ms late)."""
+        return HOP * QUIET_BLOCK if self.quiet else HOP
 
     def state(self):
         a = self.analyzer
@@ -229,6 +265,8 @@ class LiveService:
             'tension': _round(s.tension, 3),
             'bands': {k: _round(v, 5) for k, v in s.bands.items()},
         }
+        if self.quiet:
+            out['quiet'] = True
         if self.band_bins is not None:
             spectrum = self.spectrum()
             if spectrum is not None:
@@ -330,7 +368,7 @@ def capture_soundcard(sc, source, device, service, emitter, stop):
         emitter.send({'type': 'ready', 'backend': 'soundcard', 'source': source, 'device': name,
                       'sampleRate': SAMPLE_RATE, 'hop': HOP})
         while not stop():
-            service.push(recorder.record(numframes=HOP))
+            service.push(recorder.record(numframes=service.block_frames()))
 
 
 def capture_sounddevice(sd, device, service, emitter, stop):

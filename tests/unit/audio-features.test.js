@@ -421,6 +421,28 @@ test('a half-second audio gap resets classification', () => {
   assert.ok(Math.abs(b.frame().spl.eventT - (t + 0.4)) < 1e-9);
 });
 
+test('quiet states up to 0.28 s apart keep the stream: heard, and classified on', () => {
+  // After 3 s of digital silence the live input says a state every 0.25 s of audio; read eight hops at a time, the
+  // sound card stretches a gap to three reads, 0.28 s (live.py). STALE_MS and GAP_SEC must stay above that.
+  const STEP = 0.28;
+  let now = 0;
+  const a = features({ now: () => now });
+  const t = classes(a, [29, 29, 29]);
+  const before = a.frame();
+  assert.deepStrictEqual([before.spl.beat, before.spl.section], ['soft', 'soft']);
+  const seen = [];
+  for (let i = 1; i <= 8; i++) {
+    now += STEP * 1000;
+    a.onReading({ ...hop({ t: t + i * STEP, rms: 0, power: 0, fftPower: 0, dominantHz: null }), quiet: true });
+    const f = a.heard(t + i * STEP);
+    assert.ok(f, `heard at ${i * STEP} s`);
+    assert.strictEqual(f.generation, before.generation, 'the same stream: nothing reset');
+    seen.push([f.spl.beat, f.spl.section]);
+  }
+  assert.deepStrictEqual(seen[0], ['quiet', 'soft'], 'the soft section stands until enough quiet classes');
+  assert.deepStrictEqual(seen[seen.length - 1], ['quiet', 'quiet']);
+});
+
 // ── Identity, freshness and latency ──────────────────────────────────────────
 
 test('repeated hops cannot refresh audio freshness', () => {
