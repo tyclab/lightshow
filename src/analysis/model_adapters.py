@@ -10,18 +10,6 @@ import os
 from pathlib import Path
 
 from .cache_dirs import model_dir
-from dataclasses import dataclass
-from typing import Any
-
-
-@dataclass(frozen=True)
-class Prediction:
-    value: Any
-    confidence: float
-    source: str
-
-    def to_dict(self):
-        return {"value": self.value, "confidence": self.confidence, "source": self.source}
 
 
 def _optional(name):

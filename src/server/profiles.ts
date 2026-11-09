@@ -131,12 +131,6 @@ const DEVICE_BY_HAND = 'Devices are added from Rig → Outputs and retain their 
 
 const HUE_BY_HAND = 'A Hue lamp is added from its bridge: Rig → Outputs → Philips Hue, Add to patch';
 
-function hueProfileFor(kind: 'color' | 'ambiance' | 'white'): string {
-  if (kind === 'ambiance') return HUE_WHITE_AMBIANCE_PROFILE_ID;
-  if (kind === 'white') return HUE_WHITE_PROFILE_ID;
-  return HUE_COLOR_PROFILE_ID;
-}
-
 function isBuiltinProfile(id: string): boolean {
   return BUILTIN_PROFILE_IDS.has(id);
 }
@@ -193,7 +187,6 @@ export {
   HUE_WHITE_AMBIANCE_PROFILE_ID,
   HUE_WHITE_PROFILE_ID,
   HUE_PROFILE_IDS,
-  hueProfileFor,
   HUE_BY_HAND,
   DEVICE_BY_HAND,
   isBuiltinProfile,

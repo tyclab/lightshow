@@ -93,9 +93,6 @@ python src/analyze.py track.wav --report /tmp/report.html
 
 # What the server runs: a persistent NDJSON worker on stdin/stdout
 python src/analyze.py --worker
-
-# Live mode: raw float32 mono PCM in, musical events out as NDJSON
-python src/analyze.py --live --rate 22050 < stream.raw
 ```
 
 The worker protocol is one JSON object per line each way:
