@@ -34,9 +34,18 @@ export class RoomSceneStore extends JsonStore {
   }
 
   replace(raw: unknown): void {
-    const room = roomSceneSchema.nullable().parse(raw);
+    this.save(roomSceneSchema.nullable().parse(raw));
+  }
+
+  /** Stores a room the schema has already parsed, without parsing it twice. */
+  save(room: RoomScene | null): void {
     this.writeJson(room);
     this.publish(room);
+  }
+
+  // Compact, unlike other stores: indenting a mesh-heavy room puts each coordinate on a line of its own, four times the bytes.
+  writeJson(value: unknown): void {
+    this.write(`${JSON.stringify(value)}\n`);
   }
 
   private publish(room: RoomScene | null): void {

@@ -196,7 +196,7 @@ test('private normalized triangle meshes round-trip without changing light bindi
   assert.deepEqual(loaded.bindings, roomSceneSchema.parse(room()).bindings);
 });
 
-test('triangle meshes reject invalid geometry, mismatched kinds and unbounded data', () => {
+test('triangle meshes reject invalid geometry and mismatched kinds', () => {
   const mutations = [
     object => { delete object.mesh; },
     object => { object.kind = 'box'; },
@@ -211,8 +211,6 @@ test('triangle meshes reject invalid geometry, mismatched kinds and unbounded da
     object => { object.mesh.triangles[0] = [0, 1, 1.5]; },
     object => { object.mesh.vertices = [[-0.5, 0, 0], [0, 0, 0], [0.5, 0, 0]]; },
     object => { object.mesh.vertices = [[0, 0, 0], [1e-6, 0, 0], [0, 1e-6, 0]]; },
-    object => { object.mesh.vertices = Array(32769).fill([0, 0, 0]); },
-    object => { object.mesh.triangles = Array(65537).fill([0, 1, 2]); },
     object => { object.mesh.triangles = []; },
   ];
   for (const mutate of mutations) {
@@ -221,16 +219,50 @@ test('triangle meshes reject invalid geometry, mismatched kinds and unbounded da
   }
 });
 
-test('room aggregate mesh budgets apply even when each object is within its own limits', () => {
-  for (const field of ['vertices', 'triangles']) {
-    const object = meshObject();
-    const limit = field === 'vertices' ? 32768 : 65536;
-    while (object.mesh[field].length < limit) object.mesh[field].push(object.mesh[field][0]);
-    const objects = Array.from({ length: 2 }, (_, index) => ({ ...object, id: `mesh-${index}` }));
-    assert.equal(roomSceneSchema.safeParse({ ...room(), objects }).success, true);
-    objects.push({ ...object, id: 'mesh-over-budget' });
-    assert.equal(roomSceneSchema.safeParse({ ...room(), objects }).success, false);
+/** A rippled sheet of columns × rows vertices, every triangle with area. */
+const sheet = (columns, rows) => {
+  const vertices = [], triangles = [];
+  for (let j = 0; j < rows; j++) for (let i = 0; i < columns; i++) {
+    vertices.push([+(i / (columns - 1) - 0.5).toFixed(4), +(Math.sin(i / 9) * Math.cos(j / 7) * 0.4).toFixed(4), +(j / (rows - 1) - 0.5).toFixed(4)]);
   }
+  for (let j = 0; j + 1 < rows; j++) for (let i = 0; i + 1 < columns; i++) {
+    const a = j * columns + i;
+    triangles.push([a, a + columns, a + 1], [a + 1, a + columns, a + columns + 1]);
+  }
+  return { vertices, triangles };
+};
+
+test('mesh geometry is bounded by the request limit, not by vertex or triangle counts', () => {
+  // 70,000 vertices: past a 16-bit index in one mesh, and more than a whole flat's furniture meshes together.
+  const objects = [{ ...meshObject(), mesh: sheet(280, 250) }, { ...meshObject(), id: 'second', mesh: sheet(100, 100) }];
+  const model = { ...room(), objects };
+  assert.ok(Buffer.byteLength(JSON.stringify(model)) < ROOM_SCENE_BODY_LIMIT);
+  const parsed = roomSceneSchema.safeParse(model);
+  assert.equal(parsed.success, true, JSON.stringify(parsed.error?.issues.slice(0, 2)));
+  assert.equal(parsed.data.objects[0].mesh.vertices.length, 70000);
+  objects[0].mesh.triangles.push([69999, 0, 70000]);
+  assert.equal(roomSceneSchema.safeParse(model).success, false, 'an index past the last vertex');
+});
+
+test('room routes answer from the held room: no copy per request, one parse per import, compact on disk', async (t) => {
+  const store = storeFor(t);
+  const app = express();
+  app.use(express.json({ limit: ROOM_SCENE_BODY_LIMIT }));
+  attachRoomSceneRoutes(app, store);
+  const server = app.listen(0, '127.0.0.1');
+  await new Promise((resolve) => server.once('listening', resolve));
+  t.after(() => new Promise((resolve) => server.close(resolve)));
+  const url = `http://127.0.0.1:${server.address().port}/api/stage/room`;
+  t.mock.method(store, 'snapshot', () => { throw new Error('copied the room'); });
+  t.mock.method(store, 'replace', () => { throw new Error('parsed the room again'); });
+  const model = { ...room(), objects: [...room().objects, meshObject()] };
+  const put = await fetch(url, { method: 'PUT', headers: { 'Content-Type': 'application/json', 'If-Match': 'empty' }, body: JSON.stringify(model) });
+  assert.equal(put.status, 200);
+  const { revision } = await put.json();
+  assert.equal(fs.readFileSync(store.file, 'utf8'), `${JSON.stringify(store.peek().room)}\n`);
+  assert.equal((await fetch(url)).status, 200);
+  assert.equal((await fetch(url, { headers: { 'If-None-Match': `"${revision}"` } })).status, 304);
+  assert.equal((await fetch(url, { method: 'DELETE', headers: { 'If-Match': revision } })).status, 200);
 });
 
 test('emissive furniture mesh bindings round-trip and require an existing room binding', (t) => {
