@@ -57,11 +57,11 @@ test("own looks retain their legacy pattern ids, or play their v2 form once redi
 });
 
 test("PATTERNS contains only legacy rows", () => {
-  assert.ok(PATTERNS.some((p) => p.id === 'chase'));
+  assert.ok(PATTERNS.some((p) => p.id === 'strobe'));
   assert.ok(!PATTERNS.some((p) => p.id === 'ldj.ScatterStrobe'));
   assert.deepStrictEqual(PATTERNS.filter((p) => p.legacy !== true).map((p) => p.id), []);
   assert.strictEqual(PATTERNS.find((p) => p.id === 'position-chase').preset, 'hd.neonDomino');
-  assert.ok(!('preset' in PATTERNS.find((p) => p.id === 'chase')));
+  assert.ok(!('preset' in PATTERNS.find((p) => p.id === 'strobe')));
 });
 
 test("preset picker rows carry catalogue metadata", () => {
@@ -316,7 +316,7 @@ test("preset ids cannot shadow legacy patterns unless CLASSIC_REDIRECTS lists th
   const spec = validateSpec({ kind: 'energy.kill' });
   const row = (id, extra = {}) => ({ id, name: id, desc: '', app: 'own', family: 'own', spec, ...extra });
   assert.throws(() => presetIndex([row('strobe')]), Error);
-  assert.throws(() => presetIndex([row('x', { aliases: ['chase'] })]), Error);
+  assert.throws(() => presetIndex([row('x', { aliases: ['strobe'] })]), Error);
   const redirects = { chase: 'Chase plays the Chase preset after the A/B test' };
   assert.strictEqual(presetIndex([row('x', { aliases: ['chase'] })], redirects).get('chase').id, 'x');
   assert.throws(() => presetIndex([row('x', { aliases: ['chase', 'runner'] })], redirects), /runner/);
@@ -333,8 +333,8 @@ test("every redirected classic id plays a preset and leaves the classic list", (
 
 test("legacy rows require a matching pattern function", () => {
   assert.throws(() => presetIndex([{ id: 'no-such-look', name: '', desc: '', app: 'own', family: 'own.party', legacy: true }]), Error);
-  assert.throws(() => presetIndex([{ id: 'chase', name: '', desc: '', app: 'own', family: 'own.party', legacy: true, aliases: ['old-chase'] }]), Error);
-  assert.strictEqual(presetIndex([{ id: 'chase', name: '', desc: '', app: 'own', family: 'own.party', legacy: true }]).get('chase').id, 'chase');
+  assert.throws(() => presetIndex([{ id: 'strobe', name: '', desc: '', app: 'own', family: 'own.party', legacy: true, aliases: ['old-strobe'] }]), Error);
+  assert.strictEqual(presetIndex([{ id: 'strobe', name: '', desc: '', app: 'own', family: 'own.party', legacy: true }]).get('strobe').id, 'strobe');
 });
 
 test('built-in specs validate twice to themselves', () => {

@@ -23,7 +23,7 @@ test('classic and party ids diff against a v2 preset', () => {
   assert.ok(chase.maxChannel > 0 && chase.framesDiffering > 0, 'the classic chase is not the v2 chase');
   assert.equal(party.target, 'v2.chase.2d');
   assert.ok(party.meanAbs > 0);
-  assert.throws(() => aliasFrameDiffs([['chase', 'chase']]), /not a preset/);
+  assert.throws(() => aliasFrameDiffs([['chase', 'no-such-preset']]), /not a preset/);
   assert.equal(lookDiff('chase', presetById('v2.chase.2d').spec, presetById('v2.chase.2d').spec).maxChannel, 0);
 });
 

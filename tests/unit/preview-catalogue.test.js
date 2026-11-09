@@ -50,7 +50,10 @@ function rigRun(times, at) {
   const renderer = createRenderer({ profileOf: getProfile, profilesRevision, now: times[0] });
   const { bpm: _bpm, ...input } = BASE_INPUT;
   return times.map((t) => {
-    renderer.frame({ ...input, ...at(t) }, { beatPos: beat(t), bpm: localBpm(beatGrid, t), epoch: 0 }, t, store, 0);
+    // As the engine does: a look id resolves to its effect unless the frame names one.
+    const frame = { ...input, ...at(t) };
+    if (!('effect' in frame)) frame.effect = resolveEffect(frame.pattern);
+    renderer.frame(frame, { beatPos: beat(t), bpm: localBpm(beatGrid, t), epoch: 0 }, t, store, 0);
     const dmx = store.getBuffer(0);
     return RIG.map((f) => {
       const ch = getProfile(f).channelMap;
