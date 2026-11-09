@@ -155,9 +155,9 @@ arrive every second; the timeout is 15 seconds, or 60 during startup. Restart
 backoff is 0.5, 1, 2, 5 and 10 seconds; three failures before startup complete
 stop retries. Configuration failures exit 78; requested restarts exit 75.
 
-On a supervised restart, `config/look.json` restores the saved look and a
-cached auto-show track. Active energy effects are not restored. A normal
-start ignores that recovery file, and every start remains disarmed.
+Every start, supervised or not, restores the saved look from `config/look.json`
+(written when the look changes). Active energy effects are not restored, the
+programme comes back stopped, and every start remains disarmed.
 
 For an external service manager that owns restarts, run:
 
