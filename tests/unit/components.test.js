@@ -10,6 +10,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import esbuild from 'esbuild';
+import { CLASSIC_REDIRECTS } from '../../src/shared/effects/v2/classic.ts';
 
 const ROOT = path.join(import.meta.dirname, '..', '..');
 
@@ -918,7 +919,9 @@ test('pad editor exposes effect, launch, quantise and fixture choices', () => {
   assert.match(html, /<option value="preset:u1"/);
   // Every preset under kind preset, palette-strobe too; a legacy row never as a preset or a pattern.
   assert.match(html, /<option value="preset:palette-strobe"/);
-  assert.doesNotMatch(html, /value="(?:preset|pattern):(?:chase|gradient|confetti|swirl)"/);
+  // A classic look still on its pattern function is no pad; a redirected one is a preset like any other.
+  const legacy = ['chase', 'gradient', 'confetti', 'swirl'].filter((id) => !Object.hasOwn(CLASSIC_REDIRECTS, id));
+  if (legacy.length) assert.doesNotMatch(html, new RegExp(`value="(?:preset|pattern):(?:${legacy.join('|')})"`));
   // The shelf's patterns: played as one voice, or dropped into the sequence.
   assert.match(html, /<optgroup label="Patterns, played as one voice"><option value="pattern:groove"[^>]*>Groove</);
   assert.match(html, /<optgroup label="Patterns, dropped into the sequence"><option value="sequencePattern:groove"[^>]*>Groove</);
