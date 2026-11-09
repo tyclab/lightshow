@@ -2,7 +2,7 @@ import { performanceReport } from '../performance.js';
 import { Background } from './Background.jsx';
 import { useEffect, useLayoutEffect, useRef, useState } from 'preact/hooks';
 import { effect } from '@preact/signals';
-import { pick, connectedSig, dmxSig, dmxReceivedAt, field, pictureImageSig, stagePreviewSig } from '../state.js';
+import { pick, connectedSig, dmxSig, dmxReceivedAt, field, pictureImageSig, stagePreviewSig, wantPicture } from '../state.js';
 import { fmtTime, rigLights, stageMode } from '../utils.js';
 import { useDmxFeed } from '../use-dmx.js';
 import { useTimeline } from '../use-timeline.js';
@@ -134,16 +134,18 @@ export function StageView({ compact = false } = {}) {
   }, [status, placed]);
 
   useEffect(() => { if (status === 'ready') scene.current.setRoom(room); }, [status, room]);
-  // The room picture on the screens while a sender paints: its own subscription, so ten
-  // pictures a second wake the scene and not the view.
+  // The room picture on the screens while a sender paints: its own topic, held only while the
+  // scene is up, and its own signal subscription, so 24 pictures a second wake the scene and not the view.
   useEffect(() => {
     if (status !== 'ready') return undefined;
-    return effect(() => {
+    const release = wantPicture();
+    const stop = effect(() => {
       const image = pictureImageSig.value;
       const picture = field('picture').value;
       const painting = !auditionSig.value.active && picture?.source === 'visualizer' && !!picture.input;
       scene.current.setPicture(painting ? image : null);
     });
+    return () => { stop(); release(); };
   }, [status]);
   useEffect(() => { if (status === 'ready') scene.current.setCutaway(cutaway); }, [status, cutaway]);
   useEffect(() => {

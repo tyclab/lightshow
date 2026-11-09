@@ -22,7 +22,7 @@ globalThis.fetch = async () => ({ status: 200, ok: true, json: async () => ({ ok
 
 async function load() {
   const result = await esbuild.build({
-    stdin: { contents: `export { socket, wantDmx } from './public-src/state.js';`, resolveDir: ROOT, loader: 'js' },
+    stdin: { contents: `export { socket, wantDmx, wantPicture } from './public-src/state.js';`, resolveDir: ROOT, loader: 'js' },
     bundle: true, format: 'esm', platform: 'node', write: false, logLevel: 'silent',
     alias: { 'socket.io-client': path.join(ROOT, 'tests', 'helpers', 'fake-socket-io.js') },
   });
@@ -43,7 +43,7 @@ function feed(topic) {
   return out;
 }
 
-for (const [topic, want] of [['dmx', () => ui.wantDmx]]) {
+for (const [topic, want] of [['dmx', () => ui.wantDmx], ['picture', () => ui.wantPicture]]) {
   test(`the ${topic} feed follows the page's visibility and keeps its views' count`, () => {
     ui.socket.connected = true;
     show('visible');

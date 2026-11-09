@@ -146,8 +146,8 @@ socket.on('dmx-frame', (message) => {
   if (frame) dmxSig.value = frame;
 });
 
-// The small picture a room sender paints from, with the DMX feed, for the Stage's screens;
-// null once the sender is gone.
+// The small picture a room sender paints from, for the Stage's screens (wantPicture), up to
+// 24 a second; null once the sender is gone.
 export const pictureImageSig = signal(null);
 socket.on('picture-image', (message) => {
   pictureImageSig.value = message && message.data && message.width > 0 && message.height > 0
@@ -179,6 +179,7 @@ function visibleFeed(topic) {
 }
 
 export const wantDmx = visibleFeed('dmx');
+export const wantPicture = visibleFeed('picture');
 
 // About 30 a second to subscribers only, counted like the DMX feed; null while nobody listens.
 export const audioFeedSig = signal(null);

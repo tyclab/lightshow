@@ -42,6 +42,7 @@ import { SequenceWorkspace } from './sequence-workspace.ts';
 import { SequenceStore } from './sequence-store.ts';
 import { LiveAutomation } from './live-automation.ts';
 import { isArmed } from './armed.ts';
+import { pictureInput } from './picture-live.ts';
 import { setLiveProvider } from './health.ts';
 import { toHex } from '../shared/effects/palette.ts';
 import { configFile } from './config-dir.ts';
@@ -964,6 +965,13 @@ function setupIntegrations({ io, midi, spotify, nowPlaying, deezerSource, prolin
     publisher.sendDmxFrame(encodeDmxFrame(getDmxUniverses()));
   }), FRAME_MS);
   if (dmxFrameTimer.unref) dmxFrameTimer.unref();
+
+  // The Stage's screens show the sender's picture: the newest at 24 Hz, not each of its up to 60 a second,
+  // and null once when its lease ends however it ends (release, disconnect, expiry, disarm).
+  const pictureTimer = setInterval(guarded('picture-image', () => {
+    publisher.sendPictureImage(pictureInput.image());
+  }), 1000 / 24);
+  if (pictureTimer.unref) pictureTimer.unref();
 
   const audioTimer = setInterval(guarded('audio-feed', () => {
     if (!publisher.wants(ROOM.audio)) { publisher.resetAudio(); return; }

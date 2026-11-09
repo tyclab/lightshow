@@ -1135,8 +1135,9 @@ aside and start from defaults: take the keys out before rolling back.
 One sender holds the picture at a time; `GET /api/picture` reports the selected
 source, the black point, the decode, the grade and the live lease without pixel
 data. The picture a frame carries goes
-to the pages subscribed to the DMX feed (`picture-image`, null once the sender
-is gone), and the Stage paints it on the room's screens: the objects a room
+to the pages subscribed to the picture topic (`picture-image`, the newest up to
+24 times a second, null once the sender is gone), and the 3D Stage, the one
+subscriber, paints it on the room's screens: the objects a room
 export marks `role: screen` (the TV and the monitors in a house-model export).
 
 ### OpenRGB
@@ -2162,9 +2163,13 @@ the state in one of two forms, chosen when the client connects:
   `audio` topic works the same way: after `subscribe: ['audio']` the client
   gets `audio` events, volatile, up to thirty a second and only when they
   change — `{ t, party: { full, bass, mid, high }, disco: { gate, level, hit }, spl: { db, level, beat, section, eventT? } }`
-  — and `audio` with `null` when the input has gone. Both topics send their
-  latest at once on subscribing. The live page holds the DMX topic only while
-  its tab is visible: hidden, it unsubscribes, and shown again it subscribes.
+  — and `audio` with `null` when the input has gone. After
+  `subscribe: ['picture']` the client gets `picture-image` (`{ width, height, data }`,
+  RGB bytes), volatile, the room sender's newest picture up to 24 times a
+  second, and `null` once when its lease ends. Every topic sends its latest at
+  once on subscribing. The live page holds the DMX and picture topics only
+  while its tab is visible: hidden, it unsubscribes, and shown again it
+  subscribes.
 - **Protocol 1** — anything that does not ask, such as the Companion module
   before 2.1: `state` (the full snapshot on connect, the
   whole live state again whenever any of it changes) and `dmx` (channel values
