@@ -18,7 +18,7 @@ import { seedFrom } from '../../src/shared/effects/hash.ts';
 import { HD_MASTER_DEFAULTS } from '../../src/shared/effects/types.ts';
 import { buildRoom } from '../../src/shared/room.ts';
 import { PATTERN_FUNCS } from '../../src/shared/patterns.ts';
-import { PATTERNS, PRESET_ROWS, PATTERN_IDS, ENERGY_EFFECTS } from '../../src/server/presets.ts';
+import { CLASSIC_LOOKS, PATTERNS, PRESET_ROWS, PATTERN_IDS, ENERGY_EFFECTS } from '../../src/server/presets.ts';
 import { legacyTags, specTags, tagFields } from '../../src/shared/effects/tags.ts';
 import { getCatalogs } from '../../src/server/state.ts';
 import { LOOKS } from '../../scripts/golden-party-looks.js';
@@ -327,6 +327,8 @@ test("every redirected classic id plays a preset and leaves the classic list", (
   for (const id of Object.keys(CLASSIC_REDIRECTS)) {
     assert.ok(PATTERN_FUNCS[id] || id.startsWith('party.'), id);
     assert.ok(presetById(id).spec, id);
+    const look = CLASSIC_LOOKS.find((row) => row.id === id);
+    if (look) assert.equal(!!look.rapidFlash, requiresAcknowledgement(presetById(id).spec), `${id}: the auto show holds a Rapid v2 form for the acknowledgement`);
     assert.ok(!PATTERN_IDS.includes(id), id);
   }
 });

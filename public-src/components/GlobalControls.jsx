@@ -18,7 +18,7 @@ export function controlStatus(c, ready, pending) {
 
 /**
  * One play button that names what it starts, and stops it while it plays; its menu chooses the
- * programme (while stopped) and keeps Stop in reach when the button itself is not Stop.
+ * programme (while one plays, the choice switches to it at once) and keeps Stop in reach when the button itself is not Stop.
  */
 function PlayControl({ c, ready, pending }) {
   const [open, setOpen] = useState(false);
@@ -63,8 +63,9 @@ function PlayControl({ c, ready, pending }) {
       {open && <div ref={menu} class="header-popover global-play-list" role="menu" aria-label="Programme" onKeyDown={onMenuKey}>
         {PROGRAMMES.map(([id, label]) => (
           <button key={id} type="button" role="menuitemradio" aria-checked={programme === id} tabIndex={-1}
-            disabled={blocked || (!!c?.playing && id !== programme)}
-            title={c?.playing && id !== programme ? 'Stop the current programme before choosing another one.' : `${label} is what the play button starts`}
+            disabled={blocked}
+            title={c?.playing && id !== programme ? `Switch to ${label}: ${name} ends and ${label} starts. Pads, Freeze and Blackout stay as they are.`
+              : `${label} is what the play button starts`}
             onClick={() => pickItem(() => programme !== id && takeControl('select', id))}>
             <span class="global-play-check" aria-hidden="true">{programme === id ? '✓' : ''}</span>{label}
           </button>

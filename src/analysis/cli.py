@@ -6,7 +6,6 @@ stdout carries only machine-readable output in every mode; a stray print corrupt
 import json
 import os
 import sys
-import tempfile
 
 from .config import DEFAULT
 from . import model_adapters, models, pipeline, tagger
@@ -14,32 +13,6 @@ from . import model_adapters, models, pipeline, tagger
 
 def _log(message):
     print(f'[analyze] {message}', file=sys.stderr, flush=True)
-
-
-
-def download(url):
-    """Fetch a remote file to a temp path. Returns the path."""
-    import urllib.request
-    suffix = '.mp3' if '.mp3' in url else '.ogg'
-    handle, path = tempfile.mkstemp(suffix=suffix)
-    os.close(handle)
-    try:
-        urllib.request.urlretrieve(url, path)
-    except BaseException:
-        # The caller never learns a failed download's path, so only this can remove it.
-        try:
-            os.remove(path)
-        except OSError:
-            pass
-        raise
-    return path
-
-
-def resolve(source):
-    """Return (path, should_delete)."""
-    if source.startswith('http://') or source.startswith('https://'):
-        return download(source), True
-    return source, False
 
 
 
@@ -195,58 +168,13 @@ def _warm_up():
 
 
 
-def live_loop(rate, block=None):
-    """
-    Stream raw float32 mono PCM in on stdin, musical events out on stdout.
-
-    The format is deliberately the dumbest one that works: the caller already
-    has the samples as floats, and asking it to encode a container just so this
-    process can decode it again would add latency to the one mode where latency
-    is the whole point.
-
-    Read a hop at a time, as the samples arrive. It used to wait for 4096
-    samples, which is 186 ms at 22 kHz before anything was heard, however
-    fast the analyser itself was.
-    """
-    import numpy as np
-    from .realtime import StreamingAnalyzer
-
-    analyzer = StreamingAnalyzer(DEFAULT.realtime, sample_rate=rate)
-    block = int(block or DEFAULT.realtime.hop_length)
-    stream = sys.stdin.buffer
-    print(f'[analyzer] live mode at {rate} Hz, {block}-sample reads',
-          file=sys.stderr, flush=True)
-
-    pending = b''
-    while True:
-        raw = stream.read1(block * 4) if hasattr(stream, 'read1') else stream.read(block * 4)
-        if not raw:
-            break
-        # A pipe read need not end on a sample boundary.
-        raw = pending + raw
-        whole = len(raw) - len(raw) % 4
-        raw, pending = raw[:whole], raw[whole:]
-        if not raw:
-            continue
-        samples = np.frombuffer(raw, dtype=np.float32)
-        for event in analyzer.push(samples):
-            sys.stdout.write(json.dumps(event.to_dict()) + '\n')
-        sys.stdout.flush()
-
-
-
-def analyse_once(source, target_duration=None, report_path=None):
-    path, temporary = resolve(source)
-    try:
-        if not os.path.isfile(path):
-            raise FileNotFoundError(path)
-        document = pipeline.analyze(path, target_duration)
-        if report_path:
-            write_report(document, path, report_path)
-        return document
-    finally:
-        if temporary and os.path.exists(path):
-            os.remove(path)
+def analyse_once(path, target_duration=None, report_path=None):
+    if not os.path.isfile(path):
+        raise FileNotFoundError(path)
+    document = pipeline.analyze(path, target_duration)
+    if report_path:
+        write_report(document, path, report_path)
+    return document
 
 
 def write_report(document, audio_path, report_path):
@@ -267,9 +195,8 @@ def write_report(document, audio_path, report_path):
 
 
 USAGE = """usage:
-  analyze.py <file|url> [--target-duration SEC] [--report OUT.html] [--out OUT.json]
-  analyze.py --worker
-  analyze.py --live [--rate HZ]"""
+  analyze.py <file> [--target-duration SEC] [--report OUT.html] [--out OUT.json]
+  analyze.py --worker"""
 
 
 def main(argv=None):
@@ -277,13 +204,6 @@ def main(argv=None):
 
     if '--worker' in argv:
         worker_loop(_claim_stdout())
-        return 0
-
-    if '--live' in argv:
-        rate = DEFAULT.realtime.sample_rate
-        if '--rate' in argv:
-            rate = int(argv[argv.index('--rate') + 1])
-        live_loop(rate)
         return 0
 
     target_duration, report_path, out_path = None, None, None

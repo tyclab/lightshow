@@ -335,6 +335,18 @@ test('adding a WLED patches it with no DMX address, sent DDP', async () => {
   });
 });
 
+test('every add runs the same patch checks: a patch with two outputs on one device refuses a single WLED too', async () => {
+  await withApp(fakeClient({ '10.0.0.50': { ...INFO, leds: { count: 30, lc: 1 } } }), async (call) => {
+    const twin = (id) => ({ id, label: `Ram ${id}`, address: 1, universe: INTERNAL_UNIVERSE, profileId: 'cameo-root-par-6-12ch',
+      maxBrightness: 255, override: null, output: { protocol: 'openrgb', host: 'pc.local', device: 0, leds: 6 } });
+    state.fixtures.push(twin(1), twin(2));
+    const added = await call('/api/wled/add', { host: '10.0.0.50' });
+    assert.strictEqual(added.status, 400, JSON.stringify(added.body));
+    assert.match(added.body.error, /both OpenRGB device #0/);
+    assert.strictEqual(state.fixtures.length, 3, 'nothing patched');
+  });
+});
+
 test('a new WLED keeps every physical pixel unless zones are chosen, and adds only once', async () => {
   const infos = { '10.0.0.50': { ...INFO, leds: { count: 300, lc: 1 } }, '10.0.0.61': PANEL_INFO };
   const client = { ...fakeClient(infos), segments: async (host, info) => readSegments(PANEL_STATE, info, host) };

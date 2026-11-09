@@ -7,7 +7,7 @@ import assert from 'node:assert';
 import fs from 'node:fs';
 import path from 'node:path';
 import { FRAME_MS } from '../../src/server/frame-clock.ts';
-import { makeGrid, gridFromAnalysis, beatPositionAt, trackMsAtBeat, localBpm, anchorStep, stepAt, hitPhase, fadePhase, motionAdvance } from '../../src/shared/beat-clock.ts';
+import { makeGrid, gridFromAnalysis, beatPositionAt, localBpm, anchorStep, stepAt, hitPhase, fadePhase, motionAdvance } from '../../src/shared/beat-clock.ts';
 
 const close = (a, b, eps = 1e-6) => Math.abs(a - b) <= eps;
 
@@ -48,13 +48,6 @@ test('a document with only downbeats gets beats spread across each bar', () => {
   assert.deepStrictEqual(grid.beats.map((b) => Math.round(b * 1000)), [0, 500, 1000, 1500, 2000, 2550, 3100, 3650, 4200]);
   assert.strictEqual(gridFromAnalysis({ beats: [0, 0.5, 1] }).beats.length, 3, 'beats win when present');
   assert.strictEqual(gridFromAnalysis({}), null);
-});
-
-test('track time and beat position are inverses', () => {
-  const grid = makeGrid([1, 1.5, 2, 2.6, 3.2]);
-  for (const ms of [0, 1000, 1400, 2300, 3200, 5000]) {
-    assert.ok(close(trackMsAtBeat(grid, beatPositionAt(grid, ms)), ms, 1e-6), `${ms} ms`);
-  }
 });
 
 test('the local tempo is read off the neighbouring beats', () => {

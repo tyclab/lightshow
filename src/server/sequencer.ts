@@ -996,6 +996,15 @@ export class Sequencer {
     this._tell();
   }
 
+  /** Stopped with no held picture, the sequence still loaded: another programme takes the stage; the next play starts from the top. */
+  release(): void {
+    this._requireLoaded();
+    if (this._mode === 'idle' && this._run === 'idle') return;
+    this._release();
+    this._tell();
+    this._changed('position');
+  }
+
   /** To a beat of the sequence: every clip starts again there; the commands on that beat run, none before it. */
   seek(beat: number): void {
     this._requireLoaded();
