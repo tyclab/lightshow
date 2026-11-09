@@ -198,9 +198,13 @@ the same on every view, including while scrolling through Show:
   (**Effects: Swirl**); pressing it, or **E** anywhere, opens the effect picker:
   favourites, your presets and the party looks, then every look A to Z with a
   search. A tap puts a look on stage and leaves the picker open for the next one;
-  Escape or a press outside closes it. With **Visualizer** chosen, or a Visualizer
-  on stage, the picker also offers the Visualizer looks (Active and Mellow) and
-  their colours. The other sources are one tap away.
+  Escape or a press outside closes it. While an Audio-reactive look plays, under
+  any source, the picker also offers the other Audio-reactive looks (Active and
+  Mellow) and their colours. With **Visualizer** chosen the segment reads
+  **Visualizer: picture** while the picture arrives, since the picture then paints
+  the room; the effect chosen in the picker is the fallback, shown again 2 s after
+  the picture stops and named in the segment until the picture arrives. The other
+  sources are one tap away.
 - **Play** names what it starts (**▶ Look**, **▶ Auto show**, **▶ Sequence**) and
   is **■ Stop …** while that programme plays; its ▾ menu chooses the programme
   while stopped and keeps **Stop** in reach when the button itself is not Stop
@@ -274,7 +278,7 @@ edge) at 1.6 m; a double-click turns the view around the point under the pointer
 right-drag or two fingers pan within the room.
 
 To run reactive effects, configure and enable live input in Sources, select
-Reactive in Perform's Audio panel, and choose a Disco or Visualizer preset in
+Reactive in Perform's Audio panel, and choose a Disco or Audio-reactive preset in
 Effects. Check the meters and preview before arming. Expand Audio response to
 adjust Party sensitivity, threshold, envelope and brightness, or the
 Entertainment trigger threshold. These settings apply globally and are saved by
@@ -292,7 +296,7 @@ with the loaded show; Pad layouts saves named decks and remaps their fixture
 targets onto another rig order.
 
 Perform also offers tempo capture from live audio, half and double tempo, live
-tempo and brightness automation; the colours of a running Visualizer are in the header's effect picker.
+tempo and brightness automation; the colours of a running Audio-reactive look are in the header's effect picker.
 Fire and Ice are slow, strobe-free Party looks.
 
 The effect catalogue and show workflows cover the Party & Disco and the
@@ -542,7 +546,7 @@ a background. Each dark or partly dark pixel is one of three things:
 - A **bed**: ambient light the effect authors. The classic patterns' beds and floors
   (fade's and hit's included), the split wash, a V2 background floor and Neural idle,
   the Entertainment backlit rests and fade or matrix baselines, the Studio baseline, the
-  Visualizer's mellow bed, the Disco idle washes and release floors, a bitmap's
+  Audio-reactive mellow bed, the Disco idle washes and release floors, a bitmap's
   coloured background. Follow keeps it, Fixed replaces it and Off removes it, under
   either setting.
 - A **gap**: the share of a pixel the effect neither lights nor covers with a bed.
@@ -559,7 +563,7 @@ a background. Each dark or partly dark pixel is one of three things:
 - An **explicit dark cue**: black the effect authors, dark under both settings and
   in every mode. The rests of an effect that needs the photosensitivity
   acknowledgement (one marked Rapid flash, and kinds that always flash fast:
-  Frequency Burst, the Entertainment matrix and visualizer rows, rows at a quarter beat or
+  Frequency Burst, the Entertainment matrix and Audio-reactive rows, rows at a quarter beat or
   faster, a fast-scrolling bitmap) or paces an automatic strobe of its own (a Disco
   with its strobe on), a foreground drawn black at full opacity (a black palette
   entry, the Blackout scene), and the strobe and energy effects, which author no
@@ -574,7 +578,7 @@ Picking the default stores no choice. A macro's choice reaches the steps that ma
 none; a step's own choice wins. The editor offers the choice only where it can change
 the output; elsewhere it reads **No gaps to fill**: the strobe and energy effects,
 effects whose rests are strobe rests, the backlit and whole-room Entertainment rows, Studio,
-the Visualizer, the Entertainment fields without a gap (above), generators with an authored
+the Audio-reactive looks, the Entertainment fields without a gap (above), generators with an authored
 floor, and bitmaps without a black background. Classic patterns have no editor: Fixed
 replaces their beds and shows under the light they draw below full, except under the
 flash patterns (random-flash, the flash-* patterns, core, ramp, ramp-scatter,
@@ -1709,7 +1713,7 @@ delays the DMX outputs to align with Hue lamps.
 |--------------|-----------|
 | `off` | Effects use their own loops without audio triggers |
 | `tempo` | Default; musical tempo without live reactive levels |
-| `reactive` | Live levels drive reactive, Disco and Visualizer effects |
+| `reactive` | Live levels drive reactive, Disco and Audio-reactive effects |
 
 With no input, reactive effects use their tempo behaviour. Master controls
 include sensitivity, smoothing, attack (up to 2 s), release (up to 5 s),

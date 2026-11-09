@@ -3769,12 +3769,12 @@ input[type=range]::-moz-range-thumb {
 .transport-error { margin: 0; color: var(--text-red); font-size: 13px; }
 .perform-side { display: flex; flex-direction: column; gap: 12px; }
 .bpm-capture summary, .live-automation summary, .playlist-generator summary { min-height: 44px; display: flex; align-items: center; cursor: pointer; }
-.bpm-capture fieldset, .live-automation fieldset, .playlist-generator fieldset, .visualizer-colours fieldset { border: 0; padding: 0; margin: 8px 0; min-width: 0; }
+.bpm-capture fieldset, .live-automation fieldset, .playlist-generator fieldset, .audio-reactive-colours fieldset { border: 0; padding: 0; margin: 8px 0; min-width: 0; }
 .playlist-generator label, .bpm-capture label { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 8px 0; }
 .bpm-capture button, .bpm-capture select, .playlist-generator button, .playlist-generator input:not([type="checkbox"]), .playlist-generator select,
-.live-automation button, .visualizer-colours button, .visualizer-colours input, .perform-sync .btn { min-height: 44px; }
+.live-automation button, .audio-reactive-colours button, .audio-reactive-colours input, .perform-sync .btn { min-height: 44px; }
 @media (pointer: coarse) { .bpm-capture .setting-help a { display: inline-flex; align-items: center; min-height: 44px; } }
-.visualizer-colours .palette-tools label { display: flex; flex-direction: column; gap: 4px; }
+.audio-reactive-colours .palette-tools label { display: flex; flex-direction: column; gap: 4px; }
 .picture-grade fieldset { border: 0; padding: 0; margin: 8px 0; min-width: 0; display: grid; gap: 10px; }
 .picture-grade-toggle { display: flex; align-items: center; gap: 8px; min-height: 44px; }
 .picture-grade-slider { display: grid; grid-template-columns: minmax(7em, auto) minmax(0, 1fr) 5ch; align-items: center; gap: 4px 10px; }
@@ -4028,10 +4028,10 @@ input[type=range]::-moz-range-thumb {
 .picker-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .picker-desc { display: block; overflow: hidden; text-overflow: ellipsis; font-size: 11px; font-weight: 400; color: var(--muted); }
 .picker-rapid { margin-left: auto; color: var(--text-amber); }
-.picker-visualizer { display: grid; gap: 6px; }
-.picker-visualizer-row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
-.picker-visualizer-label { min-width: 4.5rem; font-size: 11px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
-.effect-picker .visualizer-colours { margin: 0; }
+.picker-audio-reactive { display: grid; gap: 6px; }
+.picker-audio-reactive-row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.picker-audio-reactive-label { min-width: 4.5rem; font-size: 11px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+.effect-picker .audio-reactive-colours { margin: 0; }
 
 .global-controls { display: flex; align-items: center; gap: 6px; flex: none; }
 .global-control { justify-content: center; min-height: 44px; padding: 6px 10px; border-radius: var(--radius-sm); font-size: 13px; }
@@ -4154,7 +4154,7 @@ input[type=range]::-moz-range-thumb {
   .status-chip-conn { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
 }
 @media (pointer: coarse) {
-  .picker-choice, .picker-search, .picker-visualizer .btn { min-height: 44px; }
+  .picker-choice, .picker-search, .picker-audio-reactive .btn { min-height: 44px; }
 }
 
 .picture-layer-link { font: inherit; color: inherit; background: transparent; border: 0; border-left: 1px solid var(--border); border-radius: 0; text-align: left; cursor: pointer; }
