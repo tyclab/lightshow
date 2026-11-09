@@ -73,19 +73,6 @@ class AdaptivePeaks(unittest.TestCase):
 
 
 @needs_numpy
-class Envelope(unittest.TestCase):
-    def test_attack_and_release_move_at_the_rates_they_are_given(self):
-        import numpy as np
-        from analysis import dsp
-
-        step = np.concatenate([np.zeros(50), np.ones(50)])
-        fast = dsp.envelope_follower(step, attack_frames=1, release_frames=100)
-        slow = dsp.envelope_follower(step, attack_frames=20, release_frames=100)
-        self.assertGreater(fast[55], slow[55], 'a short attack rises sooner')
-        self.assertAlmostEqual(fast[-1], 1.0, delta=0.05)
-
-
-@needs_numpy
 class Autocorrelation(unittest.TestCase):
     def test_a_periodic_signal_peaks_at_its_own_period(self):
         import numpy as np

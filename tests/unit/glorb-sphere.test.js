@@ -7,7 +7,7 @@ import { buildUnitSpace, isSolid, principalSpreads, solidPlotPoints } from '../.
 import { effectRoom, voiceLayout } from '../../src/shared/effects/layer.ts';
 import { roomSceneSchema } from '../../src/shared/room-scene.ts';
 import { frameAt, renderKind } from '../helpers/v2-frames.js';
-import { RADIUS, glorbProfile, sphereBindings, sphereRoom } from '../helpers/glorb.js';
+import { RADIUS, glorbProfile, sphereBindings, spherePoint, sphereRoom } from '../helpers/glorb.js';
 
 const PAR = { id: 'par', name: 'Par', channelCount: 3, channelMap: { red: 0, green: 1, blue: 2 } };
 const CENTRE = { x: 0.5, y: 0.9, z: -0.4 };
@@ -41,6 +41,32 @@ test('a ball is a solid, a panel or a gently curved strip is not', () => {
   const arc = Array.from({ length: 40 }, (_, k) => ({ x: Math.cos(k / 80 * Math.PI), y: 1, z: Math.sin(k / 80 * Math.PI) }));
   assert.equal(isSolid(arc), false);
   assert.equal(isSolid(ball.slice(0, 3)), false, 'three cells cannot make a body');
+});
+
+// Audit 2026-11-09: any grid the room binds in 3-D counted as a solid. A box's or a corner panel's wall columns fold onto
+// one floor point when sampled by room offset, so only a ball (cells on one sphere) leaves the flat plot.
+test('the room picture samples a ball by room offset, half bound or whole, and any other 3-D body on its flat plot', () => {
+  const { profile } = ballRig();
+  const shaped = (place, keep = () => true) => {
+    const bindings = sphereBindings(38, profile, CENTRE).filter((b, c) => keep(profile.cells[c].at))
+      .map((b) => { const c = Number(b.id.split('-').at(-1)); return { ...b, position: place(profile.cells[c].at) }; });
+    const { rig, space } = ballRig(roomSceneSchema.parse(sphereRoom(bindings)));
+    return { points: solidPlotPoints(rig, space), solid: isSolid(bindings.map((b) => b.position)) };
+  };
+  // A box: five columns on each of four walls, the rows up them.
+  const box = shaped(({ x, y }) => {
+    const face = Math.floor(x / 5), t = ((x % 5) + 0.5) / 5 - 0.5;
+    const [dx, dz] = [[0.15, t * 0.3], [t * 0.3, 0.15], [-0.15, t * 0.3], [t * 0.3, -0.15]][face];
+    return { x: CENTRE.x + dx, y: CENTRE.y + y * 0.06, z: CENTRE.z + dz };
+  });
+  assert.equal(box.solid, true, 'a box is a solid');
+  assert.equal(box.points, null, 'but keeps its flat plot');
+  const corner = shaped(({ x, y }) => (x < 10 ? { x: CENTRE.x + x * 0.05, y: CENTRE.y + y * 0.05, z: CENTRE.z }
+    : { x: CENTRE.x, y: CENTRE.y + y * 0.05, z: CENTRE.z + (x - 9) * 0.05 }));
+  assert.equal(corner.solid, true, 'a panel round a corner is a solid');
+  assert.equal(corner.points, null);
+  const upper = shaped((at) => spherePoint(at, CENTRE), (at) => at.y < 3);
+  assert.notEqual(upper.points, null, 'the upper half of a ball bound is still a ball');
 });
 
 test('a room-placed sweep lights each LED by its place in the room: front and back of one ring differ as the sweep does', () => {
