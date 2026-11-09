@@ -28,6 +28,7 @@ import { areaLamp, HUE_COLOR, HUE_WHITE, HUE_GRADIENT } from './hue-test-lamps.j
 import { barProfile } from '../../src/server/bar-profile.ts';
 import { fixtureAddSchema, fixtureMessageSchema, fixtureRestoreSchema, validate } from '../../src/server/validation.ts';
 import * as output from '../../src/server/output.ts';
+import { hueChannelColors } from '../helpers/hue-colours.js';
 import * as universes from '../../src/server/universes.ts';
 import { startEngine, stopEngine } from '../../src/server/engine.ts';
 import { applyPatch } from '../../src/server/patch.ts';
@@ -149,7 +150,7 @@ test('a lamp with no address is rendered, and read back by its Hue channel', asy
       const frame = universes.getBuffer(INTERNAL_UNIVERSE);
       const lit = [at.red, at.green, at.blue].some((offset) => frame[offset] > 0);
       assert.ok(lit, 'rendered on the internal universe like any other fixture');
-      const [color] = output.hueChannelColors().get('b1');
+      const [color] = hueChannelColors().get('b1');
       assert.strictEqual(color.id, 5);
       assert.ok(color.r + color.g + color.b > 0, 'and its Hue channel shows it');
     } finally {

@@ -31,6 +31,9 @@ const REAL_ARTNET = pathToFileURL(path.join(ROOT, 'src', 'server', 'artnet.ts'))
 const ENGINE_WORKER = pathToFileURL(path.join(ROOT, 'src', 'server', 'engine-worker.ts')).href;
 const WIRE_CHANNEL = 'lightshow-test-artnet-wire';
 const WIRE_ENV = 'LIGHTSHOW_TEST_ARTNET_WIRE';
+const DTLS = import.meta.resolve('node-dtls-client');
+const HUE_CHANNEL = 'lightshow-test-hue-stream';
+const HUE_ENV = 'LIGHTSHOW_TEST_FAKE_HUE';
 
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 let sequence = 0;                       // one receipt order across every listener and the Hue socket
@@ -183,6 +186,38 @@ export function sendArtDmx(target, data) {
 `);
   fs.writeFileSync(path.join(dir, 'worker.mjs'), `
 import module from 'node:module';
+import https from 'node:https';
+import { EventEmitter } from 'node:events';
+import { BroadcastChannel } from 'node:worker_threads';
+import { dtls } from ${JSON.stringify(DTLS)};
+// Hue streams from this thread: its bridge is a stand-in here, and each stream message is reported to the test.
+if (process.env.${HUE_ENV}) {
+  const area = process.env.${HUE_ENV};
+  const ours = { data: [{ id: area, status: 'active', active_streamer: { rid: 'app-id', rtype: 'auth_v1' } }] };
+  https.request = (options, onResponse) => {
+    const req = new EventEmitter();
+    req.write = () => {};
+    req.destroy = () => {};
+    req.end = () => setImmediate(() => {
+      const res = new EventEmitter();
+      res.statusCode = 200;
+      res.headers = {};
+      onResponse(res);
+      res.emit('data', Buffer.from(JSON.stringify(options.method === 'PUT' ? { data: [{ rid: area }], errors: [] } : ours)));
+      res.emit('end');
+    });
+    return req;
+  };
+  const stream = new BroadcastChannel(${JSON.stringify(HUE_CHANNEL)});
+  stream.unref();
+  dtls.createSocket = () => {
+    const socket = new EventEmitter();
+    socket.close = () => {};
+    socket.send = (message, cb) => { stream.postMessage(Array.from(message)); if (cb) cb(); };
+    setTimeout(() => socket.emit('connected'), 10);
+    return socket;
+  };
+}
 const FAKE = ${JSON.stringify(fake)};
 module.registerHooks({
   resolve(specifier, context, next) {
@@ -355,20 +390,26 @@ function fakeBridge(t) {
   });
 }
 
+function received(frames, message) {
+  const channels = [];
+  for (let at = 52; at + 7 <= message.length; at += 7) channels.push({ id: message[at], r: message.readUInt16BE(at + 1), g: message.readUInt16BE(at + 3), b: message.readUInt16BE(at + 5) });
+  frames.push({ at: ++sequence, channels, dark: channels.every((c) => !c.r && !c.g && !c.b) });
+}
+
+// What the lamp receives, from either thread: this one's socket is mocked, the engine thread's reports over a channel.
 function fakeStream(t) {
   const frames = [];
   t.mock.method(dtls, 'createSocket', () => {
     const socket = new EventEmitter();
     socket.close = () => {};
-    socket.send = (message, cb) => {
-      const channels = [];
-      for (let at = 52; at + 7 <= message.length; at += 7) channels.push({ id: message[at], r: message.readUInt16BE(at + 1), g: message.readUInt16BE(at + 3), b: message.readUInt16BE(at + 5) });
-      frames.push({ at: ++sequence, channels, dark: channels.every((c) => !c.r && !c.g && !c.b) });
-      if (cb) cb();
-    };
+    socket.send = (message, cb) => { received(frames, message); if (cb) cb(); };
     setTimeout(() => socket.emit('connected'), 10);
     return socket;
   });
+  const channel = new BroadcastChannel(HUE_CHANNEL);
+  channel.onmessage = (event) => received(frames, Buffer.from(event.data));
+  process.env[HUE_ENV] = AREA;
+  t.after(() => { channel.close(); delete process.env[HUE_ENV]; });
   return frames;
 }
 
@@ -383,7 +424,7 @@ async function withHue(t, fn) {
     await fn(frames);
   } finally {
     output.configureHue({ bridges: [] });
-    await hue.closeAll().catch(() => {});
+    await output.closeHue();
     hue._reset();
     output.configureHue({ bridges: before.bridges, latencyMs: before.latencyMs });
   }

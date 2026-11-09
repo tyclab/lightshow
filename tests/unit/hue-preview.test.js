@@ -6,7 +6,7 @@ import { createPreviewSampler } from '../../src/shared/preview.ts';
 import { applyShow, snapshotShow } from '../../src/server/show-store.ts';
 import { state, universeOf } from '../../src/server/state.ts';
 import { getProfile, listProfiles, HUE_COLOR_PROFILE_ID, HUE_WHITE_PROFILE_ID } from '../../src/server/profiles.ts';
-import { hueChannelColors } from '../../src/server/output.ts';
+import { hueChannelColors } from '../helpers/hue-colours.js';
 import { createRenderer } from '../../src/server/renderer.ts';
 import { COLOR_PRESETS } from '../../src/server/presets.ts';
 import * as universes from '../../src/server/universes.ts';

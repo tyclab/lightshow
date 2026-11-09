@@ -373,7 +373,7 @@ test('with a worker, frames land in memory the main thread reads', async () => {
 });
 
 test('the main thread never reads a frame the worker is part way through', async () => {
-  // Hue and the DMX monitor read the shared buffers from this thread at any moment.
+  // The DMX monitor reads the shared buffers from this thread at any moment.
   // A static look renders the same bytes every frame, so every read must match.
   const bar = barProfile({ id: 'worker-tear-bar', name: 'Tear Bar', cells: 16, firstChannel: 3, order: 'RGBW', dimmer: 1, strobe: 2 });
   registerProfile(bar);

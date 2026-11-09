@@ -3,7 +3,9 @@ import assert from 'node:assert';
 import https from 'node:https';
 import { EventEmitter } from 'node:events';
 
-import * as hue from '../../src/server/hue.ts';
+import { HueStreamer } from '../../src/server/hue-stream.ts';
+import { createHueWire } from '../../src/server/hue-wire.ts';
+import { fetchApplicationId } from '../../src/server/hue.ts';
 import { AREA, PAIRED, RED, OURS, fakeBridge, fakeDtls, quiet, settle, until, actions } from '../helpers/hue-fakes.js';
 
 // Some bridges answer the cookie exchange but stall until the area is reopened;
@@ -14,7 +16,7 @@ test('a stalled handshake reopens its owned Entertainment session before retryin
   const lines = quiet(t);
   const calls = fakeBridge(t);
   const sockets = fakeDtls(t, [undefined, 80]);
-  const session = new hue.HueSession(PAIRED);
+  const session = new HueStreamer(PAIRED);
 
   assert.strictEqual(session.sendFrame(RED), false, 'the handshake is in flight');
   const took = await until(t, () => session.getStatus().status === 'streaming', 3000);
@@ -34,7 +36,7 @@ test('a bridge that answers no handshake falls back to the backoff after five tr
   quiet(t);
   const calls = fakeBridge(t);
   const sockets = fakeDtls(t);
-  const session = new hue.HueSession(PAIRED);
+  const session = new HueStreamer(PAIRED);
 
   session.sendFrame(RED);
   const took = await until(t, () => session.getStatus().status === 'failed', 10000);
@@ -56,7 +58,7 @@ test('a timeout never stops an area taken by another controller', async (t) => {
   const calls = fakeBridge(t, { area: () => ({ status: 200, body: ++reads <= 2 ? OURS
     : { data: [{ id: AREA, metadata: { name: 'Other stream' }, status: 'active', active_streamer: { rid: 'other-app' } }] } }) });
   const sockets = fakeDtls(t);
-  const session = new hue.HueSession(PAIRED);
+  const session = new HueStreamer(PAIRED);
   session.sendFrame(RED);
   await until(t, () => session.getStatus().status === 'failed', 2000);
   assert.match(session.getStatus().error, /Other stream.*already in use/);
@@ -73,7 +75,7 @@ test('a retry leaves the bridge alone when ownership cannot be verified', async 
   const calls = fakeBridge(t, { area: () => ++reads <= 2 ? { status: 200, body: OURS }
     : { status: 500, body: { errors: [{ description: 'unavailable' }] } } });
   const sockets = fakeDtls(t);
-  const session = new hue.HueSession(PAIRED);
+  const session = new HueStreamer(PAIRED);
   session.sendFrame(RED);
   await until(t, () => session.getStatus().status === 'failed', 2000);
   assert.match(session.getStatus().error, /could not verify.*ownership/);
@@ -92,7 +94,7 @@ test('a controller taking the area after retry release is not displaced', async 
     area: () => ({ status: 200, body: released ? { data: [OTHER_AREA] } : OURS }),
   });
   const sockets = fakeDtls(t);
-  const session = new hue.HueSession(PAIRED);
+  const session = new HueStreamer(PAIRED);
   session.sendFrame(RED);
   await until(t, () => session.getStatus().status === 'failed', 2000);
   assert.match(session.getStatus().error, /TV Couch.*already in use/);
@@ -112,7 +114,7 @@ for (const pendingAction of ['stop', 'start']) {
       return { status: 200, body: { data: [] }, ...(defer ? { defer: send => { respond = send; } } : {}) };
     } });
     const sockets = fakeDtls(t);
-    const session = new hue.HueSession(PAIRED);
+    const session = new HueStreamer(PAIRED);
     session.sendFrame(RED);
     await until(t, () => !!respond, 2000);
     assert.ok(respond);
@@ -136,7 +138,7 @@ test('stop() resets the backoff', async (t) => {
   const calls = fakeBridge(t, { put: ({ body }) => body.action === 'start'
     ? { status: 503, body: { errors: [{ description: 'bridge busy' }] } } : { status: 200, body: { data: [] } } });
   fakeDtls(t);
-  const session = new hue.HueSession(PAIRED);
+  const session = new HueStreamer(PAIRED);
   const starts = () => actions(calls).filter((a) => a === 'start').length;
 
   for (const wait of [2000, 4000]) {
@@ -164,7 +166,7 @@ test('an area another app is streaming is reported as held, and left to it', asy
   const held = { data: [{ id: AREA, metadata: { name: 'TV Lounge' }, status: 'active', active_streamer: { rid: 'sync-box-app', rtype: 'auth_v1' } }] };
   const calls = fakeBridge(t, { area: () => ({ status: 200, body: held }) });
   const sockets = fakeDtls(t);
-  const session = new hue.HueSession(PAIRED);
+  const session = new HueStreamer(PAIRED);
 
   session.sendFrame(RED);
   await until(t, () => session.getStatus().status === 'failed', 3000);
@@ -182,7 +184,7 @@ test('an area that cannot be read blocks the handshake', async (t) => {
   quiet(t);
   fakeBridge(t, { area: () => ({ status: 500, body: { errors: [{ description: 'internal error' }] } }) });
   fakeDtls(t, [50]);
-  const session = new hue.HueSession(PAIRED);
+  const session = new HueStreamer(PAIRED);
 
   session.sendFrame(RED);
   await until(t, () => session.getStatus().status === 'failed', 1000);
@@ -199,8 +201,8 @@ test('another active area blocks only its bridge, then reconnects after release'
   const calls = fakeBridge(t, { area: ({ host }) => ({ status: 200, body: host === PAIRED.host && occupied
     ? { data: [{ id: AREA, status: 'inactive' }, OTHER_AREA] } : OURS }) });
   const sockets = fakeDtls(t, [10, 10]);
-  const first = new hue.HueSession(PAIRED);
-  const second = new hue.HueSession({ ...PAIRED, id: 'b2', host: '10.0.0.3' });
+  const first = new HueStreamer(PAIRED);
+  const second = new HueStreamer({ ...PAIRED, id: 'b2', host: '10.0.0.3' });
   first.sendFrame(RED);
   second.sendFrame(RED);
   await until(t, () => first.getStatus().status === 'failed' && second.getStatus().status === 'streaming', 1000);
@@ -228,7 +230,7 @@ test('ownership changed during start is reported without stopping the new owner'
   let reads = 0;
   const calls = fakeBridge(t, { area: () => ({ status: 200, body: ++reads === 1 ? { data: [{ id: AREA, status: 'inactive' }] } : { data: [OTHER_AREA] } }) });
   const sockets = fakeDtls(t);
-  const session = new hue.HueSession(PAIRED);
+  const session = new HueStreamer(PAIRED);
   session.sendFrame(RED);
   await until(t, () => session.getStatus().status === 'failed', 1000);
   assert.match(session.getStatus().error, /TV Couch/);
@@ -243,7 +245,7 @@ test('an unknown application identity never takes an already active area', async
   quiet(t);
   const calls = fakeBridge(t);
   const sockets = fakeDtls(t);
-  const session = new hue.HueSession({ ...PAIRED, applicationId: '' });
+  const session = new HueStreamer({ ...PAIRED, applicationId: '' });
   session.sendFrame(RED);
   await until(t, () => session.getStatus().status === 'failed', 1000);
   assert.match(session.getStatus().error, /application identity/);
@@ -256,7 +258,7 @@ test('disarming during the ownership check cannot start a session later', async 
   let respond;
   const calls = fakeBridge(t, { area: () => ({ status: 200, body: { data: [] }, defer: (send) => { respond = send; } }) });
   const sockets = fakeDtls(t);
-  const session = new hue.HueSession(PAIRED);
+  const session = new HueStreamer(PAIRED);
   session.sendFrame(RED);
   await settle();
   assert.ok(respond);
@@ -275,7 +277,7 @@ test('reconfiguration during start releases the old area on the old bridge', asy
   const calls = fakeBridge(t, { put: ({ body }) => ({ status: 200, body: { data: [] },
     ...(body.action === 'start' ? { defer: (send) => { respond = send; } } : {}) }) });
   const sockets = fakeDtls(t);
-  const session = new hue.HueSession(PAIRED);
+  const session = new HueStreamer(PAIRED);
   session.sendFrame(RED);
   await settle();
   assert.ok(respond);
@@ -301,7 +303,7 @@ test('reliability: unreadable ownership after release prevents a second start', 
     area: () => released ? { status: 503, body: { errors: [{ description: 'unavailable' }] } } : { status: 200, body: OURS },
   });
   const sockets = fakeDtls(t);
-  const session = new hue.HueSession(PAIRED);
+  const session = new HueStreamer(PAIRED);
   session.sendFrame(RED);
   await until(t, () => released, 1200);
   await settle();
@@ -314,7 +316,7 @@ test('reliability: HTTP200 CLIP errors are not ownership evidence', async (t) =>
   quiet(t);
   const calls = fakeBridge(t, { area: () => ({ status: 200, body: { data: [], errors: [{ description: 'denied' }] } }) });
   const sockets = fakeDtls(t);
-  const session = new hue.HueSession(PAIRED);
+  const session = new HueStreamer(PAIRED);
   session.sendFrame(RED);
   await settle();
   assert.deepStrictEqual(actions(calls), []);
@@ -328,18 +330,16 @@ test('reliability: stop waits for release and re-addition cannot overtake it', a
   const calls = fakeBridge(t, { put: ({ body }) => ({ status: 200, body: { data: [] },
     ...(body.action === 'stop' ? { defer: respond => { release = respond; } } : {}) }) });
   const sockets = fakeDtls(t);
-  hue.configureBridges([PAIRED]);
-  const session = hue.getSession(PAIRED.id);
-  session.sendFrame(RED);
+  const { wires, closeAll } = createHueWire();
+  wires.hue(PAIRED, RED);
   await settle();
   sockets[0].emit('connected');
   let stopped = false;
-  const stopping = session.stop().then(() => { stopped = true; });
-  t.after(async () => { if (release) release(); await stopping; hue._reset(); });
+  const stopping = closeAll().then(() => { stopped = true; });
+  t.after(async () => { if (release) release(); await stopping; });
   await settle();
-  hue.configureBridges([]);
-  hue.configureBridges([PAIRED]);
-  hue.getSession(PAIRED.id).sendFrame(RED);
+  wires.hueClose(PAIRED, true);
+  wires.hue(PAIRED, RED);
   await settle();
   assert.strictEqual(stopped, false);
   assert.deepStrictEqual(actions(calls), ['start', 'stop']);
@@ -355,13 +355,13 @@ test('reliability: renamed bridge waits for the same physical host release', asy
   const calls = fakeBridge(t, { put: ({ body }) => ({ status: 200, body: { data: [] },
     ...(body.action === 'stop' && deferStop ? { defer: respond => { release = respond; } } : {}) }) });
   const sockets = fakeDtls(t);
-  t.after(() => hue._reset());
-  hue.configureBridges([{ ...PAIRED, host: 'Bridge.Invalid.' }]);
-  hue.getSession(PAIRED.id).sendFrame(RED);
+  const { wires, closeAll } = createHueWire();
+  const first = { ...PAIRED, host: 'Bridge.Invalid.' };
+  wires.hue(first, RED);
   await settle();
   sockets[0].emit('connected');
-  hue.configureBridges([{ ...PAIRED, id: 'renamed', host: 'bridge.invalid' }]);
-  hue.getSession('renamed').sendFrame(RED);
+  wires.hueClose(first, true);
+  wires.hue({ ...PAIRED, id: 'renamed', host: 'bridge.invalid' }, RED);
   await settle();
   assert.deepStrictEqual(actions(calls), ['start', 'stop']);
   assert.strictEqual(sockets.length, 1);
@@ -370,7 +370,7 @@ test('reliability: renamed bridge waits for the same physical host release', asy
   await settle();
   assert.deepStrictEqual(actions(calls), ['start', 'stop', 'start']);
   assert.strictEqual(sockets.length, 2);
-  await hue.stopAll();
+  await closeAll();
 });
 
 test('reliability: a renamed bridge retries failed retirement after ownership recovers', async (t) => {
@@ -380,50 +380,48 @@ test('reliability: a renamed bridge retries failed retirement after ownership re
     ? { status: 503, body: { errors: [{ description: 'unavailable' }] } }
     : { status: 200, body: OURS } });
   const sockets = fakeDtls(t);
-  t.after(() => hue._reset());
-  hue.configureBridges([PAIRED]);
-  hue.getSession(PAIRED.id).sendFrame(RED);
+  const { wires, closeAll } = createHueWire();
+  wires.hue(PAIRED, RED);
   await settle();
   sockets[0].emit('connected');
   unreadable = true;
-  hue.configureBridges([{ ...PAIRED, id: 'renamed' }]);
+  wires.hueClose(PAIRED, true);
   await settle();
   assert.deepStrictEqual(actions(calls), ['start']);
   unreadable = false;
-  hue.getSession('renamed').sendFrame(RED);
+  wires.hue({ ...PAIRED, id: 'renamed' }, RED);
   await settle();
   assert.deepStrictEqual(actions(calls), ['start', 'stop', 'start']);
   assert.strictEqual(sockets.length, 2);
-  await hue.stopAll();
+  await closeAll();
 });
 
 test('reliability: duplicate physical hosts cannot acquire two sessions', async (t) => {
   quiet(t);
   const calls = fakeBridge(t);
   const sockets = fakeDtls(t);
-  t.after(() => hue._reset());
-  hue.configureBridges([PAIRED, { ...PAIRED, id: 'duplicate' }]);
-  hue.sendFrames(new Map([[PAIRED.id, RED], ['duplicate', RED]]));
+  const { wires, closeAll, statuses } = createHueWire();
+  wires.hue(PAIRED, RED);
+  wires.hue({ ...PAIRED, id: 'duplicate' }, RED);
   await settle();
   assert.deepStrictEqual(actions(calls), ['start']);
   assert.strictEqual(sockets.length, 1);
-  assert.match(hue.getSession('duplicate').getStatus().error, /already managed/);
-  await hue.stopAll();
+  assert.match(statuses().find((s) => s.id === 'duplicate').error, /already managed/);
+  await closeAll();
 });
 
-for (const operation of ['stopAll', 'closeAll']) test(`reliability: ${operation} waits for retired sessions`, async (t) => {
+test('reliability: closeAll waits for retired sessions', async (t) => {
   quiet(t);
   let release;
   fakeBridge(t, { put: ({ body }) => ({ status: 200, body: { data: [] },
     ...(body.action === 'stop' ? { defer: respond => { release = respond; } } : {}) }) });
   fakeDtls(t);
-  t.after(() => hue._reset());
-  hue.configureBridges([PAIRED]);
-  hue.getSession(PAIRED.id).sendFrame(RED);
+  const { wires, closeAll } = createHueWire();
+  wires.hue(PAIRED, RED);
   await settle();
-  hue.configureBridges([]);
+  wires.hueClose(PAIRED, true);
   let complete = false;
-  const stopping = hue[operation]().then(() => { complete = true; });
+  const stopping = closeAll().then(() => { complete = true; });
   await settle();
   assert.strictEqual(complete, false);
   release();
@@ -434,7 +432,7 @@ test('reliability: an old send callback cannot fail a replacement socket', async
   quiet(t);
   fakeBridge(t);
   const sockets = fakeDtls(t);
-  const session = new hue.HueSession(PAIRED);
+  const session = new HueStreamer(PAIRED);
   session.sendFrame(RED);
   await settle();
   sockets[0].emit('connected');
@@ -449,27 +447,6 @@ test('reliability: an old send callback cannot fail a replacement socket', async
   finish(new Error('old socket failure'));
   assert.strictEqual(session.getStatus().status, 'streaming');
   assert.strictEqual(sockets[1].closed, false);
-  await session.stop();
-});
-
-test('reliability: delayed application identity never persists into a replacement config', async (t) => {
-  quiet(t);
-  let respond;
-  const writes = [];
-  fakeBridge(t, { area: () => ({ status: 200, body: {}, defer: reply => { respond = reply; } }) });
-  const original = https.request;
-  t.mock.method(https, 'request', (options, callback) => original(options, res => {
-    res.headers = { 'hue-application-id': 'old-app' };
-    callback(res);
-  }));
-  const session = new hue.HueSession({ ...PAIRED, applicationId: '' }, () => (...args) => { writes.push(args); });
-  session.sendFrame(RED);
-  await settle();
-  session.configure({ host: 'replacement.invalid', username: 'new-key', applicationId: 'new-app' });
-  respond();
-  await settle();
-  assert.deepStrictEqual(writes, []);
-  assert.strictEqual(session.getConfig().applicationId, 'new-app');
   await session.stop();
 });
 
@@ -489,7 +466,7 @@ test('reliability: an aborted REST response settles without an unhandled stream 
     return req;
   });
   let settled = false;
-  const lookup = hue.fetchApplicationId('bridge.invalid', 'dummy').then(value => { settled = true; return value; });
+  const lookup = fetchApplicationId('bridge.invalid', 'dummy').then(value => { settled = true; return value; });
   response.emit('aborted');
   assert.doesNotThrow(() => response.emit('error', new Error('aborted')));
   await settle();
@@ -503,7 +480,7 @@ test('reliability: a stalled release times out and keeps replacement output bloc
   const calls = fakeBridge(t, { put: ({ body }) => ({ status: 200, body: { data: [] },
     ...(body.action === 'stop' ? { defer: () => {} } : {}) }) });
   const sockets = fakeDtls(t, [10]);
-  const session = new hue.HueSession(PAIRED);
+  const session = new HueStreamer(PAIRED);
   session.sendFrame(RED);
   await until(t, () => session.getStatus().status === 'streaming', 100);
   const stopped = assert.rejects(session.stop(), /within 5000ms/);

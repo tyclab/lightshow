@@ -1,6 +1,6 @@
 // The outputs' arming switch (src/server/armed.ts): disarmed, nothing leaves
 // the machine. The transmitter ends its streams on the way there and drops
-// every frame after; the Hue sessions close and reopen; the applier never
+// every frame after; the Hue streams darken, close and reopen; the applier never
 // arms at start; the routes, the live state, the health report and the
 // pre-show check carry it.
 
@@ -15,13 +15,13 @@ import * as output from '../../src/server/output.ts';
 import * as hue from '../../src/server/hue.ts';
 import { createApplier } from '../../src/server/apply.ts';
 import { settings } from '../../src/server/settings.ts';
-import { state, getLiveState, placeAddresslessFixtures } from '../../src/server/state.ts';
+import { state, getLiveState, placeAddresslessFixtures, universeOf } from '../../src/server/state.ts';
 import { assess, health } from '../../src/server/health.ts';
 import { attachRoutes } from '../../src/server/routes.ts';
 import { showStore } from '../../src/server/show-store.ts';
 import { checkOutputsArmed } from '../../src/server/preflight.ts';
 import { domainOf } from '../../src/server/protocol.ts';
-import { HUE_COLOR_PROFILE_ID } from '../../src/server/profiles.ts';
+import { HUE_COLOR_PROFILE_ID, getProfile } from '../../src/server/profiles.ts';
 import { buffer } from '../../src/server/log.ts';
 import { Sequencer } from '../../src/server/sequencer.ts';
 
@@ -134,54 +134,66 @@ test('transmit: a config that says nothing about arming is armed, as before', ()
 });
 
 // ── Hue ─────────────────────────────────────────────────────────────────────
-// A session is opened by the first frame sent to it, so "reopens on arm" is
-// the first frame after arming being sent at all. The bridge here does not
-// exist: what is watched is whether the session was asked to connect.
+// A stream is opened by the first frame the sender hands it, so "reopens on
+// arm" is the first frame after arming opening it at all. The sender is this
+// thread's, as the main-thread engine drives it; the bridge does not exist:
+// what is watched is whether the stream was asked to connect.
 
 const AREA = 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee';
 
-test('Hue sessions close on disarm and reopen on arm', async () => {
-  const saved = { fixtures: state.fixtures, next: state.nextFixtureId, hue: output.getHueConfig() };
+test('Hue streams close on disarm and reopen on arm', async () => {
+  const saved = { fixtures: state.fixtures, next: state.nextFixtureId, hue: output.getHueConfig(), artnet: { ...state.artnet } };
   state.fixtures = [{
     id: 500, label: 'Lamp', address: 1, universe: 0, profileId: HUE_COLOR_PROFILE_ID, maxBrightness: 255, override: null,
     output: { protocol: 'hue', bridge: 'b1', channel: 0 },
   }];
   placeAddresslessFixtures();
+  state.artnet.enabled = false;
   output.configureHue({
     latencyMs: 0,
     bridges: [{ id: 'b1', label: 'Lounge', enabled: true, host: 'bridge.invalid', username: 'user', clientKey: 'aabb', applicationId: 'app-id', entertainmentId: AREA }],
   });
-  const status = () => hue.getSession('b1').getStatus().status;
+  const lampUniverse = universeOf(state.fixtures[0]);
+  const frame = async () => {
+    const lit = Buffer.alloc(512);
+    lit[getProfile(state.fixtures[0]).channelMap.red] = 200;
+    output.sendUniverse(lampUniverse, lit);
+    const applied = output.endFrame();
+    await new Promise((r) => setImmediate(r));           // the status report follows on the next turn
+    return applied;
+  };
+  const status = () => output.getHueStatus().find((s) => s.id === 'b1').status;
   const settled = async () => {
     const deadline = Date.now() + 8000;
     while (status() === 'connecting' && Date.now() < deadline) await new Promise((r) => setTimeout(r, 50));
   };
   try {
     output.setArmed(false);
-    assert.equal(output.sendHue(), false);
+    await frame();
     assert.equal(status(), 'idle', 'disarmed: the bridge is not contacted');
 
     output.setArmed(true);
-    output.sendHue();
-    assert.equal(status(), 'connecting', 'armed: the first frame opens the session');
+    await frame();
+    assert.equal(status(), 'connecting', 'armed: the first frame opens the stream');
     await settled();
     assert.equal(status(), 'failed', 'no such bridge');
 
     output.setArmed(false);
-    await new Promise((r) => setImmediate(r));
-    assert.equal(status(), 'idle', 'disarmed: the session is closed');
-    output.sendHue();
+    assert.equal(await frame(), true, 'the disarmed frame is applied: nothing was lit to darken');
+    assert.equal(status(), 'idle', 'disarmed: the stream is closed');
+    await frame();
     assert.equal(status(), 'idle', 'and stays closed');
 
     output.setArmed(true);
-    output.sendHue();
+    await frame();
     assert.equal(status(), 'connecting', 'armed again: reopened from the first frame');
     await settled();
   } finally {
     output.setArmed(false);
-    await hue.stopAll();
+    await output.closeHue();
     hue._reset();
     output.configureHue(saved.hue);
+    Object.assign(state.artnet, saved.artnet);
     state.fixtures = saved.fixtures;
     state.nextFixtureId = saved.next;
   }

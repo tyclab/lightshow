@@ -641,6 +641,7 @@ class ArtnetLedger {
 }
 
 export {
+  DEFAULT_WIRES,
   createTransmitter,
   sacnUniverseFor,
   artnetDestinations,

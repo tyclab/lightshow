@@ -31,6 +31,7 @@ import { PictureFeatureExtractor } from '../shared/picture-features.ts';
 import { FrameBarrier } from './frame-barrier.ts';
 import { control } from './control.ts';
 import { ArtnetLedger } from './transmit.ts';
+import * as hue from './hue.ts';
 import type { TransmitConfig } from './transmit.ts';
 
 export type EngineThread = 'worker' | 'main';
@@ -52,7 +53,8 @@ const MAX_CRASHES = 3;
 const CRASH_WINDOW_MS = 60000;
 const RESTART_DELAY_MS = 250;
 
-const STOP_TIMEOUT_MS = 300;
+// Long enough for the engine thread to send each Hue bridge its dark frame and release it: an ownership read and a stop.
+const STOP_TIMEOUT_MS = 1500;
 
 // While idle, a ninth of the render keeps show state advancing, and a change still ends idle within one tick.
 const IDLE_EVERY = 9;
@@ -65,6 +67,8 @@ const frames = new FrameBarrier();
 // Physical Art-Net destinations issued to the renderer and not yet acknowledged as applied. Kept here, outside
 // any engine thread, so a thread that dies mid-retirement hands those routes to whatever renders next.
 const routes = new ArtnetLedger();
+// Hue bridges issued to the engine thread: on its loss, released here by CLIP before any sender connects again.
+const hueBridges = new hue.HueLedger();
 
 let ready = false;
 const readyWaiters = new Set<{ resolve: () => void; reject: (error: Error) => void }>();
@@ -93,14 +97,17 @@ export function waitForEngineReady(timeoutMs = 10_000): Promise<void> {
 
 function issueOutputs(): { outputs: TransmitConfig; outputSeq: number } {
   const outputs = output.transmitConfig();
+  hueBridges.issue(outputs.hue?.bridges ?? []);
   return { outputs, outputSeq: routes.issue(outputs) };
 }
 
-// A blackout the engine thread could not fully apply may still darken Hue: only for the current picture, and
-// only once the shared output it would be read from is dark, so no newer lit frame slips through with it.
-function protectiveDark(revision: number | undefined): boolean {
-  if (revision !== frames.revision || !state.masterBlackout || !output.isArmed()) return false;
-  return universes.list().every((universe) => !universes.getBuffer(universe).some((v) => v !== 0));
+// The thread that streamed Hue is gone without confirming its release. Every sender is held off Hue until the
+// sessions it may have left active are stopped (or found not ours), so none is stopped under a new stream.
+function releaseHue(): Promise<void> {
+  hue.resetStreamStatus();
+  const release = hueBridges.size ? hueBridges.release().then(() => {}) : Promise.resolve();
+  output.holdHue(release);
+  return release;
 }
 
 export function awaitFrameApplied(): Promise<void> {
@@ -443,10 +450,7 @@ function renderDmx(): void {
   const outputSeq = routes.issue(output.transmitConfig());
   if (transmitFrame()) {
     routes.acknowledge(outputSeq);
-    output.sendHue();
     frames.acknowledge(frames.revision);
-  } else if (state.masterBlackout) {
-    output.sendHue();                   // this thread rendered the blackout it is reading: dark, and current
   }
 }
 
@@ -472,7 +476,7 @@ let crashes: number[] = [];
 let postedRevision = -1;
 let postedSequence: number | null | undefined;
 let postedSpace: ReturnType<typeof currentSpace> | undefined;
-let stopping: ((applied: boolean) => void) | null = null;   // resolves when the worker has blacked out
+let stopping: ((applied: boolean, hueClosed: boolean) => void) | null = null;   // resolves when the worker has blacked out
 let restartTimer: ReturnType<typeof setTimeout> | null = null;
 let workerFile = path.join(import.meta.dirname, 'engine-worker.ts');
 let lastPosted: { at: number; reading: ReturnType<typeof conductor.now> } | null = null;
@@ -589,12 +593,11 @@ function onWorkerMessage(msg: FromWorker | null): void {
   if (!msg) return;
   switch (msg.type) {
     case 'frame':
-      if (msg.applied === false) {
-        if (msg.dark && protectiveDark(msg.barrierRevision)) output.sendHue();
-        break;
-      }
       if (msg.outputSeq !== undefined) routes.acknowledge(msg.outputSeq);
-      if (frames.acknowledge(msg.barrierRevision ?? 0)) output.sendHue();
+      frames.acknowledge(msg.barrierRevision ?? 0);
+      break;
+    case 'hue':
+      hue.applyStreamStatus(msg.status);
       break;
     case 'stats':
       workerStats = msg.stats;
@@ -603,7 +606,7 @@ function onWorkerMessage(msg: FromWorker | null): void {
       settleCommands(msg.results, { processed: msg.processed, applied: msg.applied });
       break;
     case 'stopped':
-      if (stopping) stopping(msg.applied !== false);
+      if (stopping) stopping(msg.applied !== false, msg.hue === true);
       break;
     default:
       break;
@@ -614,7 +617,7 @@ function spawnWorker(epochMs: number): void {
   ready = false;
   let started = false;
   const w = new Worker(workerFile, {
-    workerData: { shared: universes.shared, epochMs, periodMs: FRAME_MS, retire: routes.outstanding() },
+    workerData: { shared: universes.shared, epochMs, periodMs: FRAME_MS, retire: routes.outstanding(), hueReclaim: hueBridges.size > 0 },
   });
   worker = w;
   postedRevision = -1;
@@ -634,6 +637,8 @@ function spawnWorker(epochMs: number): void {
     control.rendererLost();
     frames.fail('The renderer restarted before acknowledging this change');
     failPendingCommands();
+    const reclaim = hueBridges.size > 0;
+    void releaseHue();
     if (thread !== 'worker') return;
     const now = Date.now();
     crashes = crashes.filter((at) => now - at < CRASH_WINDOW_MS).concat(now);
@@ -644,6 +649,7 @@ function spawnWorker(epochMs: number): void {
       console.warn(`[engine] ${fellBack} — rendering on the main thread instead`);
       if (ticker) ticker.stop();
       startMainDriver();
+      if (reclaim) output.reclaimHue();
       return;
     }
     console.warn(`[engine] the engine thread stopped (exit ${code}) — restarting it`);
@@ -705,12 +711,6 @@ function blackout(): boolean {
   return applied;
 }
 
-function hueOut(): void {
-  // Rather than leaving the area locked to a stream that has stopped arriving.
-  output.sendHue();
-  output.stopHue();
-}
-
 function stopEngine(): Promise<void> {
   ready = false;
   for (const waiter of readyWaiters) waiter.reject(new Error('The renderer stopped before it was ready'));
@@ -734,28 +734,34 @@ function stopEngine(): Promise<void> {
   clock = () => performance.now();
 
   if (!w) {
+    // This thread's own streams: dark frame, then release, while the blackout below leaves Hue alone.
+    const closing = output.closeHue();
     blackout();
-    hueOut();
-    return Promise.resolve();
+    return closing.then(() => {});
   }
 
   return new Promise((resolve) => {
-    const finish = (blackedOut: boolean) => {
+    const finish = (blackedOut: boolean, hueClosed: boolean) => {
       clearTimeout(timer);
       stopping = null;
+      let release = Promise.resolve();
+      if (hueClosed) {
+        hueBridges.clear();
+        hue.resetStreamStatus();
+      } else release = releaseHue();
+      output.holdHue(release);         // the blackout below must not open a session of its own
       if (blackedOut) routes.clear();
       else blackout();
       universes.setWritable(true);
-      hueOut();
       w.terminate().catch(() => {});
-      resolve();
+      void release.finally(resolve);
     };
-    const timer = setTimeout(() => finish(false), STOP_TIMEOUT_MS);
-    stopping = (applied: boolean) => finish(applied);
+    const timer = setTimeout(() => finish(false, false), STOP_TIMEOUT_MS);
+    stopping = (applied: boolean, hueClosed: boolean) => finish(applied, hueClosed);
     try {
       post(w, { type: 'stop' });
     } catch (_) {
-      finish(false);
+      finish(false, false);
     }
   });
 }

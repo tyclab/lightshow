@@ -6,7 +6,7 @@ import { listProfiles, getProfile, HUE_COLOR_PROFILE_ID, HUE_WHITE_PROFILE_ID } 
 import { hueProfile } from '../../src/server/hue-profile.ts';
 import { refreshHueFixtures } from '../../src/server/hue-migration.ts';
 import { hueChannels } from '../../src/shared/hue-lamp.ts';
-import { hueChannelColors } from '../../src/server/output.ts';
+import { hueChannelColors } from '../helpers/hue-colours.js';
 import * as universes from '../../src/server/universes.ts';
 import { areaLamp } from './hue-test-lamps.js';
 

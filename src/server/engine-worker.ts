@@ -2,7 +2,8 @@ import { parentPort, workerData } from 'node:worker_threads';
 
 import { createRenderer } from './renderer.ts';
 import { allocateShared, createUniverseStore } from './universes.ts';
-import { createTransmitter } from './transmit.ts';
+import { DEFAULT_WIRES, createTransmitter } from './transmit.ts';
+import { createHueWire } from './hue-wire.ts';
 import { createTicker, hrtimeMs, FRAME_MS } from './frame-clock.ts';
 import { createClockFollower } from './clock-follow.ts';
 import { getProfile, profilesRevision, registerProfile, clearNonBuiltinProfiles, BUILTIN_PROFILE_ID, HUE_COLOR_PROFILE_ID } from './profiles.ts';
@@ -23,7 +24,7 @@ const port = parentPort;
 const post = (msg: FromWorker) => port.postMessage(msg);
 
 const {
-  shared, epochMs, periodMs = FRAME_MS, capture = false, seed = null, startNow = null, retire = null,
+  shared, epochMs, periodMs = FRAME_MS, capture = false, seed = null, startNow = null, retire = null, hueReclaim = false,
 } = (workerData || {}) as EngineWorkerData;
 
 function seeded(value: number): () => number {
@@ -40,7 +41,9 @@ if (capture && Number.isInteger(seed)) Math.random = seeded(seed as number);
 
 const store = createUniverseStore();               // rendered into, this thread only
 const published = createUniverseStore(shared);     // what the main thread reads
-const transmitter = createTransmitter();
+// Hue leaves with the rest of the frame from here; the main thread only hears how each bridge is doing.
+const hueWire = createHueWire({ onStatus: (status) => post({ type: 'hue', status }), reclaim: hueReclaim });
+const transmitter = createTransmitter({ wires: { ...DEFAULT_WIRES, ...hueWire.wires } });
 // A previous sender's unfinished retirement comes first: nothing lights until those routes are dark.
 const inherited = !!retire?.length;
 if (retire?.length) transmitter.seed(retire);
@@ -144,7 +147,6 @@ function renderTick(due: number, now: number): void {
   publish();
   const { barrierRevision, outputSeq } = snapshot;
   if (applied) post({ type: 'frame', barrierRevision, outputSeq });
-  else if (snapshot.input.masterBlackout) post({ type: 'frame', barrierRevision, outputSeq, applied: false, dark: true });
 }
 
 /** Darken everything; whether every destination, inherited ones included, was actually retired. */
@@ -211,7 +213,8 @@ port.on('message', guarded('engine-worker', (msg: ToWorker | null) => {
     case 'stop': {
       if (ticker) ticker.stop();
       const applied = blackout();
-      post({ type: 'stopped', applied });
+      // Stopped only once every Hue bridge had its dark frame and its session was released, or that failed.
+      void hueWire.closeAll().then((hue) => post({ type: 'stopped', applied, hue }));
       break;
     }
     default:
