@@ -20,7 +20,8 @@ test('opt-in timing observes real draws and rejects an injected 250 ms renderer 
     const added = await request.post('/api/fixtures', { data: { profileId: id, count: 1, universe: 7 } });
     expect(added.ok()).toBe(true);
     fixtures = (await added.json()).fixtures;
-    await set(request, { pattern: 'ensemble' });
+    // A look that moves without audio, so the stage keeps drawing.
+    await set(request, { pattern: 'v2.grooveWave' });
     await page.goto('/#stage');
     await page.locator('.offline-veil').waitFor({ state: 'detached' });
     expect(await page.evaluate(() => '__lightshowPerformance' in window)).toBe(false);
