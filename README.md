@@ -2163,7 +2163,8 @@ the state in one of two forms, chosen when the client connects:
   gets `audio` events, volatile, up to thirty a second and only when they
   change — `{ t, party: { full, bass, mid, high }, disco: { gate, level, hit }, spl: { db, level, beat, section, eventT? } }`
   — and `audio` with `null` when the input has gone. Both topics send their
-  latest at once on subscribing.
+  latest at once on subscribing. The live page holds the DMX topic only while
+  its tab is visible: hidden, it unsubscribes, and shown again it subscribes.
 - **Protocol 1** — anything that does not ask, such as the Companion module
   before 2.1: `state` (the full snapshot on connect, the
   whole live state again whenever any of it changes) and `dmx` (channel values

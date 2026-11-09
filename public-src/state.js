@@ -155,18 +155,30 @@ socket.on('picture-image', (message) => {
   if (performanceReport) performanceReport.count('picture.received');
 });
 
-// The first view subscribes, the last unsubscribes, and a reconnect subscribes again.
-let dmxWanted = 0;
-export function wantDmx() {
-  if (dmxWanted++ === 0 && socket.connected) socket.emit('subscribe', ['dmx']);
-  let released = false;
+// A hidden page holds no feed, or a phone left on a view keeps the engine rendering for nobody;
+// its views stay counted, so showing it subscribes again and the server replays the latest.
+const pageVisible = () => typeof document === 'undefined' || document.visibilityState === 'visible';
+
+/** The first view subscribes, the last unsubscribes, and a reconnect subscribes again: while the page is visible. */
+function visibleFeed(topic) {
+  let wanted = 0;
+  const send = (event) => { if (socket.connected) socket.emit(event, [topic]); };
+  socket.on('connect', () => { if (wanted > 0 && pageVisible()) send('subscribe'); });
+  if (typeof document !== 'undefined') {
+    document.addEventListener?.('visibilitychange', () => { if (wanted > 0) send(pageVisible() ? 'subscribe' : 'unsubscribe'); });
+  }
   return () => {
-    if (released) return;
-    released = true;
-    if (--dmxWanted === 0 && socket.connected) socket.emit('unsubscribe', ['dmx']);
+    if (wanted++ === 0 && pageVisible()) send('subscribe');
+    let released = false;
+    return () => {
+      if (released) return;
+      released = true;
+      if (--wanted === 0 && pageVisible()) send('unsubscribe');
+    };
   };
 }
-socket.on('connect', () => { if (dmxWanted > 0) socket.emit('subscribe', ['dmx']); });
+
+export const wantDmx = visibleFeed('dmx');
 
 // About 30 a second to subscribers only, counted like the DMX feed; null while nobody listens.
 export const audioFeedSig = signal(null);
