@@ -1,6 +1,17 @@
 // Classic and party pattern ids that play a v2 preset instead of their pattern function, each with the
 // reason it moved. The operator decides each move by A/B test on the rig; every other classic id keeps its function.
-export const CLASSIC_REDIRECTS: Readonly<Record<string, string>> = Object.freeze({});
+export const CLASSIC_REDIRECTS: Readonly<Record<string, string>> = Object.freeze({
+  wave: 'Wave on the v2 engine (option C), merged only once the operator chose B in A/B migration.wave',
+  gradient: 'Wave on the v2 engine (option C), merged only once the operator chose B in A/B migration.gradient',
+  comet: 'Wave on the v2 engine (option C), merged only once the operator chose B in A/B migration.comet',
+  rainbow: 'Wave on the v2 engine (option C), merged only once the operator chose B in A/B migration.rainbow',
+  'room-wave': 'Wave on the v2 engine (option C), merged only once the operator chose B in A/B migration.room-wave',
+  'spatial-wash': 'Wave on the v2 engine (option C), merged only once the operator chose B in A/B migration.spatial-wash',
+  'bounce-scan': 'Wave on the v2 engine (option C), merged only once the operator chose B in A/B migration.bounce-scan',
+  streak: 'Wave on the v2 engine (option C), merged only once the operator chose B in A/B migration.streak',
+  'volume-gate': 'Wave on the v2 engine (option C), merged only once the operator chose B in A/B migration.volume-gate',
+  'party.fire': 'Wave on the v2 engine (option C), merged only once the operator chose B in A/B migration.party.fire',
+});
 
 // The classic and party looks on the v2 engine: for each id, the v2 spec closest to its own pattern on the
 // diff rig (scripts/effects-v2-alias-diff.js --classic) and that diff as [largest channel, mean absolute
@@ -67,25 +78,25 @@ export const CLASSIC_V2: Readonly<Record<string, ClassicLook>> = {
   'radial-pulse': { family: 'Ripple', name: 'Radial Pulse', diff: [247, 29.814, 129],
     spec: { kind: 'v2.shell', params: { space: 'plan', origin: 'centre', envelope: { curve: 'easeInOut', attack: 1, hold: 0.5, release: 1 }, trigger: { mode: 'beatAccent', band: 'bass', beatInterval: 4, threshold: 0.15, reactiveDepth: 0.6 }, speed: 1, width: 0.3, background: 0.18 } } },
   // Wave
-  wave: { family: 'Wave', name: 'Wave', diff: [247, 25.658, 129],
+  wave: { family: 'Wave', name: 'Wave', desc: 'Bands of the first colour crossing the plot from left to right', diff: [247, 25.658, 129],
     spec: { kind: 'v2.sweep', params: { space: 'plan', colour: 'solid', profile: 'stripe', width: 4, speed: 1, azimuthDeg: 90 } } },
-  gradient: { family: 'Wave', name: 'Gradient', pixel: true, diff: [98, 13.014, 129],
+  gradient: { family: 'Wave', name: 'Gradient', desc: 'The look\'s colours as a gradient scrolling across the plot', pixel: true, diff: [98, 13.014, 129],
     spec: { kind: 'v2.sweep', params: { space: 'plan', profile: 'gradient', width: 0.01, speed: 0.25, azimuthDeg: 90 } } },
-  comet: { family: 'Wave', name: 'Comet', pixel: true, diff: [250, 15.043, 129],
+  comet: { family: 'Wave', name: 'Comet', desc: 'A comet in the first colour crossing the plot from right to left, over a dim floor in the look\'s last colour', pixel: true, diff: [250, 15.043, 129],
     spec: { kind: 'v2.sweep', params: { space: 'plan', profile: 'comet', trigger: { mode: 'timeline', band: 'full', beatInterval: 4, threshold: 0.15, reactiveDepth: 1 }, width: 0.1, azimuthDeg: -90, colour: 'solid', background: 0.18 } } },
-  rainbow: { family: 'Wave', name: 'Rainbow', diff: [255, 104.618, 129],
+  rainbow: { family: 'Wave', name: 'Rainbow', desc: 'A rainbow laid across the plot from left to right, holding still', diff: [255, 104.618, 129],
     spec: { kind: 'v2.sweep', palette: ['#FF0000', '#FFFF00', '#00FF00', '#00FFFF', '#0000FF', '#FF00FF'], params: { space: 'plan', profile: 'gradient', width: 0.01, speed: 0, azimuthDeg: 90 } } },
-  'room-wave': { family: 'Wave', name: 'Room Wave', diff: [254, 62.897, 129],
+  'room-wave': { family: 'Wave', name: 'Room Wave', desc: 'A broad crest of the look\'s colours crossing the plot on a slant, over a dim floor in the look\'s last colour', diff: [254, 62.897, 129],
     spec: { kind: 'v2.sweep', params: { space: 'plan', width: 2, speed: 2, azimuthDeg: 25.7, background: 0.18 } } },
-  'spatial-wash': { family: 'Wave', name: 'Spatial Wash', diff: [255, 43.513, 129],
+  'spatial-wash': { family: 'Wave', name: 'Spatial Wash', desc: 'A broad crest of the look\'s colours crossing the plot, over a dim floor in the look\'s last colour', diff: [255, 43.513, 129],
     spec: { kind: 'v2.sweep', params: { space: 'plan', width: 2, speed: 2, background: 0.18 } } },
-  'bounce-scan': { family: 'Wave', name: 'Bouncing Scan', diff: [255, 16.384, 129],
+  'bounce-scan': { family: 'Wave', name: 'Bouncing Scan', desc: 'A soft line in the first colour sweeping across the plot and back, over a dim floor in the look\'s last colour', diff: [255, 16.384, 129],
     spec: { kind: 'v2.sweep', params: { space: 'plan', motion: 'bounce', trigger: { mode: 'timeline', band: 'full', beatInterval: 2, threshold: 0.15, reactiveDepth: 1 }, width: 0.25, speed: 2, azimuthDeg: 28, colour: 'solid', background: 0.18 } } },
-  streak: { family: 'Wave', name: 'Streak', diff: [255, 13.771, 129],
+  streak: { family: 'Wave', name: 'Streak', desc: 'A comet in the first colour crossing the plot on a slant, over a dim floor in the look\'s last colour', diff: [255, 13.771, 129],
     spec: { kind: 'v2.sweep', params: { space: 'plan', profile: 'comet', trigger: { mode: 'timeline', band: 'full', beatInterval: 2, threshold: 0.15, reactiveDepth: 1 }, width: 0.2, speed: 3, azimuthDeg: 42, colour: 'solid', background: 0.18 } } },
-  'volume-gate': { family: 'Wave', name: 'Volume Gate', diff: [241, 27.601, 129],
+  'volume-gate': { family: 'Wave', name: 'Volume Gate', desc: 'The look\'s colours as a gradient drifting across the plot, brighter the louder the music', diff: [241, 27.601, 129],
     spec: { kind: 'v2.sweep', params: { space: 'plan', azimuthDeg: 90, trigger: { mode: 'volumeGate', band: 'full', beatInterval: 1, threshold: 0.25, reactiveDepth: 0.8 }, width: 1, speed: 0.25, profile: 'gradient' } } },
-  'party.fire': { family: 'Wave', name: 'Fire', diff: [152, 16.319, 129],
+  'party.fire': { family: 'Wave', name: 'Fire', desc: 'A gentle amber and ember gradient drifting slowly across the plot, without strobing', diff: [152, 16.319, 129],
     spec: { kind: 'v2.sweep', palette: ['#B51D00004000', '#E16A00102000', '#FFAF30300000'], gradients: [{ name: 'Embers', space: 'rgb', wrap: true, stops: [{ at: 0, slot: 0 }, { at: 0.3333333333333333, slot: 1 }, { at: 0.6666666666666666, slot: 2 }] }], gradient: 'Embers', brightness: 0.4, background: { version: 1, level: 0.4 }, params: { space: 'plan', profile: 'gradient', width: 4, speed: 0.02, azimuthDeg: 90 } } },
   // Wash
   solid: { family: 'Wash', name: 'Solid', diff: [0, 0, 0],
