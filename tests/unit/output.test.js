@@ -62,7 +62,7 @@ function withLamps(lamps, fn) {
     ? { id: 100 + i, label: `Par ${i}`, address: 1, universe: 0, profileId: BUILTIN_PROFILE_ID, maxBrightness: 255, override: null }
     : {
       id: 100 + i, label: `Lamp ${i}`, address: 1, universe: 0, profileId: lamp.profileId ?? HUE_COLOR_PROFILE_ID,
-      maxBrightness: 255, override: null, output: { protocol: 'hue', bridge: lamp.bridge ?? 'b1', channel: lamp.channel },
+      maxBrightness: 255, override: null, output: { protocol: 'hue', bridge: lamp.bridge ?? 'b1', channels: [lamp.channel] },
     }));
   placeAddresslessFixtures();
   const clean = () => { for (const fix of state.fixtures) universes.getBuffer(universeOf(fix)).fill(0); };
