@@ -20,6 +20,7 @@ import { buildRoom } from '../../src/shared/room.ts';
 import { PATTERN_FUNCS } from '../../src/shared/patterns.ts';
 import { CLASSIC_LOOKS, PATTERNS, PRESET_ROWS, PATTERN_IDS, ENERGY_EFFECTS } from '../../src/server/presets.ts';
 import { legacyTags, specTags, tagFields } from '../../src/shared/effects/tags.ts';
+import { RAPID_PATTERNS } from '../../src/shared/strobe-fx.ts';
 import { getCatalogs } from '../../src/server/state.ts';
 import { LOOKS } from '../../scripts/golden-party-looks.js';
 
@@ -259,7 +260,7 @@ test("own looks retain legacy pattern metadata", () => {
     assert.deepStrictEqual([p.app, p.family, p.party], ['own', 'own.party', true], p.id);
     const pattern = PATTERNS.find((x) => x.id === p.id);
     assert.deepStrictEqual({ id: p.id, name: p.name, desc: p.desc, party: true, legacy: true, ...(p.preset ? { preset: p.preset } : {}),
-      ...tagFields(legacyTags(p.id)) }, pattern, p.id);
+      ...(RAPID_PATTERNS.has(p.id) ? { rapidFlash: true } : {}), ...tagFields(legacyTags(p.id)) }, pattern, p.id);
     if (p.id in LINKS) {
       const target = presetById(p.preset);
       assert.strictEqual(target.id, V2_ALIASES[p.preset], p.id);

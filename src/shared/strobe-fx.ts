@@ -28,6 +28,9 @@ const swellOnTheBeat = (q: number): number => {
   return c * c;
 };
 const RAMP_BEATS = [4, 2, 1, 1 / 2, 1 / 4];
+// The classic programs that strike flashes (flashLit): they wait for the photosensitivity acknowledgement, as Rapid flash looks do.
+const RAPID_PATTERNS: ReadonlySet<string> = new Set(['flash-chase', 'flash-scatter', 'flash-alternate', 'flash-burst', 'core',
+  'ring-strobe', 'ring-backlit']);
 const RAMP_MIN_MS = 120;
 const RANDOM_BEATS = [1, 1 / 2, 1 / 4, 1 / 8, 1 / 16];
 const BURST_BEATS = [8, 4, 2, 1];
@@ -106,4 +109,4 @@ function strobeLevel(fnId: string, raw: number, beatPos: number, bpm: number | n
   const cycle = cycleBeats(raw, program.ladder, tempo, Math.max(program.minMs, minMs));
   return clamp01(program.draw(beatPos / cycle, cycle, 60000 / tempo, light, Math.max(MIN_SLOT_MS, minMs)));
 }
-export { FLASH_MS, FLASH_MAX_MS, MIN_SLOT_MS, scatter, flashLit, rampUp, rampDown, swell, swellsIn, randomSwell, randomFlash, burst, drawnByTheShow, strobeLevel, DRAWN_STROBE_FUNCTIONS, };
+export { FLASH_MS, FLASH_MAX_MS, MIN_SLOT_MS, RAPID_PATTERNS, scatter, flashLit, rampUp, rampDown, swell, swellsIn, randomSwell, randomFlash, burst, drawnByTheShow, strobeLevel, DRAWN_STROBE_FUNCTIONS, };
