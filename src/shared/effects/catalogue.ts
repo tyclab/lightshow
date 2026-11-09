@@ -268,7 +268,8 @@ const CLASSIC_ROWS: CataloguePreset[] = Object.entries(CLASSIC_V2).map(([id, loo
   const own = OWN_LOOKS.find(([look]) => look === id), desc = look.desc ?? own?.[2];
   if (Object.hasOwn(CLASSIC_REDIRECTS, id) && !desc) throw new Error(`redirected classic id ${id} needs its description`);
   return Object.hasOwn(CLASSIC_REDIRECTS, id)
-    ? { id, name: look.name, desc: desc!, app: 'own', family, ...(own ? { party: true } : {}), ...(look.pixel ? { pixel: true } : {}), aliases: [`classic.${id}`], spec }
+    ? { id, name: look.name, desc: desc!, app: 'own', family, ...(own || id.startsWith('party.') ? { party: true } : {}), ...(look.pixel ? { pixel: true } : {}),
+      aliases: [`classic.${id}`], spec }
     : { id: `classic.${id}`, name: `${look.name} (v2 ${look.family})`, desc: `The classic ${look.name} on the v2 ${look.family} engine, to compare with it`,
       app: 'own', family, retired: true, spec };
 });
@@ -305,7 +306,8 @@ const OVERLAY_ROWS: CataloguePreset[] = (['all', 'step', 'scatter', 'zone'] as c
       flashesPerSecond: 5, continueBetween: true, clock: 'beat' } }),
   })));
 
-const GENTLE_ROWS: CataloguePreset[] = [
+// A gentle look listed in CLASSIC_REDIRECTS plays its v2 form under its own id instead (CLASSIC_ROWS).
+const GENTLE_ROWS: CataloguePreset[] = ([
   { id: 'party.fire', name: 'Fire', desc: 'A gentle amber and ember wash, drifting over a long swell without strobing',
     app: 'own', family: 'own.party', party: true, spec: validateSpec({ kind: 'hd.spatialWash', brightness: 0.4,
       palette: ['#B51D00004000', '#E16A00102000', '#FFAF30300000'],
@@ -318,7 +320,7 @@ const GENTLE_ROWS: CataloguePreset[] = [
       gradients: [{ name: 'Glacier', space: 'rgb', wrap: true, stops: [{ at: 0, slot: 0 }, { at: 1 / 3, slot: 1 }, { at: 2 / 3, slot: 2 }] }], gradient: 'Glacier',
       params: { curve: 'easeInOut', attack: 16, hold: 16, release: 16, loopLength: 48, trigger: { mode: 'timeline' } },
     }) },
-];
+] satisfies CataloguePreset[]).filter((row) => !Object.hasOwn(CLASSIC_REDIRECTS, row.id));
 
 export const V2_ALIASES: Readonly<Record<string, string>> = deepFreeze({
   'ldj.ScatterStrobe': 'v2.scatterStrobe.2d', 'ldj.ScatterFade': 'v2.scatterFade.2d', 'ldj.ScatterGrow': 'v2.scatterGrow.2d',
@@ -340,7 +342,8 @@ const compatibility = LEGACY_PRESETS.filter((row) => !available.has(V2_ALIASES[r
 export const CATALOGUE: readonly CataloguePreset[] = deepFreeze([...compatibility, ...CONTROL_ROWS, ...OVERLAY_ROWS, ...modern, ...CLASSIC_ROWS]);
 const INDEX = presetIndex(CATALOGUE);
 for (const id of Object.keys(CLASSIC_REDIRECTS)) {
-  if (!Object.hasOwn(PATTERN_FUNCS, id) || !INDEX.get(id) || INDEX.get(id)!.legacy) throw new Error(`redirected classic id ${id} must name a preset with a spec`);
+  const known = Object.hasOwn(PATTERN_FUNCS, id) || (id.startsWith('party.') && Object.hasOwn(CLASSIC_V2, id));
+  if (!known || !INDEX.get(id) || INDEX.get(id)!.legacy) throw new Error(`redirected classic id ${id} must name a preset with a spec`);
 }
 
 export function presetById(id: string): CataloguePreset | null {

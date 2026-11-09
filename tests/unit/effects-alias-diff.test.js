@@ -38,7 +38,9 @@ test('every classic and party look but the fixture strobe has a v2 form, hidden 
 });
 
 test('each v2 form draws its classic look as far from it as recorded', () => {
-  for (const { id, maxChannel, meanAbs, framesDiffering } of classicFrameDiffs()) {
+  // A redirected gentle look has no other form left to compare with; a classic id keeps its pattern function.
+  const ids = Object.keys(CLASSIC_V2).filter((id) => !(id.startsWith('party.') && Object.hasOwn(CLASSIC_REDIRECTS, id)));
+  for (const { id, maxChannel, meanAbs, framesDiffering } of classicFrameDiffs(ids)) {
     assert.deepEqual([maxChannel, meanAbs, framesDiffering], CLASSIC_V2[id].diff, `${id}: rerun node scripts/effects-v2-alias-diff.js --classic`);
   }
 });

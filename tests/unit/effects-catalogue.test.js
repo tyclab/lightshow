@@ -325,7 +325,7 @@ test("preset ids cannot shadow legacy patterns unless CLASSIC_REDIRECTS lists th
 
 test("every redirected classic id plays a preset and leaves the classic list", () => {
   for (const id of Object.keys(CLASSIC_REDIRECTS)) {
-    assert.ok(PATTERN_FUNCS[id], id);
+    assert.ok(PATTERN_FUNCS[id] || id.startsWith('party.'), id);
     assert.ok(presetById(id).spec, id);
     assert.ok(!PATTERN_IDS.includes(id), id);
   }
