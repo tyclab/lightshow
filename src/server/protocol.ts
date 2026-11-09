@@ -139,7 +139,6 @@ type Io = Pick<Server, 'emit'> & Partial<Pick<Server, 'to' | 'sockets'>>;
 
 export function createPublisher(io: Io) {
   const differ = new StateDiffer();
-  let lastLiveJson = '';
   let lastFrame: Uint8Array | null = null;
   let lastImage: PictureImage | null = null;
   let lastAudio: unknown;
@@ -149,12 +148,12 @@ export function createPublisher(io: Io) {
   const size = (name: string): number => io.sockets?.adapter?.rooms?.get(name)?.size ?? 0;
 
   return {
+    // The per-key diff is the change check: live values are edited in place, so contents decide, never references.
     publishState(live: Record<string, unknown>): void {
-      const json = JSON.stringify(differ.settle(live));
-      if (json === lastLiveJson) return;
-      lastLiveJson = json;
+      const patches = differ.diff(live);
+      if (!patches.length) return;
       room(ROOM.v1).emit('state', live);
-      for (const patch of differ.diff(live)) room(ROOM.v2).emit('patch', patch);
+      for (const patch of patches) room(ROOM.v2).emit('patch', patch);
     },
 
     snapshot(full: Record<string, unknown>): Snapshot {

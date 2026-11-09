@@ -40,6 +40,33 @@ test('deltas version changed keys independently by domain', () => {
   assert.strictEqual(domainOf('toString'), 'system', 'only the keys it names');
 });
 
+// The change check is the per-key diff itself: no whole-state string beside it.
+// Live values are edited in place, so the publisher compares contents, never references.
+test('a broadcast stringifies each key once and sends only what changed, to both protocols', (t) => {
+  const sent = [];
+  const io = { emit() { throw new Error('every emit goes to a room'); }, to: (name) => ({ emit: (event, payload) => sent.push([name, event, payload]) }) };
+  const publisher = createPublisher(io);
+  const live = { masterDimmer: 255, pattern: 'chase', fixtures: [{ id: 0, label: 'Left' }], spotify: { ok: true } };
+  const stringify = t.mock.method(JSON, 'stringify');
+  const broadcast = () => {
+    sent.length = 0;
+    stringify.mock.resetCalls();
+    publisher.publishState(live);
+    return { calls: stringify.mock.callCount(), sent: sent.map(([name, event, payload]) => [name, event, event === 'patch' ? payload.set : null]) };
+  };
+
+  assert.deepStrictEqual(broadcast(), { calls: 4, sent: [
+    [ROOM.v1, 'state', null],
+    [ROOM.v2, 'patch', { masterDimmer: 255, pattern: 'chase' }],
+    [ROOM.v2, 'patch', { fixtures: live.fixtures }],
+    [ROOM.v2, 'patch', { spotify: { ok: true } }],
+  ] }, 'the first broadcast: everything, one stringify per key');
+  assert.deepStrictEqual(broadcast(), { calls: 4, sent: [] }, 'nothing changed: nothing to either room');
+  live.fixtures[0].label = 'Right';
+  assert.deepStrictEqual(broadcast(), { calls: 4, sent: [[ROOM.v1, 'state', null], [ROOM.v2, 'patch', { fixtures: [{ id: 0, label: 'Right' }] }]] },
+    'a value edited in place is a change: one patch');
+});
+
 test('a DMX frame is each universe\'s channels as bytes, and reads back the same', () => {
   const a = Uint8Array.from({ length: 512 }, (_, i) => i & 0xff);
   const b = Uint8Array.from([255, 0, 128]);
