@@ -1677,6 +1677,11 @@ server machine. For a remote tablet, use the configured OAuth proxy. The
 optional Deezer ARL enables ISRC-matched downloads; its first configuration
 requires restart. Without it, downloads use the search path.
 
+The live input analyses every hop (256 samples at 22.05 kHz, about 86 a second)
+and reports each one until it has heard 3 s of digital silence under −80 dBFS;
+then it reports four states a second, marked `quiet` in the state's `live` block.
+The first sound returns it to every hop at once, at most 93 ms late that once.
+
 Set-list warming accepts one artist/title per line, explicit track objects,
 a Spotify queue or playlist. It prepares analysis ahead of playback. Cache
 management is available in Auto Show and through `/api/auto/cache`.

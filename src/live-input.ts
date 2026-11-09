@@ -46,6 +46,7 @@ export interface LiveReading {
   tension: number | null;
   bands: Record<string, number | null>;
   spectrum?: LiveSpectrum;
+  quiet?: boolean;
   generation?: number;
   layout?: string;
   cause?: LiveCause;
@@ -77,6 +78,7 @@ export interface LiveStatus {
   bpm: number;
   locked: boolean;
   levelDb: number | null;
+  quiet: boolean;
 }
 
 const RESTART_MS = 2000;
@@ -130,6 +132,7 @@ class LiveInput {
   declare _cause: LiveCause;
   declare _carried: LiveCause | null;
   declare _layout: string;
+  declare _quiet: boolean;
 
   constructor({ spawner, now, scriptPath }: { spawner?: Spawner; now?: () => number; scriptPath?: string } = {}) {
     this._now = now || (() => performance.now());
@@ -157,6 +160,7 @@ class LiveInput {
     this._cause = 'start';
     this._carried = null;
     this._layout = '';
+    this._quiet = false;
   }
 
   onEvent(fn: LiveInput['_onEvent']): void { this._onEvent = fn; }
@@ -210,6 +214,7 @@ class LiveInput {
   // Reset stream-relative history after restart because the new process counts time from zero.
   _forgetStream(): void {
     this._reading = null;
+    this._quiet = false;
     this._lockedAt = -Infinity;
     this._offsets = [];
     this._envelope = [];
@@ -348,8 +353,12 @@ class LiveInput {
       this._envelope.push({ t: r.t, flux: r.flux, rms: r.rms });
       while (this._envelope.length && r.t - this._envelope[0].t > ENVELOPE_SEC) this._envelope.shift();
     }
+    const quiet = r.quiet === true;
+    const changed = quiet !== this._quiet;
+    if (changed) console.log(quiet ? '[live] quiet: silence, four states a second until sound' : '[live] sound again');
+    this._quiet = quiet;
     if (this._onReading) this._onReading(r);
-    if (!wasListening) this._emitStatus();
+    if (!wasListening || changed) this._emitStatus();
   }
 
   _isFresh(now: number): boolean {
@@ -395,6 +404,7 @@ class LiveInput {
       bpm: r ? r.bpm : 0,
       locked: !!(r && r.locked),
       levelDb: r && r.energy != null && r.energy > 0 ? Math.round(20 * Math.log10(r.energy) * 10) / 10 : null,
+      quiet: !!r && r.quiet === true,
     };
   }
 
