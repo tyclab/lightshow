@@ -80,7 +80,8 @@ function warmUp(): void {
   }
 }
 
-let snapshot: { input: RenderInput; outputs: TransmitConfig; barrierRevision: number; outputSeq: number } | null = null;
+let snapshot: { input: RenderInput; outputs: TransmitConfig; barrierRevision: number; outputSeq: number; idle: boolean } | null = null;
+let fresh = false;                                 // a snapshot or command arrived since the last render
 let pendingSequence: { table: SequenceTable | null } | null = null;
 
 function takeSequence(): void {
@@ -123,23 +124,27 @@ function postCommands(): void {
 }
 
 function renderTick(due: number, now: number): void {
+  if (now - lastStatsAt >= 1000) {
+    lastStatsAt = now;
+    if (ticker) post({ type: 'stats', stats: ticker.stats.summary() });
+  }
+  // Idle effects step about 0.2 s per render (effDt is unclamped, beats capped at 4): nobody can see it.
+  if (snapshot?.idle && !fresh) return;
   const reading = snapshot ? follow.at(now) : null;
   if (!snapshot || !reading) {
     renderer.rejectCommands('unavailable');
     postCommands();
     return;
   }
+  fresh = false;
   renderer.frame(snapshot.input, reading, now, store, epochMs);
+  ticker?.stats.rendered();
   postCommands();
   const applied = transmit(snapshot.outputs);
   publish();
   const { barrierRevision, outputSeq } = snapshot;
   if (applied) post({ type: 'frame', barrierRevision, outputSeq });
   else if (snapshot.input.masterBlackout) post({ type: 'frame', barrierRevision, outputSeq, applied: false, dark: true });
-  if (now - lastStatsAt >= 1000) {
-    lastStatsAt = now;
-    if (ticker) post({ type: 'stats', stats: ticker.stats.summary() });
-  }
 }
 
 /** Darken everything; whether every destination, inherited ones included, was actually retired. */
@@ -182,8 +187,11 @@ port.on('message', guarded('engine-worker', (msg: ToWorker | null) => {
       break;
     case 'snapshot':
       takeSequence();
-      snapshot = { input: msg.input, outputs: msg.outputs, barrierRevision: msg.barrierRevision ?? 0, outputSeq: msg.outputSeq ?? 0 };
+      snapshot = { input: msg.input, outputs: msg.outputs, barrierRevision: msg.barrierRevision ?? 0, outputSeq: msg.outputSeq ?? 0,
+        idle: msg.idle === true };
       follow.push(msg.reading, msg.at);
+      fresh = true;
+      if (ticker) ticker.stats.idle = snapshot.idle;
       break;
     case 'sequence':
       pendingSequence = { table: msg.table ?? null };
@@ -198,6 +206,7 @@ port.on('message', guarded('engine-worker', (msg: ToWorker | null) => {
     }
     case 'command':
       renderer.command(msg.seq, msg.cmd, msg.arg, msg.intent ?? null);
+      fresh = true;
       break;
     case 'stop': {
       if (ticker) ticker.stop();

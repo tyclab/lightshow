@@ -625,6 +625,10 @@ test("worker voices retain lifetime through a busy main thread", async (t) => {
   startEngine({ thread: 'worker' });
   t.after(() => stopEngine());
   assert.equal(engineStatus().thread, 'worker');
+  // A Stage watching the rig: with nothing able to see it, a disarmed engine idles.
+  const { socket } = await s.page();
+  socket.emit('subscribe', ['dmx']);
+  await until(() => !engineStatus().idle, 'the Stage watching');
   // The worker compiles its modules before its first frame: seconds on a slow runner.
   await until(() => !lit(), 'the stopped look, dark, from the worker');
   await wait(100);

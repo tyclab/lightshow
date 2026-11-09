@@ -108,6 +108,7 @@ export function performanceSample(
 ) {
   const elapsed = (engine.sampledAtMs ?? NaN) - (previous?.sampledAtMs ?? NaN);
   const frames = (engine.totalFrames ?? NaN) - (previous?.totalFrames ?? NaN);
+  const rendered = (engine.renderedTotal ?? NaN) - (previous?.renderedTotal ?? NaN);
   const skipped = (engine.skippedFramesTotal ?? NaN) - (previous?.skippedFramesTotal ?? NaN);
   const continuous = engine.running && previous?.running && engine.thread === previous.thread
     && metric(engine.startedAtMs) !== null && engine.startedAtMs === previous.startedAtMs
@@ -119,6 +120,8 @@ export function performanceSample(
     engineFallback: !!engine.fellBack,
     targetFps: engine.rate,
     actualFps: continuous ? Math.round(frames * 100_000 / elapsed) / 100 : null,
+    renderedFps: continuous && rendered >= 0 ? Math.round(rendered * 100_000 / elapsed) / 100 : null,
+    idle: typeof engine.idle === 'boolean' ? engine.idle : null,
     intervalMs: continuous ? Math.round(elapsed) : null,
     intervalSkipped: continuous ? skipped : null,
     engineSampleAgeMs: metric(engine.sampledAtMs) === null ? null : Math.max(0, Math.round(nowMs - engine.sampledAtMs!)),

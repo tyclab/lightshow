@@ -188,6 +188,23 @@ test('stats keep a fixed window', () => {
   assert.strictEqual(new FrameStats(10, 0.1, () => now).summary().startedAtMs, 350, 'a new ticker has a distinct epoch');
 });
 
+// An idle engine ticks on the grid but renders only some ticks: the two counts stay apart.
+test('stats count rendered frames apart from ticks, and report idle as the driver sets it', () => {
+  const stats = new FrameStats(10, 1);
+  for (let i = 0; i < 9; i++) {
+    if (i % 3 === 0) stats.rendered();
+    stats.record(0, 0);
+  }
+  let s = stats.summary();
+  assert.strictEqual(s.totalFrames, 9, 'every tick, rendered or not');
+  assert.strictEqual(s.renderedTotal, 3);
+  assert.strictEqual(s.idle, false);
+  stats.idle = true;
+  s = stats.summary();
+  assert.strictEqual(s.idle, true);
+  assert.strictEqual(s.renderedTotal, 3, 'reading the summary renders nothing');
+});
+
 test('a skip counts for a minute in the recent count and for good in the total', () => {
   let now = 1000;
   const stats = new FrameStats(10, 60, () => now);

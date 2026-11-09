@@ -46,6 +46,9 @@ export interface FrameSummary {
   skippedFramesTotal: number;
   /** Within the stats window, by the ticker's clock. */
   skippedFramesLastMinute: number;
+  /** Ticks that rendered a frame, since this ticker started: fewer than `totalFrames` while idle. */
+  renderedTotal: number;
+  idle: boolean;
 }
 
 class FrameStats {
@@ -60,6 +63,8 @@ class FrameStats {
   declare _skipSlot: Float64Array;
   declare _skipCount: Float64Array;
   declare totalFrames: number;
+  declare renderedTotal: number;
+  declare idle: boolean;
   declare startedAtMs: number;
   declare now: () => number;
 
@@ -75,6 +80,8 @@ class FrameStats {
     this._skipSlot = new Float64Array(SKIP_SLOTS).fill(-Infinity);
     this._skipCount = new Float64Array(SKIP_SLOTS);
     this.totalFrames = 0;
+    this.renderedTotal = 0;
+    this.idle = false;
     this.now = now;
     this.startedAtMs = now();
   }
@@ -85,6 +92,10 @@ class FrameStats {
     this._next = (this._next + 1) % this._size;
     this._count = Math.min(this._size, this._count + 1);
     this.totalFrames++;
+  }
+
+  rendered(): void {
+    this.renderedTotal++;
   }
 
   skip(frames: number, at = this.now()): void {
@@ -125,6 +136,8 @@ class FrameStats {
       lateFrames,
       skippedFramesTotal: this.skipped,
       skippedFramesLastMinute: this.recentSkipped(sampledAtMs),
+      renderedTotal: this.renderedTotal,
+      idle: this.idle,
     };
   }
 }
