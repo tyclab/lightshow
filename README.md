@@ -1725,7 +1725,9 @@ sequenceDiagram
   anything a worker fails, drops or times out on run here.
 - **Standby.** With `analysis.localWorker: 'standby'` (the default) this
   machine's analyser process ends, freeing about 0.9 GB, when a compatible
-  worker becomes ready (after the track running here, if there is one). The
+  worker becomes ready (after the track running here, if there is one, and
+  while the outputs are armed only at the next disarm, so a worker going busy
+  and ready again mid-show does not make each fallback track load it). The
   next track that runs here starts it and loads the models from disk inside
   its own time limit; it then stays until a worker becomes ready again. A
   connected worker that takes no jobs for the moment (stopping a cancelled
