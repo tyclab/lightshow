@@ -12,7 +12,9 @@ import { io as connect } from 'socket.io-client';
 import { StateDiffer, createPublisher, domainOf, hasDomain, clockMoved, ROOM } from '../../src/server/protocol.ts';
 import { encodeDmxFrame, decodeDmxFrame } from '../../src/shared/dmx-frame.ts';
 import { attachSockets } from '../../src/server/sockets.ts';
-import { state, getLiveState, getDmxUniverses } from '../../src/server/state.ts';
+import { state, getLiveState, getRigState, getDmxUniverses, rigSource } from '../../src/server/state.ts';
+import { BUILTIN_PROFILE_ID, registerProfile, unregisterProfile } from '../../src/server/profiles.ts';
+import { barProfile } from '../../src/server/bar-profile.ts';
 import { applyPatch } from '../../src/server/patch.ts';
 import { conductor } from '../../src/server/conductor.ts';
 import { pictureInput, pictureUnits } from '../../src/server/picture-live.ts';
@@ -71,6 +73,152 @@ test('a broadcast stringifies each key once and sends only what changed, to both
     'a value edited in place is a change: one patch');
 });
 
+// The rig's fixtures and profiles were 98 % of the live state (398 KB on the live rig), and every
+// broadcast stringified both to find them unchanged. They leave the live state for rigRevision, and
+// the publisher reads their signatures: the fixtures without their points, the points by coordinate.
+
+/** The rig for the test's duration: the server's own, plus a fixture mapped by 2,856 points like a curtain. */
+function withMappedRig(t) {
+  const before = { fixtures: state.fixtures, universe: state.artnet.universe };
+  t.after(() => { state.fixtures = before.fixtures; state.artnet.universe = before.universe; });
+  const curtain = { id: 9100, label: 'Curtain', profileId: BUILTIN_PROFILE_ID, address: 1, universe: 5, maxBrightness: 255, override: null,
+    position: { x: 50, y: 10, height: 60 }, group: null,
+    geometry: { length: 40, angle: 0, points: Array.from({ length: 2856 }, (_, i) => ({ x: (i % 68) - 34, y: 0, height: Math.floor(i / 68) })) } };
+  const free = { id: 9101, label: 'No universe', profileId: BUILTIN_PROFILE_ID, address: 101, maxBrightness: 255, override: null, position: null };
+  state.fixtures = [...before.fixtures.map((f) => structuredClone(f)), curtain, free];
+  return { curtain, free };
+}
+
+/** A publisher whose emits land in `sent`, on a server without rooms. */
+function recorded() {
+  const sent = [];
+  const publisher = createPublisher({ to: (name) => ({ emit: (event, payload) => sent.push([name, event, payload]) }) });
+  const publish = () => {
+    sent.length = 0;
+    publisher.publishState(getLiveState(), rigSource);
+    return sent.filter(([, event]) => event === 'patch').map(([, , patch]) => patch);
+  };
+  return { publisher, sent, publish };
+}
+
+test('the live state carries a rig revision, not the rig, and a broadcast never stringifies the rig', (t) => {
+  withMappedRig(t);
+  const live = getLiveState();
+  assert.ok(Number.isFinite(live.rigRevision));
+  assert.ok(!('fixtures' in live) && !('profiles' in live));
+  assert.strictEqual(domainOf('rigRevision'), 'rig');
+  const { publish } = recorded();
+  const first = publish().find((p) => p.d === 'rig');
+  assert.deepStrictEqual(first.set.fixtures, getRigState().fixtures, 'the first broadcast: the rig as it is');
+  assert.deepStrictEqual(Object.keys(first.set.profiles).sort(), Object.keys(getRigState().profiles).sort());
+  assert.strictEqual(first.set.rigRevision, live.rigRevision);
+
+  const stringify = t.mock.method(JSON, 'stringify');
+  const quiet = publish();
+  const strings = stringify.mock.calls.map((call) => call.result ?? '');
+  stringify.mock.restore();
+  assert.ok(quiet.every((p) => !('fixtures' in p.set) && !('profiles' in p.set) && !('rigRevision' in p.set)), 'nothing in the rig moved');
+  assert.ok(!stringify.mock.calls.some((call) => call.arguments[0] === state.fixtures || Array.isArray(call.arguments[0]?.points)));
+  assert.ok(strings.every((json) => !json.includes('"points"') && !json.includes('"cells"')), 'no points, no profile cells');
+  const bytes = strings.reduce((sum, json) => sum + json.length, 0);
+  assert.ok(bytes * 4 < JSON.stringify(getRigState()).length, `${bytes} bytes stringified for a quiet broadcast`);
+});
+
+test('the fixtures go out exactly when their JSON changes: every field, a point, an override, a trim', (t) => {
+  const { curtain, free } = withMappedRig(t);
+  const { publish } = recorded();
+  publish();
+  const first = () => state.fixtures[0];
+  const edits = [
+    ['nothing', () => {}],
+    ['the same values in new objects', () => { curtain.position = { ...curtain.position }; curtain.geometry = structuredClone(curtain.geometry); }],
+    ['a label', () => { first().label = `${first().label}′`; }],
+    ['an address', () => { first().address += 1; }],
+    ['a universe', () => { first().universe = 7; }],
+    ['the default universe, under a fixture without one', () => { state.artnet.universe += 1; }],
+    ['a trim', () => { first().maxBrightness = 128; }],
+    ['an override', () => { first().override = { enabled: true, r: 255, g: 0, b: 0, w: 0, a: 0, uv: 0, dim: 200, strobe: 0, blackout: false }; }],
+    ['an override edited in place', () => { first().override.dim = 100; }],
+    ['an override cleared', () => { first().override = null; }],
+    ['a position', () => { free.position = { x: 10, y: 20 }; }],
+    ['a height edited in place', () => { curtain.position.height = 70; }],
+    ['a group', () => { curtain.group = 'ceiling'; }],
+    ['a length', () => { curtain.geometry.length = 41; }],
+    ['an angle', () => { curtain.geometry.angle = 15; }],
+    ['one point across', () => { curtain.geometry.points[1400].x += 0.25; }],
+    ['one point along', () => { curtain.geometry.points[0].y = 1; }],
+    ['one point higher', () => { curtain.geometry.points[2855].height = 99; }],
+    ['a height taken off a point', () => { delete curtain.geometry.points[7].height; }],
+    ['a point added', () => { curtain.geometry.points.push({ x: 0, y: 0 }); }],
+    ['a point removed', () => { curtain.geometry.points.pop(); }],
+    ['the points replaced by equal ones', () => { curtain.geometry.points = curtain.geometry.points.map((p) => ({ ...p })); }],
+    ['the points dropped', () => { delete curtain.geometry.points; }],
+    ['the geometry dropped', () => { curtain.geometry = null; }],
+    ['an emission', () => { curtain.emission = { kind: 'beam', pan: 10 }; }],
+    ['an output', () => { free.output = { protocol: 'artnet' }; }],
+    ['a product', () => { curtain.productId = 'product-1'; }],
+    ['hardware', () => { curtain.hardware = { maxFlashHz: 2 }; }],
+    ['admission', () => { curtain.admission = { strobe: false }; }],
+    ['a profile', () => { free.profileId = 'cameo-root-par-6-12ch'; }],
+    ['a fixture added', () => { state.fixtures.push({ ...structuredClone(free), id: 9102 }); }],
+    ['the order', () => { state.fixtures = [...state.fixtures].reverse(); }],
+    ['a fixture removed', () => { state.fixtures = state.fixtures.filter((f) => f.id !== 9102); }],
+  ];
+  for (const [name, edit] of edits) {
+    const before = JSON.stringify(getRigState().fixtures);
+    const revision = getLiveState().rigRevision;
+    edit();
+    const patches = publish();
+    const after = JSON.stringify(getRigState().fixtures);
+    const rig = patches.find((p) => p.d === 'rig');
+    assert.strictEqual(!!rig?.set.fixtures, before !== after, `${name}: a fixtures patch exactly when their JSON changed`);
+    assert.strictEqual(getLiveState().rigRevision !== revision, before !== after, `${name}: the revision moves with them`);
+    if (rig?.set.fixtures) {
+      assert.deepStrictEqual(rig.set.fixtures, getRigState().fixtures, name);
+      assert.strictEqual(rig.set.rigRevision, getLiveState().rigRevision, `${name}: in the same patch as the revision`);
+    }
+    assert.ok(!rig || !('profiles' in rig.set), `${name}: the profiles stood still`);
+  }
+});
+
+test('the profiles go out when one registers or goes, and the fixtures stay put', (t) => {
+  withMappedRig(t);
+  const { publish } = recorded();
+  publish();
+  const bar = barProfile({ id: 'protocol-rig-bar', name: 'Protocol bar', cells: 4, firstChannel: 1, order: 'RGB' });
+  t.after(() => unregisterProfile(bar.id));
+  for (const [name, change] of [['registered', () => registerProfile(bar)], ['gone', () => unregisterProfile(bar.id)]]) {
+    const revision = getLiveState().rigRevision;
+    change();
+    const rig = publish().find((p) => p.d === 'rig');
+    assert.ok(rig && 'profiles' in rig.set, name);
+    assert.strictEqual(bar.id in rig.set.profiles, name === 'registered', name);
+    assert.ok(!('fixtures' in rig.set), `${name}: the fixtures stood still`);
+    assert.ok(rig.set.rigRevision > revision, name);
+  }
+  assert.deepStrictEqual(publish().filter((p) => p.d === 'rig'), [], 'and then nothing');
+});
+
+test('protocol 1 still gets the whole state, rig included, and only while it has a client', (t) => {
+  withMappedRig(t);
+  const { sent, publish } = recorded();
+  applyPatch({ masterDimmer: 78 });
+  t.after(() => applyPatch({ masterDimmer: 255 }));
+  publish();
+  const whole = sent.find(([room]) => room === ROOM.v1)?.[2];
+  assert.ok(Array.isArray(whole?.fixtures) && whole.profiles && whole.masterDimmer === 78);
+  const rooms = new Map([[ROOM.v2, new Set(['page'])]]);
+  const emitted = [];
+  const io = { sockets: { adapter: { rooms } }, to: (name) => ({ emit: (event) => emitted.push([name, event]) }) };
+  const publisher = createPublisher(io);
+  publisher.publishState(getLiveState(), rigSource);
+  assert.deepStrictEqual(emitted.filter(([room]) => room === ROOM.v1), [], 'no protocol 1 client: no whole state built or encoded');
+  rooms.set(ROOM.v1, new Set(['old page']));
+  applyPatch({ masterDimmer: 79 });
+  publisher.publishState(getLiveState(), rigSource);
+  assert.deepStrictEqual(emitted.filter(([room]) => room === ROOM.v1), [[ROOM.v1, 'state']]);
+});
+
 test('a DMX frame is each universe\'s channels as bytes, and reads back the same', () => {
   const a = Uint8Array.from({ length: 512 }, (_, i) => i & 0xff);
   const b = Uint8Array.from([255, 0, 128]);
@@ -116,7 +264,7 @@ async function serve() {
   const server = http.createServer();
   const io = new Server(server);
   const publisher = createPublisher(io);
-  const integrations = { broadcast: () => publisher.publishState(getLiveState()), publisher };
+  const integrations = { broadcast: () => publisher.publishState(getLiveState(), rigSource), publisher };
   attachSockets(io, { midi: { onLearn() {}, enabled: false, listPorts: () => [] }, integrations });
   await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
   const url = `http://127.0.0.1:${server.address().port}`;
@@ -176,6 +324,52 @@ test('protocol 2 subscribers receive snapshots followed by deltas', async () => 
   }
 });
 
+// The whole state for protocol 1 is built only while such a client is connected. One that connects after
+// broadcasts nobody on protocol 1 heard gets the rig as it is then, and every change after it whole.
+test('a protocol 1 client that connects after rig edits it missed gets the current rig, then each change whole', async (t) => {
+  withMappedRig(t);
+  const s = await serve();
+  try {
+    const v2 = s.client({ protocol: 2 });
+    await next(v2, 'snapshot');
+    const patches = [];
+    v2.on('patch', (p) => patches.push(p));
+    state.fixtures[0].maxBrightness = 33;
+    s.integrations.broadcast();
+    applyPatch({ masterDimmer: 70 });
+    s.integrations.broadcast();
+    for (const end = Date.now() + 5000; !patches.some((p) => p.set.masterDimmer === 70);) {
+      assert.ok(Date.now() < end, 'the page has both edits');
+      await new Promise((r) => setTimeout(r, 5));
+    }
+    assert.ok(patches.some((p) => p.set.fixtures?.[0].maxBrightness === 33));
+
+    const v1 = s.client();
+    const first = await arrives(v1, 'state');
+    assert.strictEqual(first.fixtures[0].maxBrightness, 33, 'the rig as it is, not as it was');
+    assert.strictEqual(first.masterDimmer, 70);
+    assert.ok(first.profiles && first.rigRevision === getLiveState().rigRevision);
+
+    let whole = arrives(v1, 'state');
+    state.fixtures[0].maxBrightness = 44;
+    s.integrations.broadcast();
+    const edited = await whole;
+    assert.strictEqual(edited.fixtures[0].maxBrightness, 44, 'a rig edit, whole');
+    assert.deepStrictEqual(edited.fixtures, getRigState().fixtures);
+    assert.ok(edited.profiles && edited.rigRevision === getLiveState().rigRevision);
+
+    whole = arrives(v1, 'state');
+    applyPatch({ masterDimmer: 71 });
+    s.integrations.broadcast();
+    const faded = await whole;
+    assert.strictEqual(faded.masterDimmer, 71);
+    assert.ok(Array.isArray(faded.fixtures) && faded.fixtures[0].maxBrightness === 44 && faded.profiles, 'a look change carries the rig too');
+  } finally {
+    applyPatch({ masterDimmer: 255 });
+    await s.close();
+  }
+});
+
 // The browser helper refreshes its state every 750 ms on each of its sockets
 // and reads no catalogue: about 117 KB of each full answer it never used.
 test('a sync asked for live leaves out the catalogues and keeps the versions', async () => {
@@ -196,6 +390,38 @@ test('a sync asked for live leaves out the catalogues and keeps the versions', a
     const unasked = arrives(v2, 'snapshot');
     v2.emit('sync', { live: true });
     assert.deepStrictEqual(Object.keys((await unasked).state).sort(), Object.keys(live.state).sort(), 'without an ack, as a snapshot event');
+  } finally {
+    await s.close();
+  }
+});
+
+// The browser helper polls `sync { live: true }` every 750 ms per output socket. With the
+// revision it holds it is sent the rig only when that moved; without one, as before.
+test('a live sync sends the rig only to a client whose revision is not the current one', async (t) => {
+  withMappedRig(t);
+  const s = await serve();
+  try {
+    const v2 = s.client({ protocol: 2 });
+    const snapshot = await next(v2, 'snapshot');
+    assert.ok(Array.isArray(snapshot.state.fixtures) && snapshot.state.profiles, 'the connect snapshot has the rig');
+    const revision = snapshot.state.rigRevision;
+    assert.ok(Number.isFinite(revision));
+    const sync = (options) => v2.timeout(5000).emitWithAck('sync', options);
+    const rigOf = ({ state: answer }) => ['fixtures', 'profiles'].filter((key) => key in answer);
+
+    const held = await sync({ live: true, rigRevision: revision });
+    assert.deepStrictEqual(rigOf(held), [], 'the revision it holds is current');
+    assert.strictEqual(held.state.rigRevision, revision);
+    assert.deepStrictEqual(rigOf(await sync({ live: true })), ['fixtures', 'profiles'], 'an older helper names none: the rig, as before');
+    assert.deepStrictEqual(rigOf(await sync({ live: true, rigRevision: revision - 1 })), ['fixtures', 'profiles'], 'a stale one');
+    assert.deepStrictEqual(rigOf(await sync({ live: true, rigRevision: String(revision) })), ['fixtures', 'profiles'], 'not a revision');
+    assert.deepStrictEqual(rigOf(await sync()), ['fixtures', 'profiles'], 'a plain sync is the whole state');
+
+    state.fixtures[0].maxBrightness = 17;
+    const moved = await sync({ live: true, rigRevision: revision });
+    assert.deepStrictEqual(rigOf(moved), ['fixtures', 'profiles'], 'the rig moved since');
+    assert.ok(moved.state.rigRevision > revision);
+    assert.strictEqual(moved.state.fixtures[0].maxBrightness, 17);
   } finally {
     await s.close();
   }

@@ -15,7 +15,7 @@ import { LightshowConnection } from '../../companion-module/src/connection.js';
 import * as catalog from '../../companion-module/src/catalog.js';
 import { attachSockets } from '../../src/server/sockets.ts';
 import { createPublisher } from '../../src/server/protocol.ts';
-import { state, getLiveState } from '../../src/server/state.ts';
+import { state, getLiveState, rigSource } from '../../src/server/state.ts';
 import { PATTERNS, PRESET_ROWS, ENERGY_EFFECTS, COLOR_PRESETS, STROBE_FUNCTIONS, AUTO_SOURCES } from '../../src/server/presets.ts';
 import { PIXEL_MAPS } from '../../src/shared/rig.ts';
 import { browseListOf } from '../../src/shared/effects/tags.ts';
@@ -87,7 +87,7 @@ async function serve() {
   const server = http.createServer(app);
   const io = new Server(server);
   const publisher = createPublisher(io);
-  const integrations = { broadcast: () => publisher.publishState(getLiveState()), publisher };
+  const integrations = { broadcast: () => publisher.publishState(getLiveState(), rigSource), publisher };
   attachSockets(io, { midi: { onLearn() {}, enabled: false, listPorts: () => [] }, integrations });
   await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
   return {

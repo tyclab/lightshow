@@ -1,5 +1,8 @@
 import { createHash } from 'node:crypto';
 
+// The rig's data: a newer server leaves it out of a live sync that names the revision held here.
+const RIG_KEYS = ['fixtures', 'profiles'];
+
 export class StateMirror {
   constructor(now = () => performance.now()) { this.now = now; this.reset(); }
   reset() { this.state = null; this.versions = null; this.receivedAt = -Infinity; }
@@ -9,6 +12,19 @@ export class StateMirror {
     this.versions = new Map(Object.entries(snapshot.versions));
     this.receivedAt = this.now();
     return true;
+  }
+  /** A `sync { live: true }` answer: the rig's data is left out while the revision this mirror holds is current. */
+  live(snapshot) {
+    const prior = this.state;
+    if (!this.snapshot(snapshot)) return false;
+    const held = prior && Number.isFinite(prior.rigRevision) && prior.rigRevision === this.state.rigRevision;
+    if (held) for (const key of RIG_KEYS) if (!(key in this.state) && key in prior) this.state[key] = prior[key];
+    return true;
+  }
+  /** The rig revision whose fixtures and profiles this mirror holds, for the next live sync; none without them. */
+  rigRevision() {
+    const state = this.state;
+    return state && Number.isFinite(state.rigRevision) && RIG_KEYS.every((key) => key in state) ? state.rigRevision : undefined;
   }
   patch(patch) {
     if (!this.versions || typeof patch?.d !== 'string' || !Number.isInteger(patch.v) || !patch.set || typeof patch.set !== 'object') { this.reset(); return false; }

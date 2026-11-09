@@ -1,5 +1,5 @@
 import { checkLegacyControlPatch, control } from './control.ts';
-import { state, getClientState, getLiveState, getFixture, countUniverses, universeOf, placeAddresslessFixtures, voices, legacyEnergy, onVoicesChange } from './state.ts';
+import { state, getClientState, getLiveState, getRigState, getFixture, countUniverses, universeOf, placeAddresslessFixtures, voices, legacyEnergy, onVoicesChange } from './state.ts';
 import { applyPatch, applyOverride, processTap } from './patch.ts';
 import { overrideMessageSchema, fixtureMessageSchema, validate } from './validation.ts';
 import { listProfiles, getProfile, universeOverflow, unitCapOverflow, HUE_BY_HAND, DEVICE_BY_HAND } from './profiles.ts';
@@ -172,11 +172,19 @@ function attachSockets(io: Server, { midi, integrations }: {
       socket.emit('snapshot', publisher.snapshot(getClientState()));
       // A page that finds a gap in a domain's versions asks for the whole
       // state again rather than drifting. The browser helper polls with
-      // `{ live: true }` and reads no catalogue, so it is sent none.
+      // `{ live: true }` and reads no catalogue, so it is sent none; with the
+      // `rigRevision` it holds, the rig's data only when that has moved. One
+      // that names no revision (an older helper) gets the rig's data always.
       socket.on('sync', (options?: unknown, ack?: unknown) => {
         if (typeof options === 'function') [ack, options] = [options, undefined];
-        const live = !!options && typeof options === 'object' && (options as { live?: unknown }).live === true;
-        const snapshot = publisher.snapshot(live ? getLiveState() : getClientState());
+        const asked = (options && typeof options === 'object' ? options : {}) as { live?: unknown; rigRevision?: unknown };
+        let full: Record<string, unknown>;
+        if (asked.live !== true) full = getClientState();
+        else {
+          const live = getLiveState();
+          full = asked.rigRevision !== undefined && asked.rigRevision === live.rigRevision ? live : { ...live, ...getRigState() };
+        }
+        const snapshot = publisher.snapshot(full);
         if (typeof ack === 'function') ack(snapshot);
         else socket.emit('snapshot', snapshot);
       });

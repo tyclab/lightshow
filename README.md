@@ -1870,7 +1870,8 @@ and leaves background settings and the other global controls unchanged.
 ## Home Assistant integration surface
 
 Use authenticated REST commands and a sensor polling `/api/state/live` (every
-live key of `/api/state`, without its catalogues); the server
+live key of `/api/state`, without its catalogues or the rig's `fixtures` and
+`profiles`); the server
 requires no Home Assistant-specific transport. Supply `X-Lightshow-Token` and
 `Content-Type: application/json` for JSON bodies. Keep GET polling separate
 from POST/PUT/DELETE actions.
@@ -1918,10 +1919,10 @@ All endpoints return JSON. When a token is configured, send it as an
 | Method | Path | Description |
 |--------|------|-------------|
 | GET | `/api/state` | Full current state (`armed` says whether anything leaves the machine; `wled`, while armed, whether each WLED takes the stream — see [WLED](#wled); `hue`, which Hue bridge another app's area holds — see [Philips Hue](#philips-hue)) |
-| GET | `/api/state/live` | The live state alone: `/api/state` without the built-in catalogues (the `catalogs` keys, about 117 KB) or `dmxSnapshot`, for a poller such as a Home Assistant sensor |
+| GET | `/api/state/live` | The live state alone: `/api/state` without the built-in catalogues (the `catalogs` keys, about 117 KB), `dmxSnapshot` or the rig's `fixtures` and `profiles` (most of the rest), for a poller such as a Home Assistant sensor. `rigRevision` changes whenever the fixtures or the profiles do |
 | GET · PUT · DELETE | `/api/stage/room` | Private Stage room model; writes require the current `If-Match` revision. See [room format](docs/stage-room.md) |
 | GET | `/api/stage/room/report` | Read-only: `{ ok, revision, units, unbound, shared, far }`, where the [Spatial effects](#spatial-effects) place each unit against the room bindings and the Rig plot |
-| POST | `/api/set` | Patch state fields (JSON body) |
+| POST | `/api/set` | Patch state fields (JSON body); answers `{ ok, state }` with the live state, as `/api/state/live` gives it |
 | POST | `/api/tap` | Tap tempo |
 | GET · POST | `/api/control` | Versioned explicit global controls; see contract below |
 | POST | `/api/play` · `/api/stop` | Retired ambiguous transport; returns 409 with upgrade guidance |
@@ -2069,8 +2070,8 @@ Transport routes answer `{ ok, status }`; with no sequence loaded they answer
 | POST | `/api/cues` | Save a cue (`{ name }`, capturing the live look, or `{ name, look }`) |
 | PUT | `/api/cues/:id` | Rename (`{ name }`), overwrite from the live look (`{ recapture: true }`), or replace outright (`{ look }`) |
 | DELETE | `/api/cues/:id` | Delete a cue |
-| POST | `/api/cues/:id/recall` | Put a cue on stage |
-| POST | `/api/cues/by-name/:name/recall` | Put the cue with that name on stage (case ignored); 404 when none carries it |
+| POST | `/api/cues/:id/recall` | Put a cue on stage; answers `{ ok, state }` with the live state, as `/api/state/live` gives it |
+| POST | `/api/cues/by-name/:name/recall` | Put the cue with that name on stage (case ignored), answered as above with its `id`; 404 when none carries it |
 | POST | `/api/cues/restore` | Put a deleted cue back (`{ cue, index }` — what DELETE answered with) |
 | POST | `/api/cues/reorder` | Reorder the stack (`{ ids }`); ids left out keep their relative order |
 
@@ -2187,9 +2188,14 @@ the state in one of two forms, chosen when the client connects:
   `patch` events carrying only the keys that changed, grouped by domain (`look`,
   `rig`, `show`, `sources`, `audio`, `sequence`, `catalogs`, `library`,
   `voices`, `pads`, `system`) and numbered per domain:
-  `{ d, v, set, del? }`. A client that sees a gap in a domain's numbers sends
-  `sync` (with an ack) for a new snapshot; `sync` with `{ live: true }` leaves
-  out the `catalogs` keys, as the browser helper's state poll does. DMX goes
+  `{ d, v, set, del? }`. The `rig` domain's `fixtures` and `profiles` go out
+  whenever their contents change, with the live state's `rigRevision`, which
+  changes with them. A client that sees a gap in a domain's numbers sends
+  `sync` (with an ack) for a new snapshot. `sync` with `{ live: true }` leaves
+  out the `catalogs` keys, as the browser helper's state poll does; with
+  `{ live: true, rigRevision }` it leaves out `fixtures` and `profiles` too
+  while that revision is the current one, and a client that names no revision
+  gets them every time. DMX goes
   out as `dmx-frame`, binary (`src/shared/dmx-frame.ts`: per universe its
   number, its length and its bytes), at the engine's frame rate while it
   changes — volatile, and only to clients that sent `subscribe: ['dmx']` (and
@@ -2206,7 +2212,8 @@ the state in one of two forms, chosen when the client connects:
   subscribes.
 - **Protocol 1** — anything that does not ask, such as the Companion module
   before 2.1: `state` (the full snapshot on connect, the
-  whole live state again whenever any of it changes) and `dmx` (channel values
+  whole live state, fixtures and profiles included, again whenever any of it
+  changes) and `dmx` (channel values
   as JSON, keyed by universe, ten times a second — built only while such a
   client is connected).
 

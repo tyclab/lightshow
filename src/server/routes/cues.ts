@@ -76,7 +76,7 @@ export function attachCueRoutes(app: Express, ctx: RouteContext): void {
 
   // By name, for callers that hold the label rather than the generated id. A
   // recall answers with the live state it left, as POST /api/set does: the
-  // catalogues are GET /api/state's.
+  // catalogues and the rig's data are GET /api/state's.
   app.post('/api/cues/by-name/:name/recall', (req, res) => {
     try {
       const { restoreBackground } = validate(recallOptions, req.body || {}, 'cue-recall');
