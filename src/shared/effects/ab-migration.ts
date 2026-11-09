@@ -13,6 +13,9 @@ const NOTES: Readonly<Record<string, string>> = {
   'flash-chase': 'B asks for the photosensitivity acknowledgement.',
   'ring-strobe': 'B asks for the photosensitivity acknowledgement.',
   'flash-burst': 'B asks for the photosensitivity acknowledgement.',
+  'flash-alternate': 'B asks for the photosensitivity acknowledgement, as the classic flash program does.',
+  core: 'B asks for the photosensitivity acknowledgement, as the classic flash program does.',
+  'ring-backlit': 'B asks for the photosensitivity acknowledgement, as the classic flash program does.',
 };
 
 // Each classic and party look (A) against its v2 form (B) until its id is redirected: B or both redirects it, A keeps the

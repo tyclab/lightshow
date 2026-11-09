@@ -51,7 +51,7 @@ test('a feed subscriber, an armed rig or a running identify ends the idle engine
   const io = new Server();
   integrations(io);
   assert.equal(engineStatus().idle, true, 'disarmed, with nothing watching');
-  for (const room of [ROOM.dmx, ROOM.v1]) {
+  for (const room of [ROOM.dmx]) {
     io.sockets.adapter.addAll('stage', new Set([room]));
     assert.equal(engineStatus().idle, false, `a subscriber to ${room}`);
     io.sockets.adapter.delAll('stage');

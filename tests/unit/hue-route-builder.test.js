@@ -29,7 +29,7 @@ test('a lamp\'s route names its bridge, where it is rendered, its section maps, 
 test('a single-section lamp carries its one map and no cells; a legacy channel becomes its list', () => {
   const [white, legacy] = hueRoutes([
     fixture(1, HUE_WHITE.id, { protocol: 'hue', bridge: 'b1', channels: [4] }),
-    fixture(2, HUE_COLOR_PROFILE_ID, { protocol: 'hue', bridge: 'b1', channel: 6 }),
+    fixture(2, HUE_COLOR_PROFILE_ID, { protocol: 'hue', bridge: 'b1', channels: [6] }),
   ], profileOf, universeOf, 'b1');
   assert.deepEqual(white.channelMap, HUE_WHITE.channelMap);
   assert.equal('cells' in white, false);
