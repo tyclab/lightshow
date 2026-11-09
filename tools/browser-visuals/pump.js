@@ -20,8 +20,8 @@ export function targetWithSource(source, lightshow) {
 }
 
 export class LeasePump {
-  constructor({ transport, capture, target, fixtureId, width, height, fps = 44, now = () => performance.now(), wait = sleep, report = () => {}, protocol = panelProtocol }) {
-    Object.assign(this, { transport, capture, target, fixtureId, width, height, fps, now, wait, report, protocol });
+  constructor({ transport, capture, target, fixtureId, width, height, fps = 44, now = () => performance.now(), wait = sleep, report = () => {}, protocol = panelProtocol, refused = () => {} }) {
+    Object.assign(this, { transport, capture, target, fixtureId, width, height, fps, now, wait, report, protocol, refused });
     this.generation = 0; this.lease = null; this.busy = false; this.retryAt = 0; this.failures = 0; this.frames = 0; this.stopped = false;
     this.nextCaptureAt = 0; this.nextSendAt = 0; this.waiting = null;
   }
@@ -40,6 +40,8 @@ export class LeasePump {
     this.retryAt = this.now() + Math.min(10_000, 1000 * 2 ** Math.min(this.failures++, 4));
     this.report(reason);
   }
+  /** What a refusal waited for has changed (new units after STALE): the next step claims without waiting out the backoff. */
+  retryNow() { this.retryAt = 0; }
   /** Nothing to send yet. Not a failure, so no backoff: frames resume on the first tick the target is back. */
   pause(reason, idle = false) {
     if (idle && this.waiting !== reason) this.telemetry?.count('idlePauses');
@@ -68,7 +70,7 @@ export class LeasePump {
     try {
       if (!this.lease) {
         const response = await this.transport.request(this.protocol.events.claim, this.protocol.claim(this, target));
-        if (!response?.ok) { this.telemetry?.count('claimFailures'); this.backoff(acceptedCodes.has(response?.code) ? response.code : 'Pixel input unavailable'); return; }
+        if (!response?.ok) { this.telemetry?.count('claimFailures'); this.backoff(acceptedCodes.has(response?.code) ? response.code : 'Pixel input unavailable'); this.refused(response?.code); return; }
         const lease = { id: response.leaseId, key, connectionId, claim: response };
         if (typeof lease.id !== 'string' || !lease.id) throw new Error('Missing pixel lease identity');
         if (!this.protocol.accepts(this, response)) {
@@ -99,6 +101,7 @@ export class LeasePump {
         this.telemetry?.count('rejectedFrames');
         await this.invalidate();
         this.backoff(acceptedCodes.has(response?.code) ? response.code : 'Pixel frame rejected');
+        this.refused(response?.code);
         return;
       }
       this.nextCaptureAt = Math.max(captureStarted + period, this.now());

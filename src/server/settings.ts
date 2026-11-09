@@ -130,7 +130,7 @@ const DEFAULTS: Settings = {
   },
   analysis: {
     analyzerTimeoutMs: 600000,
-    // Per second of audio: 1.15 s was tychome's slowest, a 900 s track under memory pressure.
+    // Per second of audio: 1.15 s was the slowest measured, a 900 s track under memory pressure.
     analyzerTimeoutMsPerSec: 1500,
     downloadTimeoutMs: 300000,
     localRoot: '',
