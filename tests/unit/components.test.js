@@ -749,7 +749,8 @@ test('Show stacks Background, the effect, then Bands; a Disco shows its bands, a
   const order = [...show.matchAll(/<(?:section|div) class="card ([a-z-]+)/g)].map((m) => m[1]).filter((c) => ['background-controls', 'effects', 'bands'].includes(c));
   assert.deepStrictEqual(order, ['background-controls', 'effects', 'bands']);
   const card = /<section class="card bands"[^>]*>(.*?)<\/section>/s.exec(show)[1];
-  assert.match(card, /Auto<span class="band-mode-sep"> · <\/span><span class="band-mode-name">Ambient</);
+  // The operator, 2026-11-07: "what does the rotation button do in clolours? doesnt seem make sense?": the card title names no effect.
+  assert.match(card, /<div class="card-title band-title"><span>Bands<\/span><\/div>/);
   for (const name of ['Bass', 'Voice', 'Treble']) {
     assert.match(card, new RegExp(`aria-label="${name} band"`));
     assert.match(card, new RegExp(`aria-label="${name} level"`));
@@ -776,6 +777,8 @@ test('Show stacks Background, the effect, then Bands; a Disco shows its bands, a
   assert.match(own, /aria-label="Palette colour order"/);
   assert.match(own, /aria-label="Colour distribution"/);
   assert.doesNotMatch(own, /Bass band|Fast Pulse/);
+  assert.match(own, /<div class="card-title band-title"><span>Colours<\/span><\/div>/);
+  assert.doesNotMatch(card + own, /band-mode|band-for|for Ambient|for Scatter Strobe/, 'neither card names the effect');
 });
 
 test('a favourite is pinned first on the deck, whatever it is', () => {

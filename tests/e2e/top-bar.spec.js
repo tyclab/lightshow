@@ -5,7 +5,7 @@
 import { test, expect } from '@playwright/test';
 import { createRequire } from 'node:module';
 import { io } from 'socket.io-client';
-import { chooseProgramme, control, open, playButton, reset, set, state, until } from './helpers.js';
+import { chooseProgramme, control, loadTrack, open, playButton, reset, set, state, unloadTrack, until } from './helpers.js';
 
 const AXE = createRequire(import.meta.url).resolve('axe-core/axe.min.js');
 const WIDTHS = [[1915, 1367], [1024, 768], [390, 844]];
@@ -177,27 +177,39 @@ test('an open picker closes when another client chooses the Visualizer, and stay
   await expect(segment).toHaveAttribute('aria-expanded', 'true');
 });
 
-test('the play button names its programme, its menu chooses one only while stopped and always keeps Stop in reach', async ({ page, request }) => {
-  await open(page, 'effects');
-  const menuButton = controls(page).getByRole('button', { name: 'Programme', exact: true });
-  await menuButton.click();
-  const menu = page.getByRole('menu', { name: 'Programme' });
-  await expect(menu.getByRole('menuitemradio', { name: 'Look', exact: true })).toHaveAttribute('aria-checked', 'true');
-  await expect(menu.getByRole('menuitemradio', { name: 'Auto show', exact: true })).toBeDisabled();
-  await expect(menu.getByRole('menuitem', { name: /^Stop/ })).toHaveCount(0);
-  await page.keyboard.press('Escape');
-  await expect(menuButton).toBeFocused();
-  await playButton(page, 'Stop').click();
-  await until(request, (s) => !s.control.playing);
-  await chooseProgramme(page, 'auto');
-  await until(request, (s) => s.control.programme === 'auto');
-  await menuButton.click();
-  await expect(menu.getByRole('menuitem', { name: 'Stop and clear pads', exact: true })).toBeEnabled();
-  await page.keyboard.press('Escape');
-  await chooseProgramme(page, 'look');
-  await playButton(page, 'Start').click();
-  await until(request, (s) => s.control.playing && s.control.programme === 'look');
-  expect((await state(request)).control.frozen).toBe(false);
+test('the play button names its programme, its menu switches programmes in one go while one plays and always keeps Stop in reach', async ({ page, request }) => {
+  await loadTrack(request);
+  try {
+    await open(page, 'effects');
+    const menuButton = controls(page).getByRole('button', { name: 'Programme', exact: true });
+    await menuButton.click();
+    const menu = page.getByRole('menu', { name: 'Programme' });
+    await expect(menu.getByRole('menuitemradio', { name: 'Look', exact: true })).toHaveAttribute('aria-checked', 'true');
+    await expect(menu.getByRole('menuitemradio', { name: 'Auto show', exact: true })).toBeEnabled();
+    await expect(menu.getByRole('menuitem', { name: /^Stop/ })).toHaveCount(0);
+    await page.keyboard.press('Escape');
+    await expect(menuButton).toBeFocused();
+    // While Look plays, choosing the Auto show switches to it at once: no Stop first, Freeze and Blackout untouched.
+    await control(request, 'freeze');
+    await menuButton.click();
+    await menu.getByRole('menuitemradio', { name: 'Auto show', exact: true }).click();
+    const switched = await until(request, (s) => s.control.playing && s.control.programme === 'auto');
+    expect([switched.control.frozen, switched.control.blackout]).toEqual([true, false]);
+    await expect(playButton(page, 'Stop', 'auto')).toBeVisible();
+    await control(request, 'resume');
+    await playButton(page, 'Stop', 'auto').click();
+    await until(request, (s) => !s.control.playing);
+    await menuButton.click();
+    await expect(menu.getByRole('menuitem', { name: 'Stop and clear pads', exact: true })).toBeEnabled();
+    await page.keyboard.press('Escape');
+    await chooseProgramme(page, 'look');
+    await playButton(page, 'Start').click();
+    await until(request, (s) => s.control.playing && s.control.programme === 'look');
+    expect((await state(request)).control.frozen).toBe(false);
+  } finally {
+    await control(request, 'stop');
+    await unloadTrack(request);
+  }
 });
 
 test('BPM and the connection need no tap; the rest of the status and this device\'s tools are one tap away', async ({ page }) => {

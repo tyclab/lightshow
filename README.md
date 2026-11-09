@@ -184,9 +184,14 @@ the same on every view, including while scrolling through Show:
   Colour + motion. The other sources are one tap away.
 - **Play** names what it starts (**▶ Look**, **▶ Auto show**, **▶ Sequence**) and
   is **■ Stop …** while that programme plays; its ▾ menu chooses the programme
-  while stopped and keeps **Stop** in reach when the button itself is not Stop
-  (stopped: **Stop and clear pads**; a paused sequence: **Stop Sequence**, while
-  the button resumes it).
+  and keeps **Stop** in reach when the button itself is not Stop (stopped:
+  **Stop and clear pads**; a paused sequence: **Stop Sequence**, while the button
+  resumes it). Chosen while another programme plays, it switches in one go: the
+  one playing ends (a sequence lets its held picture go; it plays from the top
+  next time) and the chosen one starts. Pads, a held energy effect, Freeze and
+  Blackout stay as they are; only Stop clears the pads. A programme that cannot
+  start (no sequence loaded, no analysed track or live input) is refused and the
+  one playing carries on.
 - **Freeze/Resume**, **Blackout/Restore** and **Arm/Disarm** keep their own 44 px
   buttons at fixed places. Armed shows on the button itself: filled red, **● Armed**
   over **Disarm**.
@@ -1365,9 +1370,7 @@ Peak or Neural. Each has a level meter (Spectrum: the band's power against twice
 hit gate, the gate at the middle mark), **Enabled**, **Fade** and **Fast Pulse**, and a
 strip of the colours it plays, which opens its colours. A control that cannot act is
 hidden: a band switched off shows only Enabled, Fast Pulse and the fade brightness only
-act through Fade, Neural ignores them. The header chip names
-the lamp assignment (**Auto** shares the lamps among the enabled bands; **Manual** when
-some lamps keep a band of their own) and the main effect, for example *Auto · Ambient*.
+act through Fade, Neural ignores them.
 
 While the picture sets the colours (the **Visualizer** picture source with a picture
 arriving, or **Colour + motion** feeding a spatial Visualizer effect) the card shrinks to
@@ -1892,6 +1895,8 @@ actions and feedback. The module uses Socket.IO protocol 2. See
 last displayed `version: 1`, `session` and `revision` to `POST /api/control`, plus
 `action` and optional `programme` (`look`, `auto`, `sequence`). Actions are
 `select`, `start`, `stop`, `freeze`, `resume`, `arm`, `disarm`, `blackout`, `restore`.
+`select` or `start` naming another programme while one plays switches to it in one
+step, as the play menu does.
 A successful response follows the renderer acknowledgement. If none arrives
 within 2 seconds the action fails and `control.fault` says so; an acknowledgement
 that arrives later clears that fault and marks the revision applied. A 409 requires a
