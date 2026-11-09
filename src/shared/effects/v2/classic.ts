@@ -1,6 +1,8 @@
 // Classic and party pattern ids that play a v2 preset instead of their pattern function, each with the
 // reason it moved. The operator decides each move by A/B test on the rig; every other classic id keeps its function.
-export const CLASSIC_REDIRECTS: Readonly<Record<string, string>> = Object.freeze({});
+export const CLASSIC_REDIRECTS: Readonly<Record<string, string>> = Object.freeze({
+  'flash-burst': 'Strobe on the v2 engine (option C), merged only once the operator chose B in A/B migration.flash-burst',
+});
 
 // The classic and party looks on the v2 engine: for each id, the v2 spec closest to its own pattern on the
 // diff rig (scripts/effects-v2-alias-diff.js --classic) and that diff as [largest channel, mean absolute
@@ -137,7 +139,7 @@ export const CLASSIC_V2: Readonly<Record<string, ClassicLook>> = {
   'anchor-fill': { family: 'Zones', name: 'Anchor Fill', diff: [0, 0, 0],
     spec: { kind: 'v2.zones', params: { space: 'plan', envelope: { curve: 'linear', attack: 0, hold: 1, release: 0 }, partition: 'corners', mode: 'cover' } } },
   // Strobe
-  'flash-burst': { family: 'Strobe', name: 'Flash Burst', pixel: true, diff: [255, 27.098, 81],
+  'flash-burst': { family: 'Strobe', name: 'Flash Burst', desc: 'A burst of flashes in the first colour stepping over the lamps, then a break', pixel: true, diff: [255, 27.098, 81],
     spec: { kind: 'strobe', palette: null, params: { function: 'break', space: 'plan', continueBetween: false, selection: 'step', flashesPerSecond: 5, colourMode: 'first' } } },
   // Distinct
   ensemble: { family: 'Distinct', name: 'Ensemble', diff: [207, 32.845, 129],

@@ -94,7 +94,6 @@ const LEGACY: Readonly<Record<string, LookTags>> = Object.freeze({
   ramp: tagged(['beat', 'bars']),
   'ramp-scatter': tagged(['beat', 'bars']),
   'decay-scatter': tagged(['beat', 'bars']),
-  'flash-burst': tagged(['beat', 'bars']),
   core: tagged(['bands', 'bars'], ['track']),
   'position-chase': tagged(['beat']),
   'radial-pulse': tagged(['bands'], ['track']),

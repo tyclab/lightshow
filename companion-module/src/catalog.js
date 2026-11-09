@@ -72,7 +72,6 @@ export const PATTERNS = [
 	{ id: 'ramp', name: 'Ramp', pixel: true },
 	{ id: 'ramp-scatter', name: 'Random Ramps', pixel: true },
 	{ id: 'decay-scatter', name: 'Random Hits', pixel: true },
-	{ id: 'flash-burst', name: 'Flash Burst', pixel: true },
 	{ id: 'core', name: 'Strobe Core', pixel: true },
 	{ id: 'position-chase', name: 'Position Chase' },
 	{ id: 'radial-pulse', name: 'Radial Pulse' },

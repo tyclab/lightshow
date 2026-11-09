@@ -1190,7 +1190,7 @@ test('the browse lists over the server\'s own catalogue: every visible look in o
   h.midi.busk.looks = () => rows;
   const lists = () => ({ pattern: h.midi._lookList('pattern'), effect: h.midi._lookList('effect'), bars: h.midi._barsList().slice(1) });
   const sizes = (l) => Object.fromEntries(Object.entries(l).map(([k, v]) => [k, v.length]));
-  assert.deepStrictEqual(sizes(lists()), { pattern: 79, effect: 4, bars: 21 }, 'before the acknowledgement');
+  assert.deepStrictEqual(sizes(lists()), { pattern: 79, effect: 4, bars: 20 }, 'before the acknowledgement');
   h.midi.busk.acknowledged = () => true;
   const all = lists();
   assert.deepStrictEqual(sizes(all), { pattern: 81, effect: 11, bars: 21 });
