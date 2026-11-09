@@ -34,7 +34,7 @@ import { attachRoutes } from './server/routes.ts';
 import { attachSockets } from './server/sockets.ts';
 import { createAuth, configError, hostOfUrl, sourceMapsForLoopback } from './server/auth.ts';
 import { isLoopback } from './server/loopback.ts';
-import { settings, CONFIG_FILE, warnAboutLegacyEnv } from './server/settings.ts';
+import { settings, CONFIG_FILE } from './server/settings.ts';
 import { cacheDir, dataDir } from './server/config-dir.ts';
 import { openBrowser, shouldOpenBrowser } from './server/open-browser.ts';
 import { createApplier } from './server/apply.ts';
@@ -65,8 +65,6 @@ const supervised = supervision();
 if (supervised.restarts) {
   console.warn(`[supervisor] restart ${supervised.restarts}: the last run ${supervised.lastExit ? supervised.lastExit.reason : 'ended'}`);
 }
-
-warnAboutLegacyEnv();
 
 const HOST = settings.get('server.host');
 const LIGHTSHOW_TOKEN = settings.get('server.token');
@@ -136,6 +134,8 @@ const autoShow = new AutoShow((patch) => {
 autoShow.useRemoteAnalysis(remoteAnalysis);
 settings.onChange((changed) => {
   if (changed.includes('analysis.workerToken')) remoteAnalysis.disconnectAll('the worker token changed');
+  // The plan holds Rapid flash rows only while the acknowledgement stands.
+  if (changed.includes('safety.photosensitivityAcknowledged') && autoShow.analysis) autoShow.buildTimeline();
 });
 // A standby analyser that had to wait for the disarm loads now.
 onDisarm(() => autoShow.settleLocalAnalysis());
@@ -204,7 +204,7 @@ spotify.onTokens((refreshToken) => {
   catch (err) { console.warn(`[spotify] could not save the session: ${messageOf(err)}`); }
 });
 
-configureControls({ integrations, applier, autoShow }, () => { lookStore.save(currentLook(autoShow, integrations.resolveAutoSource())); });
+configureControls({ integrations, applier, autoShow }, () => { lookStore.save(currentLook()); });
 
 remoteAnalysis.attachStatusRoute(app, () => ({ queue: autoShow.analysisCounts(), local: autoShow.localAnalysis() }));
 attachRoutes(app, { midi, autoShow, spotify, nowPlaying, deezerSource, prolink, analysisCache, integrations, applier, restart: restartServer });
@@ -217,7 +217,8 @@ try { await waitForEngineReady(); }
 catch (err) { console.error(`[engine] ${messageOf(err)}`); process.exit(1); }
 void showStore.applyCurrent().then(() => integrations.broadcast());
 
-setInterval(() => lookStore.save(currentLook(autoShow, integrations.resolveAutoSource())), 2000).unref();
+// Written only when the look has changed since the last save.
+setInterval(() => lookStore.save(currentLook()), 2000).unref();
 artnetDiscovery.start();
 
 // The same steps as POST /api/outputs/disarm; a paused sequence counts as nothing playing.

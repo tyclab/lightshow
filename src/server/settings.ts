@@ -11,7 +11,7 @@ import { HUE_BRIDGE_ID_RE } from '../shared/placement.ts';
 import { HD_MASTER_DEFAULTS } from '../shared/effects/types.ts';
 import { STROBE_DEFAULTS, STROBE_PARAMS_SCHEMA } from '../shared/effects/strobe.ts';
 import { hexColour } from './validation.ts';
-import { PICTURE_BLACK_POINT_DEFAULT, PICTURE_GRADE_DEFAULTS, PICTURE_GRADE_GUESSED, pictureBlackPointSchema, pictureGradeSchema } from '../shared/picture-grade.ts';
+import { PICTURE_BLACK_POINT_DEFAULT, PICTURE_GRADE_DEFAULTS, pictureBlackPointSchema, pictureGradeSchema } from '../shared/picture-grade.ts';
 
 // Store secrets with mode 0600; configuration must not be committed or sourced from legacy environment variables.
 
@@ -130,7 +130,7 @@ const DEFAULTS: Settings = {
   },
   analysis: {
     analyzerTimeoutMs: 600000,
-    // Per second of audio: 1.15 s was tychome's slowest, a 900 s track under memory pressure.
+    // Per second of audio: 1.15 s was the slowest measured, a 900 s track under memory pressure.
     analyzerTimeoutMsPerSec: 1500,
     downloadTimeoutMs: 300000,
     localRoot: '',
@@ -157,8 +157,6 @@ const HUE_SECRET_KEYS = ['username', 'clientKey'] as const;
 
 // Keep the legacy bridge ID stable so fixtures without an explicit bridge continue to resolve.
 const LEGACY_HUE_BRIDGE_ID = 'bridge-1';
-
-const LEGACY_HUE_KEYS = ['enabled', 'host', 'username', 'clientKey', 'applicationId', 'entertainmentId'] as const;
 
 const AUDIO_MODES = ['off', 'tempo', 'reactive'] as const;
 const fraction = z.number().min(0).max(1);
@@ -357,73 +355,6 @@ function merge(base: Settings, patch: unknown): Settings {
   return out as Settings;
 }
 
-function clearNewlyInvalidFields(parsed: unknown): string[] {
-  const cleared: string[] = [];
-  const analysis = parsed && typeof parsed === 'object'
-    ? (parsed as { analysis?: { pythonPath?: unknown } }).analysis : null;
-  if (analysis && typeof analysis.pythonPath === 'string') {
-    const check = schema.shape.analysis.shape.pythonPath.safeParse(analysis.pythonPath);
-    if (!check.success) {
-      console.warn(`[settings] analysis.pythonPath "${analysis.pythonPath}" is not a Python interpreter `
-        + '— cleared; the analyser will look for one on PATH. Set it again in Settings → Analysis.');
-      analysis.pythonPath = '';
-      cleared.push('analysis.pythonPath');
-    }
-  }
-  return cleared;
-}
-
-// A grade still at the first defaults was saved, not chosen: those made up for the picture's missing sRGB decode.
-function retireGuessedGrade(parsed: unknown): boolean {
-  const picture = parsed && typeof parsed === 'object' ? (parsed as { picture?: { grade?: Record<string, unknown> } }).picture : null;
-  const grade = picture?.grade, guessed = Object.entries(PICTURE_GRADE_GUESSED);
-  if (!grade || typeof grade !== 'object' || Object.keys(grade).length !== guessed.length
-    || !guessed.every(([key, value]) => grade[key] === value)) return false;
-  delete picture.grade;
-  console.warn('[settings] picture.grade held the first defaults, which made up for the missing sRGB decode — the grade is off now');
-  return true;
-}
-
-// save() writes every value, so the product's former default name was stored, not chosen.
-const RETIRED_SOURCE_NAME = 'Tyclab Lightshow';
-function retireOldSourceName(parsed: unknown): boolean {
-  const sacn = parsed && typeof parsed === 'object' ? (parsed as { sacn?: Record<string, unknown> }).sacn : null;
-  if (!sacn || typeof sacn !== 'object' || sacn.sourceName !== RETIRED_SOURCE_NAME) return false;
-  sacn.sourceName = DEFAULTS.sacn.sourceName;
-  console.warn(`[settings] sacn.sourceName held the former default, now ${DEFAULTS.sacn.sourceName}`);
-  return true;
-}
-
-function isLegacyHue(hue: unknown): hue is Record<string, unknown> {
-  return !!hue && typeof hue === 'object' && !Array.isArray(hue)
-    && !('bridges' in hue) && LEGACY_HUE_KEYS.some((key) => key in hue);
-}
-
-// Discard empty legacy bridge entries so migration does not create unpaired placeholder rows.
-function migrateLegacyHue(parsed: unknown): boolean {
-  const root = parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed as Record<string, unknown> : null;
-  const hue = root ? root.hue : null;
-  if (!root || !isLegacyHue(hue)) return false;
-  const text = (key: string) => (typeof hue[key] === 'string' ? hue[key] as string : '');
-  const bridge: HueBridgeSettings = {
-    id: LEGACY_HUE_BRIDGE_ID,
-    label: text('host') || 'Hue bridge',
-    enabled: hue.enabled === true,
-    host: text('host'),
-    username: text('username'),
-    clientKey: text('clientKey'),
-    applicationId: text('applicationId'),
-    entertainmentId: text('entertainmentId'),
-  };
-  const paired = !!(bridge.host || bridge.username || bridge.clientKey);
-  for (const key of [...LEGACY_HUE_KEYS, 'channels']) delete hue[key];
-  hue.bridges = paired ? [bridge] : [];
-  if (paired) {
-    console.warn(`[settings] the Hue bridge at ${bridge.host || '(no address)'} is now hue.bridges[0] as "${LEGACY_HUE_BRIDGE_ID}"`);
-  }
-  return true;
-}
-
 function defaultHueBridgeId(bridges: readonly { id: string }[]): string {
   return bridges.length ? bridges[0].id : LEGACY_HUE_BRIDGE_ID;
 }
@@ -439,7 +370,6 @@ class SettingsStore extends JsonStore {
   declare _listeners: SettingsListener[];
   private loadFailure: Error | null = null;
   private artnetSource: (() => Settings['artnet']) | null = null;
-  legacyArtnet: Settings['artnet'] | null = null;
 
   constructor(file: string) {
     super(file, { tag: 'settings', fallback: 'using the defaults', mode: 0o600 });
@@ -464,25 +394,18 @@ class SettingsStore extends JsonStore {
       this.loadFailure = new Error('Invalid settings document; the file was left intact');
       throw this.loadFailure;
     }
-    if (version === 0 && values) {
-      if (!('setup' in values)) values.setup = { completed: true };
-      clearNewlyInvalidFields(values);
-      retireGuessedGrade(values);
-      retireOldSourceName(values);
-      migrateLegacyHue(values);
-    }
+    if (version === 0 && !('setup' in values)) values.setup = { completed: true };
     const result = schema.safeParse(merge(DEFAULTS, parsed));
     if (!result.success) {
       this.quarantine(result.error.issues.map(i => `${i.path.join('.')} ${i.message}`).join('; '));
       return this;
     }
-    this.legacyArtnet = values && 'artnet' in values ? clone(result.data.artnet) : null;
     if (version === 0) {
       try {
         this.backupBefore(1);
         // Publish neither in memory nor on disk until the entire migration validates.
-        const { artnet, ...rest } = result.data;
-        this.writeJson({ formatVersion: 1, values: this.legacyArtnet ? { ...rest, artnet } : rest });
+        const { artnet: _artnet, ...rest } = result.data;
+        this.writeJson({ formatVersion: 1, values: rest });
       } catch (err) {
         this.loadFailure = new Error(`Could not migrate settings: ${messageOf(err)}`, { cause: err });
         throw this.loadFailure;
@@ -493,12 +416,9 @@ class SettingsStore extends JsonStore {
     return this;
   }
 
-  setArtnetSource(source: () => Settings['artnet'], { preserveLegacyArtnet = false } = {}): void {
+  setArtnetSource(source: () => Settings['artnet']): void {
     this.artnetSource = source;
-    if (!preserveLegacyArtnet) this.legacyArtnet = null;
   }
-
-  legacyExport(): Settings { return this.all(); }
 
   useDefaults(): void {
     this._values = clone(DEFAULTS);
@@ -538,13 +458,6 @@ class SettingsStore extends JsonStore {
     assertSettingsDomains(patch);
     if (this.artnetSource && patch && typeof patch === 'object' && 'artnet' in patch) {
       throw Object.assign(new HttpError(409, 'Art-Net routing must be saved through the rig coordinator'), { code: 'routing_coordinator_required' });
-    }
-    const hue = patch && typeof patch === 'object' ? (patch as { hue?: unknown }).hue : null;
-    if (isLegacyHue(hue)) {
-      const named = LEGACY_HUE_KEYS.filter((key) => key in hue).map((key) => `hue.${key}`).join(', ');
-      throw new HttpError(400,
-        `${named}: a Hue bridge is an entry of hue.bridges now. Pair one with POST /api/hue/pair, `
-        + 'pick its area and turn it on through hue.bridges, and forget it with POST /api/hue/:bridge/disconnect.');
     }
     const parsedPatch = patchSchema.parse(patch || {});
     const hueDraft = (parsedPatch as { hue?: Partial<Settings['hue']> }).hue;
@@ -592,9 +505,9 @@ class SettingsStore extends JsonStore {
 
   save(): void {
     if (this.loadFailure) throw this.loadFailure;
+    // The rig store owns Art-Net routing once it has loaded.
     const { artnet, ...rest } = this._values;
-    const retainedArtnet = this.artnetSource ? this.legacyArtnet : artnet;
-    this.writeJson({ formatVersion: 1, values: retainedArtnet ? { ...rest, artnet: retainedArtnet } : rest });
+    this.writeJson({ formatVersion: 1, values: this.artnetSource ? rest : { ...rest, artnet } });
   }
 
   onChange(fn: SettingsListener): void { this._listeners.push(fn); }
@@ -602,27 +515,6 @@ class SettingsStore extends JsonStore {
   pendingRestart(bootValues: unknown): string[] {
     return RESTART_PATHS.filter((dotted) => getPath(bootValues, dotted) !== this.get(dotted));
   }
-}
-
-const LEGACY_ENV = [
-  'HOST', 'PORT', 'LIGHTSHOW_TOKEN', 'PUBLIC_URL',
-  'ARTNET_HOST', 'ARTNET_PORT', 'ARTNET_UNIVERSE',
-  'MIDI_INPUT', 'MIDI_OUTPUT',
-  'PROLINK', 'SMTC',
-  'SPOTIFY_CLIENT_ID', 'SPOTIFY_CLIENT_SECRET', 'SPOTIFY_PROXY_BASE',
-  'SPOTIFY_ALLOW_UNVERIFIED_STATE',
-  'DEEZER_ARL',
-  'ANALYZER_TIMEOUT_MS', 'DOWNLOAD_TIMEOUT_MS', 'ANALYZE_LOCAL_ROOT',
-];
-
-function warnAboutLegacyEnv(env: NodeJS.ProcessEnv = process.env,
-  log: (message: string) => void = console.warn): string[] {
-  const present = LEGACY_ENV.filter((name) => env[name] !== undefined && env[name] !== '');
-  if (!present.length) return present;
-  log(`\n[settings] These environment variables are no longer read: ${present.join(', ')}`);
-  log('[settings] Settings now live in the app (its Rig, Sources and Settings views) and are stored');
-  log(`[settings] in ${configFile('settings.json')}. Set them there; you can delete them from .env.\n`);
-  return present;
 }
 
 // Keep one fixed settings location so all consumers agree on the active configuration.
@@ -638,14 +530,9 @@ export {
   HUE_SECRET_KEYS,
   LEGACY_HUE_BRIDGE_ID,
   RESTART_PATHS,
-  LEGACY_ENV,
   schema,
   hueBridge,
   patchSchema,
   defaultHueBridgeId,
-  migrateLegacyHue,
-  retireGuessedGrade,
-  retireOldSourceName,
   assertSettingsDomains,
-  warnAboutLegacyEnv,
 };

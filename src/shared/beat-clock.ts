@@ -71,18 +71,6 @@ function beatPositionAt(grid: BeatGrid | null | undefined, tMs: number): number 
   return lo + (t - b[lo]) / (b[hi] - b[lo]);
 }
 
-function trackMsAtBeat(grid: BeatGrid, beatPos: number): number;
-function trackMsAtBeat(grid: BeatGrid | null | undefined, beatPos: number): number | null;
-function trackMsAtBeat(grid: BeatGrid | null | undefined, beatPos: number): number | null {
-  if (!grid) return null;
-  const b = grid.beats;
-  const n = b.length;
-  if (beatPos <= 0) return (b[0] + beatPos * grid.interval) * 1000;
-  if (beatPos >= n - 1) return (b[n - 1] + (beatPos - (n - 1)) * grid.interval) * 1000;
-  const i = Math.floor(beatPos);
-  return (b[i] + (beatPos - i) * (b[i + 1] - b[i])) * 1000;
-}
-
 // Median tempo over nine intervals keeps a single misplaced beat from moving the readout.
 function localBpm(grid: BeatGrid, tMs: number): number;
 function localBpm(grid: BeatGrid | null | undefined, tMs: number): number | null;
@@ -126,7 +114,6 @@ export {
   makeGrid,
   gridFromAnalysis,
   beatPositionAt,
-  trackMsAtBeat,
   localBpm,
   anchorStep,
   stepAt,

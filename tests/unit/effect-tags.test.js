@@ -12,6 +12,7 @@ import { PATTERNS, PRESET_ROWS } from '../../src/server/presets.ts';
 import { EffectLibrary } from '../../src/server/effect-library.ts';
 import { presetById } from '../../src/shared/effects/index.ts';
 import { KINDS, validateSpec } from '../../src/shared/effects/registry.ts';
+import { mappingOf, usesSpatialMapping } from '../../src/shared/effects/mapping.ts';
 import { LEGACY_TAGGED, REACTIVE_TAGS, SOURCES, TAG_AXES, TAG_NOTES, TAGS, browseListOf, legacyTags, specTags } from '../../src/shared/effects/tags.ts';
 
 // What every registered kind reacts to with its default params, counted per tag.
@@ -51,15 +52,15 @@ const PINNED = {
   bars: 'bands bars / track',
   fire: 'bands bars / track',
   rain: 'bands bars / track',
-  'flash-chase': 'beat bars',
-  'flash-scatter': 'beat bars',
+  'flash-chase': 'beat bars rapid',
+  'flash-scatter': 'beat bars rapid',
   'flash-fill': 'beat bars',
-  'flash-alternate': 'beat bars',
+  'flash-alternate': 'beat bars rapid',
   ramp: 'beat bars',
   'ramp-scatter': 'beat bars',
   'decay-scatter': 'beat bars',
-  'flash-burst': 'beat bars energy rapid',
-  core: 'bands bars / track',
+  'flash-burst': 'beat bars rapid',
+  core: 'bands bars rapid / track',
   'position-chase': 'beat',
   'radial-pulse': 'bands / track',
   'spatial-wash': 'beat',
@@ -73,8 +74,8 @@ const PINNED = {
   halves: 'beat',
   flip: 'beat',
   'room-wave': 'beat',
-  'ring-strobe': 'beat',
-  'ring-backlit': 'beat',
+  'ring-strobe': 'beat rapid',
+  'ring-backlit': 'beat rapid',
   fireworks: 'beat',
   flashes: 'beat',
   swirl: 'beat',
@@ -167,7 +168,7 @@ test('the twelve tags and their counts over the 113 looks', () => {
   const counts = Object.fromEntries(Object.keys(TAGS).map((tag) => [tag, count(VISIBLE, tag)]));
   assert.deepEqual(counts, {
     beat: 79, static: 7, bands: 19, level: 4, sections: 3, screen: 2,
-    rig: 17, room: 41, bars: 21, ownColours: 8, energy: 12, rapid: 10,
+    rig: 17, room: 41, bars: 21, ownColours: 8, energy: 11, rapid: 16,
   });
   const reactive = VISIBLE.filter((row) => row.tags.some((tag) => REACTIVE_TAGS.has(tag)));
   assert.equal(reactive.length, 27);
@@ -253,6 +254,20 @@ test('every registered kind says what it reacts to, from its code', () => {
   assert.deepEqual(counts, KIND_REACTS);
 });
 
+// Version 0 and 1 libraries load their hd/ldj specs as compat.* kinds (migrate.ts); they are the same effect.
+test('a compat kind gets the tags and mapping of its plain twin', () => {
+  let compared = 0;
+  for (const [kind, def] of KINDS) {
+    if (!/^(hd|ldj)\./.test(kind)) continue;
+    const plain = { kind, params: def.defaults.params };
+    const compat = { ...plain, kind: `compat.${kind}` };
+    assert.deepEqual(specTags(compat), specTags(plain), kind);
+    assert.deepEqual([mappingOf(compat), usesSpatialMapping(compat)], [mappingOf(plain), usesSpatialMapping(plain)], kind);
+    compared++;
+  }
+  assert.ok(compared > 100, `${compared} hd and ldj kinds`);
+});
+
 test('kinds without a trigger: live input, their own rate or the beat, as their code reads', () => {
   const reactsOf = (raw) => specTags(raw.params ? raw : { ...raw, params: KINDS.get(raw.kind).defaults.params }).tags
     .filter((tag) => TAGS[tag].axis === 'reacts');
@@ -288,6 +303,6 @@ test('one rule sorts a row into the MIDI and Companion browse lists', () => {
   const rows = [...PATTERNS, ...PRESET_ROWS];
   const lists = (rapid) => rows.filter((r) => !r.retired && (rapid || !r.rapidFlash)).reduce((acc, r) => { acc[browseListOf(r)]++; return acc; }, { pattern: 0, effect: 0, bars: 0 });
   assert.deepEqual(lists(true), { pattern: 81, effect: 11, bars: 21 });
-  assert.deepEqual(lists(false), { pattern: 79, effect: 4, bars: 20 });
+  assert.deepEqual(lists(false), { pattern: 77, effect: 4, bars: 16 });
   assert.deepEqual([{}, { pixel: true }, { tags: ['beat', 'energy'] }].map(browseListOf), ['pattern', 'bars', 'effect']);
 });

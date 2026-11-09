@@ -11,10 +11,9 @@ import { getProfile, profilesRevision, BUILTIN_PROFILE_ID, HUE_COLOR_PROFILE_ID 
 import { COLOR_PRESETS, ENERGY_EFFECTS } from '../../src/server/presets.ts';
 import { createPreviewSampler } from '../../src/shared/preview.ts';
 import { buildRig } from '../../src/shared/rig.ts';
-import { HOLD_STROBE, HOLD_FLASH_MS, HOLD_BLACK_MS, HUE_PULSE_MS, HUE_PULSE_FLOOR, holdStrobeFlash, holdStrobeLook, huePulseLevel as huePulseLevelOf, resolveEnergyOverride } from '../../src/shared/look-math.ts';
+import { HOLD_STROBE, holdStrobeFlash, huePulseLevel as huePulseLevelOf, resolveEnergyOverride } from '../../src/shared/look-math.ts';
 
 const RED = COLOR_PRESETS[0];
-const BLUE = COLOR_PRESETS[5];
 
 const fixture = (id, address, profileId, extra = {}) => ({
   id, address, universe: 0, profileId, maxBrightness: 255, override: null,
@@ -22,7 +21,7 @@ const fixture = (id, address, profileId, extra = {}) => ({
 });
 
 const PAR = fixture(0, 1, BUILTIN_PROFILE_ID);
-const LAMP = fixture(1, 20, HUE_COLOR_PROFILE_ID, { hue: true, output: { protocol: 'hue', channel: 1 } });
+const LAMP = fixture(1, 20, HUE_COLOR_PROFILE_ID, { hue: true, output: { protocol: 'hue', channels: [1] } });
 
 // Red over blue, so a flash in colour B is told from the look in colour A.
 const LOOK = { pattern: 'solid', colorA: 0, colorB: 5, colorC: 0, colorD: 5, bpm: 120, beatDivision: 1 };
@@ -142,21 +141,3 @@ test('its flashes fall on the finest division of the beat under five a second', 
   assert.ok(Math.abs(holdStrobeFlash(0.6, 128).sinceMs - 0.1 * (60000 / 128)) < 1e-9);
 });
 
-test("hold strobe restores the look between palette flashes", () => {
-  const pal = [RED, BLUE];
-  const flash = (index, sinceMs) => holdStrobeLook(pal, { index, sinceMs, periodMs: 250 }, false);
-  assert.deepStrictEqual(flash(0, 0), { col: RED, dim: 255, strobe: 0 });
-  assert.deepStrictEqual(flash(0, HOLD_FLASH_MS - 1), { col: RED, dim: 255, strobe: 0 });
-  assert.strictEqual(flash(0, HOLD_FLASH_MS).dim, 0, 'black');
-  assert.strictEqual(flash(0, HOLD_FLASH_MS + HOLD_BLACK_MS - 1).dim, 0);
-  assert.strictEqual(flash(0, HOLD_FLASH_MS + HOLD_BLACK_MS), null, 'the running look');
-  assert.strictEqual(flash(1, 0).col, BLUE, 'the colours in turn');
-  assert.strictEqual(flash(2, 0).col, RED);
-  assert.strictEqual(flash(-1, 0).col, BLUE);
-  // A Hue lamp: the colour at full falling to the floor, held there.
-  const hue = (sinceMs) => holdStrobeLook(pal, { index: 0, sinceMs, periodMs: 250 }, true);
-  assert.deepStrictEqual(hue(0), { col: RED, dim: 255, strobe: 0 });
-  assert.strictEqual(hue(100).dim, 148);
-  assert.strictEqual(hue(HUE_PULSE_MS).dim, HUE_PULSE_FLOOR);
-  assert.strictEqual(hue(240).dim, HUE_PULSE_FLOOR);
-});

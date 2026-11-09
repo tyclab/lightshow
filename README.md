@@ -10,30 +10,6 @@ and live audio use the optional analysis environment.
 the [MIT license](LICENSE) and is developed independently. Upstream is no
 longer tracked; an upstream release is not a TycStation Lightshow release.
 
-## Upstream origin
-
-The last upstream consolidation was reviewed against LightD31's
-[`b6f7f28`](https://github.com/LightD31/artnet-lightshow/commit/b6f7f2812d28ef1e0d40b19c64d9c59a8ea23a6f)
-(8 October 2026). Tyclab retains its Music Assistant pixel input, Stage rooms
-and screens, hardware capability/admission policies, saved sequences and
-Fire/Ice effect catalogue. Later upstream work is not reviewed or adopted.
-
-| Upstream work | Consolidated behavior |
-|---------------|-----------------------|
-| `6299390`, `d01c20b`, `e17b3fa` | Existing frame deadlines, whole-frame worker publication and live-input restart cleanup retained |
-| `ba641f5`, `cff5f5e`, `56f7ec9`, `87c66b8`, `b34a3eb` | Existing tempo-follow, manual tempo hold and cross-screen phase fixes retained |
-| `0f72767`, `f69d7cf`, `5ec4c55`, `d2458be` | Proxy authentication/manifest fixes and dependency security updates retained |
-| `86d505e`, `59f4e60`, `60b02cb`, `5ad78c2` | Explicit MIDI ports, encoder detection, MIDI/Companion show controls and UI fixes integrated; classic MIDI mappings retained by default |
-| `a9ea36d`, `a7a1bc9`, `cea505b` | Capability-derived Hue profiles and ordered sections integrated with legacy migration that preserves fixture identities |
-| `64b104b` | WLED and OpenRGB use internal allocation without operator-facing DMX addresses |
-| `89b62d9`, `0f222a1` | Drawn strobe programs integrated with hardware and shared flash guards after program rendering |
-
-Upstream's removal of legacy Hue fixtures and restored comment-heavy files
-are not adopted. Existing shows keep their references; legacy lamp profiles
-remain available until the operator refreshes capabilities. Emission geometry
-is explicit: bulbs, strips and directional beams can use any output protocol.
-Every startup remains disarmed.
-
 ## Signal flow
 
 ```mermaid
@@ -155,9 +131,9 @@ arrive every second; the timeout is 15 seconds, or 60 during startup. Restart
 backoff is 0.5, 1, 2, 5 and 10 seconds; three failures before startup complete
 stop retries. Configuration failures exit 78; requested restarts exit 75.
 
-On a supervised restart, `config/look.json` restores the saved look and a
-cached auto-show track. Active energy effects are not restored. A normal
-start ignores that recovery file, and every start remains disarmed.
+Every start, supervised or not, restores the saved look from `config/look.json`
+(written when the look changes). Active energy effects are not restored, the
+programme comes back stopped, and every start remains disarmed.
 
 For an external service manager that owns restarts, run:
 
@@ -208,9 +184,14 @@ the same on every view, including while scrolling through Show:
   Colour + motion. The other sources are one tap away.
 - **Play** names what it starts (**▶ Look**, **▶ Auto show**, **▶ Sequence**) and
   is **■ Stop …** while that programme plays; its ▾ menu chooses the programme
-  while stopped and keeps **Stop** in reach when the button itself is not Stop
-  (stopped: **Stop and clear pads**; a paused sequence: **Stop Sequence**, while
-  the button resumes it).
+  and keeps **Stop** in reach when the button itself is not Stop (stopped:
+  **Stop and clear pads**; a paused sequence: **Stop Sequence**, while the button
+  resumes it). Chosen while another programme plays, it switches in one go: the
+  one playing ends (a sequence lets its held picture go; it plays from the top
+  next time) and the chosen one starts. Pads, a held energy effect, Freeze and
+  Blackout stay as they are; only Stop clears the pads. A programme that cannot
+  start (no sequence loaded, no analysed track or live input) is refused and the
+  one playing carries on.
 - **Freeze/Resume**, **Blackout/Restore** and **Arm/Disarm** keep their own 44 px
   buttons at fixed places. Armed shows on the button itself: filled red, **● Armed**
   over **Disarm**.
@@ -400,6 +381,14 @@ MIDI's **Browse patterns** and **Browse effects** and Companion's pattern and ef
 lists are built from them: effects are the Energy looks, the bars' picture the Bars &
 panels looks, patterns every other look; retired ids are in none.
 
+**Compare A/B**, beside the Effects card's title, opens the pairs of looks waiting for your decision:
+two looks that may be one look twice, or a classic look against the v2 preset it would
+move onto. Each pair shows its frame diff; Play A and Play B (or the keys A and B, and
+Space to swap) set the main effect as a tap in the list does, and Keep A, Keep B, Keep
+both or Neither records the decision, which can be changed later. A side given as a
+kind and parameters plays without being saved as a preset. Disarmed, the panel says the
+rig must be armed to see the looks and plays nothing; it never arms the rig.
+
 ### Spatial effects
 
 The Effects list has one entry for each of the 41 spatial looks, over twelve
@@ -414,8 +403,12 @@ generators. Open an effect's editor to choose its
 Wash, Breathe, strip-path/random stepping, technology/group zones, independent
 random pixels and all-lamp strobing have no mapping switch: moving their positions
 does not change the effect. The switch appears if edited settings make positions
-matter. Colour, timing and shape controls come first; **Advanced** holds geometry,
-modulation and output settings. Switching a built-in's mapping makes that variant
+matter. Every setting of the twelve generators and the strobe has a label, a range
+and a place (`src/shared/effects/controls.ts`): each effect's own variables come
+first (a wave's Shape, Heading, Width and Speed; a wall's Driven by, Length and
+Direction), **Advanced** holds geometry, modulation and output settings, and a
+setting the chosen shape does not read is hidden (a crossing wave shows no wall
+length; a steady wash no depth). Switching a built-in's mapping makes that variant
 ready to Play without saving a copy. Other draft edits are preserved and can be
 auditioned or saved as usual.
 
@@ -741,31 +734,16 @@ Other settings apply immediately. The UI lists pending restart keys.
 | `config/sequence-workspace.json` | Recovery copy of the loaded sequence, playhead and pending take |
 | `config/look.json` | Saved look content and Blackout; playback restarts stopped |
 | `config/stage-room.json` | Optional private Stage geometry and light bindings; mode 0600 |
+| `config/ab-decisions.json` | The A/B compare decisions by pair key |
 | `cache/` | Analysis cache |
 | `logs/` | Structured logs |
 | `.venv/` | Managed analysis environment |
 
-Settings and rig files use versioned envelopes. Legacy files are validated and
-backed up privately as `.pre-v1-*` before migration. The existing legacy picture-grade
-and source-name migrations still run once. Choices saved in the versioned format
-remain explicit, including values equal to former defaults. Unknown future versions
-refuse writes.
-If legacy settings and show routing disagree, outputs remain disarmed and Rig →
-Outputs offers both routes for an explicit choice. Existing fixture universes are
-preserved when resolving that conflict.
-
-For a downgrade, export compatible settings and show files together:
-
-```sh
-node scripts/export-config-rollback.ts ./config ../lightshow-rollback
-```
-
-The destination must be new. It contains private files and a `COMPLETE.txt` marker;
-the running configuration is untouched. After the normal safe-stop checks, restore
-both files with the matching old binary. Never start an old strict loader against
-the new envelope. Preserve the original backups too. Legacy binaries apply the
-former-default migrations to flat files, so recheck intentional picture-grade and
-source-name choices after rollback.
+Settings and rig files use versioned envelopes. Unversioned files are validated and
+backed up privately as `.pre-v1-*` before they are rewritten in the envelope, and
+Art-Net routing then lives only in the rig file. Unknown future versions refuse
+writes. Builds from before the envelope cannot read these files; the `.pre-v1-*`
+backups are their copy.
 
 The checkout is the default data directory. `LIGHTSHOW_DATA_DIR` moves the
 whole data tree; `LIGHTSHOW_CONFIG_DIR`, `LIGHTSHOW_CACHE_DIR` and
@@ -773,9 +751,8 @@ whole data tree; `LIGHTSHOW_CONFIG_DIR`, `LIGHTSHOW_CACHE_DIR` and
 JSON store files are moved aside as `.invalid-<timestamp>` and defaults load.
 Stored secrets are never returned by the settings API.
 
-A `.env` in the startup directory is still loaded, but old output/source
-configuration variables are ignored and named in a startup warning. Use the
-settings API or UI for them. Supported environment controls are listed in
+A `.env` in the startup directory is still loaded, but output and source
+configuration is not read from it: use the settings API or UI. Supported environment controls are listed in
 [.env.example](.env.example), including `ARTNET_PYTHON`, `DEBUG_MIDI`, log
 settings and data paths.
 
@@ -1064,14 +1041,14 @@ connects to the Lightshow, so it never holds the displays.
 cd tools/browser-visuals
 npm.cmd ci --omit=dev
 $profile = "$env:LOCALAPPDATA\PartyVisuals\browser-profile"
-$url = 'http://10.27.2.42:8095/#/now-playing?player=02%3A01%3Abb%3A12%3A81%3A49&frameless=1'
+$url = 'http://<music-assistant>:8095/#/now-playing?player=<player-id>&frameless=1'
 node cli.js --browser-profile $profile --visualizer-url $url
 node cli.js --browser-profile $profile --visualizer-url $url --preview --output curtain-preview.ppm
 node cli.js --browser-profile $profile --visualizer-url $url --curtain --fixture 53 --width 68 --height 42
 ```
 
-These defaults describe GamerTyc's curtain and SHD player. Supply the intended
-player URL, fixture and grid for another installation. Preview writes a local PPM
+Fill in your Music Assistant host and player id; the fixture and grid describe one
+installation's curtain. Supply the intended player URL, fixture and grid for yours. Preview writes a local PPM
 image and never connects to the Lightshow. `--fit contain` adds black margins;
 `--help` lists all options. The local browser helper uses the existing NodeCG
 `wash.on` control for visibility; intensity still applies to the legacy graphics.
@@ -1119,13 +1096,15 @@ left-to-right and the plot's top (the room's front) is the picture's top, so a
 sweep across the screen sweeps across the room. Grid fixtures, including keyboards,
 take the room picture when they have no live pixel feed. A valid pixel feed has
 priority; when it expires, the grid returns to the room picture. A panel the Stage
-room places as a solid rather than a surface (its bound cells at least a quarter as
-thick as they are wide, such as a WLED ball whose cells sit on a sphere) samples
-the picture where its cells are: each bound cell at the fixture's plot centre plus
-its room offset from the cells' centre across and along the floor, so the ball's
-front and back take different parts of the picture. A flat panel or a curtain keeps
-its flat place on the plot. The unit list's signature then carries the room's
-revision, so a sender fetches the positions again after a room import. Update the browser
+room places on a ball (its bound cells on one sphere, within 8 % of its radius,
+such as a WLED ball) samples the picture where its cells are: each bound cell at
+the fixture's plot centre plus its room offset from the cells' centre across and
+along the floor, so the ball's front and back take different parts of the
+picture. A flat panel, a curtain, and any other 3-D body (a box, a panel round a
+corner, whose wall columns would fold onto one point of the floor) keep their flat
+place on the plot. The unit list's signature then carries the room's revision: after
+a room import the server answers the helper's next claim `STALE`, and the helper
+fetches the positions again at once and claims anew. Update the browser
 helper with the server so it samples grid cells too. Voices, pads, Identify, overrides and
 blackouts stay above it, the master and trims still apply, and two seconds
 without a frame shows the effects again. With **Effects** selected the server
@@ -1294,9 +1273,8 @@ fixture's pixels. It is never transmitted over Art-Net or sACN. `hue.latencyMs`
 delays the other outputs relative to Hue; use `/api/hue/sync-test` to compare them.
 
 Existing Hue fixtures retain their IDs, positions, geometry, hardware limits and
-channel bindings when loaded. Legacy `{ channel }` outputs become `{ channels: [channel] }`;
-their compatibility profiles retain the original colour rendering even when a bridge
-is offline. **Refresh lamp profiles** reads current capabilities while preserving
+channel bindings when loaded. Their compatibility profiles retain the original
+colour rendering even when a bridge is offline. **Refresh lamp profiles** reads current capabilities while preserving
 fixture and section identities. It keeps old strip sections as separate fixtures so
 sequence, MIDI and room bindings remain valid. Unreadable or ambiguous lamps and
 changed section counts are retained and listed in the response for review.
@@ -1382,9 +1360,7 @@ Peak or Neural. Each has a level meter (Spectrum: the band's power against twice
 hit gate, the gate at the middle mark), **Enabled**, **Fade** and **Fast Pulse**, and a
 strip of the colours it plays, which opens its colours. A control that cannot act is
 hidden: a band switched off shows only Enabled, Fast Pulse and the fade brightness only
-act through Fade, Neural ignores them. The header chip names
-the lamp assignment (**Auto** shares the lamps among the enabled bands; **Manual** when
-some lamps keep a band of their own) and the main effect, for example *Auto · Ambient*.
+act through Fade, Neural ignores them.
 
 While the picture sets the colours (the **Visualizer** picture source with a picture
 arriving, or **Colour + motion** feeding a spatial Visualizer effect) the card shrinks to
@@ -1624,7 +1600,12 @@ shelf summaries. The shelf permits 64 saved sequences.
 
 `photosensitivityAcknowledged` starts false and persists when acknowledged via
 `POST /api/safety/acknowledge`. Until then, rapid-flash presets/voices,
-strobes, rapid sequence content and rapid Matrix modes are refused. REST
+strobes, rapid sequence content and rapid Matrix modes are refused, and so are
+the seven classic programs that strike flashes (Flash Chase, Flash Scatter,
+Flash Alternate, Flash Burst, Strobe Core, Ring Strobe, Ring Backlit, marked
+Rapid ⚡). Named by hand they are refused; reached any other way (a saved bar
+picture, a track edit) they render and preview dark, and the automatic show
+plans none of them until the acknowledgement, re-planning when it is given. REST
 returns `409 photosensitivity acknowledgement required`; socket commands
 return `error-msg`; MIDI/Companion report the refusal. Stop/release remains
 available. The acknowledgement indicator in the header's status details and in Perform opens the warning.
@@ -1699,8 +1680,8 @@ A PC with an NVIDIA card can analyse tracks for the server. Its worker
 (`tools/remote-analyzer`) connects out to the server, so the PC listens on no
 port; the server sends it the job, the worker fetches the audio from the server,
 runs the same NDJSON worker as the server does in a container on its GPU, and
-posts the document back. The server stays the cache owner. On GamerTyc's RTX
-2080 SUPER a 210 s track took 40 s (49 s from a cold container) instead of
+posts the document back. The server stays the cache owner. On an RTX 2080
+SUPER a 210 s track took 40 s (49 s from a cold container) instead of
 275 s on its CPU, a 561 s track 170 s instead of 738 s, and the documents are
 the CPU's to within rounding. Setup, provisioning and troubleshooting are in
 [Remote analysis](docs/remote-analysis.md).
@@ -1727,7 +1708,9 @@ sequenceDiagram
   anything a worker fails, drops or times out on run here.
 - **Standby.** With `analysis.localWorker: 'standby'` (the default) this
   machine's analyser process ends, freeing about 0.9 GB, when a compatible
-  worker becomes ready (after the track running here, if there is one). The
+  worker becomes ready (after the track running here, if there is one, and
+  while the outputs are armed only at the next disarm, so a worker going busy
+  and ready again mid-show does not make each fallback track load it). The
   next track that runs here starts it and loads the models from disk inside
   its own time limit; it then stays until a worker becomes ready again. A
   connected worker that takes no jobs for the moment (stopping a cancelled
@@ -1909,6 +1892,8 @@ actions and feedback. The module uses Socket.IO protocol 2. See
 last displayed `version: 1`, `session` and `revision` to `POST /api/control`, plus
 `action` and optional `programme` (`look`, `auto`, `sequence`). Actions are
 `select`, `start`, `stop`, `freeze`, `resume`, `arm`, `disarm`, `blackout`, `restore`.
+`select` or `start` naming another programme while one plays switches to it in one
+step, as the play menu does.
 A successful response follows the renderer acknowledgement. If none arrives
 within 2 seconds the action fails and `control.fault` says so; an acknowledgement
 that arrives later clears that fault and marks the revision applied. A 409 requires a
@@ -2015,6 +2000,8 @@ All endpoints return JSON. When a token is configured, send it as an
 | DELETE | `/api/palette-override` | Remove it |
 | GET | `/api/safety` | `{ photosensitivityAcknowledged, hdFlashIntervalMs, strobeMaxLatchSec }` |
 | POST | `/api/safety/acknowledge` | Give the photosensitivity acknowledgement (stored) |
+| GET | `/api/ab` | `{ candidates, decisions }` — the A/B pairs (`src/shared/effects/ab-candidates.ts`), each with `play.a`/`play.b` `{ pattern, name, rapidFlash }`, and the decisions so far by key |
+| POST | `/api/ab/decision` | `{ key, choice: 'a' \| 'b' \| 'both' \| 'neither', note? }`: store a decision in `ab-decisions.json` in the config directory (a later one replaces it; 404 for an unknown key) and log it as one `ab` line, `A/B decision` with `key`, `choice` and `note` |
 
 ### Voices, pads, strobe and the matrix board
 
@@ -2123,7 +2110,7 @@ Transport routes answer `{ ok, status }`; with no sequence loaded they answer
 | POST | `/api/identify/stop` | Stop identifying, a streamed WLED or OpenRGB device included |
 | POST | `/api/wled/identify` | `{ host, seconds? }`: through the patch when the WLED or another DDP device is in it (`via: 'patch'`), else a WLED's picture streamed over DDP (`via: 'device'`) |
 | POST | `/api/openrgb/identify` | `{ host, port?, device, seconds? }`: through the patch when the device is in it (`via: 'patch'`), else its picture streamed over the SDK (`via: 'device'`, with `leds` and `name`) and the device put back after |
-| POST | `/api/hue/:bridge/identify` | `{ lamp, seconds? }` (legacy `{ channel, seconds? }` also accepted): the lamp of the bridge's area through the patch (`via: 'fixture'`), else the bridge's own identify (`via: 'bridge'`) |
+| POST | `/api/hue/:bridge/identify` | `{ lamp, seconds? }`: the lamp of the bridge's area through the patch (`via: 'fixture'`), else the bridge's own identify (`via: 'bridge'`) |
 
 ### Cues
 
@@ -2202,10 +2189,7 @@ Transport routes answer `{ ok, status }`; with no sequence loaded they answer
 | POST | `/api/hue/:bridge/disconnect` | Forget that bridge, keys and all. `409` while its lamps are in the patch unless `{ removeFixtures: true }` takes them along |
 | POST | `/api/hue/sync-test` | Flash every fixture white once a second for 10 s, to tune `hue.latencyMs` |
 
-`:bridge` is an id from `/api/hue/status`. The routes from before there could
-be several bridges — `/api/hue/areas`, `/lamps`, `/add`, `/identify` — still
-answer, for the first bridge; `/api/hue/disconnect` does not, since it would
-have to guess which. Credentials are never returned by any of these —
+`:bridge` is an id from `/api/hue/status`. Credentials are never returned by any of these —
 `/api/hue/status` reports only whether a pairing exists, and `GET /api/settings`
 lists the bridges with their keys blanked. The bridges themselves are ordinary
 settings under `hue.bridges`, saved through `PUT /api/settings`: an entry sent
@@ -2244,10 +2228,10 @@ The UI token does not open it and the worker token opens nothing else.
 The UI uses Socket.IO rather than polling. Clients send `set`, `override`,
 `fixture`, `tap`, `voice-hold`, `energy-hold` and `midi-connect`; the server emits
 `auto-position`, `midi-status`, `midi-map`, `midi-learn` and `error-msg`, and
-the state in one of two forms, chosen when the client connects:
+the state in protocol 2:
 
-- **Protocol 2** — asked for with `auth: { protocol: 2 }`; what the live page
-  uses. A `snapshot` on connect (`{ protocol, versions, state }`), then
+- **Protocol 2** — asked for with `auth: { protocol: 2 }`; a client that asks
+  for none is answered the same way. A `snapshot` on connect (`{ protocol, versions, state }`), then
   `patch` events carrying only the keys that changed, grouped by domain (`look`,
   `rig`, `show`, `sources`, `audio`, `sequence`, `catalogs`, `library`,
   `voices`, `pads`, `system`) and numbered per domain:
@@ -2273,12 +2257,6 @@ the state in one of two forms, chosen when the client connects:
   once on subscribing. The live page holds the DMX and picture topics only
   while its tab is visible: hidden, it unsubscribes, and shown again it
   subscribes.
-- **Protocol 1** — anything that does not ask, such as the Companion module
-  before 2.1: `state` (the full snapshot on connect, the
-  whole live state, fixtures and profiles included, again whenever any of it
-  changes) and `dmx` (channel values
-  as JSON, keyed by universe, ten times a second — built only while such a
-  client is connected).
 
 The `voice-hold` message holds a voice while a button is down:
 `{ action: 'press' | 'renew' | 'release', token, pad?: { bank, slot }, effect?, targets? }`.
@@ -2333,14 +2311,18 @@ supervisor and effect/voice/sequence counts. Disarmed is informational. In
 pre-show engine check and the Settings → Engine note read the last minute only,
 so a stall at start-up stops warning a minute later. `renderedTotal` counts the
 ticks that rendered a frame. `idle` is true while the outputs are disarmed, no
-page watches the DMX feed or protocol 1 and no identify runs: the engine then
+page watches the DMX feed and no identify runs: the engine then
 renders every ninth tick (about 5 a second), and every tick again as soon as a
 change, an effect command or an Art-Net retirement waits on a frame. `eventLoop`
 gives the main thread's delay in milliseconds over the last 30 s window: the
 excess over the 10 ms sampling timer, so an idle loop reads 0.
 
 Logs appear in the terminal, the app's Log drawer and `logs/lightshow.log`.
-Files are JSON lines, rotated at 10 MB with three retained rotations.
+Files are JSON lines, rotated at 10 MB with three retained rotations. The file
+is written off the event loop, so a disk that stalls delays the file, not the
+show; lines still waiting at exit are written before the process ends, and a
+disk that does not answer keeps at most 10 MB waiting, then logs how many
+older lines it dropped.
 `LOG_LEVEL` changes verbosity; `LOG_FORMAT=pretty|json` controls terminal
 format. `/api/logs` supports sequence, level and limit filters.
 
@@ -2364,10 +2346,10 @@ both are null while the engine renders on the main thread, and from a start or a
 thread restart until that thread's first report. `liveQuiet` is true while the live input hears digital
 silence and reports four states a second, false while it hears sound, and null
 while it is not listening. `awake` lists what keeps the engine from idling:
-`armed`, `dmx` (a page on the DMX feed), `v1` (a client on the original
-protocol) or `identify`; an empty list with `idle` false means a frame is still
+`armed`, `dmx` (a page on the DMX feed) or `identify`; an empty list with `idle` false means a frame is still
 owed (a barrier wait, an effect command or an Art-Net route). Each client's
-connect line names its protocol, address and user agent.
+connect line names the protocol it asked for (`none` for a client too old to ask),
+its address and its user agent.
 
 The existing Docker log collector can query these records without another
 endpoint or credential. For example, in Loki:

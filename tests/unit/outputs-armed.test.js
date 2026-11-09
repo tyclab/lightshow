@@ -145,7 +145,7 @@ test('Hue streams close on disarm and reopen on arm', async () => {
   const saved = { fixtures: state.fixtures, next: state.nextFixtureId, hue: output.getHueConfig(), artnet: { ...state.artnet } };
   state.fixtures = [{
     id: 500, label: 'Lamp', address: 1, universe: 0, profileId: HUE_COLOR_PROFILE_ID, maxBrightness: 255, override: null,
-    output: { protocol: 'hue', bridge: 'b1', channel: 0 },
+    output: { protocol: 'hue', bridge: 'b1', channels: [0] },
   }];
   placeAddresslessFixtures();
   state.artnet.enabled = false;
@@ -320,7 +320,7 @@ test('each arm and disarm is logged once, with where it came from and never a to
     (method, route, body) => call(method, route + (method === 'POST' ? query : ''), headers, body), action);
   const mark = buffer.last;
 
-  await explicit('arm', { 'user-agent': 'HomeAssistant/2026.10.1 aiohttp/3.12', 'x-forwarded-for': '10.27.2.140' }, '?token=query-secret');
+  await explicit('arm', { 'user-agent': 'HomeAssistant/2026.10.1 aiohttp/3.12', 'x-forwarded-for': '192.0.2.140' }, '?token=query-secret');
   await explicit('arm', { 'user-agent': 'HomeAssistant/2026.10.1 aiohttp/3.12' });
   await call('POST', '/api/outputs/disarm', { 'user-agent': 'node', 'x-lightshow-client': 'companion/2.1.0' });
   await explicit('arm', { 'user-agent': 'Mozilla/5.0 (Windows NT 10.0)' });
@@ -341,7 +341,7 @@ test('each arm and disarm is logged once, with where it came from and never a to
   assert.match(lines[1].msg, /^disarmed/);
   assert.equal(lines[0].remote, '127.0.0.1');
   assert.equal(lines[0].userAgent, 'HomeAssistant/2026.10.1 aiohttp/3.12');
-  assert.equal(lines[0].forwardedFor, '10.27.2.140');
+  assert.equal(lines[0].forwardedFor, '192.0.2.140');
   assert.equal(lines[1].client, 'companion/2.1.0');
   assert.equal(lines[2].userAgent, 'Mozilla/5.0 (Windows NT 10.0)');
   assert.equal(lines[4].reason, 'a test');

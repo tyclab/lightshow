@@ -30,7 +30,7 @@ const fixture = (id, address, profileId = BUILTIN_PROFILE_ID, extra = {}) => ({
 
 // As hold-strobe.test.js: a par at 1, a Hue lamp at 20.
 const PAR = fixture(0, 1);
-const LAMP = fixture(1, 20, HUE_COLOR_PROFILE_ID, { hue: true, output: { protocol: 'hue', channel: 1 } });
+const LAMP = fixture(1, 20, HUE_COLOR_PROFILE_ID, { hue: true, output: { protocol: 'hue', channels: [1] } });
 const PARS = [0, 1, 2, 3].map((i) => fixture(i, 1 + 12 * i));
 
 const RED = COLOR_PRESETS[0];
