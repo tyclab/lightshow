@@ -4,9 +4,12 @@ import { CATALOGUE, presetById, V2_ALIASES } from '../../src/shared/effects/cata
 import { mappingOf } from '../../src/shared/effects/mapping.ts';
 import { PRESET_ROWS } from '../../src/server/presets.ts';
 import { frameAt, syntheticRoom, renderKind } from '../helpers/v2-frames.js';
+import { CLASSIC_V2 } from '../../src/shared/effects/v2/classic.ts';
+
+const classicForm = (id) => Object.hasOwn(CLASSIC_V2, id.replace(/^classic\./, ''));
 
 test('pickers offer one entry per spatial look and overlay while retaining every alias', () => {
-  assert.equal(PRESET_ROWS.filter((p) => p.family === 'spatial' && !p.retired).length, 41);
+  assert.equal(PRESET_ROWS.filter((p) => p.family === 'spatial' && !p.retired && !classicForm(p.id)).length, 41);
   assert.equal(PRESET_ROWS.filter((p) => p.id.startsWith('overlay.') && !p.retired).length, 4);
   for (const row of CATALOGUE.filter((p) => p.variantOf)) {
     assert.equal(row.retired, true);

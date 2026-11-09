@@ -4,7 +4,7 @@
 import test from 'node:test';
 import assert from 'node:assert';
 import { LEGACY_PRESETS, V2_ALIASES } from '../../src/shared/effects/catalogue.ts';
-import { CLASSIC_REDIRECTS } from '../../src/shared/effects/v2/classic.ts';
+import { CLASSIC_REDIRECTS, CLASSIC_V2 } from '../../src/shared/effects/v2/classic.ts';
 import { V2_PRESETS } from '../../src/shared/effects/v2/presets.ts';
 import { CATALOGUE, FAMILIES, presetById, presetIndex } from '../../src/shared/effects/index.ts';
 import { KINDS, kindOf, requiresAcknowledgement, validateSpec } from '../../src/shared/effects/registry.ts';
@@ -22,6 +22,8 @@ import { PATTERNS, PRESET_ROWS, PATTERN_IDS, ENERGY_EFFECTS } from '../../src/se
 import { legacyTags, specTags, tagFields } from '../../src/shared/effects/tags.ts';
 import { getCatalogs } from '../../src/server/state.ts';
 import { LOOKS } from '../../scripts/golden-party-looks.js';
+
+const classicForm = (id) => Object.hasOwn(CLASSIC_V2, id.replace(/^classic\./, ''));
 
 const by = (n) => LEGACY_PRESETS.find((p) => p.app === 'hd' && p.name === n).spec;
 
@@ -270,7 +272,7 @@ test("own looks retain legacy pattern metadata", () => {
 });
 
 test("control presets resolve to energy and strobe kinds", () => {
-  const controls = CATALOGUE.filter((p) => p.family === 'own.energy' && !p.id.startsWith('overlay.') && !p.id.startsWith('classic.'));
+  const controls = CATALOGUE.filter((p) => p.family === 'own.energy' && !p.id.startsWith('overlay.') && !classicForm(p.id));
   assert.deepStrictEqual(controls.map((p) => [p.id, p.aliases ?? []]), [
     ['energy.whiteStrobe', ['white-strobe']], ['energy.colorStrobe', ['color-strobe']], ['energy.blinder', ['blinder']],
     ['energy.uvWash', ['uv-wash']], ['energy.kill', ['kill']], ['energy.glow', ['glow']], ['palette-strobe', []],
@@ -298,7 +300,7 @@ test("control presets resolve to energy and strobe kinds", () => {
 });
 
 test("catalogue ids are unique across apps and legacy patterns", () => {
-  assert.strictEqual(CATALOGUE.filter((p) => p.family === 'spatial' && !p.id.startsWith('classic.')).length, V2_PRESETS.length);
+  assert.strictEqual(CATALOGUE.filter((p) => p.family === 'spatial' && !classicForm(p.id)).length, V2_PRESETS.length);
   for (const old of LEGACY_PRESETS) assert.ok(presetById(old.id), old.id);
   assert.ok(CATALOGUE.filter((p) => p.app !== 'own').every((p) => p.retired));
   const keys = CATALOGUE.flatMap((p) => [p.id, ...(p.aliases ?? [])]);

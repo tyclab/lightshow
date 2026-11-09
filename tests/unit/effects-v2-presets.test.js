@@ -7,6 +7,9 @@ import { CATALOGUE, FAMILIES, presetById } from '../../src/shared/effects/catalo
 import { requiresAcknowledgement, validateSpec } from '../../src/shared/effects/registry.ts';
 import { PATTERN_IDS, PRESET_ROWS } from '../../src/server/presets.ts';
 import { frameAt, audioOf, syntheticRoom, renderKind } from '../helpers/v2-frames.js';
+import { CLASSIC_V2 } from '../../src/shared/effects/v2/classic.ts';
+
+const classicForm = (id) => Object.hasOwn(CLASSIC_V2, id.replace(/^classic\./, ''));
 
 const NAMES = ['Scatter Strobe', 'Scatter Fade', 'Scatter Grow', 'Groove Wave', 'Big Room Wave', 'Ascent', 'Double Wave', 'Swagger',
   'Impact', 'Vortex', 'Speaker Shockwave', 'Rotation', 'Swirl', 'Beacon', 'Neural', 'Neural Distance',
@@ -54,7 +57,7 @@ test('their family is Spatial, which the inspector and the search still read', (
   const spatial = FAMILIES.find((f) => f.id === 'spatial');
   assert.equal(spatial.name, 'Spatial');
   for (const p of V2_PRESETS) assert.ok(spatial.kinds.some((k) => k.kind === p.spec.kind), p.spec.kind);
-  const rows = PRESET_ROWS.filter((r) => r.family === 'spatial' && !r.id.startsWith('classic.'));
+  const rows = PRESET_ROWS.filter((r) => r.family === 'spatial' && !classicForm(r.id));
   assert.equal(rows.length, V2_PRESETS.length);
   assert.ok(rows.every((r) => r.app === 'own'));
 });
