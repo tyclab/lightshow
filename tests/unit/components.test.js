@@ -301,10 +301,11 @@ const PRESET_ROWS = ui.CATALOGUE.filter((p) => !p.legacy).map((p) => ({
 }));
 const LEGACY_ROWS = ui.CATALOGUE.filter((p) => p.legacy)
   .map(({ id, name, desc, party, preset }) => ({ id, name, desc, party, ...(preset ? { preset } : {}), legacy: true, ...ui.tagFields(ui.legacyTags(id)) }));
+// Two of the server's classic rows, while they are classic: a redirected one is among the presets.
 const UPSTREAM_ROWS = [
   { id: 'chase', name: 'Chase →', desc: 'One fixture at a time, forward', legacy: true, ...ui.tagFields(ui.legacyTags('chase')) },
   { id: 'gradient', name: 'Gradient', desc: 'The look\'s colours as a gradient scrolling across the rig', pixel: true, legacy: true, ...ui.tagFields(ui.legacyTags('gradient')) },
-];
+].filter((row) => !Object.hasOwn(CLASSIC_REDIRECTS, row.id));
 const PATTERN_ROWS = [...UPSTREAM_ROWS, ...LEGACY_ROWS, ...PRESET_ROWS];
 const domino = ui.CATALOGUE.find((p) => p.id === 'hd.neonDomino');
 const USER_PRESET = {
@@ -356,13 +357,13 @@ test('Effects lists every look once, A to Z, each with the tags its code states'
   // The badges: what a look reacts to and from where, its surface, colours and use.
   assert.deepStrictEqual(badgesOf(rowOf(html, 'v2.impact')), ['Bands & drums · live', 'Room-placed']);
   assert.deepStrictEqual(badgesOf(rowOf(html, 'v2.stemsSpace')), ['Bands & drums · track + live', 'Room-placed']);
-  assert.deepStrictEqual(badgesOf(rowOf(html, 'volume-gate')), ['Audio level · track']);
+  assert.deepStrictEqual(badgesOf(rowOf(html, 'v2.volumeGateWash')), ['Audio level · live', 'Room-placed']);
   assert.deepStrictEqual(badgesOf(rowOf(html, 'gradient')), ['Beat only', 'Bars & panels']);
   assert.deepStrictEqual(badgesOf(rowOf(html, 'v2.visualizerFlow')), ['Screen · screen', 'Room-placed']);
   assert.deepStrictEqual(badgesOf(rowOf(html, 'chase')), ['Beat only']);
   assert.deepStrictEqual(badgesOf(rowOf(html, 'energy.whiteStrobe')), ['Beat only', 'Whole rig', 'Own colours', 'Energy', 'Rapid ⚡']);
   assert.match(rowOf(html, 'v2.impact'), /title="Follows stems, drum hits or frequency bands\. Reacts in the reactive audio mode with live input"/);
-  assert.match(rowOf(html, 'radial-pulse'), /title="[^"]*Reacts only while the auto show plays an analysed track; picked by hand it runs on its clock"/);
+  assert.match(rowOf(html, 'v2.risingWall'), /title="[^"]*Reacts only while the auto show plays an analysed track; picked by hand it runs on its clock"/);
   // A rapid flash carries its warning, its ⚡ hidden from screen readers; a slow one does not.
   assert.match(rowOf(html, 'hd.voltageConfetti'), /class="effect-tag badge-rapid" data-tag="rapid"[^>]*>Rapid <span aria-hidden="true">⚡<\/span>/);
   assert.match(rowOf(html, 'ldj.TrueStrobe'), /badge-rapid/);
@@ -480,9 +481,9 @@ test('the search finds a look by name, description, id and family as before, and
   const tagged = (tag) => rows.filter((r) => r.tags.includes(tag)).map((r) => r.id);
   assert.deepStrictEqual(find('song sections'), tagged('sections'));
   assert.deepStrictEqual(find('room-placed'), tagged('room'));
-  assert.ok(find('reactive').includes('v2.neural') && find('reactive').includes('volume-gate') && !find('reactive').includes('chase'));
+  assert.ok(find('reactive').includes('v2.neural') && find('reactive').includes('v2.volumeGateWash') && !find('reactive').includes('chase'));
   assert.ok(tagged('rapid').every((id) => find('rapid').includes(id)));
-  assert.ok(find('live').includes('v2.impact') && find('track').includes('radial-pulse'));
+  assert.ok(find('live').includes('v2.impact') && find('track').includes('v2.risingWall'));
   assert.ok(find('chase').includes('chase') && find('v2.neural').includes('v2.neural'), 'by name and id');
   assert.ok(find('spatial').includes('v2.grooveWave'), 'by family name');
   assert.deepStrictEqual(find(''), rows.map((r) => r.id));
@@ -683,17 +684,20 @@ const deckOf = (html) => {
 };
 
 test('the deck marks the base among saved and party presets', () => {
-  givenLibrary({ pattern: 'position-chase' });
+  // The first party look the server lists: the classic ones lead while they are classic.
+  const first = PATTERN_ROWS.find((r) => r.party).id;
+  givenLibrary({ pattern: first });
   const html = ui.html(ui.h(ui.Effects, {}));
   assert.ok(html.indexOf('class="effects-deck"') < html.indexOf('class="effects-catalogue"'), 'the deck is above the catalogue');
   const deck = deckOf(html);
-  assert.deepStrictEqual(deck.slice(0, 2), ['u1', 'position-chase'], 'the saved preset, then the party looks in catalogue order');
+  assert.deepStrictEqual(deck.slice(0, 2), ['u1', first], 'the saved preset, then the party looks in catalogue order');
   assert.ok(deck.includes('swirl') && !deck.includes('hd.neonDomino') && !deck.includes('chase'), 'party looks only, no built-in or upstream row');
   // A pad carries its tags; a preset saved here says it is yours. Its ⚡ stays in the corner.
   assert.match(html, /data-id="u1">(?:(?!<\/div>).)*class="effect-tags">(?:(?!<\/div>).)*>Beat only<(?:(?!<\/div>).)*class="effect-tag effect-pad-yours">Yours</s);
-  assert.match(html, /data-id="position-chase"[^>]*>(?:(?!<\/div>).)*data-tag="beat"[^>]*>Beat only</s);
+  const tag = ui.TAGS[PATTERN_ROWS.find((r) => r.id === first).tags[0]];
+  assert.match(html, new RegExp(`data-id="${first}"[^>]*>(?:(?!<\\/div>).)*data-tag="[a-z]+"[^>]*>${tag.name.replace('&', '&amp;')}`, 's'));
   assert.doesNotMatch(html, /effect-pad-app/);
-  assert.match(html, /<div class="effect-pad active" data-id="position-chase" data-layer="base">/);
+  assert.match(html, new RegExp(`<div class="effect-pad active" data-id="${first}" data-layer="base">`));
   assert.strictEqual(count(html, 'class="effect-pad-now"'), 1);
   assert.match(html, /class="effect-pad-now">Main effect</, 'the pad on stage is the main effect, not "Base"');
   assert.match(html, /data-layer="base"> · Main effect</);
@@ -788,7 +792,7 @@ test('a favourite is pinned first on the deck, whatever it is', () => {
   globalThis.localStorage = { getItem: (key) => (key === 'lightshow.effects.favourites' ? JSON.stringify(['ldj.Swirl', 'u1']) : null), setItem() {}, removeItem() {} };
   try {
     const html = ui.html(ui.h(ui.Effects, {}));
-    assert.deepStrictEqual(deckOf(html).slice(0, 3), ['ldj.Swirl', 'u1', 'position-chase']);
+    assert.deepStrictEqual(deckOf(html).slice(0, 3), ['ldj.Swirl', 'u1', PATTERN_ROWS.find((r) => r.party).id]);
     assert.match(html, /class="effect-star on" aria-pressed="true" aria-label="Favourite Swirl"/);
     assert.match(html, /class="effect-star " aria-pressed="false" aria-label="Favourite Neon Domino"/);
   } finally {
@@ -938,13 +942,15 @@ test('pad editor offers playable presets and migrated legacy looks', () => {
   const values = presets.map((c) => c.value);
   // Every saved and built-in preset once, by its own id, whatever the id looks like.
   assert.deepStrictEqual([...values].sort(), ['preset:u1', ...PRESET_ROWS.map((r) => `preset:${r.id}`)].sort());
-  // The favourites lead: chase is no preset and offers none; confetti offers Voltage Confetti, under its own name.
-  assert.deepStrictEqual(presets.slice(0, 2), [
-    { value: 'preset:hd.voltageConfetti', name: 'Voltage Confetti' }, { value: 'preset:u1', name: 'My Domino' },
-  ]);
+  // The favourites lead: a legacy chase is no preset and offers none; a legacy confetti offers Voltage Confetti, under its
+  // own name; a redirected one is a preset of its own.
+  const favourite = (id, link) => (Object.hasOwn(CLASSIC_REDIRECTS, id) ? [{ value: `preset:${id}`, name: PRESET_ROWS.find((r) => r.id === id).name }]
+    : link ? [{ value: `preset:${link.id}`, name: link.name }] : []);
+  const led = [...favourite('chase'), ...favourite('confetti', { id: 'hd.voltageConfetti', name: 'Voltage Confetti' })];
+  assert.deepStrictEqual(presets.slice(0, led.length + 1), [...led, { value: 'preset:u1', name: 'My Domino' }]);
   // Then the other looks' presets in the looks' order, before the rest of the catalogue.
   const linked = LEGACY_ROWS.filter((r) => r.preset && r.id !== 'confetti').map((r) => `preset:${r.preset}`);
-  assert.deepStrictEqual(values.slice(2, 2 + linked.length), linked);
+  assert.deepStrictEqual(values.slice(led.length + 1, led.length + 1 + linked.length), linked);
   assert.deepStrictEqual(patterns, [{ value: 'pattern:groove', name: 'Groove' }, { value: 'pattern:p2', name: 'p2' }]);
   assert.deepStrictEqual(drops, [{ value: 'sequencePattern:groove', name: 'Groove' }, { value: 'sequencePattern:p2', name: 'p2' }]);
   assert.deepStrictEqual(ui.padBody({ label: '', accent: '#123456', content: 'sequencePattern:groove', launch: 'once', quantise: 4, targets: [] }).content,

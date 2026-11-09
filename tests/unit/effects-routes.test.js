@@ -425,7 +425,7 @@ test("pattern routes resolve effect presets into engine input", async (t) => {
   assert.deepEqual(renderInput().effect, validateSpec(FADE));
 
   // A legacy look still draws through its pattern function.
-  res = await s.call('POST', '/api/pattern/position-chase');
+  res = await s.call('POST', '/api/pattern/strobe');
   assert.equal(res.status, 200);
   assert.equal(renderInput().effect, null);
 

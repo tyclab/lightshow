@@ -8,7 +8,7 @@ import assert from 'node:assert';
 
 import { applyRekordbox } from '../../src/rekordbox-analysis.ts';
 import { ShowDirector } from '../../src/show/director.ts';
-import { COLOR_PRESETS, PATTERNS } from '../../src/server/presets.ts';
+import { COLOR_PRESETS, CLASSIC_LOOKS } from '../../src/server/presets.ts';
 
 const BPM = 128;
 const BEAT = 60 / BPM;
@@ -109,7 +109,7 @@ test('rekordbox\'s phrases become the sections, with roles by mood', () => {
 
 test('the director plans a show on rekordbox\'s sections', () => {
   const out = applyRekordbox(analysis(), { beatGrid: grid, songStructure: club });
-  const director = new ShowDirector({ patterns: PATTERNS, colorPresets: COLOR_PRESETS, paletteSize: 4, intensity: 50 });
+  const director = new ShowDirector({ patterns: CLASSIC_LOOKS, colorPresets: COLOR_PRESETS, paletteSize: 4, intensity: 50 });
   const { intents } = director.plan(out);
   const sections = intents.filter((i) => typeof i.source === 'string' && i.source.startsWith('section:'));
   assert.deepStrictEqual(sections.map((i) => i.source),
