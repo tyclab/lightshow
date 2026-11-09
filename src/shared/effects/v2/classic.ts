@@ -7,6 +7,7 @@ export const CLASSIC_REDIRECTS: Readonly<Record<string, string>> = Object.freeze
   'color-cycle': 'Wash on the v2 engine (option C), merged only once the operator chose B in A/B migration.color-cycle',
   breathe: 'Wash on the v2 engine (option C), merged only once the operator chose B in A/B migration.breathe',
   'party.ice': 'Wash on the v2 engine (option C), merged only once the operator chose B in A/B migration.party.ice',
+
 });
 
 // The classic and party looks on the v2 engine: for each id, the v2 spec closest to its own pattern on the
