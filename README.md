@@ -194,17 +194,18 @@ the same on every view, including while scrolling through Show:
 [mark] [Effects: Swirl ▾ | Colour + motion | Visualizer]  [▶ Look ▾] [Freeze] [Blackout] [Arm]  Master ━━●━ 100%  [● 120 BPM Online] [⋮]
 ```
 
-- **Picture source** comes first. The chosen source names the main effect
-  (**Effects: Swirl**); pressing it, or **E** anywhere, opens the effect picker:
-  favourites, your presets and the party looks, then every look A to Z with a
-  search. A tap puts a look on stage and leaves the picker open for the next one;
-  Escape or a press outside closes it. While an Audio-reactive look plays, under
-  any source, the picker also offers the other Audio-reactive looks (Active and
-  Mellow) and their colours. With **Visualizer** chosen the segment reads
-  **Visualizer: picture** while the picture arrives, since the picture then paints
-  the room; the effect chosen in the picker is the fallback, shown again 2 s after
-  the picture stops and named in the segment until the picture arrives. The other
-  sources are one tap away.
+- **Picture source** comes first. **Effects** and **Colour + motion** name the
+  main effect when chosen (**Effects: Swirl**); pressing that segment, or **E**
+  anywhere, opens the effect picker: favourites, your presets and the party
+  looks, then every look A to Z with a search. A tap puts a look on stage and
+  leaves the picker open for the next one; Escape or a press outside closes it.
+  While an Audio-reactive look plays, the picker also offers the other
+  Audio-reactive looks (Active and Mellow) and their colours. **Visualizer**
+  names no effect and opens nothing: the segment reads **Visualizer**, its
+  tooltip says whether the picture arrives, and E does nothing while it is
+  chosen. Choosing it closes an open picker. The main effect still shows while no
+  picture arrives and 2 s after the picture stops; choose it under Effects or
+  Colour + motion. The other sources are one tap away.
 - **Play** names what it starts (**▶ Look**, **▶ Auto show**, **▶ Sequence**) and
   is **■ Stop …** while that programme plays; its ▾ menu chooses the programme
   while stopped and keeps **Stop** in reach when the button itself is not Stop

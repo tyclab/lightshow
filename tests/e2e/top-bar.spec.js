@@ -139,22 +139,42 @@ test('E opens the picker with the search ready, and the search narrows the list'
   await expect(picker).toHaveCount(0);
 });
 
-test('another picture source is one tap, changes no latch, and the chosen one names the effect', async ({ page, request }) => {
+test('another picture source is one tap and changes no latch; the Visualizer names no effect and opens no picker', async ({ page, request }) => {
   await open(page, 'show');
   const before = (await state(request)).control;
   await source(page).getByRole('button', { name: 'Visualizer', exact: true }).click();
   await until(request, (s) => s.picture.source === 'visualizer');
-  await expect(source(page).getByRole('button', { name: /^Visualizer: / })).toHaveAttribute('aria-pressed', 'true');
+  const segment = source(page).getByRole('button', { name: 'Visualizer', exact: true });
+  await expect(segment).toHaveAttribute('aria-pressed', 'true');
   await expect(source(page).getByRole('button', { name: 'Effects', exact: true })).toHaveAttribute('aria-pressed', 'false');
   const after = (await state(request)).control;
   for (const key of ['frozen', 'blackout', 'armed', 'playing']) expect(after[key], key).toBe(before[key]);
-  const segment = source(page).getByRole('button', { name: /^Visualizer: / });
-  await expect(segment).toHaveAttribute('title', /Until the picture arrives: choose the effect \(E\)\.$/);
+  await expect(segment).toHaveText('Visualizer', { useInnerText: true });
+  await expect(segment).toHaveAccessibleDescription('Arm the outputs; the picture needs a live rig');
+  await expect(segment).not.toHaveAttribute('aria-haspopup');
   await segment.click();
-  // The picture brings no looks of its own; the Audio-reactive rows come with an Audio-reactive look on stage.
+  await page.keyboard.press('e');
+  // Back on Effects, a picker either of them had opened would show.
+  await request.post('/api/picture/source', { data: { source: 'effects' } });
+  await expect(source(page).getByRole('button', { name: /^Effects: / })).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.getByRole('dialog', { name: 'Main effect' })).toHaveCount(0);
+});
+
+test('an open picker closes when another client chooses the Visualizer, and stays shut on the way back', async ({ page, request }) => {
+  await open(page, 'effects');
+  await page.locator('body').press('e');
   const picker = page.getByRole('dialog', { name: 'Main effect' });
-  await expect(picker.getByRole('group', { name: 'Every effect' })).toBeVisible();
-  await expect(picker.getByRole('group', { name: 'Audio-reactive looks' })).toHaveCount(0);
+  await expect(picker).toBeVisible();
+  await request.post('/api/picture/source', { data: { source: 'visualizer' } });
+  await expect(picker).toHaveCount(0);
+  await expect(source(page).getByRole('button', { name: 'Visualizer', exact: true })).toHaveAttribute('aria-pressed', 'true');
+  await request.post('/api/picture/source', { data: { source: 'inspired' } });
+  const segment = source(page).getByRole('button', { name: /^Colour \+ motion: / });
+  await expect(segment).toHaveAttribute('aria-expanded', 'false');
+  await expect(picker).toHaveCount(0);
+  await page.locator('body').press('e');
+  await expect(picker).toBeVisible();
+  await expect(segment).toHaveAttribute('aria-expanded', 'true');
 });
 
 test('the play button names its programme, its menu chooses one only while stopped and always keeps Stop in reach', async ({ page, request }) => {
