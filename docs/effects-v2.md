@@ -28,8 +28,9 @@ local Audition and colour sliders. All new-show workflows hide retired rows.
   fixtures and physical segments, so cell count does not dominate the random draw.
   Whole-fixture and legacy cell selection remain explicit options. New WLED imports
   use pixels; existing patches are not migrated behind the operator's back.
-- **Rest and rotation:** backgrounds and Neural idle default to zero. Explicit
-  backgrounds have an independent colour. Rotation has soft sector transitions.
+- **Rest and rotation:** backgrounds and Neural idle default to zero. A background
+  floor takes the look's last colour, as the classic beds did, unless it names a colour
+  of its own. Rotation has soft sector transitions.
   Popcorn ids resolve to Scatter Fade and are absent from the picker.
 - **Composition and safety:** one output-guard owner retains device, lamp and room
   histories across voice changes. White/colour/palette energy strobes use the
