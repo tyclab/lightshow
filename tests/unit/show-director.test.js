@@ -9,7 +9,7 @@ import assert from 'node:assert';
 import { ShowDirector, ROLE_PROFILE, ACCENT_BUDGET } from '../../src/show/director.ts';
 import { INTENT, BURST, PRIORITY, accent } from '../../src/show/intents.ts';
 import { deriveEvents } from '../../src/show/musical-events.ts';
-import { COLOR_PRESETS, PATTERNS } from '../../src/server/presets.ts';
+import { COLOR_PRESETS, CLASSIC_LOOKS } from '../../src/server/presets.ts';
 
 const BPM = 128;
 const BEAT = 60 / BPM;
@@ -59,7 +59,7 @@ function analysis(over = {}) {
 
 function plan(a = analysis(), intensity = 50) {
   const director = new ShowDirector({
-    patterns: PATTERNS, colorPresets: COLOR_PRESETS, paletteSize: 4, intensity,
+    patterns: CLASSIC_LOOKS, colorPresets: COLOR_PRESETS, paletteSize: 4, intensity,
   });
   return director.plan(a);
 }
@@ -121,7 +121,7 @@ test('an accent never starts inside a burst another pass committed to', () => {
   // A drop's blinder and strobe run past its first bar at 128 BPM, but they are
   // planned outside the contrast pass, so its overlap check could not see them.
   // Sixteen accents across the analysis cache started inside one.
-  const director = new ShowDirector({ patterns: PATTERNS, colorPresets: COLOR_PRESETS, intensity: 50 });
+  const director = new ShowDirector({ patterns: CLASSIC_LOOKS, colorPresets: COLOR_PRESETS, intensity: 50 });
   const strobe = accent(60000, BURST.FLASH, 2500, { source: 'drop:slam', priority: PRIORITY.DROP });
   const kept = director._applyContrast(
     [accent(62000, BURST.FLASH, 300, { confidence: 1 })],
@@ -446,7 +446,7 @@ test('among equally confident spikes, the budget goes to the biggest', () => {
   // size in `intensity`. Ranked on confidence alone they all tied, the tie fell
   // to time order, and the budget went to whichever came first. Thirty spikes
   // in one minute, the loudest last, against a budget of twenty.
-  const director = new ShowDirector({ patterns: PATTERNS, colorPresets: COLOR_PRESETS, intensity: 50 });
+  const director = new ShowDirector({ patterns: CLASSIC_LOOKS, colorPresets: COLOR_PRESETS, intensity: 50 });
   const spikes = Array.from({ length: 30 }, (_, i) => accent(i * 1900, BURST.FLASH, 300, {
     source: 'spike', priority: PRIORITY.BAR_ACCENT, confidence: 0.6, intensity: 0.5 + i / 60,
   }));
@@ -464,7 +464,7 @@ test('among equally confident spikes, the budget goes to the biggest', () => {
 test('the quiet around a drop is a bar long, whatever the tempo', () => {
   // A flat two seconds let an accent land most of the way through the drop's
   // first bar at 70 BPM, and held one back past the second bar line at 175.
-  const director = new ShowDirector({ patterns: PATTERNS, colorPresets: COLOR_PRESETS, intensity: 50 });
+  const director = new ShowDirector({ patterns: CLASSIC_LOOKS, colorPresets: COLOR_PRESETS, intensity: 50 });
   const survives = (barSec, atSec) => director._applyContrast(
     [accent(60000 + atSec * 1000, BURST.FLASH, 300, { confidence: 1 })],
     { drops: [{ t: 60 }], vocals: [], silences: [], breaks: [],
@@ -539,7 +539,7 @@ test('a drop detected inside a silence does not fire', () => {
 
 test('asked to choose, the palette holds one colour per distinct passage', () => {
   const director = (paletteSize) => new ShowDirector({
-    patterns: PATTERNS, colorPresets: COLOR_PRESETS, paletteSize, intensity: 50,
+    patterns: CLASSIC_LOOKS, colorPresets: COLOR_PRESETS, paletteSize, intensity: 50,
   }).plan(measured());
   const auto = director('auto');
   assert.ok([2, 3, 4].includes(auto.paletteSize));

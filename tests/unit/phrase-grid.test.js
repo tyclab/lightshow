@@ -6,14 +6,14 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 import { ShowDirector } from '../../src/show/director.ts';
-import { COLOR_PRESETS, PATTERNS } from '../../src/server/presets.ts';
+import { COLOR_PRESETS, CLASSIC_LOOKS } from '../../src/server/presets.ts';
 
 const TRACKS = path.join(import.meta.dirname, '..', 'fixtures', 'tracks');
 const tracks = fs.readdirSync(TRACKS).filter((f) => f.endsWith('.json'))
   .map((f) => ({ name: f.replace(/\.json$/, ''), doc: JSON.parse(fs.readFileSync(path.join(TRACKS, f), 'utf8')) }));
 
 const plan = (doc, intensity = 50) => new ShowDirector({
-  patterns: PATTERNS, colorPresets: COLOR_PRESETS, paletteSize: 4, intensity,
+  patterns: CLASSIC_LOOKS, colorPresets: COLOR_PRESETS, paletteSize: 4, intensity,
 }).plan(doc);
 
 const TOLERANCE_MS = 1;
