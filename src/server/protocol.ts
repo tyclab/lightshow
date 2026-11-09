@@ -167,7 +167,7 @@ export function createPublisher(io: Io) {
 
     sendDmxFrame(frame: Uint8Array): boolean {
       if (typeof io.to !== 'function') return false;
-      if (lastFrame && lastFrame.length === frame.length && lastFrame.every((b, i) => b === frame[i])) return false;
+      if (lastFrame && Buffer.compare(lastFrame, frame) === 0) return false;
       lastFrame = frame;
       io.to(ROOM.dmx).volatile.emit('dmx-frame', frame);
       return true;

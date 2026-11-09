@@ -229,6 +229,7 @@ test('DMX goes out as bytes only to the pages that subscribed to it', async () =
     other.emit('unsubscribe', ['dmx']);
     await new Promise((r) => setTimeout(r, 50));
     assert.strictEqual(s.publisher.wants(ROOM.dmx), false);
+    assert.ok(s.publisher.sendDmxFrame(Uint8Array.from([1, 1, 0, 0, 3, 0, 10, 20, 31])), 'one byte changed: a new frame');
     assert.strictEqual(otherFrames, 1, 'only the frame it subscribed for');
   } finally {
     await s.close();
