@@ -185,12 +185,12 @@ export function buildBitmap(pattern: BitmapPattern, palette: readonly Colour[], 
 }
 
 // Both axes use picture height; width only controls the scroll period.
-export function sampleBitmap(image: BitmapImage, pattern: BitmapPattern, u: number, v: number, scroll: number): Colour {
-  const diagonal = pattern.endsWith('DiagonalLines');
-  const x = diagonal ? -u : u, y = diagonal ? v : -v;
-  const row = mod(Math.floor((y + 1) * image.height / 2), image.height);
-  const column = mod(Math.floor((x + 1) * image.height / 2) + mod(scroll, image.width), image.width);
-  return unpack(image.rows[row][column]);
+export function bitmapRow(image: BitmapImage, pattern: BitmapPattern, v: number): number {
+  return mod(Math.floor(((pattern.endsWith('DiagonalLines') ? v : -v) + 1) * image.height / 2), image.height);
+}
+
+export function bitmapColumn(image: BitmapImage, pattern: BitmapPattern, u: number, scroll: number): number {
+  return mod(Math.floor(((pattern.endsWith('DiagonalLines') ? -u : u) + 1) * image.height / 2) + mod(scroll, image.width), image.width);
 }
 
 // Scroll from launch time so seeks and late first renders land on the same pixels.
@@ -227,14 +227,13 @@ registerKind<z.infer<typeof schema>, BitmapState>({
       settings?.gradients, settings?.sets, settings?.gradient, settings?.gradientSet, settings?.gradientRole,
     ]) : ''}`;
     if (state.image === null || state.key !== key) {
-      state.image = raster(params.pattern, palette, gradient); state.key = key;
+      state.image = buildBitmap(params.pattern, frame.palette, random, gradient); state.key = key;
     }
     // A black background is the raster's gap: kept dark (role 2), or unlit with its whole share revealed; never at a rapid scroll.
     const reveal = frame.revealGaps === true && !strobeRests(frame.spec);
     for (let slot = 0; slot < room.n; slot++) {
-      const image = state.image, diagonal = params.pattern.endsWith('DiagonalLines');
-      const row = mod(Math.floor(((diagonal ? room.v[slot] : -room.v[slot]) + 1) * image.height / 2), image.height);
-      const col = mod(Math.floor(((diagonal ? -room.u[slot] : room.u[slot]) + 1) * image.height / 2) + mod(scroll, image.width), image.width);
+      const image = state.image;
+      const row = bitmapRow(image, params.pattern, room.v[slot]), col = bitmapColumn(image, params.pattern, room.u[slot], scroll);
       const colour = unpack(image.rows[row][col]), role = image.backgrounds?.[row][col] ?? 0, lit = reveal ? image.lit?.[row][col] : undefined;
       // A swell lights its share of the pixel, the same light at that level, and leaves the rest to the Background layer.
       if (lit !== undefined) {

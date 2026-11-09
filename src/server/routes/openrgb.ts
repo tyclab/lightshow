@@ -1,14 +1,12 @@
-import { state, allocateFixtureId, countUniverses, placeAddresslessFixtures } from '../state.ts';
-import { resizeFixtureBuffers } from '../engine.ts';
-import { MAX_FIXTURES, getProfile, registerProfile, unitCapOverflow } from '../profiles.ts';
+import { state } from '../state.ts';
+import { MAX_FIXTURES } from '../profiles.ts';
 import { MAX_UNIVERSES } from '../universes.ts';
 import { INTERNAL_UNIVERSE } from '../../shared/placement.ts';
-import { ddpConflict } from '../ddp-routes.ts';
+import { addFixtures } from '../fixture-add.ts';
 import { openrgbOutputOf } from '../openrgb-routes.ts';
 import { OPENRGB_PORT, matchSameName } from '../openrgb.ts';
 import type { OpenRgbDevice } from '../openrgb.ts';
 import { openrgbProfile } from '../openrgb-devices.ts';
-import { showStore } from '../show-store.ts';
 import { OPENRGB_LOCATION_MAX, openrgbAddSchema, openrgbHostSchema, validate } from '../validation.ts';
 import { messageOf, statusOf } from '../../errors.ts';
 import type { Express } from 'express';
@@ -104,26 +102,10 @@ export function attachOpenRgbRoutes(app: Express, ctx: RouteContext): void {
           output,
         });
       }
-      const byId = new Map(built.map(({ profile }) => [profile.id, profile as Profile]));
-      const profileOf = (f: Pick<Fixture, 'profileId'>) => byId.get(f.profileId) || getProfile(f);
-      const next = [...state.fixtures.map((f) => ({ ...f })), ...draft];
-      placeAddresslessFixtures(next, profileOf);
-      const problem = unitCapOverflow(next, profileOf) || ddpConflict(next, profileOf)
-        || (countUniverses(next, profileOf) > MAX_UNIVERSES
-          ? `The devices at ${host} would put the patch on more than the ${MAX_UNIVERSES} universes this server transmits` : null);
-      if (problem) return res.status(400).json({ ok: false, error: problem });
-      for (const { profile } of built) {
-        if (!registerProfile(profile)) return res.status(400).json({ ok: false, error: 'Invalid profile' });
-      }
-      for (const fixture of draft) {
-        fixture.id = allocateFixtureId();
-        state.fixtures.push(fixture);
-      }
-      placeAddresslessFixtures();
-      resizeFixtureBuffers();
-      showStore.scheduleSave();
-      integrations.broadcast();
-      res.json({ ok: true, host, port, fixtures: draft, profiles: built.map(({ profile }) => profile), devices: built.map(({ device }) => device) });
+      const added = addFixtures(draft, built.map(({ profile }) => profile as Profile),
+        `The devices at ${host} would put the patch on more than the ${MAX_UNIVERSES} universes this server transmits`, () => integrations.broadcast());
+      if ('error' in added) return res.status(400).json({ ok: false, error: added.error });
+      res.json({ ok: true, host, port, fixtures: added.fixtures, profiles: built.map(({ profile }) => profile), devices: built.map(({ device }) => device) });
     } catch (err) {
       res.status(statusOf(err) || 400).json({ ok: false, error: messageOf(err) });
     }

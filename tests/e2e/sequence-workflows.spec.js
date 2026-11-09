@@ -147,7 +147,7 @@ test('clip audition and Apply preserve the preset and fixture target', async ({ 
   const editor = await openClipEditor(page);
   // Pressed before the next frame: nothing that waits for a paint has run since the edit.
   await page.clock.pauseAt(await page.evaluate(() => Date.now() + 1000));
-  await editor.getByLabel('Step Beats', { exact: true }).fill('0.75');
+  await editor.getByLabel('Step', { exact: true }).fill('0.75');
   await editor.getByRole('button', { name: 'Hold on live rig' }).focus();
   await page.keyboard.down('Enter');
   await page.clock.resume();
@@ -167,13 +167,13 @@ test('clip audition and Apply preserve the preset and fixture target', async ({ 
 
 test('a refused clip Apply keeps the edited draft for a successful retry', async ({ page, request }) => {
   const editor = await openClipEditor(page);
-  await editor.getByLabel('Step Beats', { exact: true }).fill('0.75');
+  await editor.getByLabel('Step', { exact: true }).fill('0.75');
   await page.route('**/api/sequence', (route) => route.request().method() === 'PUT'
     ? route.fulfill({ status: 409, contentType: 'application/json', body: JSON.stringify({ ok: false, error: 'Rejected test edit' }) })
     : route.continue());
   await editor.getByRole('button', { name: 'Apply to clip' }).click();
   await expect(editor.getByRole('alert')).toBeVisible();
-  await expect(editor.getByLabel('Step Beats', { exact: true })).toHaveValue('0.75');
+  await expect(editor.getByLabel('Step', { exact: true })).toHaveValue('0.75');
   expect((await current(request)).clips[0].presetId).toBe('hd.neonDomino');
   await page.unroute('**/api/sequence');
   await editor.getByRole('button', { name: 'Apply to clip' }).click();

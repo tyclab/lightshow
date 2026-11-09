@@ -74,8 +74,8 @@ test('a diagonal draft auditions with explicit floor-to-height endpoints without
   await page.getByRole('button', { name: 'Edit Groove Wave', exact: true }).first().click();
   const sheet = page.getByRole('dialog', { name: 'Edit effect' });
   await sheet.getByText('Advanced', { exact: true }).click();
-  await sheet.getByLabel('Use explicit from point', { exact: true }).check();
-  await sheet.getByLabel('Use explicit to point', { exact: true }).check();
+  await sheet.getByLabel('Use explicit start point', { exact: true }).check();
+  await sheet.getByLabel('Use explicit end point', { exact: true }).check();
   await sheet.getByLabel('Start height (metres)', { exact: true }).fill('0.1');
   await sheet.getByLabel('End X (metres)', { exact: true }).fill('2');
   await sheet.getByLabel('End height (metres)', { exact: true }).fill('2.4');

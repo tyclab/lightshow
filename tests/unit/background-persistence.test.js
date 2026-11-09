@@ -33,7 +33,7 @@ test('background settings survive the real restart record and all six emitters r
   t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
   applyPatch({ background: fixed });
   const file = path.join(dir, 'look.json');
-  new LookStore(file).save(currentLook(null));
+  new LookStore(file).save(currentLook());
   applyPatch({ background: off });
   assert.equal(putBack(new LookStore(file).load()), true);
   assert.deepEqual(state.background, fixed);

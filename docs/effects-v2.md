@@ -1,14 +1,15 @@
 # Effects v2
 
-This document preserves the original design and its implementation decisions.
-The [README](../README.md#spatial-effects) describes current controls. The historical
-inventory and line numbers below refer to `4d4837f`; they are not the current catalogue.
+This document keeps the framework's implementation decisions, its target, the
+consolidation steps and the decisions still open. The [README](../README.md#spatial-effects)
+describes current controls. Line numbers in the target and the steps refer to `4d4837f`;
+they are not the current catalogue.
 
 ## Implementation status (2026-10-22)
 
-The operator authorized the full build after reviewing Phase A. There are now 39
-named spatial looks, each in room and plan forms, over eleven generators (the nine
-planned fields plus Neural and visualizer-derived animation). Pickers show one entry
+The operator authorized the full build after reviewing Phase A. There are now 41
+named spatial looks, each in room and plan forms, over twelve generators (the nine
+planned fields plus Neural, visualizer-derived animation and Globe). Pickers show one entry
 per look; the plan form (`v2.<name>.2d`) is a hidden variant that saved shows, aliases
 and the editor's Mapping choice (Across layout / Through room, offered only when the
 settings use positions) still reach. The additions include
@@ -36,7 +37,8 @@ local Audition and colour sliders. All new-show workflows hide retired rows.
 - **Compatibility:** the old golden files remain unchanged. Version-2 saved specs
   use `compat.*` adapters to preserve authored legacy parameters. Selected old
   preset ids intentionally resolve to modern plan looks; `scripts/effects-v2-alias-diff.js`
-  measures their frame differences. Unmapped ids remain hidden compatibility rows.
+  measures their frame differences, and those of classic and party ids against a v2
+  preset, on the synthetic room under the demo track. Unmapped ids remain hidden compatibility rows.
   **Step 9 is implemented as retirement from the active catalogue, not deletion of
   every legacy renderer or clock:** deleting those would break saved specs whose
   parameter richness has no exact field equivalent. No claim of byte identity is
@@ -63,142 +65,24 @@ The original steps and open questions below explain the design history; the
 implementation decisions above supersede the old proposed deletion and blocking
 questions. Installation data is never part of these fixtures.
 
-## Where the effects stand
+## Deferred physical-rig observations
 
-About 257 ids can be chosen as a base look: 41 base patterns plus the 216
-catalogue rows (`src/shared/effects/catalogue.ts:292`). Eighteen of those rows
-are the legacy Party Looks.
+Moved here from the finished Phase A plan (2026-10-26). Keep these here, not in an
+issue tracker. No firmware or wiring experiment is part of the effects work.
 
-| Group | Count | Source |
-|-------|-------|--------|
-| Base patterns | 41 | `src/server/presets.ts:55-100`, bodies in `src/shared/patterns.ts` |
-| Party Looks (`own.party`, legacy rows) | 18 | `catalogue.ts:235-256`, bodies `patterns.ts:885-1131` |
-| Entertainment presets (`ldj.*`) | 162: 140 rows and 22 bitmap presets | `src/shared/effects/ldj-ids.ts`, `ldj-bitmap.ts:10-14` |
-| Party presets (`hd.*`) | 16 over 10 families | `catalogue.ts:174-226`, `src/shared/effects/hd.ts:16-17` |
-| Disco presets | 11 over one family | `src/shared/effects/disco.ts:174-217` |
-| Energy effects | 7, including `palette-strobe` | `src/shared/effects/energy.ts`, `catalogue.ts:258-275` |
-| Gentle Party looks | 2 | `catalogue.ts:277-290` |
-| Strobe functions | 9 | `presets.ts:18-28`, `src/shared/strobe-fx.ts:84-95` |
-| Built-in palettes | 54 | `src/server/palette-catalogue.ts` |
-| Default pads | 16 | `src/server/pads.ts:123-140` |
-
-The automatic paths are the look picker (`src/show/look.ts:42-59, 284-339`) and
-the director's pools (`src/show/director.ts:1247-1300`). They choose only from
-base patterns. No catalogue row is referenced from `src/show/`,
-`src/auto-show.ts` or `src/server/conductor.ts`. The other 216 ids play only when
-picked by hand or from a pad, cue, sequence or MIDI.
-
-### Duplicates
-
-1. `solid`, `fade`, `hit` and `strobe` have identical bodies
-   (`patterns.ts:149-167`). They differ only by the brightness envelope in
-   `src/shared/layer.ts:94-101` and the renderer's hardware strobe.
-2. `ldj.PartyStrobe` and `ldj.MatrixPulse` are the same mode
-   (`src/shared/effects/ldj-matrix.ts:30-31`).
-3. `ramp-scatter` and `decay-scatter` draw the strobe programs `ramp-up-rnd` and
-   `ramp-down-rnd` (`patterns.ts:706-717`, `strobe-fx.ts:86-90`). `flash-burst`
-   approximates the `break` program.
-4. Nine Party Looks re-implement `hd.*` families with fixed parameters
-   (`patterns.ts:887-1024` against `hd.ts:258-301`), and the catalogue links
-   them (`catalogue.ts:236-244`). The twins already disagree: the Looks sweep the
-   floor plan, while `hd.*` sweeps the width–height plane (`patterns.ts:925, 948,
-   969` against `hd.ts:275, 283, 290`).
-5. The other nine Party Looks (anchor-fill, halves, flip, room-wave,
-   ring-strobe, ring-backlit, fireworks, flashes, swirl) re-implement
-   Entertainment rows (`patterns.ts:1026-1131` against `ldj-channel.ts`,
-   `ldj-iteration.ts`, `ldj-rotation.ts`). `src/shared/room.ts:125, 254-294`
-   copies the original's integer truncation so they match.
-6. One shape under several names. MatrixFirework, SceneMakerFirework and
-   Cauldron share one envelope (`ldj-matrix.ts:43-44`, `ldj-channel.ts:181-217`).
-   The Visualizer spikes reuse the four matrix modes (`ldj-visualizer.ts:35-45`).
-   `burst` is `impact` without sparks (`patterns.ts:342-353, 436-457`).
-7. Parameter sets spelled out as ids:
-   - chase, chase-rev, ping-pong, pairs, runner and stack-up are one stepper
-     with a direction, window and trail (`patterns.ts:182-265`);
-   - the 57 iteration rows are six builders times flags
-     (`ldj-iteration.ts:39-80, 170-190, 224-271`);
-   - the 22 bitmap presets are shape × width × fill × background;
-   - about a dozen random-unit effects across the three libraries are one
-     scatter with a density and an envelope.
-8. Each of the five genre scores exists twice: once as a genre strobe
-   (`ldj-iteration.ts:121-125, 224-225`) and once as a Scene Maker macro
-   (`catalogue.ts:92-98`).
-
-The 32 Entertainment table rows that are not effects (excluded, internal and
-command entries; see [feature coverage](feature-coverage.md)) still sit in the
-runtime table (`ldj-ids.ts:33-68`).
-
-### Strobe, flash limits and clocks
-
-Strobe is implemented eight times:
-
-- the drawn programs (`src/shared/strobe-fx.ts`);
-- the strobe kind and its `palette` function (`src/shared/effects/strobe.ts`);
-- the held strobe voice (`src/server/strobe.ts`);
-- the energy white and colour strobes and `palette-strobe` (`energy.ts`);
-- the legacy look's hold strobe (`src/shared/look-math.ts:60-86`);
-- the hardware channel and its software fallback
-  (`src/shared/hardware-strobe.ts`);
-- Disco's automatic strobe (`disco.ts`);
-- about twenty strobe-shaped patterns and rows (`flash-*`, `ring-strobe`, the
-  `ldj` strobe rows).
-
-Flash limits are enforced in four places:
-
-- the large-area limit of three flashes a second under `safety.flashLimit`
-  (`src/server/flash-limit.ts`, bedd786);
-- the per-lamp bright-rise interval for `hd.*` under `safety.hdFlashIntervalMs`
-  (`src/shared/effects/flash-guard.ts`, 0c3c8e6);
-- one permit per lamp shared by every voice (the same file, 108ac34);
-- the device rate caps, 20 Hz for RGB by default and 5 Hz for Hue
-  (`src/shared/hardware-guard.ts`, 287c10d and f6e939a).
-
-There are four clocks:
-
-- base patterns step at `beatDivision` (`layer.ts:108-123`);
-- `hd.*` counts beats at 960 PPQ (`hd.ts:19`);
-- `ldj.*` runs its own 22 fps frame clock (`src/shared/effects/ldj-engine.ts:13`),
-  with True Strobe on wall time (`ldj-iteration.ts:226`);
-- Disco counts wall-clock milliseconds (`disco.ts:1-5`).
-
-### Geometry
-
-- Effects sample the plan: plot x/y plus floor-to-ceiling z, all in 0..1
-  (`StagePlan`, `src/shared/rig.ts:25-30`).
-- A multi-cell fixture without `geometry.points` gets generated positions. A
-  grid is laid flat in plot x/y, so a vertical panel's rows become plan depth,
-  not height (`rig.ts:144-169`).
-- `bars`, `fire`, `rain` and `core` read height from plan y
-  (`patterns.ts:459-531, 683-705, 743-754`). They are correct only for that flat
-  layout.
-- `room.ts:96-154` scales each axis to its own span. Along, rank, halves,
-  channels, wave distance and ring all ignore height (`room.ts:172-248,
-  280-288`).
-- Only the `hd.*` projection uses height (`room.ts:296-301`).
-  `hd.radialPulse` measures 3D distance; the `hd.*` sweeps project onto width
-  and height and ignore depth (`hd.ts:120-126, 263-277`).
-- The Stage room (`src/shared/room-scene.ts`) holds metres, unit bindings,
-  strip paths and weighted sources, but it is preview-only by design
-  ([Rooms in Stage](stage-room.md)).
-- The browser already resolves bindings to output units
-  (`public-src/stage3d/world.js:126-179`). The engine does not.
-- No effect, director or renderer has a listener position or facing.
-- `geometry.points` with a per-unit `height` (#55: 807aed5, ff699df) is the first
-  per-cell height input on the engine side.
-
-## What the ports show
-
-The `hd.*` port is ten families on one parameter set: curve,
-attack/hold/release, direction, order, trail, probability, spatial angle,
-origin and radius (`hd.ts:68-87`). Its presets are those parameters plus a
-palette. The `ldj.*` port has nine families, and its rows are builder and flag
-combinations (`ldj-iteration.ts`, `ldj-bitmap.ts`). Neither port has a listener.
-Both use height only where noted above.
-
-v2 keeps the structure of `hd.*`: a few kernels, shared modifiers, and presets
-as parameter sets. It does not copy either app's ids, row tables, frame clock
-or numeric quirks into the engine. Old ids survive as aliases of the nearest v2
-preset.
+- **Curtain blip:** videos show an isolated colour flash just ahead of the wave,
+  approximately one camera frame. A later sender capture was clean but was not
+  simultaneous with the video, so it does not exclude the sender. WLED output
+  timing and signal integrity remain hypotheses, not a confirmed root cause.
+  Firmware already includes the older ESP32 RMT priority fix. A future investigation
+  needs a simultaneous capture and a controlled output/wiring comparison.
+- **Wave onset:** the shallow rising wave moves rapidly across vertical rows;
+  coarse couch zones and palette brightness changes can make the onset look
+  stepped. Tune against the real rig in a separate operator session; do not change
+  saved looks or claim a hardware fix from preview smoothness.
+- **Pale colour step:** the current palette's cyan-to-magenta RGB blend passes
+  through pale lavender. This is not an explicit white flash. Palette tuning is
+  separate from the isolated curtain blip.
 
 ## Target
 
@@ -244,105 +128,15 @@ them against the registered kinds, so retiring a kind would stop its saved
 effects from loading. Each retired kind needs a versioned spec migration to
 v2 generator parameters, tested on a stored library file.
 
+Presets are parameter sets on a few generators with shared modifiers. They take
+the essence of the ported kinds, never their ids, row tables, frame clock or
+numeric quirks, and never collapse an effect family into one fixed look: every
+generator exposes its parameters. Old ids survive as aliases of the nearest v2
+preset.
+
 Macro (Scene Maker), bundle (pad pattern) and sequence remain the show layer.
 The Entertainment Visualizer and Studio become a base and accent voice pair and
 a pad launch mode instead of kinds.
-
-## The operator's list
-
-Built first, in Phase A ([plan](superpowers/plans/2026-10-22-effects-v2-phase-a.md)): the Entertainment
-scatter strobe and its pseudo-3D rotation and wave effects, made truly spatial; the Party & Disco
-neural analyser and its beat features (beat accent, volume gate, frequency burst) as triggers every
-generator shares. Each one in the room and in classic 2D.
-
-## Next level
-
-Consolidation is the floor, not the goal. v2 exists for effects the 2D plan
-cannot draw, where light behaves like a physical thing in the room and every
-technology is one canvas. The showpieces define done for the framework:
-
-- **Shockwave from the speakers.** On a kick, a shell expands from each
-  speaker's anchor at a visible speed (a few metres a second), so the lamps
-  next to the speakers fire first and the wave crosses lamps, strips, the pixel
-  wall and small devices in turn. On a drop, both speakers fire together and
-  the strobe overlay takes the crest.
-- **The rising wall.** A build-up fills the room from the floor to the ceiling
-  with section progress, tightening the step rate as it climbs. The drop
-  releases it from the ceiling down, with a palette flip.
-- **Light objects.** Soft orbs fly tempo-locked paths through the room with
-  trails and hand over seamlessly from one device to the next. They circle the
-  listener on a groove, and collide and burst into particles on a drop.
-- **Fireworks and rain in 3D.** Sparks launch from an anchor, arc under
-  gravity and fade as they fall; drops run down vertical strips and pixel
-  columns and splash on the floor-level lamps.
-- **Surround.** Orbit around the listener with a facing: front, sides and back
-  answer each other, and a chase can circle the listener on the beat.
-- **Stems in space.** Where the analysis provides stems, each gets a place:
-  bass at floor level and at the speakers, drums as shockwaves, vocals on the
-  front display area, hats as sparkle near the ceiling.
-- **The pixel wall as a window.** A 2D pixel surface samples the 3D field at
-  its real position, so a wave visibly passes through it and stays continuous
-  with the strips around it.
-
-Each showpiece also has a classic 2D version on the plan: the shockwave as a
-ring from the speakers' plot positions, the rising wall as a bottom-to-top fill
-of the plot, particles and orbs moving across the plot, surround as a chase
-around the plot's centre.
-
-Choreography uses them by section: a build rises, a drop detonates, a breakdown
-drifts on noise at low level, and the director keeps contrast between
-consecutive sections instead of cycling looks. Quality is part of done: output
-alignment across technologies, sampling by emitter size, and every flash
-inside the limits.
-
-## 3D space
-
-1. **Unit positions in metres.** A shared map from `(fixtureId, unit)` to room
-   coordinates, built from the room's bindings:
-   - point bindings place their unit;
-   - strip bindings spread their cells along `path`;
-   - weighted-mean bindings give each source unit the lamp's position.
-
-   The resolver in `public-src/stage3d/world.js:126-179` moves into
-   `src/shared/`, so the renderer and the preview use one copy.
-2. **Fallback for unbound units.** A plan-to-room transform stored as data in
-   the room model. A unit without a binding keeps a position derived from its
-   plot position and height.
-3. **Listener and anchors.** A new room version adds an optional listening
-   position with a facing, plus named anchor points; a show may override the
-   listener and facing until that decision is settled. Without them, the
-   listener falls back to the room centre and facing-dependent options are
-   unavailable.
-4. **Field primitives on one metric scale**, instead of one span per axis:
-   - distance to a plane given by azimuth and elevation;
-   - distance from a point;
-   - azimuth around a vertical axis through the listener;
-   - height above the floor;
-   - position along the unit's own strip path;
-   - neighbours within r metres, through a spatial hash;
-   - 3D noise.
-
-   A speed means the same thing in every direction.
-5. **Cache.** The space is rebuilt only when the room revision
-   (`GET /api/stage/room`) or `rigSignature` (`src/shared/rig.ts:204`) changes.
-6. **Preview parity.** `src/shared/preview.ts` builds the same space from the
-   room the browser already holds. `tests/unit/preview-parity.test.js` extends
-   to it.
-7. **Disagreement report.** For each unit: plan position against room
-   position, plus unbound units and units shared between bindings. It is
-   read-only, and it gates any effect that samples the room.
-8. **Sampling by emitter size.** A unit samples the field averaged over its
-   extent (a lamp's radius, a binding's weighted sources, a cell's pitch), so
-   a thin line or comet fades across a large lamp instead of switching it fully
-   on and off while pixel strips render it smoothly.
-9. **Output alignment.** Spatial motion keeps today's Hue latency alignment,
-   which delays the other outputs by the Hue latency (`src/server/output.ts`).
-   Other output types have no offset of their own; one is added as data when a
-   measurement shows a wave arriving out of step.
-
-The generators keep a `plan` mode that samples today's 2D plan. Rooms stay
-private: `config/stage-room.json` is not part of a public checkout, and nothing
-in this plan commits room data or an installation's patch.
 
 ## Steps
 
@@ -365,15 +159,26 @@ photosensitivity acknowledgement, output shutdown and preview/output parity.
 | 9 | Retire the `hd.*`, `ldj.*` and legacy engines and their clocks onto the conductor's beat clock; about forty named presets remain | look change for any id that is not aliased | golden for aliases, preview for the rest |
 | 10 | Palettes: 54 built-ins to a curated set plus a hue-pair generator, in step with the Home Assistant palette selection | depends on the Home Assistant integration | catalogue check against the integration; palette golden |
 
+## Operator decisions
+
+On 2026-11-09 the operator answered the effects consolidation concept: "A investigate
+if B really right call so find deoublicate options and let me decide with a/b testing.
+C yes all on same engine".
+
+- Classic and party ids may redirect to v2 presets: every effect moves onto the same
+  engine. `CLASSIC_REDIRECTS` in `src/shared/effects/v2/classic.ts` lists each
+  redirected id with its reason; any other classic id keeps its pattern function.
+- Ids that fail step 7's tolerance become approximations only by the operator's
+  A/B test on the rig, look by look, with the frame diff of
+  `scripts/effects-v2-alias-diff.js` beside it.
+- The nine Party Looks move onto the same engine as their `hd.*` twins, whose ids
+  already resolve to v2 presets, decided look by look in the same A/B tests.
+
 ## Open operator decisions
 
 - Whether step 8 may change what the auto show and the default pads look like.
-- Which ids that fail step 7's tolerance are kept as approximations and which
-  are dropped at step 9.
 - Whether step 10 may remove palettes, given that Home Assistant selects
   palettes by id.
-- Whether the nine Party Looks merge into their `hd.*` twins. The twins already
-  sweep different planes.
 - Whether Disco folds into Scatter, the fill profiles and the strobe overlay, and whether
   the Entertainment Visualizer and Studio fold into voice pairs and a launch
   mode.
