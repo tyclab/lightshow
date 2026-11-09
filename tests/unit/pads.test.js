@@ -36,6 +36,7 @@ import { domainOf } from '../../src/server/protocol.ts';
 import { settings } from '../../src/server/settings.ts';
 import * as output from '../../src/server/output.ts';
 import { showStore } from '../../src/server/show-store.ts';
+import { CLASSIC_REDIRECTS } from '../../src/shared/effects/v2/classic.ts';
 
 showStore.scheduleSave = () => {};   // never the real show file
 
@@ -795,9 +796,8 @@ test('PUT a pad entry persists and validates (unknown preset or pattern → 400)
   };
   await refused('/api/pads/1/3', { ...entry, content: preset('no.such') });
   await refused('/api/pads/1/3', { ...entry, content: preset('strobe') });
-  // A legacy pattern is no preset, and no pattern on the shelf either.
-  await refused('/api/pads/1/3', { ...entry, content: preset('chase') });
-  await refused('/api/pads/1/3', { ...entry, content: preset('confetti') });
+  // A legacy pattern is no preset (a redirected one is), and no pattern on the shelf either.
+  for (const id of ['chase', 'confetti'].filter((look) => !Object.hasOwn(CLASSIC_REDIRECTS, look))) await refused('/api/pads/1/3', { ...entry, content: preset(id) });
   await refused('/api/pads/1/3', { ...entry, content: { kind: 'pattern', id: 'chase' } });
   await refused('/api/pads/1/3', { ...entry, content: { kind: 'sequencePattern', id: 'chase' } });
   await refused('/api/pads/1/3', { ...entry, quantise: -0.25 });
