@@ -1,6 +1,12 @@
 // Classic and party pattern ids that play a v2 preset instead of their pattern function, each with the
 // reason it moved. The operator decides each move by A/B test on the rig; every other classic id keeps its function.
-export const CLASSIC_REDIRECTS: Readonly<Record<string, string>> = Object.freeze({});
+export const CLASSIC_REDIRECTS: Readonly<Record<string, string>> = Object.freeze({
+  burst: 'Ripple on the v2 engine (option C), merged only once the operator chose B in A/B migration.burst',
+  impact: 'Ripple on the v2 engine (option C), merged only once the operator chose B in A/B migration.impact',
+  ramp: 'Ripple on the v2 engine (option C), merged only once the operator chose B in A/B migration.ramp',
+  'flash-fill': 'Ripple on the v2 engine (option C), merged only once the operator chose B in A/B migration.flash-fill',
+  'radial-pulse': 'Ripple on the v2 engine (option C), merged only once the operator chose B in A/B migration.radial-pulse',
+});
 
 // The classic and party looks on the v2 engine: for each id, the v2 spec closest to its own pattern on the
 // diff rig (scripts/effects-v2-alias-diff.js --classic) and that diff as [largest channel, mean absolute
@@ -56,15 +62,15 @@ export const CLASSIC_V2: Readonly<Record<string, ClassicLook>> = {
   flashes: { family: 'Scatter', name: 'Flashes', diff: [255, 31.596, 129],
     spec: { kind: 'v2.scatter', params: { space: 'plan', envelope: { curve: 'linear', attack: 0, hold: 0.06, release: 0 }, density: 0.25, stepBeats: 0.5 } } },
   // Ripple
-  burst: { family: 'Ripple', name: 'Burst', pixel: true, diff: [209, 28.991, 129],
+  burst: { family: 'Ripple', name: 'Burst', desc: 'A ring with a fading tail thrown out from the middle on every beat, in the first colour', pixel: true, diff: [209, 28.991, 129],
     spec: { kind: 'v2.shell', params: { space: 'plan', origin: 'centre', trigger: { mode: 'beatAccent', band: 'full', beatInterval: 1, threshold: 0, reactiveDepth: 1 }, envelope: { curve: 'linear', attack: 0, hold: 0.5, release: 0.5 }, speed: 1.5, width: 0.2, profile: 'ramp', colour: 'solid' } } },
-  impact: { family: 'Ripple', name: 'Impact', pixel: true, diff: [255, 37.656, 129],
+  impact: { family: 'Ripple', name: 'Impact', desc: 'A ring thrown out from the middle on every beat in the first colour, with sparks in the last colour', pixel: true, diff: [255, 37.656, 129],
     spec: { kind: 'v2.shell', params: { space: 'plan', origin: 'centre', envelope: { curve: 'linear', attack: 0, hold: 0.5, release: 0.5 }, trigger: { mode: 'beatAccent', band: 'full', beatInterval: 1, threshold: 0, reactiveDepth: 1 }, speed: 1.5, width: 0.25, profile: 'ramp', colour: 'solid', sparks: 0.1 } } },
-  ramp: { family: 'Ripple', name: 'Ramp', pixel: true, diff: [255, 12.345, 129],
+  ramp: { family: 'Ripple', name: 'Ramp', desc: 'Every beat a ramp sweeping in to the middle and swelling up, cut on the next beat', pixel: true, diff: [255, 12.345, 129],
     spec: { kind: 'v2.shell', params: { space: 'plan', origin: 'centre', trigger: { mode: 'beatAccent', band: 'full', beatInterval: 1, threshold: 0, reactiveDepth: 1 }, envelope: { curve: 'easeIn', attack: 0.6, hold: 0.3, release: 0 }, speed: 4, width: 0.2, profile: 'ramp', direction: 'in' } } },
-  'flash-fill': { family: 'Ripple', name: 'Flash Fill', pixel: true, diff: [255, 37.276, 129],
+  'flash-fill': { family: 'Ripple', name: 'Flash Fill', desc: 'Every beat the plot filling out from the middle at once in the next colour, cut after half a beat', pixel: true, diff: [255, 37.276, 129],
     spec: { kind: 'v2.shell', params: { space: 'plan', origin: 'centre', profile: 'fill', trigger: { mode: 'beatAccent', band: 'full', beatInterval: 1, threshold: 0, reactiveDepth: 1 }, envelope: { curve: 'linear', attack: 0, hold: 0.6, release: 0.05 }, speed: 8, width: 0.1, colour: 'step' } } },
-  'radial-pulse': { family: 'Ripple', name: 'Radial Pulse', diff: [254, 36.882, 129],
+  'radial-pulse': { family: 'Ripple', name: 'Radial Pulse', desc: 'A soft ring from the middle every bar, as strong as the bass', diff: [254, 36.882, 129],
     spec: { kind: 'v2.shell', params: { space: 'plan', origin: 'centre', envelope: { curve: 'easeInOut', attack: 1, hold: 0.5, release: 1 }, trigger: { mode: 'beatAccent', band: 'bass', beatInterval: 4, threshold: 0.15, reactiveDepth: 0.6 }, speed: 1, width: 1 } } },
   // Wave
   wave: { family: 'Wave', name: 'Wave', diff: [247, 25.658, 129],

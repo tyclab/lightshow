@@ -41,27 +41,27 @@ const PINNED = {
   ribbon: 'beat',
   gradient: 'beat bars',
   comet: 'beat bars',
-  burst: 'beat bars',
+  burst: 'level bars / live',
   plasma: 'beat bars',
   meter: 'bands level bars / track',
   drums: 'bands bars / track',
   stems: 'bands bars / track',
   rise: 'sections bars / track',
-  impact: 'bands bars / track',
+  impact: 'level bars rapid / live',
   bars: 'bands bars / track',
   fire: 'bands bars / track',
   rain: 'bands bars / track',
   'flash-chase': 'beat bars',
   'flash-scatter': 'beat bars',
-  'flash-fill': 'beat bars',
+  'flash-fill': 'level bars / live',
   'flash-alternate': 'beat bars',
-  ramp: 'beat bars',
+  ramp: 'level bars / live',
   'ramp-scatter': 'beat bars',
   'decay-scatter': 'beat bars',
   'flash-burst': 'beat bars',
   core: 'bands bars / track',
   'position-chase': 'beat',
-  'radial-pulse': 'bands / track',
+  'radial-pulse': 'bands / live',
   'spatial-wash': 'beat',
   'bounce-scan': 'beat',
   streak: 'beat',
@@ -166,13 +166,13 @@ test('the twelve tags and their counts over the 113 looks', () => {
   ]);
   const counts = Object.fromEntries(Object.keys(TAGS).map((tag) => [tag, count(VISIBLE, tag)]));
   assert.deepEqual(counts, {
-    beat: 79, static: 7, bands: 19, level: 4, sections: 3, screen: 2,
-    rig: 17, room: 41, bars: 21, ownColours: 8, energy: 11, rapid: 9,
+    beat: 76, static: 7, bands: 18, level: 8, sections: 3, screen: 2,
+    rig: 17, room: 41, bars: 21, ownColours: 8, energy: 11, rapid: 10,
   });
   const reactive = VISIBLE.filter((row) => row.tags.some((tag) => REACTIVE_TAGS.has(tag)));
-  assert.equal(reactive.length, 27);
+  assert.equal(reactive.length, 30);
   assert.deepEqual(Object.fromEntries(Object.keys(SOURCES).map((s) => [s, reactive.filter((r) => r.via.includes(s)).length])),
-    { track: 16, live: 10, screen: 2 });
+    { track: 14, live: 15, screen: 2 });
 });
 
 test('tags restate the fields the server already sends: pixel, room mapping, rapid flash, the energy family', () => {
@@ -288,6 +288,6 @@ test('one rule sorts a row into the MIDI and Companion browse lists', () => {
   const rows = [...PATTERNS, ...PRESET_ROWS];
   const lists = (rapid) => rows.filter((r) => !r.retired && (rapid || !r.rapidFlash)).reduce((acc, r) => { acc[browseListOf(r)]++; return acc; }, { pattern: 0, effect: 0, bars: 0 });
   assert.deepEqual(lists(true), { pattern: 81, effect: 11, bars: 21 });
-  assert.deepEqual(lists(false), { pattern: 79, effect: 4, bars: 21 });
+  assert.deepEqual(lists(false), { pattern: 79, effect: 4, bars: 20 });
   assert.deepEqual([{}, { pixel: true }, { tags: ['beat', 'energy'] }].map(browseListOf), ['pattern', 'bars', 'effect']);
 });
