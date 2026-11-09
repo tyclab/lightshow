@@ -138,6 +138,8 @@ export interface MidiBusk {
   looks(): readonly LookRow[];
   // The main effect as it plays (its colour edits and live variables applied), or null for a classic look.
   effect(): EffectSpec | null;
+  // Vary looks (auto.varyLooks): random picks a card, then a preset, and varies it.
+  varyLooks?(): boolean;
   palettes(): readonly string[];
   acknowledged(): boolean;
   stopEffects(): unknown;
@@ -719,6 +721,7 @@ class MidiController {
         // A card, then one of its presets, then the ranges its controls declare: as the auto show varies its looks.
         const others = this._lookList(binding.value === 'effect' ? 'effect' : 'pattern').filter((id) => id !== s.pattern);
         if (!others.length) break;
+        if (!this.busk?.varyLooks?.()) { this._look(this._pick(others)); break; }
         const cards = new Map((this.busk?.looks() ?? []).map((row) => [row.id, row.card ?? row.id]));
         const [, presets] = this._pick(byCard(others, (look) => cards.get(look) ?? look));
         const id = this._pick(presets);

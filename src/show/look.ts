@@ -298,7 +298,7 @@ function varietyFor(pattern: string, seed: number): { effectParams: EffectParams
 }
 
 function pickPattern({ character, available, score = null, seed = 0, drive = 0.5,
-  dance = 0.5, pixels = false, particles, pictures = null, avoid = null }: {
+  dance = 0.5, pixels = false, particles, pictures = null, avoid = null, vary = false }: {
   character?: Character | null;
   available: ReadonlySet<string>;
   score?: Score | null;
@@ -309,6 +309,7 @@ function pickPattern({ character, available, score = null, seed = 0, drive = 0.5
   particles?: ReadonlySet<string>;
   pictures?: ReadonlySet<string> | null;
   avoid?: ReadonlySet<string> | null;
+  vary?: boolean;
 }): string {
   available = new Set([...available].filter((id) => automaticPattern(id, particles)));
   const c: Character = character || {};
@@ -348,7 +349,7 @@ function pickPattern({ character, available, score = null, seed = 0, drive = 0.5
       return available.has('ribbon') ? 'ribbon'
         : available.has('chase') ? 'chase' : [...available][0];
     }
-    return pickByCard(filtered, CARD_OF, Math.abs(Math.round(seed)));
+    return vary ? pickByCard(filtered, CARD_OF, Math.abs(Math.round(seed))) : filtered[Math.abs(Math.round(seed)) % filtered.length];
   };
 
   // Quiet: nothing is carrying the passage, so nothing should be chasing.

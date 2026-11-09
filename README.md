@@ -1377,13 +1377,18 @@ stale `pattern` refuses the whole patch. A v2 kind restarts only for what its st
 is built from (`restartKey`: a step's order and heading, a zone split, a scatter's
 step length), so every other variable moves without a restart.
 
-**Variety.** The auto show and the live director pick a card, then one of its
+**Variety.** With **Vary looks** on (Setup → Show, `auto.varyLooks`, off by default) the
+auto show and the live director pick a card, then one of its
 presets (`src/shared/effects/variety.ts`: a card with many presets is no likelier
 than one with few; looks that are each their own card pick as before), then play
 a spatial preset with the ranges its controls declare (`vary`, never a trigger,
 envelope, step or strobe rate) varied by the section's seed, so a chorus comes
 back as it was. A varied preset that would ask for the photosensitivity
-acknowledgement plays unvaried. The planned show's preview plays the same variety.
+acknowledgement plays unvaried, and a look chosen for a section in the timeline
+editor plays as chosen. The planned show's preview plays the same variety. Off,
+every automatic choice is the one it was before the setting existed
+(`tests/unit/vary-looks.test.js` holds the plans, live looks and MIDI random picks to
+digests taken from main); switching it replans the track at once.
 
 `PUT /api/palette-override` accepts the same body or `{ paletteId }`.
 `paletteOverride` and `paletteOverrideId` remain compatible with existing
@@ -1873,8 +1878,9 @@ voices; fire a bounded strobe burst; or toggle the auto show. Browse patterns
 covers every current look but the bars' pictures and the energy looks, Browse effects
 the energy holds and strobes, and the bars' picture the Bars & panels looks, by the
 [tags](#effects-catalogue-and-tags) the server sends; retired ids are in none of them.
-A random look takes a card first, then one of its presets, then varies the ranges its
-controls declare, as the auto show does. **Effect variable** (a fader) and **Nudge an
+With Vary looks on, a random look takes a card first, then one of its presets, then
+varies the ranges its controls declare, as the auto show does; off, it is an even pick
+over the looks as before. **Effect variable** (a fader) and **Nudge an
 effect variable** (an encoder) move variable 1 or 2 of the main effect: its first two
 sliders in its kind's knob order (a wave's Speed and Width, a wall's Width and Length,
 a scatter's Density and Step), sent as `effectVariable: { index, at | steps }`; a

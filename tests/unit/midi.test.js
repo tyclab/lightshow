@@ -1312,9 +1312,10 @@ test('busking buttons reach the server, and BPM doubles and halves within range'
   assert.ok(h.leds.some((m) => m.note === 107 && m.velocity > 0), 'auto show lit while on');
 });
 
-test('random takes a card first, then one of its presets, varied as the auto show varies; a card of many is no likelier', () => {
+test('with Vary looks, random takes a card first, then one of its presets, varied as the auto show varies', () => {
   const h = harness({ cc: {}, notes: { 55: { action: 'randomLook', value: 'pattern' } } });
   busk(h);
+  h.midi.busk.varyLooks = () => true;
   h.midi.busk.looks = () => [
     { id: 'chase', card: 'chase', tags: ['beat'] }, { id: 'solid', card: 'solid', tags: ['static', 'rig'] },
     ...['v2.grooveWave', 'v2.ascent', 'v2.swagger'].map((id) => ({ id, card: 'effect.wave', tags: ['beat', 'room'] })),

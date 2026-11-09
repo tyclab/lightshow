@@ -34,7 +34,7 @@ export interface ApplierDeps {
   live?: { start(options: { source: 'loopback' | 'input'; device?: string; latencyMs?: number }): void; stop(): void } | null;
   midiClock?: { setPort(port: string): void } | null;
   deezer: { init(arl: string): Promise<unknown>; canDecrypt?(): boolean };
-  autoShow?: { restartWorker?(reason: string): void; settleLocalAnalysis?(): void } | null;
+  autoShow?: { restartWorker?(reason: string): void; settleLocalAnalysis?(): void; replan?(): void } | null;
   applyPatch(patch: unknown): unknown;
   broadcast(): void;
   voices?: { stopAll(): number };
@@ -243,6 +243,7 @@ function createApplier({ midi, spotify, smtc, live = null, midiClock = null, dee
     { match: (k) => k === 'safety.flashLimit', run: applySafety },
     { match: (k) => k === 'clock.tempoMode', run: applyClock },
     { match: (k) => k === 'outputs.armed', run: (origin) => applyOutputs({ origin }) },
+    { match: (k) => k === 'auto.varyLooks', run: () => autoShow?.replan?.() },
   ];
 
   return {

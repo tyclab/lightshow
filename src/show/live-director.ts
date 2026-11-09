@@ -48,6 +48,8 @@ export interface LiveDirectorOptions {
   /** Whether a rig with LED bars can take the pixel patterns. */
   pixels?: () => boolean;
   particlePatterns?: () => ReadonlySet<string> | undefined;
+  /** Vary looks (auto.varyLooks): a card first, then a preset, played with its declared ranges varied. */
+  varyLooks?: () => boolean;
   now?: () => number;
   setTimer?: (fn: () => void, ms: number) => unknown;
   clearTimer?: (timer: unknown) => void;
@@ -58,6 +60,7 @@ class LiveDirector {
   declare _available: Set<string>;
   declare _pixels: () => boolean;
   declare _particlePatterns: () => ReadonlySet<string> | undefined;
+  declare _varyLooks: () => boolean;
   declare _now: () => number;
   declare _setTimer: (fn: () => void, ms: number) => unknown;
   declare _clearTimer: (timer: unknown) => void;
@@ -75,7 +78,7 @@ class LiveDirector {
   declare _lastAccentAt: number;
   declare _timers: Set<unknown>;
 
-  constructor({ applyPatch, patterns, pixels = () => false, particlePatterns = () => undefined, now = () => performance.now(),
+  constructor({ applyPatch, patterns, pixels = () => false, particlePatterns = () => undefined, varyLooks = () => false, now = () => performance.now(),
     setTimer = (fn, ms) => setTimeout(fn, ms), clearTimer = (t) => clearTimeout(t as ReturnType<typeof setTimeout>) }: LiveDirectorOptions) {
     // Called from the live input's events, where a throw would end the server:
     // a patch refused (a strobe burst before the photosensitivity
@@ -91,6 +94,7 @@ class LiveDirector {
     this._available = new Set(patterns.map((p) => p.id));
     this._pixels = pixels;
     this._particlePatterns = particlePatterns;
+    this._varyLooks = varyLooks;
     this._now = now;
     this._setTimer = setTimer;
     this._clearTimer = clearTimer;
@@ -192,16 +196,17 @@ class LiveDirector {
     this._hue = goldenStep(this._seed, WHEEL.length);
     const character: Character = rise ? { ...this._character, energy: Math.max(0.8, this._character.energy) } : this._character;
     const drive = rise ? Math.max(0.8, this._drive()) : this._drive();
+    const vary = this._varyLooks();
     const dropLooks = ['v2.speakerShockwave', 'v2.fireworks', 'v2.orbCollision']
       .filter((id) => this._available.has(id) && automaticPattern(id, this._particlePatterns()));
     const pattern = rise && dropLooks.length ? dropLooks[this._seed % dropLooks.length] : pickPattern({
       character, available: this._available, seed: this._seed, drive,
-      dance: this._character.pulse, pixels: this._pixels(), particles: this._particlePatterns(),
+      dance: this._character.pulse, pixels: this._pixels(), particles: this._particlePatterns(), vary,
     });
     const at = (k: number) => WHEEL[(this._hue + k) % WHEEL.length];
     const look: Patch = {
       pattern,
-      ...varietyFor(pattern, this._seed),
+      ...(vary ? varietyFor(pattern, this._seed) : {}),
       colorA: at(0), colorB: at(3), colorC: at(5), colorD: at(7),
       beatDivision: 1,
       ...(pattern.startsWith('v2.') ? { pixelPattern: null, panelPattern: null, pixelMap: 'stage', pixelSpan: null, pixelFrom: null, split: null } : {}),

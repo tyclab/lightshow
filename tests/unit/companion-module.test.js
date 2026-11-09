@@ -320,12 +320,13 @@ test('the Busk lists step and randomise through eligible looks', () => {
   assert.strictEqual(catalog.stepLook({ ...s, pattern: 'breathe' }, 'pattern', 'next'), 'solid', 'round the list');
   assert.strictEqual(catalog.stepLook(s, 'effect', 'previous'), 'energy.glow', 'from a pattern, the last effect');
   assert.strictEqual(catalog.randomLook(s, 'pattern', () => 0), 'solid', 'never the look on stage');
-  // A card first, then one of its presets: Wave's three presets are as likely together as Solid alone.
-  const carded = { ...s, patterns: [{ id: 'solid', card: 'solid', tags: ['static', 'rig'] }, { id: 'chase', card: 'chase', tags: ['beat'] },
+  // With the server's Vary looks on, a card first, then one of its presets: Wave's three are as likely together as Solid alone.
+  const carded = { ...s, autoShow: { set: { varyLooks: true } }, patterns: [{ id: 'solid', card: 'solid', tags: ['static', 'rig'] }, { id: 'chase', card: 'chase', tags: ['beat'] },
     ...['v2.grooveWave', 'v2.ascent', 'v2.swagger'].map((id) => ({ id, card: 'effect.wave', tags: ['beat', 'room'] }))] };
   const draws = [0.75, 0.7];
   assert.strictEqual(catalog.randomLook(carded, 'pattern', () => draws.shift()), 'v2.swagger');
   assert.strictEqual(catalog.randomLook(carded, 'pattern', () => 0.2), 'solid');
+  assert.strictEqual(catalog.randomLook({ ...carded, autoShow: { set: { varyLooks: false } } }, 'pattern', () => 0.75), 'v2.swagger', 'off, an even pick over the looks');
   assert.strictEqual(catalog.randomPalette({ ...s, paletteOverrideId: 'redCyan' }, () => 0), 'rainbow');
   const colours = catalog.randomColours(s, () => 0.9999);
   assert.deepStrictEqual(Object.keys(colours), ['colorA', 'colorB', 'colorC', 'colorD']);

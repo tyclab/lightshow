@@ -12,7 +12,7 @@ import { SPATIAL_AUTO_PATTERNS } from '../../src/show/look.ts';
 import { setupIntegrations } from '../../src/server/integrations.ts';
 import { state } from '../../src/server/state.ts';
 
-function director({ refuse = () => null, patterns = PATTERNS } = {}) {
+function director({ refuse = () => null, patterns = PATTERNS, varyLooks } = {}) {
   const patches = [];
   const timers = [];
   let now = 0;
@@ -23,6 +23,7 @@ function director({ refuse = () => null, patterns = PATTERNS } = {}) {
       patches.push(p);
     },
     patterns,
+    ...(varyLooks ? { varyLooks } : {}),
     now: () => now,
     setTimer: (fn, ms) => { const t = { fn, at: now + ms }; timers.push(t); return t; },
     clearTimer: (t) => { const i = timers.indexOf(t); if (i >= 0) timers.splice(i, 1); },
@@ -237,8 +238,8 @@ test('while the next track is analysed it fills in, and never over a running tim
   }
 });
 
-test('a spatial look plays varied, and the build\'s wall drops the variety that was for the look before it', () => {
-  const t = director({ patterns: [...PATTERNS, ...PRESET_ROWS.filter((row) => !row.retired)] });
+test('with Vary looks a spatial look plays varied, and the build\'s wall drops the variety that was for the look before it', () => {
+  const t = director({ patterns: [...PATTERNS, ...PRESET_ROWS.filter((row) => !row.retired)], varyLooks: () => true });
   t.hear({ seconds: 3 });
   t.d.start();
   for (let i = 0; i < 12 && !t.patches.some((p) => p.effectParams); i++) t.event('TRANSITION', { to: i % 2 ? 'low' : 'high' });

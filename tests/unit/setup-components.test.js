@@ -126,6 +126,15 @@ test('Settings → Show selects the saved Hue flash mode', () => {
   assert.match(select[0], /<option selected value="pulse"/);
 });
 
+test('Settings → Show offers Vary Looks beside Remember the Night, off as saved', () => {
+  ui.settingsSig.value = { settings: { outputs: { armed: false }, auto: { setMemory: true, varyLooks: false }, safety: { flashLimit: false }, hue: { strobe: 'pulse' } }, secrets: {} };
+  const html = ui.html(ui.h(ui.SettingsSection, ui.SHOW));
+  const ids = [...html.matchAll(/id="set-([a-z]+\.[A-Za-z]+)"/g)].map((m) => m[1]);
+  assert.strictEqual(ids[ids.indexOf('auto.setMemory') + 1], 'auto.varyLooks');
+  assert.match(html, />Vary Looks</);
+  assert.doesNotMatch(html.match(/<input[^>]*id="set-auto.varyLooks"[^>]*>/)[0], /checked/);
+});
+
 test('Settings → Analysis offers standby for the analyser here, beside the GPU memory', () => {
   ui.settingsSig.value = {
     settings: { analysis: { separator: 'demucs', structureModel: 'auto', gpuMemory: 'auto', localWorker: 'standby', remoteWaitMs: 120000 } },

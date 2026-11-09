@@ -443,6 +443,7 @@ function setupIntegrations({ io, midi, spotify, nowPlaying, deezerSource, prolin
     patterns: [...PATTERNS, ...SPATIAL_AUTO_PATTERNS],
     pixels: () => currentRig().hasPixels,
     particlePatterns: () => particleCoverage.allowed,
+    varyLooks: () => settings.get('auto.varyLooks'),
   }) : null;
   if (liveInput && liveDirector) liveInput.onEvent((e) => liveDirector.onEvent(e));
 
@@ -456,6 +457,7 @@ function setupIntegrations({ io, midi, spotify, nowPlaying, deezerSource, prolin
   midi.busk = {
     looks: () => getCatalogs().patterns,
     effect: () => baseEffect()?.spec ?? null,
+    varyLooks: () => settings.get('auto.varyLooks'),
     palettes: () => [...ALL_PALETTES.map((p) => p.id), ...library.palettes.list().map((p) => p.id)],
     acknowledged: () => safety.acknowledged(),
     stopEffects: () => { voices.stopAll(); broadcast(); },
