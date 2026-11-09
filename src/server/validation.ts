@@ -1,5 +1,5 @@
 import { effectColoursSchema } from '../shared/effect-colours.ts';
-import { effectParamsSchema } from '../shared/effect-params.ts';
+import { effectParamsSchema, effectVariableSchema } from '../shared/effect-params.ts';
 import { backgroundSchema } from '../shared/background.ts';
 import { z } from 'zod';
 import { admissionPolicySchema, rateOverrideSchema } from '../shared/hardware.ts';
@@ -148,6 +148,7 @@ const patchSchema = z.object({
   paletteOverride: paletteOverride.optional(),
   effectColours: effectColoursSchema.nullable().optional(),
   effectParams: effectParamsSchema.nullable().optional(),
+  effectVariable: effectVariableSchema.optional(),
   basePalette: paletteBodySchema.nullable().optional(),
   overridePalette: paletteBodySchema.nullable().optional(),
   palette: z.string().min(1).max(64).nullable().optional(),

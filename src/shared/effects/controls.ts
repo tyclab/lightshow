@@ -16,7 +16,9 @@ interface ControlBase {
   // Shown only while the kind reads this field for the params as they are.
   when?: When;
 }
-export interface NumberControl extends ControlBase { type: 'number'; min: number; max: number; step: number; unit?: string }
+// `vary`: the part of the range an automatic choice may pick from (src/shared/effects/variety.ts); timing in beats
+// and turns stays as the preset has it, so a varied look keeps to the bar.
+export interface NumberControl extends ControlBase { type: 'number'; min: number; max: number; step: number; unit?: string; vary?: readonly [number, number] }
 export interface ChoiceControl extends ControlBase { type: 'choice'; options: readonly ControlOption[] }
 export interface ToggleControl extends ControlBase { type: 'toggle' }
 /** Free-form fields drawn from the kind's schema: a colour, a room anchor, a point in metres or a list. */
@@ -34,7 +36,7 @@ export function paramAt(p: Params, path: string): unknown {
 
 const options = (entries: Record<string, string> | readonly (readonly [ControlValue, string])[]): ControlOption[] =>
   (Array.isArray(entries) ? entries : Object.entries(entries)).map(([value, label]) => ({ value, label }));
-const num = (path: string, label: string, min: number, max: number, step: number, unit?: string, extra: Partial<ControlBase> = {}): NumberControl =>
+const num = (path: string, label: string, min: number, max: number, step: number, unit?: string, extra: Partial<ControlBase> & { vary?: readonly [number, number] } = {}): NumberControl =>
   ({ type: 'number', path, label, min, max, step, ...(unit ? { unit } : {}), ...extra });
 const choice = (path: string, label: string, entries: Parameters<typeof options>[0], extra: Partial<ControlBase> = {}): ChoiceControl =>
   ({ type: 'choice', path, label, options: options(entries), ...extra });
@@ -80,15 +82,15 @@ function common(plan: CommonPlan = {}): Control[] {
 const HEADING = (extra: Partial<ControlBase> = {}) => num('azimuthDeg', 'Heading', 0, 360, 1, '°', extra);
 const TILT = (extra: Partial<ControlBase> = {}) => num('elevationDeg', 'Tilt', -90, 90, 1, '°', extra);
 const STEP = (min: number, extra: Partial<ControlBase> = {}) => num('stepBeats', 'Step', min, 16, min, 'beats', extra);
-const SMOOTHING = (extra: Partial<ControlBase> = {}) => num('smoothing', 'Smoothing', 0, 0.98, 0.01, undefined, extra);
+const SMOOTHING = (extra: Partial<ControlBase> & { vary?: readonly [number, number] } = {}) => num('smoothing', 'Smoothing', 0, 0.98, 0.01, undefined, extra);
 
 const fill = is('profile', 'fill');
 const sweep: Control[] = [
   choice('profile', 'Shape', { crest: 'Crest', line: 'Line', comet: 'Comet', gradient: 'Gradient', stripe: 'Stripes', fill: 'Wall' }),
   HEADING(), TILT(),
-  num('width', 'Width', 0.05, 10, 0.05, 'm'),
+  num('width', 'Width', 0.05, 10, 0.05, 'm', { vary: [0.3, 2] }),
   // On a wall these only turn its direction; a crossing plane moves at this speed.
-  num('speed', 'Speed', 0, 20, 0.05, 'm/beat', { advanced: fill }),
+  num('speed', 'Speed', 0, 20, 0.05, 'm/beat', { advanced: fill, vary: [0.5, 3] }),
   choice('motion', 'Motion', { loop: 'Loop', bounce: 'Bounce', random: 'Random' }, { advanced: fill }),
   num('turnPerLap', 'Turn per lap', -360, 360, 5, '°', { advanced: fill }),
   choice('fillSource', 'Driven by', { section: 'Song section', cycle: 'Repeat', once: 'Once', volume: 'Volume' }, { when: fill }),
@@ -108,8 +110,8 @@ const shell: Control[] = [
   field('anchor', 'alsoAnchor', 'Second anchor', { advanced: true, when: is('origin', 'anchor') }),
   choice('profile', 'Shape', { ring: 'Ring', fill: 'Fill', ramp: 'Ramp' }),
   choice('direction', 'Direction', { out: 'Out', in: 'In' }),
-  num('width', 'Width', 0.05, 10, 0.05, 'm'),
-  num('speed', 'Speed', 0.05, 20, 0.05, 'm/beat'),
+  num('width', 'Width', 0.05, 10, 0.05, 'm', { vary: [0.3, 1.2] }),
+  num('speed', 'Speed', 0.05, 20, 0.05, 'm/beat', { vary: [1, 5] }),
   num('twistDeg', 'Twist', -360, 360, 5, '°/m'),
   // Rings launch on every interval whatever the trigger; a beat accent sets each ring's strength, not an envelope.
   ...common({ react: true, envelopeWhen: shellFill, intervalWhen: () => true, interval: { label: 'Rings every', advanced: false } }),
@@ -120,7 +122,7 @@ const step: Control[] = [
   HEADING({ when: is('order', 'axis') }), TILT({ when: is('order', 'axis') }),
   choice('direction', 'Direction', { forward: 'Forward', reverse: 'Reverse', bounce: 'Bounce' }),
   num('window', 'Lit at once', 1, 32, 1, undefined, { when: not('fill', true) }),
-  num('trail', 'Trail', 0, 16, 0.25, 'steps', { when: not('fill', true) }),
+  num('trail', 'Trail', 0, 16, 0.25, 'steps', { when: not('fill', true), vary: [0, 4] }),
   toggle('fill', 'Fill up'),
   STEP(0.125),
   choice('stages', 'Stages', [[1, '1'], [3, '3'], [5, '5']]),
@@ -135,29 +137,29 @@ const zones: Control[] = [
     surround: 'Around the listener', technology: 'Technology', role: 'Role', stems: 'Stems' }),
   choice('mode', 'Mode', { alternate: 'Alternate', fill: 'Fill', rotate: 'Rotate' }, { when: notStems }),
   STEP(0.125, { when: notStems }),
-  num('softness', 'Softness', 0, 1, 0.01, undefined, { when: is('partition', 'floorCeiling') }),
+  num('softness', 'Softness', 0, 1, 0.01, undefined, { when: is('partition', 'floorCeiling'), vary: [0, 0.5] }),
   toggle('reverse', 'Reverse', { when: notStems }),
-  num('radiusM', 'Radius', 0.1, 20, 0.1, 'm', { when: is('partition', 'nearFar') }),
+  num('radiusM', 'Radius', 0.1, 20, 0.1, 'm', { when: is('partition', 'nearFar'), vary: [1, 4] }),
   ...common({ envelopeWhen: any(notStems, accenting) }),
 ];
 
 const orbit: Control[] = [
   choice('profile', 'Shape', { sectors: 'Sectors', gradient: 'Gradient', beacon: 'Beacon' }),
   num('sectors', 'Sectors', 1, 32, 1, undefined, { when: is('profile', 'sectors') }),
-  num('beamDeg', 'Beam', 1, 360, 1, '°', { when: is('profile', 'beacon') }),
+  num('beamDeg', 'Beam', 1, 360, 1, '°', { when: is('profile', 'beacon'), vary: [20, 90] }),
   num('turnsPerBar', 'Turns per bar', -4, 4, 0.05),
   choice('axis', 'Centre', { listener: 'Listener', centre: 'Room centre' }),
-  num('sectorSoftnessDeg', 'Softness', 0, 180, 1, '°', { when: is('profile', 'sectors') }),
+  num('sectorSoftnessDeg', 'Softness', 0, 180, 1, '°', { when: is('profile', 'sectors'), vary: [10, 60] }),
   num('heightTiltDeg', 'Climb', -360, 360, 5, '°/m', ADVANCED),
   ...common(),
 ];
 
 const cells = is('selection', 'cells');
 const scatter: Control[] = [
-  num('density', 'Density', 0, 1, 0.01),
+  num('density', 'Density', 0, 1, 0.01, undefined, { vary: [0.05, 0.3] }),
   STEP(1 / 16),
   choice('selection', 'Pick', { segments: 'Segments', lamps: 'Lamps', cells: 'Cells' }),
-  num('clusterM', 'Cluster', 0, 10, 0.05, 'm', { when: cells }),
+  num('clusterM', 'Cluster', 0, 10, 0.05, 'm', { when: cells, vary: [0, 0.6] }),
   field('list', 'bands', 'Fire on bands'),
   num('segmentM', 'Segment length', 0.1, 10, 0.1, 'm', { advanced: true, when: is('selection', 'segments') }),
   num('placeM', 'Group spacing', 0.25, 10, 0.05, 'm', { advanced: true, when: not('selection', 'cells') }),
@@ -167,10 +169,10 @@ const scatter: Control[] = [
 
 const noise: Control[] = [
   choice('shape', 'Shape', { cloud: 'Clouds', aurora: 'Aurora', fire: 'Fire' }),
-  num('scaleM', 'Scale', 0.1, 20, 0.1, 'm'),
-  num('speed', 'Speed', 0, 5, 0.01),
-  num('contrast', 'Contrast', 0.1, 4, 0.05),
-  num('cutoff', 'Cut-off', 0, 0.95, 0.01),
+  num('scaleM', 'Scale', 0.1, 20, 0.1, 'm', { vary: [1, 3] }),
+  num('speed', 'Speed', 0, 5, 0.01, undefined, { vary: [0.05, 0.5] }),
+  num('contrast', 'Contrast', 0.1, 4, 0.05, undefined, { vary: [0.8, 2] }),
+  num('cutoff', 'Cut-off', 0, 0.95, 0.01, undefined, { vary: [0.05, 0.4] }),
   num('octaves', 'Detail', 1, 3, 1),
   ...common(),
 ];
@@ -180,8 +182,8 @@ const flying = any(not('mode', 'orbs'), is('collide', true));
 const particles: Control[] = [
   choice('mode', 'Kind', { orbs: 'Orbs', fireworks: 'Fireworks', rain: 'Rain' }),
   num('count', 'Count', 1, 64, 1),
-  num('radiusM', 'Size', 0.05, 5, 0.05, 'm'),
-  num('pathRadiusM', 'Path radius', 0.1, 20, 0.1, 'm', { when: orbs }),
+  num('radiusM', 'Size', 0.05, 5, 0.05, 'm', { vary: [0.5, 1.2] }),
+  num('pathRadiusM', 'Path radius', 0.1, 20, 0.1, 'm', { when: orbs, vary: [1.5, 3] }),
   num('cycleBeats', 'Cycle', 1, 64, 0.5, 'beats'),
   num('trail', 'Trail', 0, 8, 1),
   num('gravity', 'Gravity', 0.05, 10, 0.05, undefined, { when: flying }),
@@ -196,8 +198,8 @@ const particles: Control[] = [
 
 const neural: Control[] = [
   choice('layout', 'Layout', { height: 'Height', distance: 'Distance from the speakers', zones: 'Around the listener' }),
-  num('idle', 'Idle', 0, 1, 0.01),
-  SMOOTHING(),
+  num('idle', 'Idle', 0, 1, 0.01, undefined, { vary: [0, 0.2] }),
+  SMOOTHING({ vary: [0.2, 0.6] }),
   toggle('pitchColour', 'Pitch colour'),
   field('list', 'speakerAnchors', 'Speakers', { advanced: true, when: is('layout', 'distance') }),
   ...common(),
@@ -207,17 +209,17 @@ const globe: Control[] = [
   choice('rings', 'Rings', { spectrum: 'Spectrum', pulse: 'Pulse' }),
   num('lobes', 'Lobes', 1, 8, 1),
   num('turnBeats', 'Turn', 0, 64, 0.5, 'beats'),
-  num('depth', 'Depth', 0, 1, 0.01),
+  num('depth', 'Depth', 0, 1, 0.01, undefined, { vary: [0.2, 0.6] }),
   toggle('spot', 'Spot'),
-  num('spotDeg', 'Spot size', 5, 90, 1, '°', { when: is('spot', true) }),
+  num('spotDeg', 'Spot size', 5, 90, 1, '°', { when: is('spot', true), vary: [20, 45] }),
   SMOOTHING(ADVANCED),
   ...common(),
 ];
 
 const visualizer: Control[] = [
   choice('profile', 'Motion', { sweep: 'Sweep', orbit: 'Orbit', noise: 'Clouds' }),
-  num('speed', 'Speed', 0, 8, 0.05),
-  num('width', 'Width', 0.05, 10, 0.05, 'm', { when: is('profile', 'sweep') }),
+  num('speed', 'Speed', 0, 8, 0.05, undefined, { vary: [0.5, 2] }),
+  num('width', 'Width', 0.05, 10, 0.05, 'm', { when: is('profile', 'sweep'), vary: [0.3, 1.2] }),
   ...common(),
 ];
 
@@ -225,7 +227,7 @@ const wash: Control[] = [
   choice('shape', 'Shape', { steady: 'Steady', breathe: 'Breathe', envelope: 'Pulse' }),
   // Spread colours walk round the cycle even on a steady wash.
   num('cycleBeats', 'Cycle', 0.25, 64, 0.25, 'beats', { when: any(not('shape', 'steady'), is('colour', 'along')) }),
-  num('depth', 'Depth', 0, 1, 0.01, undefined, { when: not('shape', 'steady') }),
+  num('depth', 'Depth', 0, 1, 0.01, undefined, { when: not('shape', 'steady'), vary: [0.6, 1] }),
   ...common({ react: true, colours: true, envelopeWhen: any(is('shape', 'envelope'), accenting) }),
 ];
 
@@ -251,6 +253,18 @@ const CONTROLS: Readonly<Record<string, readonly Control[]>> = {
   'v2.noise': noise, 'v2.particles': particles, 'v2.neural': neural, 'v2.globe': globe, 'v2.visualizer': visualizer,
   'v2.wash': wash, strobe,
 };
+/**
+ * The variables a knob reaches first, like a hardware controller's speed and intensity sliders: variable 1 and 2
+ * are the first two of these the shape shows above Advanced, then any other number it shows there.
+ */
+export const KNOB_ORDER: Readonly<Record<string, readonly string[]>> = {
+  'v2.sweep': ['speed', 'width', 'lengthBeats'], 'v2.shell': ['speed', 'width'], 'v2.step': ['stepBeats', 'trail'],
+  'v2.zones': ['stepBeats', 'softness', 'radiusM'], 'v2.orbit': ['turnsPerBar', 'beamDeg', 'sectors'],
+  'v2.scatter': ['density', 'stepBeats'], 'v2.noise': ['speed', 'scaleM'], 'v2.particles': ['speed', 'cycleBeats', 'count'],
+  'v2.neural': ['idle', 'smoothing'], 'v2.globe': ['turnBeats', 'depth'], 'v2.visualizer': ['speed', 'width'],
+  'v2.wash': ['cycleBeats', 'depth'], strobe: ['flashesPerSecond', 'density'],
+};
+
 /** Schema fields that are constants rather than variables: never drawn. */
 export const FIXED_FIELDS: Readonly<Record<string, readonly string[]>> = { strobe: ['onMs', 'blackMs'] };
 

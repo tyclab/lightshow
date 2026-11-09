@@ -594,11 +594,13 @@ class ShowDirector {
 
       const fadeMs = timeMs < 500 ? 0 : context.fadeMs(SECTION_FADE_BARS[section.role] ?? 0.5);
       const split = splitFor(section, pattern, context);
+      // A section of one identity plays its look varied alike, so a chorus comes back as it was.
       intents.push(scene(timeMs, {
         pattern, colors: colours, beatDivision, strobeSpeed, strobeFunction,
         role: section.role, label: section.label, level: section.level,
         identity: section.identity, ...(fadeMs > 0 ? { fadeMs } : {}),
         ...(split != null ? { split } : {}),
+        ...look.varietyFor(pattern, section.identity + context.trackSeed),
       }, { source: `section:${section.role}` }));
 
       intents.push(...this._rotateWithin(section, {
@@ -723,6 +725,7 @@ class ShowDirector {
           strobeFunction: current.strobeFunction,
           ...(rotationFade > 0 ? { fadeMs: rotationFade } : {}),
           ...(split != null ? { split } : {}),
+          ...look.varietyFor(pattern, pattern === current.pattern ? section.identity + context.trackSeed : section.identity * 7 + k * 13 + context.trackSeed),
         }, { source: 'rotation', priority: PRIORITY.ROTATION }));
       }
       i++;

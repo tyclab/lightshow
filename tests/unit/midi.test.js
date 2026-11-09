@@ -4,7 +4,8 @@ import { EventEmitter } from 'node:events';
 import { createRequire } from 'node:module';
 
 import MidiController from '../../src/midi.ts';
-import { DEFAULT_MAP, MIDI_PRESETS } from '../../src/server/midi-map.ts';
+import { ACTIONS, DEFAULT_MAP, MIDI_PRESETS } from '../../src/server/midi-map.ts';
+import { presetById } from '../../src/shared/effects/catalogue.ts';
 import { PATTERNS, PRESET_ROWS } from '../../src/server/presets.ts';
 
 // A stand-in for the state the controller reads and the callbacks it drives, so
@@ -1309,4 +1310,40 @@ test('busking buttons reach the server, and BPM doubles and halves within range'
   h.leds.length = 0;
   h.midi.sendFeedback();
   assert.ok(h.leds.some((m) => m.note === 107 && m.velocity > 0), 'auto show lit while on');
+});
+
+test('random takes a card first, then one of its presets, varied as the auto show varies; a card of many is no likelier', () => {
+  const h = harness({ cc: {}, notes: { 55: { action: 'randomLook', value: 'pattern' } } });
+  busk(h);
+  h.midi.busk.looks = () => [
+    { id: 'chase', card: 'chase', tags: ['beat'] }, { id: 'solid', card: 'solid', tags: ['static', 'rig'] },
+    ...['v2.grooveWave', 'v2.ascent', 'v2.swagger'].map((id) => ({ id, card: 'effect.wave', tags: ['beat', 'room'] })),
+  ];
+  // Chase is on: the cards are Solid and Wave; the first draw takes Wave, the second its third preset, the third varies it.
+  const draws = [0.75, 0.7, 0.3];
+  h.midi._random = () => draws.shift() ?? 0;
+  press(h, 55);
+  const patch = h.patches.at(-1);
+  assert.strictEqual(patch.pattern, 'v2.swagger');
+  assert.strictEqual(patch.effectParams.pattern, 'v2.swagger');
+  assert.deepStrictEqual(Object.keys(patch.effectParams.params).sort(), ['speed', 'width']);
+  h.midi._random = () => 0.2;
+  press(h, 55);
+  assert.deepStrictEqual(h.patches.at(-1), { pattern: 'chase' }, 'a classic look plays as it is');
+});
+
+test('the variable knobs move the first two variables of the effect on stage, and show where they stand', () => {
+  const h = harness({ cc: { 20: { action: 'setVariable', type: 'absolute', value: 1 }, 21: { action: 'adjustVariable', type: 'relative', value: 2 } }, notes: {} });
+  busk(h);
+  h.midi.busk.effect = () => null;
+  step(h, 20, 64);
+  assert.strictEqual(h.patches.length, 0, 'a classic look has no variables');
+  h.midi.busk.effect = () => presetById('v2.grooveWave').spec;
+  step(h, 20, 127);
+  assert.deepStrictEqual(h.patches.at(-1), { effectVariable: { index: 1, at: 1 } });
+  step(h, 21, 1);
+  assert.deepStrictEqual(h.patches.at(-1), { effectVariable: { index: 2, steps: 1 } });
+  // Groove Wave's speed is 1 of 0 to 20 m a beat: the fader's ring sits a twentieth of the way up.
+  assert.strictEqual(h.midi._feedbackValue({ action: 'setVariable', value: 1 }), 6);
+  assert.ok(ACTIONS.some((a) => a.id === 'setVariable' && a.input === 'fader') && ACTIONS.some((a) => a.id === 'adjustVariable' && a.input === 'encoder'));
 });

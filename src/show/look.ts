@@ -4,6 +4,9 @@ import { paletteBankForSize } from '../server/palettes.ts';
 import { blend, unit } from './score.ts';
 import { V2_PRESETS } from '../shared/effects/v2/presets.ts';
 import { requiresAcknowledgement } from '../shared/effects/registry.ts';
+import { presetById } from '../shared/effects/catalogue.ts';
+import { cardFrom, pickByCard, variedParams } from '../shared/effects/variety.ts';
+import type { EffectParams } from '../shared/effect-params.ts';
 import type { Analysis, Reading, Score } from './score.ts';
 import type { BurstKind } from './intents.ts';
 import type { Genre, Mood } from '../types/analysis.ts';
@@ -285,6 +288,16 @@ function goldenStep(index: number, length: number): number {
   return Math.round(index * length * 0.618033988749895) % length;
 }
 
+// A pick takes a card first, then one of its presets: a card with many presets is no likelier than one with few.
+const CARD_OF = cardFrom(presetById);
+
+/** An automatic choice's variety: the ranges its card's controls declare, varied by the seed, as live variables. */
+function varietyFor(pattern: string, seed: number): { effectParams: EffectParams } | Record<string, never> {
+  const spec = presetById(pattern)?.spec;
+  const edit = spec ? variedParams(pattern, spec, seed) : null;
+  return edit ? { effectParams: edit } : {};
+}
+
 function pickPattern({ character, available, score = null, seed = 0, drive = 0.5,
   dance = 0.5, pixels = false, particles, pictures = null, avoid = null }: {
   character?: Character | null;
@@ -336,7 +349,7 @@ function pickPattern({ character, available, score = null, seed = 0, drive = 0.5
       return available.has('ribbon') ? 'ribbon'
         : available.has('chase') ? 'chase' : [...available][0];
     }
-    return filtered[Math.abs(Math.round(seed)) % filtered.length];
+    return pickByCard(filtered, CARD_OF, Math.abs(Math.round(seed)));
   };
 
   // Quiet: nothing is carrying the passage, so nothing should be chasing.
@@ -454,6 +467,7 @@ export {
   paletteSizeFor,
   goldenStep,
   pickPattern,
+  varietyFor,
   keyIndexOf,
   strobeFunctionFor,
   strobeSpeedFor,

@@ -1,5 +1,5 @@
 import { bandEffect, colourModes, withEffectColours } from '../shared/effect-colours.ts';
-import { liveControls, withEffectParams } from '../shared/effect-params.ts';
+import { liveControls, variableEdit, withEffectParams } from '../shared/effect-params.ts';
 import { validateSpec } from '../shared/effects/registry.ts';
 import { state, getFixture, latchEnergy, reconcileFreeClock } from './state.ts';
 import { beginFade, resolveEffect } from './engine.ts';
@@ -112,6 +112,16 @@ function applyPatch(rawData: unknown, { beforeCommit, origin = 'hand', paletteOv
       try { validateSpec(withEffectColours(pattern, spec, { ...kept, ...colourEdit })!); }
       catch (err) { throw new HttpError(400, `These band colours cannot play: ${err instanceof Error ? err.message : String(err)}`); }
     }
+  }
+  // A knob or fader on a variable by its number: a live edit of whichever control that is for the effect as it plays.
+  if (data.effectVariable) {
+    const pattern = data.pattern ?? state.pattern;
+    const kept = data.pattern === undefined && state.effectParams?.pattern === pattern ? state.effectParams : null;
+    const spec = withEffectParams(pattern, withEffectColours(pattern, resolveEffect(pattern), data.pattern === undefined ? state.effectColours : null),
+      data.effectParams ?? kept);
+    const move = variableEdit(spec, data.effectVariable);
+    if (!move) throw new HttpError(400, `This effect has no variable ${data.effectVariable.index}`);
+    data.effectParams = { pattern, params: { ...(data.effectParams?.pattern === pattern ? data.effectParams.params : {}), [move.path]: move.value } };
   }
   const paramEdit = data.effectParams;
   if (paramEdit) {

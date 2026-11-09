@@ -1,3 +1,4 @@
+import type { EffectParams } from '../shared/effect-params.ts';
 import type { ShowDynamics } from '../types/rig.ts';
 
 const INTENT = Object.freeze({
@@ -69,6 +70,8 @@ export interface ScenePayload {
   pixelSpan?: number | null;
   pixelFrom?: number | null;
   panelPattern?: string | null;
+  // The varied ranges of an automatic choice: the scene plays its pattern with these live variables.
+  effectParams?: EffectParams;
 }
 
 export interface SceneIntent extends IntentBase, ScenePayload {

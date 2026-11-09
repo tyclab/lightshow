@@ -320,6 +320,12 @@ test('the Busk lists step and randomise through eligible looks', () => {
   assert.strictEqual(catalog.stepLook({ ...s, pattern: 'breathe' }, 'pattern', 'next'), 'solid', 'round the list');
   assert.strictEqual(catalog.stepLook(s, 'effect', 'previous'), 'energy.glow', 'from a pattern, the last effect');
   assert.strictEqual(catalog.randomLook(s, 'pattern', () => 0), 'solid', 'never the look on stage');
+  // A card first, then one of its presets: Wave's three presets are as likely together as Solid alone.
+  const carded = { ...s, patterns: [{ id: 'solid', card: 'solid', tags: ['static', 'rig'] }, { id: 'chase', card: 'chase', tags: ['beat'] },
+    ...['v2.grooveWave', 'v2.ascent', 'v2.swagger'].map((id) => ({ id, card: 'effect.wave', tags: ['beat', 'room'] }))] };
+  const draws = [0.75, 0.7];
+  assert.strictEqual(catalog.randomLook(carded, 'pattern', () => draws.shift()), 'v2.swagger');
+  assert.strictEqual(catalog.randomLook(carded, 'pattern', () => 0.2), 'solid');
   assert.strictEqual(catalog.randomPalette({ ...s, paletteOverrideId: 'redCyan' }, () => 0), 'rainbow');
   const colours = catalog.randomColours(s, () => 0.9999);
   assert.deepStrictEqual(Object.keys(colours), ['colorA', 'colorB', 'colorC', 'colorD']);
@@ -391,6 +397,11 @@ test('the Busk actions reach the server', async () => {
   assert.ok(['energy.blinder', 'energy.glow'].includes(sent[3][1].pattern), 'a random energy look, no flash before the acknowledgement');
   assert.deepStrictEqual(sent.slice(4), [['stop'], ['set', { tempoMode: 'manual' }]]);
   assert.ok(actions.beat_division.options[0].choices.some((c) => c.id === 16), 'down to 1/16');
+  // The effect's variables by number, as the MIDI knobs reach them: the server finds which control each is.
+  sent.length = 0;
+  await actions.set_effect_variable.callback({ options: { index: 2, percent: 25 } });
+  await actions.adjust_effect_variable.callback({ options: { index: 1, steps: -3 } });
+  assert.deepStrictEqual(sent, [['set', { effectVariable: { index: 2, at: 0.25 } }], ['set', { effectVariable: { index: 1, steps: -3 } }]]);
 });
 
 test('the palette override and stopping every effect go out on their routes', async () => {

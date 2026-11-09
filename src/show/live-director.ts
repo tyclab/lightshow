@@ -1,4 +1,4 @@
-import { automaticPattern, fillBeats, pickPattern, burstFor, goldenStep } from './look.ts';
+import { automaticPattern, fillBeats, pickPattern, burstFor, goldenStep, varietyFor } from './look.ts';
 import { messageOf } from '../errors.ts';
 import type { Character } from './look.ts';
 import type { LiveEvent, LiveReading } from '../live-input.ts';
@@ -201,6 +201,7 @@ class LiveDirector {
     const at = (k: number) => WHEEL[(this._hue + k) % WHEEL.length];
     const look: Patch = {
       pattern,
+      ...varietyFor(pattern, this._seed),
       colorA: at(0), colorB: at(3), colorC: at(5), colorD: at(7),
       beatDivision: 1,
       ...(pattern.startsWith('v2.') ? { pixelPattern: null, panelPattern: null, pixelMap: 'stage', pixelSpan: null, pixelFrom: null, split: null } : {}),
@@ -240,7 +241,9 @@ class LiveDirector {
         if (this._building || this._silent) break;
         this._building = true;
         if (this._available.has('v2.risingWall')) {
-          this._look = { ...this._look, pattern: 'v2.risingWall', beatDivision: 2, pixelPattern: null, panelPattern: null,
+          // The look's variety was for its own pattern: the wall plays as it is.
+          const { effectParams: _variety, ...previous } = this._look ?? {};
+          this._look = { ...previous, pattern: 'v2.risingWall', beatDivision: 2, pixelPattern: null, panelPattern: null,
             pixelMap: 'stage', pixelSpan: fillBeats('v2.risingWall'), pixelFrom: null, split: null };
           this._apply(this._look);
         } else this._apply({ beatDivision: 2 });

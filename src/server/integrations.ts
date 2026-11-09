@@ -455,6 +455,7 @@ function setupIntegrations({ io, midi, spotify, nowPlaying, deezerSource, prolin
 
   midi.busk = {
     looks: () => getCatalogs().patterns,
+    effect: () => baseEffect()?.spec ?? null,
     palettes: () => [...ALL_PALETTES.map((p) => p.id), ...library.palettes.list().map((p) => p.id)],
     acknowledged: () => safety.acknowledged(),
     stopEffects: () => { voices.stopAll(); broadcast(); },

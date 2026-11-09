@@ -36,7 +36,8 @@ The separate **Auto Show** page has start/stop, intensity (±10 and a display), 
 | Action                            | Description                                                                          |
 | --------------------------------- | ------------------------------------------------------------------------------------ |
 | Set Pattern                       | Switch the running pattern, optionally crossfading over some milliseconds            |
-| Browse / Random Look              | Previous, next or random eligible pattern/effect; random palettes and colours are also available |
+| Browse / Random Look              | Previous, next or random eligible pattern/effect (random takes a card, then one of its presets); random palettes and colours are also available |
+| Set / Adjust Effect Variable      | Variable 1 or 2 of the main effect (its first sliders), to a share of its range or by steps |
 | Palette Override / Off            | Apply or toggle a palette over every effect, or clear the override                    |
 | Stop Every Effect                 | Stop the live voices; the base look and sequence retain their own transport controls  |
 | Tempo Mode                        | Automatic matching on/off/toggle                                                     |
