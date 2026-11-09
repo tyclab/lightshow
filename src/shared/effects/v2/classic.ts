@@ -1,6 +1,12 @@
 // Classic and party pattern ids that play a v2 preset instead of their pattern function, each with the
 // reason it moved. The operator decides each move by A/B test on the rig; every other classic id keeps its function.
-export const CLASSIC_REDIRECTS: Readonly<Record<string, string>> = Object.freeze({});
+export const CLASSIC_REDIRECTS: Readonly<Record<string, string>> = Object.freeze({
+  ensemble: 'Distinct on the v2 engine (option C), merged only once the operator chose B in A/B migration.ensemble',
+  ribbon: 'Distinct on the v2 engine (option C), merged only once the operator chose B in A/B migration.ribbon',
+  drums: 'Distinct on the v2 engine (option C), merged only once the operator chose B in A/B migration.drums',
+  bars: 'Distinct on the v2 engine (option C), merged only once the operator chose B in A/B migration.bars',
+  core: 'Distinct on the v2 engine (option C), merged only once the operator chose B in A/B migration.core',
+});
 
 // The classic and party looks on the v2 engine: for each id, the v2 spec closest to its own pattern on the
 // diff rig (scripts/effects-v2-alias-diff.js --classic) and that diff as [largest channel, mean absolute
@@ -140,14 +146,14 @@ export const CLASSIC_V2: Readonly<Record<string, ClassicLook>> = {
   'flash-burst': { family: 'Strobe', name: 'Flash Burst', pixel: true, diff: [255, 27.098, 81],
     spec: { kind: 'strobe', palette: null, params: { function: 'break', space: 'plan', continueBetween: false, selection: 'step', flashesPerSecond: 5, colourMode: 'first' } } },
   // Distinct
-  ensemble: { family: 'Distinct', name: 'Ensemble', diff: [207, 32.845, 129],
+  ensemble: { family: 'Distinct', name: 'Ensemble', desc: 'Bass ahead, mids at the sides and highs behind, each as loud as it plays', diff: [207, 32.845, 129],
     spec: { kind: 'v2.neural', params: { space: 'plan', layout: 'zones', smoothing: 0.8, pitchColour: false } } },
-  ribbon: { family: 'Distinct', name: 'Ribbon', diff: [255, 47.197, 129],
+  ribbon: { family: 'Distinct', name: 'Ribbon', desc: 'A crest of the look\'s colours crossing the plot from right to left over a dim white floor', diff: [255, 47.197, 129],
     spec: { kind: 'v2.sweep', params: { space: 'plan', width: 1, speed: 1, azimuthDeg: -90, background: 0.15 } } },
-  drums: { family: 'Distinct', name: 'Drums', pixel: true, diff: [253, 26.057, 129],
+  drums: { family: 'Distinct', name: 'Drums', desc: 'Bass thrown out from the middle, mids at both ends and highs scattered, each as loud as it plays', pixel: true, diff: [253, 26.057, 129],
     spec: { kind: 'v2.neural', params: { space: 'plan', layout: 'centre', smoothing: 0, pitchColour: false, idle: 0.05 } } },
-  bars: { family: 'Distinct', name: 'Bars', pixel: true, diff: [255, 16.306, 129],
+  bars: { family: 'Distinct', name: 'Bars', desc: 'Bass, mids and highs as three level columns side by side', pixel: true, diff: [255, 16.306, 129],
     spec: { kind: 'v2.neural', params: { space: 'plan', layout: 'columns', smoothing: 0, pitchColour: false, idle: 0.03 } } },
-  core: { family: 'Distinct', name: 'Strobe Core', pixel: true, diff: [255, 13.4, 129],
+  core: { family: 'Distinct', name: 'Strobe Core', desc: 'Every light on the first colour, pulsing with every beat', pixel: true, diff: [255, 13.4, 129],
     spec: { kind: 'v2.wash', params: { space: 'plan', colour: 'solid', trigger: { mode: 'beatAccent', band: 'full', beatInterval: 1, threshold: 0.15, reactiveDepth: 0.4 }, envelope: { curve: 'linear', attack: 0, hold: 0.05, release: 0.1 } } } },
 };

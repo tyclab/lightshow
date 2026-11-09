@@ -76,19 +76,15 @@ const PATTERNS = [
   { id: 'twinkle',      name: 'Twinkle',       desc: 'Soft random levels, nothing goes fully dark' },
   { id: 'sparkle',      name: 'Sparkle',       desc: 'Hard random on/off, instant' },
   { id: 'random-flash', name: 'Random Flash',  desc: 'One random fixture pops each beat' },
-  { id: 'ensemble', name: 'Ensemble', desc: 'Bass at the edges, vocals in the centre, airy moving accents' },
-  { id: 'ribbon', name: 'Ribbon', desc: 'Continuous palette ribbons shaped by musical texture and width' },
 
   { id: 'gradient', name: 'Gradient', desc: 'The look\'s colours as a gradient scrolling across the rig', pixel: true },
   { id: 'comet',    name: 'Comet',    desc: 'A head crossing the rig every four steps with a fading tail', pixel: true },
   { id: 'burst',    name: 'Burst',    desc: 'A ring thrown out from the centre of the stage on every step', pixel: true },
   { id: 'plasma',   name: 'Plasma',   desc: 'Slow interfering waves in the look\'s colours', pixel: true },
   { id: 'meter',    name: 'Meter',    desc: 'A level meter filled by the low end, kicked on every step', pixel: true },
-  { id: 'drums',    name: 'Drums',    desc: 'The kit as it is hit: kick from the middle, snare at the ends, hats scattered', pixel: true },
   { id: 'stems',    name: 'Stems',    desc: 'Voice, band, drums and bass in zones out from the centre, each as loud as it plays', pixel: true },
   { id: 'rise',     name: 'Rise',     desc: 'The rig filling up through a build-up, full on the drop', pixel: true },
   { id: 'impact',   name: 'Impact',   desc: 'A ring thrown out from the centre on every step, with sparks on every kick', pixel: true },
-  { id: 'bars',     name: 'Bars',     desc: 'A spectrum analyser: kick, bass, drums, snare, band, voice and hats as columns, as high as each plays', pixel: true },
   { id: 'fire',     name: 'Fire',     desc: 'Flames licking up a panel, taller with the bass, flaring on the kick', pixel: true },
   { id: 'rain',     name: 'Rain',     desc: 'Drops falling down every column in time, the hats shaking loose more', pixel: true },
   { id: 'flash-chase',     name: 'Flash Chase',     desc: 'One flash stepping zone to zone, a lap a step', pixel: true },
@@ -99,7 +95,6 @@ const PATTERNS = [
   { id: 'ramp-scatter',    name: 'Random Ramps',    desc: 'Every zone swells up and cuts at its own random moment', pixel: true },
   { id: 'decay-scatter',   name: 'Random Hits',     desc: 'Every zone hits full at its own random moment and dies away', pixel: true },
   { id: 'flash-burst',     name: 'Flash Burst',     desc: 'A burst of flashes every four steps, odd and even zones in turn, then a break', pixel: true },
-  { id: 'core',            name: 'Strobe Core',     desc: 'A colour wash with a white core striking on every kick', pixel: true },
   ...CATALOGUE.filter((p) => p.legacy).map(({ id, name, desc, party, preset }) => ({ id, name, desc, party, ...(preset ? { preset } : {}) })),
 ].filter((row) => !Object.hasOwn(CLASSIC_REDIRECTS, row.id)).map((row) => ({ ...row, legacy: true as const, ...tagFields(legacyTags(row.id)) }));
 
