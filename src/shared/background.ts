@@ -1,5 +1,7 @@
 import { z } from 'zod';
 import { colourMixer } from './color.ts';
+import { FADE_FLOOR } from './look-math.ts';
+import { parseHex } from './palette-model.ts';
 import type { Colour } from '../types/rig.ts';
 
 const channel = z.number().int().min(0).max(255);
@@ -28,6 +30,10 @@ export const DEFAULT_BACKGROUND: BackgroundSettings = {
  * strobe rests, Kill): owned, never the look beneath (bundle.ts).
  */
 export interface BackgroundField { colour: Colour; level: number; fullLevel?: number; coverage: number; dark?: boolean }
+/** The setting as the renderer applies it: Follow also carries the main effect's palette colour for the gaps. */
+export type BackgroundUse = BackgroundSettings & { followColour?: Colour };
+// Follow fills a gap with the effect's colour at the floor a classic Fade rests on, times its level.
+export const FOLLOW_FLOOR = FADE_FLOOR / 255;
 export interface BackgroundLight { colour: Colour; level: number }
 export const DARK_BACKGROUND: Colour = Object.freeze({ r: 0, g: 0, b: 0, w: 0, a: 0, uv: 0 });
 export const ambient = (colour: Colour, level: number, coverage = 1, fullLevel = coverage > 0 ? level / coverage : 0): BackgroundField => ({ colour, level, fullLevel, coverage });
@@ -69,16 +75,35 @@ export function backgroundScope(settings: BackgroundSettings | undefined, cellMa
 // A colour with no emitter lit: as a Fixed colour it adds no light, or a lamp without colour channels would show its level.
 const unlit = (colour: Colour): boolean => !(Math.max(colour.r, colour.g, colour.b, colour.w ?? 0, colour.a ?? 0, colour.uv ?? 0) > 0);
 
-export function backgroundLight(field: BackgroundField | undefined, settings = DEFAULT_BACKGROUND, stopped = false): BackgroundLight {
+/** The colour Follow fills gaps with: the palette override's first while it plays, else the main effect's own first, else the look's. */
+export function followColourOf(spec: { palette?: readonly unknown[] | null } | null | undefined, override: readonly Colour[] | null | undefined,
+  look: Colour): Colour {
+  if (override?.length) return override[0];
+  const own = spec?.palette?.find((entry): entry is string => typeof entry === 'string');
+  return own ? parseHex(own) : look;
+}
+
+export function withFollow(settings: BackgroundSettings | undefined, followColour: Colour): BackgroundUse {
+  return { ...(settings ?? DEFAULT_BACKGROUND), followColour };
+}
+
+/** A gap Follow fills: a field that authors no bed (no level now or at full) and is no dark cue, with some of the slot uncovered. */
+export function followFills(field: BackgroundField | undefined, settings: BackgroundUse | undefined): boolean {
+  return !!settings?.followColour && settings.mode === 'follow' && !!field && !field.dark && field.coverage > 0
+    && !(field.level > 0) && !((field.fullLevel ?? 0) > 0);
+}
+
+export function backgroundLight(field: BackgroundField | undefined, settings: BackgroundUse = DEFAULT_BACKGROUND, stopped = false): BackgroundLight {
   if (settings.mode === 'off' || (field?.dark && !stopped)) return { colour: DARK_BACKGROUND, level: 0 };
   if (settings.mode === 'fixed') return { colour: settings.colour, level: unlit(settings.colour) ? 0 : settings.level * (stopped ? 1 : field?.coverage ?? 0) };
+  if (followFills(field, settings)) return { colour: settings.followColour!, level: FOLLOW_FLOOR * settings.level * (stopped ? 1 : field!.coverage) };
   return { colour: field?.colour ?? DARK_BACKGROUND, level: (stopped ? field?.fullLevel ?? field?.level ?? 0 : field?.level ?? 0) * settings.level };
 }
 
 export function composeBackground(colour: Colour, level: number, field?: BackgroundField,
-  settings = DEFAULT_BACKGROUND, stopped = false): BackgroundLight {
+  settings: BackgroundUse = DEFAULT_BACKGROUND, stopped = false): BackgroundLight {
   if (stopped) return backgroundLight(field, settings, true);
-  if (!field || (settings.mode === 'follow' && settings.level === 1)) return { colour, level };
+  if (!field || (settings.mode === 'follow' && settings.level === 1 && !followFills(field, settings))) return { colour, level };
   const below = backgroundLight(field, settings);
   const combined = Math.max(0, level - field.level) + below.level;
   if (!(combined > 0)) return { colour: DARK_BACKGROUND, level: 0 };

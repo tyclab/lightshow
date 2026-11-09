@@ -511,11 +511,14 @@ its sector boundaries, including the emitter's size, to avoid a hard wall-wide
 colour jump.
 
 The **Background** card, above the main controls in Show, Effects and Stage, separates ambient light from the effect. **Follow effect**
-uses the effect's authored background colours and movement; **Fixed colour** is a base
+uses the effect's authored background colours and movement, and fills the main effect's
+gaps (below) with its own colour: the first colour it plays (the palette override's while
+one is on), at the classic Fade floor (25 of 255) times the background level, in
+proportion to the share the light leaves uncovered, so an effect without an ambient field
+glows faintly in its colour between its notes instead of going dark. **Fixed colour** is a base
 colour of your own, picked by hue, saturation and brightness (or the colour well) plus
 white, amber and UV; **Off** removes the background.
 The background level is independent of the effect editor's foreground brightness.
-Effects without an ambient field stay dark between their notes in Follow mode.
 
 A Fixed colour is the layer under everything the show plays: the main effect of every
 family, classic patterns, pattern pads and other voices, sequence clips, and the
@@ -528,17 +531,17 @@ emitter, so its black shows the whole colour and full colours cover it. Explicit
 stay dark: strobe and rapid-flash rests, Kill, a foreground drawn black at full opacity (the
 Blackout scene), the classic flash patterns and ring strobe, fixture overrides and blackouts,
 and the master blackout. An effect set to **Keep dark** under **Between effect hits**, below,
-keeps its own black too. Follow and Off never light a lamp the effect leaves dark, and
-neither does a black Fixed colour (no emitter lit), on every profile, a dimmer-only lamp
-included.
+keeps its own black too. Off never lights a lamp the effect leaves dark, Follow lights it only
+at its floor, and a black Fixed colour (no emitter lit) lights nothing, on every profile, a
+dimmer-only lamp included.
 
 **Fixtures** chooses what the card reaches: **Whole rig** (the default), **Wash
 fixtures** or **Selected fixtures…**, ticked from the patch. Wash fixtures are the
 single-light fixtures, those whose profile has no cells (lamps, PARs, Hue lamps,
 WLED washes): the part of the rig a look's pattern paints when a pixel pattern takes
 the bars. There is no wash role to assign; the auto show's split wash is a separate
-setting. Fixtures outside the scope keep the effect's own background, as Follow
-effect at 100 % leaves it. Overrides, a fixture's blackout, Kill and the master
+setting. Fixtures outside the scope play as the effect draws them, with no Background
+layer. Overrides, a fixture's blackout, Kill and the master
 blackout win inside the scope as everywhere, and the rehearsal preview applies the
 same scope as the rig. Selected fixtures are stored by fixture id, which belongs to
 one patch: a cue recalled with **Restore saved background on recall** under another
@@ -572,8 +575,9 @@ a background. Each dark or partly dark pixel is one of three things:
   each OG Groove Wave swell not yet lit, so the Fixed colour fades out as the swell fades
   in, the trough of a wave and the dark side of Swirl and Beacon.
   **Reveal background** lets the Fixed colour into it, in proportion to the uncovered
-  share; **Keep dark** leaves the gap the effect's own black. Follow and Off put nothing
-  there under either setting, on every profile, a dimmer-only lamp included. Rotation,
+  share, and under Follow the main effect's colour at the floor; **Keep dark** leaves the gap
+  the effect's own black. Off puts nothing there under either setting, on every profile, a
+  dimmer-only lamp included. A pad's, a clip's or a voice's gap stays its own black under Follow. Rotation,
   the noise fields, the travelling room waves and Studio draw their dark parts in colour at
   full level or over an authored bed, so they leave no gap.
 - An **explicit dark cue**: black the effect authors, dark under both settings and
@@ -631,7 +635,7 @@ them changes Off, Fixed or Follow output against earlier builds:
 - With Follow at 100 %, a bitmap's black background set to Keep dark sends a
   dimmer-only lamp its full level: the pixel is black at level 1, and a profile
   without colour channels outputs only the level (255). Under Reveal background, the
-  default, it is unlit.
+  default, it takes only the Follow floor.
 
 For an incoming visualizer, select **Picture → Colour + motion** and a Visualizer
 Flow or Drift look. The room sender supplies frames; the effect extracts dominant

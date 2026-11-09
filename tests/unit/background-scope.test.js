@@ -101,14 +101,14 @@ test('Off with a scope removes the bed only on the fixtures it reaches', () => {
   assert.deepEqual(part(wire, 4), part(reference, 4), 'the bar keeps the floor');
 });
 
-test('a scope keeps the whole-rig output when it names every fixture, and changes nothing with defaults', () => {
+test('a scope keeps the whole-rig output when it names every fixture, and Follow at 100 % reaches only its fixtures', () => {
   for (const patch of [{ effect: hdGap }, { pattern: 'chase', paletteOverride: [colour] }]) {
     const all = engine({ ...patch, background: { ...fixed, fixtures: 'selected', selected: [0, 1, 2, 3, 4] } }), whole = engine({ ...patch, background: fixed });
-    const rig = engine({ ...patch, background: { ...DEFAULT_BACKGROUND, fixtures: 'wash' } }), none = engine(patch);
     for (const now of [0, 300, 700]) {
       assert.deepEqual(all.draw(now), whole.draw(now));
-      assert.deepEqual(rig.draw(now), none.draw(now), 'Follow at 100 % is untouched whatever the scope');
     }
+    // Follow at 100 % fills the main effect's gaps in the fixtures it reaches; the others play as the effect draws them.
+    assertScoped(patch, { ...DEFAULT_BACKGROUND, fixtures: 'wash' }, [0, 1, 2, 3]);
   }
 });
 
