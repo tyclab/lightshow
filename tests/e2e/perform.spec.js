@@ -3,7 +3,7 @@
 // switching; blackout; palettes; the faders.
 
 import { test, expect } from '@playwright/test';
-import { open, reset, state, until } from './helpers.js';
+import { open, reset, set, state, until } from './helpers.js';
 
 test.beforeEach(async ({ request, page }) => {
   await reset(request);
@@ -167,6 +167,8 @@ test('a loop pad starts on a tap and stops on the next', async ({ page, request 
 });
 
 test('blackout, palettes and the master', async ({ page, request }) => {
+  // A classic look, whose Main effect colours are the base palette (a preset's are its own effect colours).
+  await set(request, { pattern: 'strobe' });
   await open(page, 'perform');
   // Global controls stay in the header above every view.
   await page.getByRole('group', { name: 'Global show controls' }).getByRole('button', { name: 'Blackout', exact: true }).click();
