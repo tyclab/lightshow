@@ -134,6 +134,8 @@ const autoShow = new AutoShow((patch) => {
 autoShow.useRemoteAnalysis(remoteAnalysis);
 settings.onChange((changed) => {
   if (changed.includes('analysis.workerToken')) remoteAnalysis.disconnectAll('the worker token changed');
+  // The plan holds Rapid flash rows only while the acknowledgement stands.
+  if (changed.includes('safety.photosensitivityAcknowledged') && autoShow.analysis) autoShow.buildTimeline();
 });
 // A standby analyser that had to wait for the disarm loads now.
 onDisarm(() => autoShow.settleLocalAnalysis());

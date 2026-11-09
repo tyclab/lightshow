@@ -1,5 +1,6 @@
 import { settings } from './settings.ts';
 import { requiresAcknowledgement } from '../shared/effects/registry.ts';
+import { RAPID_PATTERNS } from '../shared/strobe-fx.ts';
 import { HttpError } from '../errors.ts';
 import type { EffectSpec } from '../shared/effects/types.ts';
 
@@ -24,6 +25,11 @@ export const safety = {
 
   requireAcknowledged(spec: EffectSpec): void {
     if (requiresAcknowledgement(spec) && !safety.acknowledged()) throw new HttpError(409, ACKNOWLEDGEMENT_REQUIRED);
+  },
+
+  /** A classic program that strikes flashes waits for it too. */
+  requireAcknowledgedPattern(pattern: string): void {
+    if (RAPID_PATTERNS.has(pattern) && !safety.acknowledged()) throw new HttpError(409, ACKNOWLEDGEMENT_REQUIRED);
   },
 
   status(): SafetyStatus {

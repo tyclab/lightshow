@@ -739,11 +739,11 @@ test("legacy preview bursts retain safety and Hue mode", () => {
     at(energy, { safety: { acknowledged: false } }, { safety: { hdFlashIntervalMs: 350, acknowledged: false } });
     at(energy, {}, {});
   }
-  // The flash looks of the pattern layer follow the setting too.
-  for (const hueStrobe of ['flash', 'pulse']) {
-    const ring = previewRun(createPreviewSampler([{ timeMs: 0, action: 'patch', data: { pattern: 'ring-strobe', ...LOOK } }], GRID, { hueStrobe }), fixtures, times);
-    const rig = times.map((t) => rigRun(fixtures, [t], () => ({ pattern: 'ring-strobe', hueStrobe, patternAnchor: { step: 0, epoch: 0 } }))[0]);
-    assertSame(rig, ring, times, `ring-strobe ${hueStrobe}`);
+  // The flash looks of the pattern layer follow the setting too, once acknowledged; before it both hold them dark.
+  for (const [hueStrobe, safety] of [['flash', ACK], ['pulse', ACK], ['flash', { hdFlashIntervalMs: 350, acknowledged: false }]]) {
+    const ring = previewRun(createPreviewSampler([{ timeMs: 0, action: 'patch', data: { pattern: 'ring-strobe', ...LOOK } }], GRID, { hueStrobe, safety }), fixtures, times);
+    const rig = times.map((t) => rigRun(fixtures, [t], () => ({ pattern: 'ring-strobe', hueStrobe, safety, patternAnchor: { step: 0, epoch: 0 } }))[0]);
+    assertSame(rig, ring, times, `ring-strobe ${hueStrobe} ${safety.acknowledged}`);
   }
 });
 

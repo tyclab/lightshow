@@ -1,6 +1,6 @@
 import { ambient, backgroundScope, composeBackground } from './background.ts';
 import type { BackgroundSettings } from './background.ts';
-import { drawnByTheShow, strobeLevel } from './strobe-fx.ts';
+import { RAPID_PATTERNS, drawnByTheShow, strobeLevel } from './strobe-fx.ts';
 import { outputEmitters } from './emitter-capability.ts';
 import { hueEmitterColour } from './hue-colour.ts';
 import { isHueProfile } from './hue-lamp.ts';
@@ -463,6 +463,9 @@ function createPreviewSampler(events: readonly PreviewEvent[] = [], grid: GridSo
     return (u) => (!scope || scope[rig.units[u].fixture] ? s.background : undefined);
   }
 
+  // As the renderer: a classic program that strikes flashes stays dark until the photosensitivity acknowledgement.
+  const held = (id: string | null | undefined): boolean => safetyGiven && !acknowledged && !!id && RAPID_PATTERNS.has(id);
+
   function drawPattern(f: Frame, positionMs: number, rig: Rig, colors: Colour[], expr: Expression, phase: number, bpm: number, hardware?: HardwareCaps[], hardwareClock?: HardwareClock): LayerEntry[] {
     const s = f.look;
     const settingsOf = backgroundOf(s, rig);
@@ -498,7 +501,7 @@ function createPreviewSampler(events: readonly PreviewEvent[] = [], grid: GridSo
     }, (u, color, dim, strobe, background) => {
       const resolved = composeBackground(color, dim / 255, background, settingsOf(u));
       layer[u] = { color: resolved.colour, dim: resolved.level * 255, strobe };
-    });
+    }, { skipPattern: held(s.pattern), skipPixelPattern: held(s.pixelPattern), skipPanelPattern: held(s.panelPattern) });
     return layer;
   }
 
