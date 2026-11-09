@@ -365,7 +365,8 @@ export function Effects() {
 
   return <>
     <div class="card effects">
-      <div class="card-title">Effects
+      <div class="effects-head">
+        <div class="card-title">Effects</div>
         <button type="button" class="btn sm effects-compare" aria-haspopup="dialog" title="Play pairs of looks on the rig and decide between them"
           onClick={() => setComparing(true)}>Compare A/B</button>
       </div>
