@@ -6,12 +6,13 @@ import type { EffectFrame } from '../types.ts';
 import type { Room } from '../../room.ts';
 import type { Positions } from './common.ts';
 
-// Lamp partitions: 'patch' odd and even lamps, 'blocks' one run of lamps per palette colour, 'diagonals' the
-// plot's opposite quarters together, 'corners' the room's corners, 'halves' front/back then left/right in turn.
+// Lamp partitions: 'patch' the lamps in patch order taking one zone per palette colour in turn (odd and even with two),
+// 'blocks' one run of lamps per palette colour, 'diagonals' the plot's opposite quarters together, 'corners' the
+// room's corners, 'halves' front/back then left/right in turn.
 export const zonesSchema = v2CommonSchema.extend({
   partition: z.enum(['leftRight', 'frontBack', 'floorCeiling', 'nearFar', 'surround', 'technology', 'role', 'stems',
     'patch', 'blocks', 'diagonals', 'corners', 'halves']).default('leftRight'),
-  // 'swap' lights every zone, each a palette colour of its own, all moving one colour on every step.
+  // 'swap' lights every zone in a colour of its own, all moving one colour on every step (halves: every other step).
   mode: z.enum(['alternate', 'fill', 'rotate', 'swap']).default('alternate'),
   stepBeats: z.number().min(0.125).max(16).default(1),
   reverse: z.boolean().default(false),
@@ -32,7 +33,10 @@ function lampZones(room: Room, values: readonly number[], count: number): Float3
 
 function partitionOf(p: ZonesParams, room: Room, f: EffectFrame): Partition {
   const lamps: Room = room.lamps ?? room;
-  if (p.partition === 'patch') return { order: lampZones(room, Array.from({ length: lamps.n }, (_, k) => k % 2), 2), count: 2, lamps: true };
+  if (p.partition === 'patch') {
+    const count = Math.max(2, f.palette.length);
+    return { order: lampZones(room, Array.from({ length: lamps.n }, (_, k) => k % count), count), count, lamps: true };
+  }
   if (p.partition === 'blocks') {
     const count = Math.max(1, f.palette.length), size = Math.max(1, Math.ceil(lamps.n / count));
     return { order: lampZones(room, Array.from({ length: lamps.n }, (_, k) => Math.min(count - 1, Math.floor(k / size))), count), count, lamps: true };
@@ -103,6 +107,7 @@ registerKind<ZonesParams, Partition>({
     const envelope = sampleEnvelope((tick % 1) * p.stepBeats, p.envelope), trigger = triggerLevel(p, f);
     const stems = p.partition === 'stems' ? stemsFrame(room, pos, f) : null;
     const order = state.odd && steps % 2 === 1 ? state.odd : state.order, colours = Math.max(1, f.palette.length);
+    const swaps = state.odd ? Math.floor(steps / 2) : steps;
     for (let i = 0; i < room.n; i++) {
       if (stems) {
         const stem = renderStems(pos, stems, i);
@@ -116,7 +121,7 @@ registerKind<ZonesParams, Partition>({
       const level = selected ? envelope * edge : 0;
       const at = state.lamps ? zone / state.count : order[i];
       const colour = p.mode === 'rotate' ? frac(at + step / state.count)
-        : p.mode === 'swap' ? ((zone + (p.reverse ? -steps : steps)) % colours + colours) % colours / colours : at;
+        : p.mode === 'swap' ? (((zone + (p.reverse ? -swaps : swaps)) % state.count + state.count) % state.count) / colours : at;
       paint(p, f, colour, level * trigger, out[i]);
     }
   },

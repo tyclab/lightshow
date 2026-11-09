@@ -33,7 +33,8 @@ const zones = (partition, mode, beat, palette = [RED, BLUE, GREEN]) => render('z
 
 test('lamp partitions split the rig by patch order, palette blocks, diagonals and corners', () => {
   const zoneOf = (out) => Array.from(lampOf, (_, i) => out[i].level > 0);
-  assert.deepEqual(zoneOf(zones('patch', 'alternate', 0.5)), Array.from(lampOf, (lamp) => lamp % 2 === 0));
+  assert.deepEqual(zoneOf(zones('patch', 'alternate', 0.5, [RED, BLUE])), Array.from(lampOf, (lamp) => lamp % 2 === 0));
+  assert.deepEqual(zoneOf(zones('patch', 'alternate', 1.5)), Array.from(lampOf, (lamp) => lamp % 3 === 1));
   // Ten lamps and three colours: blocks of four, four and two lamps.
   assert.deepEqual(zoneOf(zones('blocks', 'alternate', 1.5)), Array.from(lampOf, (lamp) => lamp >= 4 && lamp < 8));
   const channels = room.lamps.channels(4), corners = room.lamps.channels(5);
@@ -48,6 +49,11 @@ test('halves split front from back on even steps and left from right on odd ones
 });
 
 test('swap lights every zone in a colour of its own and moves every zone one colour per step', () => {
+  const halves = (beat) => zones('halves', 'swap', beat).map((slot) => slot.colour);
+  const depth = room.lamps.halves('depth'), width = room.lamps.halves('width');
+  assert.deepEqual([0.5, 1.5, 2.5, 3.5].map((beat) => halves(beat)[0]),
+    [[1 - depth[0], RED, BLUE], [width[0], RED, BLUE], [1 - depth[0], BLUE, RED], [width[0], BLUE, RED]].map(([side, a, b]) => (side ? b : a)),
+    'halves swap their two colours after both splits have played');
   for (const beat of [0.5, 1.5, 2.5]) {
     const out = zones('blocks', 'swap', beat);
     assert.ok(out.every((slot) => slot.level === 1), `beat ${beat}`);
