@@ -11,10 +11,9 @@ import { getProfile, profilesRevision, BUILTIN_PROFILE_ID, HUE_COLOR_PROFILE_ID 
 import { COLOR_PRESETS, ENERGY_EFFECTS } from '../../src/server/presets.ts';
 import { createPreviewSampler } from '../../src/shared/preview.ts';
 import { buildRig } from '../../src/shared/rig.ts';
-import { HOLD_STROBE, HOLD_FLASH_MS, HOLD_BLACK_MS, HUE_PULSE_MS, HUE_PULSE_FLOOR, holdStrobeFlash, huePulseLevel as huePulseLevelOf, resolveEnergyOverride } from '../../src/shared/look-math.ts';
+import { HOLD_STROBE, holdStrobeFlash, huePulseLevel as huePulseLevelOf, resolveEnergyOverride } from '../../src/shared/look-math.ts';
 
 const RED = COLOR_PRESETS[0];
-const BLUE = COLOR_PRESETS[5];
 
 const fixture = (id, address, profileId, extra = {}) => ({
   id, address, universe: 0, profileId, maxBrightness: 255, override: null,
