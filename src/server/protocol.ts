@@ -182,7 +182,9 @@ export function createPublisher(io: Io) {
       if (typeof io.to !== 'function') return false;
       if (image === lastImage) return false;
       lastImage = image;
-      io.to(ROOM.picture).volatile.emit('picture-image', image);
+      // The lease's end must arrive: a volatile packet is dropped while the socket is mid-write.
+      if (image) io.to(ROOM.picture).volatile.emit('picture-image', image);
+      else io.to(ROOM.picture).emit('picture-image', null);
       return true;
     },
 

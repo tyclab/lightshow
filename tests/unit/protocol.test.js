@@ -237,6 +237,20 @@ test('DMX goes out as bytes only to the pages that subscribed to it', async () =
 });
 
 // The room picture is 7 KB a relay: only the 3D Stage's screens show it, so
+// A volatile packet is dropped while the socket is mid-write; the lease's end must not be.
+test('pictures go out volatile, the end of the lease reliably', () => {
+  const sent = [];
+  const io = { to: (name) => ({
+    emit: (event, payload) => sent.push([name, event, payload, 'reliable']),
+    volatile: { emit: (event, payload) => sent.push([name, event, payload, 'volatile']) },
+  }) };
+  const publisher = createPublisher(io);
+  const image = { width: 1, height: 1, data: Uint8Array.from([1, 2, 3]) };
+  assert.ok(publisher.sendPictureImage(image));
+  assert.ok(publisher.sendPictureImage(null));
+  assert.deepStrictEqual(sent, [[ROOM.picture, 'picture-image', image, 'volatile'], [ROOM.picture, 'picture-image', null, 'reliable']]);
+});
+
 // it has a topic of its own rather than riding every DMX view's feed.
 test('the room picture goes only to the pages subscribed to it, the current one at once', async () => {
   const s = await serve();
