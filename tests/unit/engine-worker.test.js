@@ -372,6 +372,29 @@ test('with a worker, frames land in memory the main thread reads', async () => {
   assert.strictEqual(engineStatus().thread, null);
 });
 
+// The engine thread's isolate allocates per frame where process.memoryUsage() on this thread cannot see it.
+test('the engine thread reports its own heap with its timings, and nothing once it is gone', async () => {
+  state.artnet.enabled = false;
+  startEngine({ thread: 'worker' });
+  try {
+    const until = Date.now() + 5000;
+    while (!engineStatus().heap && Date.now() < until) await wait(20);
+    const { thread, heap } = engineStatus();
+    assert.strictEqual(thread, 'worker');
+    assert.ok(Number.isInteger(heap?.usedBytes) && heap.usedBytes > 0, `used ${heap?.usedBytes}`);
+    assert.ok(Number.isInteger(heap.totalBytes) && heap.totalBytes >= heap.usedBytes, `total ${heap.totalBytes}`);
+  } finally {
+    await stopEngine();
+  }
+  assert.strictEqual(engineStatus().heap, null);
+  startEngine({ thread: 'main' });
+  try {
+    assert.strictEqual(engineStatus().heap, null, 'on the main thread, the main heap is the engine\'s');
+  } finally {
+    await stopEngine();
+  }
+});
+
 test('the main thread never reads a frame the worker is part way through', async () => {
   // The DMX monitor reads the shared buffers from this thread at any moment.
   // A static look renders the same bytes every frame, so every read must match.

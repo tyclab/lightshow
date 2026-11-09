@@ -24,6 +24,9 @@ export interface EngineWorkerData {
 
 export type RenderedFrames = Record<number, number[] | null>;
 
+/** The engine thread's own V8 heap: the main thread's process.memoryUsage() does not see it. */
+export interface EngineHeap { usedBytes: number; totalBytes: number }
+
 export type ToWorker =
   | { type: 'profiles'; profiles: Profile[] }
   | { type: 'space'; space: UnitSpace | null }
@@ -38,7 +41,7 @@ export type ToWorker =
 export type FromWorker =
   | { type: 'ready' }
   | { type: 'frame'; barrierRevision?: number; outputSeq?: number }
-  | { type: 'stats'; stats: FrameSummary }
+  | { type: 'stats'; stats: FrameSummary; heap?: EngineHeap }
   // `hue`: every Hue stream got its dark frame and its session was released.
   | { type: 'stopped'; applied?: boolean; hue?: boolean }
   | { type: 'hue'; status: HueStreamStatus[] }
