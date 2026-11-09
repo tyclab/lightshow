@@ -4,7 +4,7 @@ import crypto from 'node:crypto';
 import { z } from 'zod';
 
 import { state } from './state.ts';
-import { applyPatch, applyOverride } from './patch.ts';
+import { applyPatch, applyOverrides } from './patch.ts';
 import { conductor } from './conductor.ts';
 import { overrideSchema, fixtureId, paletteOverride } from './validation.ts';
 import { settings, schema as settingsSchema } from './settings.ts';
@@ -136,7 +136,7 @@ function recallLook(look: Look, restoreBackground = false): void {
 
   const byId = new Map<number, OverrideInput | null>((overrides || [])
     .map((override, index) => [fixtureIds?.[index] ?? index, override]));
-  for (const fixture of state.fixtures) applyOverride(fixture.id, byId.get(fixture.id) || null);
+  applyOverrides(state.fixtures.map((fixture) => [fixture.id, byId.get(fixture.id) || null] as const));
 }
 
 function saveSettings(patch: SettingsPatch): void {

@@ -6,7 +6,8 @@ import path from 'node:path';
 
 import { CueStore, captureLook, recallLook, lookSchema, MAX_CUES } from '../../src/server/cues.ts';
 import { state, getLiveState } from '../../src/server/state.ts';
-import { applyPatch, applyOverride } from '../../src/server/patch.ts';
+import { applyPatch, applyOverride, setHooks } from '../../src/server/patch.ts';
+import { BUILTIN_PROFILE_ID } from '../../src/server/profiles.ts';
 import { renderInput, setEffectSource, stopEngine } from '../../src/server/engine.ts';
 import { settings } from '../../src/server/settings.ts';
 import { EffectLibrary } from '../../src/server/effect-library.ts';
@@ -110,6 +111,37 @@ test('recall puts the whole look back, including per-fixture overrides', () => {
   assert.strictEqual(state.fixtures[1].override, null, 'fixtures outside the cue are cleared');
 
   applyOverride(0, null);
+});
+
+// Every broadcast diffs the whole live state: a recall that broadcast once per fixture took
+// 52-60 ms on a 50-fixture rig. The overrides now go out together, after the look's own broadcast.
+test('a recall broadcasts at most twice whatever the fixture count, and restores what the per-fixture path did', (t) => {
+  const before = state.fixtures;
+  let broadcasts = 0;
+  setHooks({ broadcast: () => { broadcasts++; } });
+  t.after(() => { state.fixtures = before; setHooks({ broadcast: () => {} }); });
+  const override = (i) => ({ enabled: true, r: (i * 37) % 256, g: (i * 11) % 256, dim: 128 + (i % 128), ...(i % 4 ? {} : { blackout: true }) });
+  for (const count of [1, 12, 64]) {
+    state.fixtures = Array.from({ length: count }, (_, i) => ({ id: 500 + i, label: `Par ${i + 1}`, profileId: BUILTIN_PROFILE_ID,
+      universe: Math.floor(i / 40), address: 1 + (i % 40) * 12, maxBrightness: 255, override: null, position: null, group: null }));
+    state.fixtures.forEach((f, i) => { if (i % 3 !== 2) applyOverride(f.id, override(i)); });
+    const saved = captureLook();
+    const scramble = () => state.fixtures.forEach((f, i) => applyOverride(f.id, i % 2 ? null : override(i + 1)));
+
+    scramble();
+    const byId = new Map(saved.overrides.map((o, index) => [saved.fixtureIds[index], o]));
+    broadcasts = 0;
+    for (const f of state.fixtures) applyOverride(f.id, byId.get(f.id) || null);
+    const reference = structuredClone(state.fixtures.map((f) => f.override));
+    assert.strictEqual(broadcasts, count, 'one override at a time is a broadcast per fixture');
+
+    scramble();
+    broadcasts = 0;
+    recallLook(saved);
+    assert.ok(broadcasts >= 1 && broadcasts <= 2, `${count} fixtures: ${broadcasts} broadcasts`);
+    assert.deepStrictEqual(state.fixtures.map((f) => f.override), reference, `${count} fixtures`);
+    assert.ok(reference.some((o) => o === null) || count < 3, 'fixtures without one in the cue are cleared');
+  }
 });
 
 // The party cues were all saved while the show stood frozen, and every party
