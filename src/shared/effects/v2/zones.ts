@@ -12,8 +12,9 @@ import type { Positions } from './common.ts';
 export const zonesSchema = v2CommonSchema.extend({
   partition: z.enum(['leftRight', 'frontBack', 'floorCeiling', 'nearFar', 'surround', 'technology', 'role', 'stems',
     'patch', 'blocks', 'diagonals', 'corners', 'halves']).default('leftRight'),
-  // 'swap' lights every zone in a colour of its own, all moving one colour on every step (halves: every other step).
-  mode: z.enum(['alternate', 'fill', 'rotate', 'swap']).default('alternate'),
+  // 'swap' lights every zone in a colour of its own, all moving one colour on every step (halves: every other step);
+  // 'cover' fills zone by zone in the next palette colour over the colour of the lap before.
+  mode: z.enum(['alternate', 'fill', 'rotate', 'swap', 'cover']).default('alternate'),
   stepBeats: z.number().min(0.125).max(16).default(1),
   reverse: z.boolean().default(false),
   softness: z.number().min(0).max(1).default(0.15),
@@ -115,13 +116,15 @@ registerKind<ZonesParams, Partition>({
         continue;
       }
       const zone = Math.min(state.count - 1, Math.floor(order[i] * state.count));
-      const selected = p.mode === 'fill' ? zone <= active : p.mode === 'swap' || zone === active;
+      const selected = p.mode === 'fill' ? zone <= active : p.mode === 'swap' || p.mode === 'cover' || zone === active;
       const edge = p.softness > 0 && p.partition === 'floorCeiling'
         ? clamp(Math.abs(order[i] - 0.5) / p.softness) : 1;
       const level = selected ? envelope * edge : 0;
       const at = state.lamps ? zone / state.count : order[i];
+      const lap = Math.floor(steps / state.count) - (zone <= active ? 0 : 1);
       const colour = p.mode === 'rotate' ? frac(at + step / state.count)
-        : p.mode === 'swap' ? (((zone + (p.reverse ? -swaps : swaps)) % state.count + state.count) % state.count) / colours : at;
+        : p.mode === 'swap' ? (((zone + (p.reverse ? -swaps : swaps)) % state.count + state.count) % state.count) / colours
+          : p.mode === 'cover' ? ((lap % colours) + colours) % colours / colours : at;
       paint(p, f, colour, level * trigger, out[i]);
     }
   },

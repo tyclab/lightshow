@@ -443,7 +443,7 @@ flowchart LR
 | Neural | bass, mids and highs placed by height, by distance from the speakers, by zone round the listener, as three level columns side by side, or bass thrown out from the middle with mids at both ends and highs scattered | Neural, Neural Distance |
 | Wash | a steady colour or a shared breathing envelope | Wash, Breathe |
 | Step | a pulse following an axis, each strip's cell order, height, listener azimuth or the patch order lamp by lamp | Chase, Path Runner, Surround |
-| Zones | alternating, filling or swapping colours between sides, height bands, distances, stem regions, odd and even lamps, palette blocks, diagonals, corners, or halves that turn every other step | Zones, Surround Answer, Near and Far, Stems in Space |
+| Zones | alternating, filling, covering in the next colour or swapping colours between sides, height bands, distances, stem regions, odd and even lamps, palette blocks, diagonals, corners, or halves that turn every other step | Zones, Surround Answer, Near and Far, Stems in Space |
 | Noise | continuous clouds, aurora or flames sampled in space | Drifting Clouds, Aurora, Fire |
 | Particles | soft objects and ballistic sparks, trails, falling drops and floor splashes | Light Orbs, Orb Collision, Fireworks, Rain |
 | Visualizer | the incoming picture's palette and motion speed drive an independent spatial field | Visualizer Flow, Visualizer Drift |

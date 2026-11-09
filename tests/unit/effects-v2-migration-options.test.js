@@ -65,6 +65,17 @@ test('swap lights every zone in a colour of its own and moves every zone one col
   }
 });
 
+test('cover fills zone by zone in the next colour over the colour of the lap before', () => {
+  const corners = room.lamps.channels(5);
+  const colours = (beat) => zones('corners', 'cover', beat).map((slot) => slot.colour);
+  // Five corners: beats 0-4 are lap 0 in red over lap -1's green, beats 5-9 lap 1 in blue over red.
+  for (const [beat, fresh, last] of [[0.5, RED, GREEN], [3.5, RED, GREEN], [6.5, BLUE, RED]]) {
+    const active = Math.floor(beat) % 5;
+    assert.deepEqual(colours(beat), Array.from(lampOf, (lamp) => (corners[lamp] <= active ? fresh : last)), `beat ${beat}`);
+  }
+  assert.ok(zones('corners', 'cover', 2.5).every((slot) => slot.level === 1));
+});
+
 test('shell sparks light a share of the room with each launch and fade over the interval', () => {
   const ring = { origin: 'centre', profile: 'ring', speed: 2, width: 0.2 };
   const plain = render('shell', ring, 0.1).map((slot) => slot.level);
