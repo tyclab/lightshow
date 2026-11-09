@@ -9,13 +9,13 @@ import { paramAt, shownControls } from '../../src/shared/effects/controls.ts';
 const words = (value) => value.replace(/([a-z])(?=[A-Z])/g, '$1 ').replace(/^./, (c) => c.toUpperCase());
 const LABELS = { 'fromPoint.x': 'Start X (metres)', 'fromPoint.y': 'Start height (metres)', 'fromPoint.z': 'Start Z (metres)',
   'toPoint.x': 'End X (metres)', 'toPoint.y': 'End height (metres)', 'toPoint.z': 'End Z (metres)' };
-const fieldId = (path) => `spatial-${path.replaceAll('.', '-')}`;
+const fieldId = (path, prefix = 'spatial') => `${prefix}-${path.replaceAll('.', '-')}`;
 // Enough digits for a sixteenth of a beat, without float noise.
 const shown = (value) => (typeof value === 'number' ? String(Math.round(value * 10000) / 10000) : '');
 
 /** One labelled control (src/shared/effects/controls.ts); free-form fields are drawn from the kind's schema. */
-function Control({ control, schema, value, setParam }) {
-  const id = fieldId(control.path);
+export function Control({ control, schema, value, setParam, idPrefix }) {
+  const id = fieldId(control.path, idPrefix);
   const change = (next) => setParam(control.path, next);
   if (control.type === 'number') return <div class="insp-field"><label for={id}>{control.label}</label>
     <input id={id} type="range" min={control.min} max={control.max} step={control.step} value={value ?? control.min}

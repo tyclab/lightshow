@@ -1,4 +1,5 @@
 import type { EffectColours } from '../shared/effect-colours.ts';
+import type { EffectParams } from '../shared/effect-params.ts';
 import { DEFAULT_BACKGROUND } from '../shared/background.ts';
 import type { BackgroundSettings } from '../shared/background.ts';
 import { control } from './control.ts';
@@ -63,6 +64,7 @@ export interface ShowState {
   paletteOverride: Colour[] | null;
   paletteOverrideId: string | null;
   effectColours: EffectColours | null;
+  effectParams: EffectParams | null;
   basePalette: PaletteBody | null;
   overridePalette: PaletteBody | null;
   autoIntensity: number;
@@ -114,6 +116,7 @@ const state: ShowState = {
   paletteOverride: null,
   paletteOverrideId: null,
   effectColours: null,
+  effectParams: null,
   basePalette: null,
   overridePalette: null,
   autoIntensity: 50,
@@ -461,6 +464,7 @@ function getLiveState() {
     paletteOverride: state.paletteOverride ? state.paletteOverride.map(toHex) : null,
     paletteOverrideId: state.paletteOverrideId,
     effectColours: state.effectColours,
+    effectParams: state.effectParams,
     basePalette: state.basePalette,
     overridePalette: state.overridePalette,
     safety: safety.status(),

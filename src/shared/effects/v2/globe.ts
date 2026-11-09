@@ -165,7 +165,7 @@ function render(p: GlobeParams, s: GlobeState, room: Room, f: EffectFrame, out: 
 registerKind<GlobeParams, GlobeState>({
   kind: 'v2.globe', app: 'own', level: 'cell', schema: globeSchema, gapsApply: gapsWithoutFloor,
   defaults: { params: globeSchema.parse({}), brightness: 1 }, stateful: true,
-  rapidFlashWhen: accentStrobes,
+  rapidFlashWhen: accentStrobes, restartKey: () => null,
   init: () => ({ bands: null, level: null }),
   render,
 });

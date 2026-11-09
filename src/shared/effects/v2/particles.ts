@@ -252,6 +252,7 @@ function renderGroupedParticles(particles: LightParticle[], room: Room, p: Parti
 registerKind<ParticlesParams, ParticleState>({
   kind: 'v2.particles', app: 'own', level: 'cell', schema: particlesSchema, gapsApply: gapsWithoutFloor,
   defaults: { params: particlesSchema.parse({}), brightness: 1 }, rapidFlashWhen: accentStrobes,
+  restartKey: (p) => [p.space, p.radiusM],
   init: spatialIndex,
   render(p, s, room, f, out) {
     const pos = positionsOf(room, p.space), trigger = triggerLevel(p, f), cell = s.cellSize;

@@ -47,6 +47,7 @@ registerKind<StepParams, StepOrder>({
   kind: 'v2.step', app: 'own', level: 'cell', schema: stepSchema, gapsApply: gapsWithoutFloor,
   defaults: { params: stepSchema.parse({}), brightness: 1 },
   rapidFlashWhen: (p) => accentStrobes(p) || (p.stepBeats <= 0.25 && isFlashEnvelope(p.envelope)),
+  restartKey: (p) => [p.space, p.order, p.azimuthDeg, p.elevationDeg, p.steps],
   init: orderOf,
   render(p, { order, steps }, room, f, out) {
     const tick = Math.max(0, f.beatPos - f.anchorBeat) / p.stepBeats;

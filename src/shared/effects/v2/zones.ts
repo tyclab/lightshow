@@ -101,6 +101,7 @@ registerKind<ZonesParams, Partition>({
   kind: 'v2.zones', app: 'own', level: 'cell', schema: zonesSchema, gapsApply: gapsWithoutFloor,
   defaults: { params: zonesSchema.parse({}), brightness: 1 },
   rapidFlashWhen: (p) => accentStrobes(p) || (p.stepBeats <= 0.25 && isFlashEnvelope(p.envelope)),
+  restartKey: (p) => [p.space, p.partition, p.radiusM],
   init: partitionOf,
   render(p, state, room, f, out) {
     const pos = positionsOf(room, p.space), tick = Math.max(0, f.beatPos - f.anchorBeat) / p.stepBeats;

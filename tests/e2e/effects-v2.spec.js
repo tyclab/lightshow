@@ -185,3 +185,33 @@ test('playing a hidden rapid mapping still requires acknowledgement', async ({ p
     await request.put('/api/settings', { data: { safety: { photosensitivityAcknowledged: settings.safety.photosensitivityAcknowledged } } });
   }
 });
+
+test('the main effect\'s variables move live, Save as keeps them, and choosing another effect drops them', async ({ page, request }) => {
+  const library = await (await request.get('/api/effects')).json();
+  await set(request, { pattern: 'v2.grooveWave' });
+  await open(page, 'effects');
+  const strip = page.locator('.live-controls');
+  await strip.locator('summary').click();
+  await expect(strip.getByLabel('Speed', { exact: true })).toHaveValue('1');
+  await strip.getByLabel('Speed', { exact: true }).fill('3.5');
+  await strip.getByLabel('Shape', { exact: true }).selectOption('comet');
+  const live = await until(request, (s) => s.effectParams?.params.speed === 3.5 && s.effectParams.params.profile === 'comet');
+  expect(live.pattern).toBe('v2.grooveWave');
+  expect(await (await request.get('/api/effects')).json()).toEqual(library);
+  await strip.getByRole('button', { name: 'Save as…', exact: true }).click();
+  await strip.getByLabel('Preset name').fill('E2E live wave');
+  await strip.getByRole('button', { name: 'Save copy', exact: true }).click();
+  const s = await until(request, (st) => st.effects.some((e) => e.name === 'E2E live wave'));
+  const id = s.effects.find((e) => e.name === 'E2E live wave').id;
+  try {
+    const spec = (await (await request.get('/api/effects')).json()).user.find((p) => p.id === id).spec;
+    expect([spec.kind, spec.params.speed, spec.params.profile]).toEqual(['v2.sweep', 3.5, 'comet']);
+    await expect(page.locator(`.effect-card[data-card="effect.wave"] [data-preset="${id}"]`)).toBeVisible();
+    await page.locator('.effect-card[data-card="effect.orbit"] .pattern-btn').click();
+    await until(request, (st) => st.pattern === 'v2.rotation' && st.effectParams === null);
+    expect((await state(request)).armed).toBe(false);
+  } finally {
+    await reset(request);
+    await request.delete(`/api/effects/${id}`);
+  }
+});

@@ -29,7 +29,7 @@ export function noise3(x: number, y: number, z: number, seed: number): number {
 
 registerKind<NoiseParams, null>({
   kind: 'v2.noise', app: 'own', level: 'cell', schema: noiseSchema, gapsApply: gapsWithoutFloor,
-  defaults: { params: noiseSchema.parse({}), brightness: 1 }, rapidFlashWhen: accentStrobes,
+  defaults: { params: noiseSchema.parse({}), brightness: 1 }, rapidFlashWhen: accentStrobes, restartKey: () => null,
   init: () => null,
   render(p, _state, room, f, out) {
     const pos = positionsOf(room, p.space), scale = lengthIn(pos.plan ? 'plan' : 'room', p.scaleM);

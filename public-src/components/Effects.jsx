@@ -1,6 +1,7 @@
 import { LAMP_PATTERNS } from '../../src/shared/patterns.ts';
 import { Strobe } from './Strobe.jsx';
 import { NowPlaying, PictureLayers, PlayingVoices } from './NowPlaying.jsx';
+import { LiveControls } from './LiveControls.jsx';
 import { signal } from '@preact/signals';
 import { useEffect, useRef, useState } from 'preact/hooks';
 import { librarySig, pick, send } from '../state.js';
@@ -461,6 +462,7 @@ export function Effects() {
         {filters.length > 0 && <button type="button" class="effects-chip effects-chip-clear" onClick={() => { filtersSig.value = []; }}>Clear</button>}
       </div>
       <PlayingVoices stopAll />
+      <LiveControls />
       <div class="effects-catalogue">
         {(query || filters.length > 0) && <p class="effects-list-count" role="status">{list.length} of {cards.length} match</p>}
         {list.length === 0 && <p class="effects-empty">Nothing matches.</p>}

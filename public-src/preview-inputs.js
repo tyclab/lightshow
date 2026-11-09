@@ -1,4 +1,5 @@
 import { withEffectColours } from '../src/shared/effect-colours.ts';
+import { withEffectParams } from '../src/shared/effect-params.ts';
 import { presetById } from '../src/shared/effects/catalogue.ts';
 import { abSpec } from '../src/shared/effects/ab-candidates.ts';
 import { playingState } from './now-playing.js';
@@ -32,7 +33,7 @@ export function previewOptions(s, { table = null, library = null } = {}) {
   const resolve = resolverOf(library && library.user);
   const override = Array.isArray(s.paletteOverride) && s.paletteOverride.length ? s.paletteOverride : null;
   return {
-    resolveEffect: (id) => withEffectColours(id, resolve(id), s.effectColours),
+    resolveEffect: (id) => withEffectParams(id, withEffectColours(id, resolve(id), s.effectColours), s.effectParams),
     hardware: s.hardware, profiles: s.profiles,
     hueStrobe: s.hueStrobe === 'pulse' ? 'pulse' : 'flash',
     safety: s.safety ? { acknowledged: !!s.safety.photosensitivityAcknowledged, hdFlashIntervalMs: s.safety.hdFlashIntervalMs ?? 350 } : null,

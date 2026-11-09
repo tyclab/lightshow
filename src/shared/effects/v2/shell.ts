@@ -146,6 +146,8 @@ function sparkle(p: ShellParams, s: ShellState, f: EffectFrame, event: { index: 
 registerKind<ShellParams, ShellState>({
   kind: 'v2.shell', app: 'own', level: 'cell', schema: shellSchema, gapsApply: gapsWithoutFloor,
   defaults: { params: shellSchema.parse({}), brightness: 1 }, stateful: true, rapidFlashWhen: shellStrobes,
+  // Each ring keeps the strength it launched with, by its index on the trigger's interval.
+  restartKey: (p) => [p.trigger.mode, p.trigger.beatInterval],
   init: () => ({ launched: new Map() }),
   render: (params, state, room, frame, out) => renderShell(params, state, room, frame, out),
 });

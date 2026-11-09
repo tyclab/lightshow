@@ -1362,6 +1362,12 @@ input[type=range]::-moz-range-thumb {
 .effect-preset.active { background: var(--wash-blue); border-color: var(--accent); color: var(--text); }
 .effect-preset.yours { border-color: var(--amber); }
 .effect-preset-rapid { color: var(--text-amber); }
+/* The main effect's variables, moved while it plays. */
+.live-controls { margin: 0 0 10px; padding: 0 8px; border: 1px solid var(--border); border-radius: var(--radius); }
+.live-controls > summary { min-height: 44px; padding: 12px 0; cursor: pointer; font-weight: 600; }
+.live-controls > .insp-grid { grid-template-columns: repeat(auto-fill, minmax(min(100%, 12rem), 1fr)); align-items: start; }
+.live-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 8px 0 10px; }
+.live-saved { font-size: 11px; color: var(--muted); }
 .effect-tags { display: flex; flex-wrap: wrap; gap: 3px; margin-top: 4px; }
 .effect-tag {
   padding: 0 5px;
