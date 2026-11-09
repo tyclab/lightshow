@@ -538,6 +538,7 @@ test('an idle worker renders only for a snapshot or a command, and keeps reporti
     assert.strictEqual(worker.frames.length, once, 'nothing rendered without a snapshot or a command');
     const [a, b] = worker.stats.slice(-2);
     assert.strictEqual(b.idle, true);
+    assert.strictEqual(b.renderedTotal, once, 'every frame applied so far was counted as a render');
     assert.strictEqual(b.renderedTotal, a.renderedTotal, 'the ticker ran on, rendering nothing');
     assert.ok(b.totalFrames - a.totalFrames >= 10, `${b.totalFrames - a.totalFrames} ticks between the reports`);
     // One frame for each snapshot and each command that reaches it.
