@@ -723,6 +723,7 @@ class AutoShow {
       lamps: this._lamps,
       history: settings.group('auto').setMemory === false ? null : this._memory.history(this._memoryKey()),
       overlay: this.overlay(),
+      vary: settings.group('auto').varyLooks === true,
     });
 
     this._grid = gridFromAnalysis(this.analysis);
@@ -857,6 +858,11 @@ class AutoShow {
     }
   }
 
+  /** Plans the track again with the settings as they are now (Vary looks turned on or off). */
+  replan(): void {
+    if (this.analysis) this.buildTimeline();
+  }
+
   setIntensity(n: unknown): void {
     const numeric = Number(n);
     if (!Number.isFinite(numeric)) return;
@@ -976,6 +982,7 @@ class AutoShow {
       overlay: this.analysis ? this.overlay() : null,
       set: {
         memory: settings.group('auto').setMemory !== false,
+        varyLooks: settings.group('auto').varyLooks === true,
         tracks: this._memory.size,
         arc: this._arc ? this._arc.reason : null,
       },

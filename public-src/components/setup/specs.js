@@ -272,6 +272,12 @@ export const SHOW = {
       help: 'Each track avoids the palette and the looks of the one before it, keeps some of its colours when the two '
         + 'keys mix, and paces its biggest moments against the tracks before it. Off plans every track as if it were '
         + 'the first of the night.' },
+    { path: 'auto.varyLooks', label: 'Vary Looks', type: 'toggle',
+      help: 'The auto show, the live director and MIDI random pick an effect first and then one of its presets, so an '
+        + 'effect with many presets comes up no more often than one with few, and play a spatial look with its widths, '
+        + 'speeds and densities varied within set ranges, a chorus coming back as it was. Timing on the bar, strobes and '
+        + 'anything that would flash fast stay as the preset has them. Off by default: every choice is the one the show '
+        + 'made before. Switching it plans the track again at once.' },
     { path: 'safety.flashLimit', label: 'Flash Limit', type: 'toggle',
       help: 'Photosensitivity: at most three large-area flashes a second (WCAG 2.3.1, ITU-R BT.1702). Strobes are capped '
         + 'at three a second, and a look that would flash the whole rig faster is held to a flicker under a tenth of '

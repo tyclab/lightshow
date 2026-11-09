@@ -28,6 +28,11 @@ const LOOK_KINDS = [
 	{ id: 'effect', label: 'Effects (energy holds and strobes)' },
 ]
 
+const VARIABLES = [
+	{ id: 1, label: 'Variable 1' },
+	{ id: 2, label: 'Variable 2' },
+]
+
 const padOptions = [
 	{ type: 'number', id: 'bank', label: 'Bank (0-1)', default: 0, min: 0, max: 1 },
 	{ type: 'number', id: 'slot', label: 'Slot (0-7)', default: 0, min: 0, max: 7 },
@@ -259,6 +264,26 @@ export function UpdateActions(self) {
 			name: 'Tap Tempo',
 			options: [],
 			callback: () => self.sendTap(),
+		},
+
+		set_effect_variable: {
+			name: 'Set Effect Variable',
+			description: 'The main effect\'s first or second variable (its first sliders in the Effects view), as a share of its range',
+			options: [
+				{ type: 'dropdown', id: 'index', label: 'Variable', default: 1, choices: VARIABLES },
+				{ type: 'number', id: 'percent', label: 'Position (0-100 %)', default: 50, min: 0, max: 100 },
+			],
+			callback: ({ options }) => self.sendSet({ effectVariable: { index: Number(options.index) === 2 ? 2 : 1, at: Math.max(0, Math.min(100, options.percent)) / 100 } }),
+		},
+
+		adjust_effect_variable: {
+			name: 'Adjust Effect Variable',
+			description: 'Moves the main effect\'s first or second variable by steps of its own',
+			options: [
+				{ type: 'dropdown', id: 'index', label: 'Variable', default: 1, choices: VARIABLES },
+				{ type: 'number', id: 'steps', label: 'Steps (±)', default: 1, min: -127, max: 127 },
+			],
+			callback: ({ options }) => self.sendSet({ effectVariable: { index: Number(options.index) === 2 ? 2 : 1, steps: Math.round(options.steps) } }),
 		},
 
 		set_master_dimmer: {

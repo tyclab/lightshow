@@ -250,10 +250,14 @@ export function stepLook(state, kind, direction) {
 
 const pick = (list, random) => list[Math.min(list.length - 1, Math.floor(random() * list.length))]
 
-/** A random look of that kind, never the one on stage. */
+/** A random look of that kind, never the one on stage; with the server's Vary looks on, a card first, then one of its presets. */
 export function randomLook(state, kind, random = Math.random) {
 	const others = lookList(state, kind).filter((r) => r.id !== state.pattern)
-	return others.length ? pick(others, random).id : null
+	if (!others.length) return null
+	if (state.autoShow?.set?.varyLooks !== true) return pick(others, random).id
+	const cards = [...new Set(others.map((r) => r.card ?? r.id))]
+	const card = pick(cards, random)
+	return pick(others.filter((r) => (r.card ?? r.id) === card), random).id
 }
 
 /** A random palette for the override, never the one on. */

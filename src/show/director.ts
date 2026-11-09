@@ -42,6 +42,8 @@ export interface DirectorOptions {
   lamps?: number | null;
   history?: SetHistory | null;
   overlay?: ShowOverlay | null;
+  // Vary looks (auto.varyLooks): a card first, then a preset, played with its declared ranges varied.
+  vary?: boolean;
 }
 
 export type PlannedSection = ReturnType<ShowDirector['_sections']>[number];
@@ -139,6 +141,7 @@ class ShowDirector {
   declare lamps: number | null;
   declare history: SetHistory | null;
   declare overlay: ShowOverlay | null;
+  declare vary: boolean;
 
   /**
    * @param {object} options
@@ -151,7 +154,7 @@ class ShowDirector {
    */
   constructor({ patterns = [], colorPresets = null, paletteSize = 4,
     intensity = 50, blackoutIndex = 0, pixels = false, particlePatterns, acknowledged = true, panels = false, lamps = null, history = null,
-    overlay = null }: DirectorOptions = {}) {
+    overlay = null, vary = false }: DirectorOptions = {}) {
     this.patterns = patterns;
     this.colorPresets = colorPresets;
     this.paletteSize = paletteSize;
@@ -164,6 +167,7 @@ class ShowDirector {
     this.lamps = Number.isFinite(lamps) ? lamps : null;
     this.history = history;
     this.overlay = overlay;
+    this.vary = !!vary;
   }
 
   plan(analysis: Analysis | null | undefined): Plan {
@@ -190,8 +194,12 @@ class ShowDirector {
     if (context.panels) this._mapPanels(intents, context);
     this._mapSpatial(intents, context);
     // Apply operator edits before geometry adaptation so authored travelling looks can still be mirrored.
+    const before = this.vary ? new Map(intents.map((i) => [i, i.kind === INTENT.SCENE ? i.pattern : undefined])) : null;
     const edited = this.overlay ? applyOverlay(intents, this.overlay, context.sections) : intents;
+    // A look the operator chose for a section in the timeline editor plays as chosen.
+    const authored = new Set(before ? edited.filter((i) => i.kind === INTENT.SCENE && before.get(i) !== i.pattern) : []);
     if (!context.pixels) this._mapPars(edited, context);
+    if (this.vary) this._vary(edited.filter((i) => !authored.has(i)), context);
 
     const looks: Record<string, string> = {};
     for (const i of edited) {
@@ -626,6 +634,18 @@ class ShowDirector {
     return intents;
   }
 
+  // Vary looks: each scene's final pattern with its declared ranges varied by its section and the pattern,
+  // so a section of one identity comes back as it was. A classic look and a strobe stay as they are.
+  _vary(intents: Intent[], context: PlanContext): void {
+    for (const intent of intents) {
+      if (intent.kind !== INTENT.SCENE || !intent.pattern) continue;
+      const salt = [...intent.pattern].reduce((h, c) => Math.imul(h ^ c.charCodeAt(0), 16777619) >>> 0, 2166136261);
+      const variety = look.varietyFor(intent.pattern, (this._sectionOf(intent, context)?.identity ?? 0) + context.trackSeed + salt);
+      if ('effectParams' in variety) intent.effectParams = variety.effectParams;
+      else delete intent.effectParams;
+    }
+  }
+
   _patternFor(section: PlannedSection, patternByIdentity: Map<number, string>, context: PlanContext): string {
     const { available, mood, score, trackSeed } = context;
 
@@ -644,7 +664,7 @@ class ShowDirector {
     const pattern = look.pickPattern({
       character: section.character, available, score,
       seed: section.identity + trackSeed, drive: section.drive,
-      dance: unit(mood.danceability, 0.5), pixels: context.pixels, particles: this.particlePatterns, pictures: context.pictures, avoid,
+      dance: unit(mood.danceability, 0.5), pixels: context.pixels, particles: this.particlePatterns, pictures: context.pictures, avoid, vary: this.vary,
     });
     patternByIdentity.set(section.identity, pattern);
     return pattern;
@@ -698,7 +718,7 @@ class ShowDirector {
       const candidate = look.pickPattern({
         character: section.character, available, score,
         seed: section.identity * 7 + step * 13 + context.trackSeed, drive: section.drive,
-        dance: unit(mood.danceability, 0.5), pixels: context.pixels, particles: this.particlePatterns, pictures: context.pictures,
+        dance: unit(mood.danceability, 0.5), pixels: context.pixels, particles: this.particlePatterns, pictures: context.pictures, vary: this.vary,
       });
       if (!seen.has(candidate)) {
         alternates.push(candidate);

@@ -93,6 +93,8 @@ const DEFAULTS: Settings = {
     // Persist sync offset because playback and fixture latency belong to the room, not the current track.
     syncOffsetMs: 0,
     setMemory: true,
+    // Off by default: the operator sees what varied looks do before the show plays them.
+    varyLooks: false,
   },
   clock: {
     tempoMode: 'auto',
@@ -270,6 +272,7 @@ const schema = z.object({
   auto: z.object({
     syncOffsetMs: z.number().int().min(-SYNC_OFFSET_LIMIT_MS).max(SYNC_OFFSET_LIMIT_MS),
     setMemory: z.boolean(),
+    varyLooks: z.boolean(),
   }).strict(),
   clock: z.object({
     tempoMode: z.enum(TEMPO_MODES),

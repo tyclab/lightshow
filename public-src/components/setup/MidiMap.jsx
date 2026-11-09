@@ -28,6 +28,7 @@ function paramOptions(kind, s) {
     case 'burstMs': return [500, 1000, 2000, 4000].map((ms) => ({ value: ms, label: `${ms / 1000} s` }));
     case 'fixture': return (s.fixtures || []).map((f) => ({ value: f.id, label: f.label }));
     case 'division': return DIVISIONS.map((d) => ({ value: d, label: d === 1 ? '1/1' : `1/${d}` }));
+    case 'variable': return [{ value: 1, label: 'Variable 1' }, { value: 2, label: 'Variable 2' }];
     default: return [];
   }
 }
@@ -99,7 +100,7 @@ export function MidiMap() {
     if (chosen.param) {
       const options = paramOptions(chosen.param.kind, s);
       const raw = param !== '' ? param : chosen.param.optional ? '' : String(options[0] ? options[0].value : '');
-      if (raw !== '') binding[chosen.param.key] = ['color', 'fixture', 'division', 'bpmFactor', 'burstMs'].includes(chosen.param.kind) ? Number(raw) : raw;
+      if (raw !== '') binding[chosen.param.key] = ['color', 'fixture', 'division', 'bpmFactor', 'burstMs', 'variable'].includes(chosen.param.kind) ? Number(raw) : raw;
     }
     if (chosen.input === 'encoder') binding.type = 'relative';
     if (chosen.input === 'fader') binding.type = 'absolute';

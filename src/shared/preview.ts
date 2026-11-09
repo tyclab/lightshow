@@ -1,3 +1,5 @@
+import { withEffectParams } from './effect-params.ts';
+import type { EffectParams } from './effect-params.ts';
 import { ambient, backgroundScope, composeBackground, followColourOf, followFilling, withFollow } from './background.ts';
 import type { BackgroundSettings, BackgroundUse } from './background.ts';
 import { RAPID_PATTERNS, drawnByTheShow, strobeLevel } from './strobe-fx.ts';
@@ -411,6 +413,8 @@ function createPreviewSampler(events: readonly PreviewEvent[] = [], grid: GridSo
       const reset = patch.basePalette !== undefined || patch.palette !== undefined;
       look = { ...look, ...(patch.palette !== undefined ? { basePalette: null } : {}), ...patch,
         baseSlotEdits: reset ? {} : { ...look.baseSlotEdits, ...edits } };
+      // As the server: naming a pattern drops the live variables a scene does not bring with it.
+      if (patch.pattern !== undefined && patch.effectParams === undefined) look.effectParams = null;
       if (dynamics) look.showDynamics = dynamics;
       // As the rig anchors a scheduled scene (server/patch.js): on the step
       // grid, at the beat the scene was due.
@@ -733,7 +737,7 @@ function createPreviewSampler(events: readonly PreviewEvent[] = [], grid: GridSo
     }
 
     const colors = coloursOf(s, presets);
-    const spec = e.specs.get(s.pattern) ?? null;
+    const spec = withEffectParams(s.pattern, e.specs.get(s.pattern) ?? null, s.effectParams as EffectParams | null | undefined);
     const settingsOf = backgroundOf(s, rig, followColourOf(spec, paletteOverride, colors[0])), plainOf = backgroundOf(s, rig, null);
     const { voices, admitted } = playingVoices(w, t, beatPos, f);
     const n = rig.units.length;

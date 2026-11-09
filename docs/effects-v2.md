@@ -177,6 +177,10 @@ C yes all on same engine".
 ## Open operator decisions
 
 - Whether step 8 may change what the auto show and the default pads look like.
+  Varied looks (a card, then one of its presets, then the ranges its controls
+  declare) are built and wait behind **Vary looks** (`auto.varyLooks`, off by
+  default): off, the auto show, the live director and MIDI random choose exactly
+  as before; turned on, they play varied looks for the operator to judge on the rig.
 - Whether step 10 may remove palettes, given that Home Assistant selects
   palettes by id.
 - Whether Disco folds into Scatter, the fill profiles and the strobe overlay, and whether

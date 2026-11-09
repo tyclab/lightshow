@@ -8,6 +8,11 @@ import { createRequire } from 'node:module';
 import { COLOR_PRESETS, ENERGY_EFFECT_IDS, STROBE_FUNCTION_IDS, SYNC_OFFSET_LIMIT_MS } from './server/presets.ts';
 import { messageOf } from './errors.ts';
 import { browseListOf } from './shared/effects/tags.ts';
+import { presetById } from './shared/effects/catalogue.ts';
+import { byCard, variedParams } from './shared/effects/variety.ts';
+import { paramAt } from './shared/effects/controls.ts';
+import { variableControl } from './shared/effect-params.ts';
+import type { EffectSpec } from './shared/effects/types.ts';
 import type { BrowseList } from './shared/effects/tags.ts';
 import type { MidiBinding, MidiMap } from './server/midi-map.ts';
 import type { ShowState } from './server/state.ts';
@@ -121,6 +126,7 @@ const clearRing = (value: number): number => (value >= 64 ? 96 : 32);
 
 export interface LookRow {
   id: string;
+  card?: string;
   pixel?: boolean;
   rapidFlash?: boolean;
   retired?: boolean;
@@ -130,6 +136,10 @@ export interface LookRow {
 
 export interface MidiBusk {
   looks(): readonly LookRow[];
+  // The main effect as it plays (its colour edits and live variables applied), or null for a classic look.
+  effect(): EffectSpec | null;
+  // Vary looks (auto.varyLooks): random picks a card, then a preset, and varies it.
+  varyLooks?(): boolean;
   palettes(): readonly string[];
   acknowledged(): boolean;
   stopEffects(): unknown;
@@ -708,8 +718,16 @@ class MidiController {
         this.setPaletteOverride?.(null);
         break;
       case 'randomLook': {
+        // A card, then one of its presets, then the ranges its controls declare: as the auto show varies its looks.
         const others = this._lookList(binding.value === 'effect' ? 'effect' : 'pattern').filter((id) => id !== s.pattern);
-        if (others.length) this._look(this._pick(others));
+        if (!others.length) break;
+        if (!this.busk?.varyLooks?.()) { this._look(this._pick(others)); break; }
+        const cards = new Map((this.busk?.looks() ?? []).map((row) => [row.id, row.card ?? row.id]));
+        const [, presets] = this._pick(byCard(others, (look) => cards.get(look) ?? look));
+        const id = this._pick(presets);
+        const spec = presetById(id)?.spec;
+        const effectParams = spec ? variedParams(id, spec, Math.floor(this._random() * 2 ** 31)) : null;
+        this.apply({ pattern: id, ...(effectParams ? { effectParams } : {}), ...this._fade() });
         break;
       }
       case 'randomColor': {
@@ -752,6 +770,15 @@ class MidiController {
 
   _fade(): { fadeMs?: number } {
     return this._fadeMs > 0 ? { fadeMs: this._fadeMs } : {};
+  }
+
+  _variableIndex(binding: MidiBinding): 1 | 2 {
+    return Number(binding.value) === 2 ? 2 : 1;
+  }
+
+  /** The control a variable binding moves on the effect as it plays, or null when it has none. */
+  _variable(binding: MidiBinding) {
+    return variableControl(this.busk?.effect() ?? null, this._variableIndex(binding));
   }
 
   _pick<T>(list: readonly T[]): T {
@@ -824,6 +851,10 @@ class MidiController {
       case 'adjustFadeTime':
         this._fadeMs = clamp(this._fadeMs + delta * FADE_STEP_MS, 0, FADE_MAX_MS);
         break;
+      case 'adjustVariable':
+        // A step of the control per tick; the server finds which control it is for the effect as it plays.
+        if (this._variable(binding)) this.apply({ effectVariable: { index: this._variableIndex(binding), steps: clamp(Math.round(delta), -127, 127) } });
+        break;
       case 'adjustStrobeRate': {
         const busk = this.busk;
         if (busk) busk.setStrobeRate(clamp(Math.round(busk.strobeRate() + delta), 1, busk.strobeMaxRate));
@@ -876,6 +907,9 @@ class MidiController {
         this.apply({
           autoSyncOffsetMs: Math.round(((raw - 63.5) / 63.5) * SYNC_OFFSET_LIMIT_MS),
         });
+        break;
+      case 'setVariable':
+        if (this._variable(binding)) this.apply({ effectVariable: { index: this._variableIndex(binding), at: raw / 127 } });
         break;
     }
   }
@@ -990,6 +1024,12 @@ class MidiController {
         return to127(this._fadeMs, FADE_MAX_MS);
       case 'adjustStrobeRate':
         return this.busk ? to127(this.busk.strobeRate() - 1, Math.max(1, this.busk.strobeMaxRate - 1)) : null;
+      case 'setVariable':
+      case 'adjustVariable': {
+        const control = this._variable(binding);
+        const value = control ? Number(paramAt(this.busk?.effect()?.params ?? {}, control.path)) : NaN;
+        return control && Number.isFinite(value) ? to127(value - control.min, control.max - control.min) : null;
+      }
       default:
         return null;
     }

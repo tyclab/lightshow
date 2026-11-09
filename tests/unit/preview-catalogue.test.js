@@ -15,6 +15,8 @@ import { CATALOGUE } from '../../src/shared/effects/index.ts';
 import { seedFrom } from '../../src/shared/effects/hash.ts';
 import { createPreviewSampler } from '../../src/shared/preview.ts';
 import { buildRig } from '../../src/shared/rig.ts';
+import { validateSpec } from '../../src/shared/effects/registry.ts';
+import { withEffectParams } from '../../src/shared/effect-params.ts';
 import { beatPositionAt, localBpm, makeGrid } from '../../src/shared/beat-clock.ts';
 
 const fixture = (id, address, profileId = BUILTIN_PROFILE_ID, extra = {}) => ({
@@ -103,6 +105,26 @@ test("catalogue previews match rig output in each Hue strobe mode", () => {
     if (voice) failures.push(`${row.id} voice ${other}: ${voice}`);
   });
   assert.deepStrictEqual(failures, []);
+});
+
+// A planned show varies a spatial look by its scene's live variables (src/shared/effects/variety.ts):
+// the rehearsal plays them as the rig does, and a later scene naming the pattern alone drops them.
+test("a scene's live variables rehearse as the rig plays them, and the next pattern drops them", () => {
+  const id = 'v2.grooveWave';
+  const effectParams = { pattern: id, params: { speed: 3, width: 0.3 } };
+  const varied = validateSpec(withEffectParams(id, resolveEffect(id), effectParams));
+  const r = buildRig(RIG, getProfile);
+  const times = frames(1200);
+  const played = createPreviewSampler([{ timeMs: 0, action: 'patch', data: { pattern: id, ...LOOK, effectParams } }], GRID, { resolveEffect, safety: ACK });
+  assert.strictEqual(differs(rigRun(times, () => ({ pattern: id, effect: varied })), times.map((t) => played(t, RIG, COLOR_PRESETS, r)), times), null);
+  const plain = createPreviewSampler([{ timeMs: 0, action: 'patch', data: { pattern: id, ...LOOK } }], GRID, { resolveEffect, safety: ACK });
+  assert.notStrictEqual(differs(times.map((t) => plain(t, RIG, COLOR_PRESETS, r)), times.map((t) => played(t, RIG, COLOR_PRESETS, r)), times), null,
+    'the variety shows');
+  const next = (first) => createPreviewSampler([{ timeMs: 0, action: 'patch', data: { pattern: id, ...LOOK, ...first } },
+    { timeMs: 600, action: 'patch', data: { pattern: id } }], GRID, { resolveEffect, safety: ACK });
+  const later = times.filter((t) => t >= 600);
+  const [withVariety, without] = [next({ effectParams }), next({})];
+  assert.strictEqual(differs(later.map((t) => without(t, RIG, COLOR_PRESETS, r)), later.map((t) => withVariety(t, RIG, COLOR_PRESETS, r)), later), null);
 });
 
 // The palette over every effect (PUT /api/palette-override) is the live

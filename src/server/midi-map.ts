@@ -52,6 +52,7 @@ const ACTIONS: MidiAction[] = [
   { id: 'browsePalette', label: 'Browse palette override', input: 'encoder' },
   { id: 'adjustFadeTime', label: 'Fade time of look changes', input: 'encoder' },
   { id: 'adjustStrobeRate', label: 'Nudge strobe flashes per second', input: 'encoder' },
+  { id: 'adjustVariable', label: 'Nudge an effect variable', input: 'encoder', param: { key: 'value', kind: 'variable', label: 'Variable' } },
   { id: 'setMasterDimmer', label: 'Master dimmer', input: 'fader' },
   { id: 'setStrobeSpeed', label: 'Strobe speed', input: 'fader' },
   { id: 'setBpm', label: 'BPM', input: 'fader' },
@@ -59,6 +60,7 @@ const ACTIONS: MidiAction[] = [
   { id: 'setFixtureMax', label: 'Fixture max brightness', input: 'fader', param: { key: 'fixture', kind: 'fixture', label: 'Fixture' } },
   { id: 'setAutoIntensity', label: 'Auto-show intensity', input: 'fader' },
   { id: 'setAutoSync', label: 'Light/music sync offset', input: 'fader' },
+  { id: 'setVariable', label: 'Effect variable', input: 'fader', param: { key: 'value', kind: 'variable', label: 'Variable' } },
 ];
 
 const ACTION_IDS = ACTIONS.map((a) => a.id);

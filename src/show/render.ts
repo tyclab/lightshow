@@ -3,6 +3,7 @@
 import { INTENT } from './intents.ts';
 import type { Intent, IntentKind, SceneIntent } from './intents.ts';
 import type { ShowDynamics } from '../types/rig.ts';
+import type { EffectParams } from '../shared/effect-params.ts';
 
 export interface PatchData {
   pattern?: string;
@@ -24,6 +25,7 @@ export interface PatchData {
   showDynamics?: ShowDynamics | null;
   running?: boolean;
   energyOverride?: null;
+  effectParams?: EffectParams;
 }
 
 export interface EnergyData {
@@ -133,6 +135,7 @@ function renderIntents(intents: readonly Intent[], { blackoutIndex = 0 } = {}): 
 function sceneData(intent: SceneIntent): PatchData {
   const data: PatchData = {};
   if (intent.pattern) data.pattern = String(intent.pattern);
+  if (intent.pattern && intent.effectParams?.pattern === intent.pattern) data.effectParams = intent.effectParams;
 
   (intent.colors || []).forEach((value, i) => {
     if (value != null && SLOTS[i]) data[SLOTS[i]] = Math.max(0, Math.round(value));
