@@ -1,6 +1,9 @@
 // Classic and party pattern ids that play a v2 preset instead of their pattern function, each with the
 // reason it moved. The operator decides each move by A/B test on the rig; every other classic id keeps its function.
-export const CLASSIC_REDIRECTS: Readonly<Record<string, string>> = Object.freeze({});
+export const CLASSIC_REDIRECTS: Readonly<Record<string, string>> = Object.freeze({
+  rise: 'Wall on the v2 engine (option C), merged only once the operator chose B in A/B migration.rise',
+  meter: 'Wall on the v2 engine (option C), merged only once the operator chose B in A/B migration.meter',
+});
 
 // The classic and party looks on the v2 engine: for each id, the v2 spec closest to its own pattern on the
 // diff rig (scripts/effects-v2-alias-diff.js --classic) and that diff as [largest channel, mean absolute
@@ -32,9 +35,9 @@ export const CLASSIC_V2: Readonly<Record<string, ClassicLook>> = {
   swirl: { family: 'Orbit', name: 'Swirl', diff: [210, 47.287, 129],
     spec: { kind: 'v2.orbit', params: { space: 'plan', profile: 'sectors', turnsPerBar: 0.5, axis: 'centre', sectors: 2, sectorSoftnessDeg: 180 } } },
   // Wall
-  rise: { family: 'Wall', name: 'Rise', pixel: true, diff: [245, 16.326, 129],
+  rise: { family: 'Wall', name: 'Rise', desc: 'The plot filling from left to right over four bars, then again', pixel: true, diff: [245, 16.326, 129],
     spec: { kind: 'v2.sweep', params: { space: 'plan', profile: 'fill', azimuthDeg: 90, colour: 'solid' } } },
-  meter: { family: 'Wall', name: 'Meter', pixel: true, diff: [255, 24.039, 129],
+  meter: { family: 'Wall', name: 'Meter', desc: 'The plot filled from left to right as far as the music is loud', pixel: true, diff: [255, 24.039, 129],
     spec: { kind: 'v2.sweep', params: { space: 'plan', profile: 'fill', fillSource: 'volume', azimuthDeg: 90, colour: 'solid' } } },
   // Scatter
   twinkle: { family: 'Scatter', name: 'Twinkle', diff: [255, 81.537, 129],
