@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { open, reset, until } from './helpers.js';
+import { open, reset, set, until } from './helpers.js';
 
 test.beforeEach(async ({ request }) => {
   await reset(request);
@@ -10,6 +10,8 @@ test.afterEach(async ({ request }) => {
 });
 
 test('the shared editor keeps all emitters through RGB edits and palette reuse', async ({ page, request }) => {
+  // A classic look, whose Main effect colours are the base palette (a preset's are its own effect colours).
+  await set(request, { pattern: 'strobe' });
   await open(page, 'perform');
   const strip = page.locator('.palette-strip');
   await strip.getByRole('button', { name: 'Main effect', exact: true }).click();
