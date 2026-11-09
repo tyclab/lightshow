@@ -1,5 +1,6 @@
 import { fileURLToPath } from 'node:url';
-import { CLASSIC_REDIRECTS, LEGACY_PRESETS, V2_ALIASES, presetById } from '../src/shared/effects/catalogue.ts';
+import { LEGACY_PRESETS, V2_ALIASES, presetById } from '../src/shared/effects/catalogue.ts';
+import { CLASSIC_REDIRECTS } from '../src/shared/effects/v2/classic.ts';
 import { DEMO_AUDIO_SOURCE, DEMO_BEATS, DEMO_BPM } from '../src/shared/demo-track.ts';
 import { BPM, renderLookBytes } from './golden-party-looks.js';
 import { syntheticRig, syntheticSpace } from './golden-frames.js';

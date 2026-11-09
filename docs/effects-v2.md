@@ -373,7 +373,7 @@ if B really right call so find deoublicate options and let me decide with a/b te
 C yes all on same engine".
 
 - Classic and party ids may redirect to v2 presets: every effect moves onto the same
-  engine. `CLASSIC_REDIRECTS` in `src/shared/effects/catalogue.ts` lists each
+  engine. `CLASSIC_REDIRECTS` in `src/shared/effects/v2/classic.ts` lists each
   redirected id with its reason; any other classic id keeps its pattern function.
 - Ids that fail step 7's tolerance become approximations only by the operator's
   A/B test on the rig, look by look, with the frame diff of

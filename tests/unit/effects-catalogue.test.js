@@ -3,7 +3,8 @@
 // and the pattern list the pickers receive.
 import test from 'node:test';
 import assert from 'node:assert';
-import { CLASSIC_REDIRECTS, LEGACY_PRESETS, V2_ALIASES } from '../../src/shared/effects/catalogue.ts';
+import { LEGACY_PRESETS, V2_ALIASES } from '../../src/shared/effects/catalogue.ts';
+import { CLASSIC_REDIRECTS } from '../../src/shared/effects/v2/classic.ts';
 import { V2_PRESETS } from '../../src/shared/effects/v2/presets.ts';
 import { CATALOGUE, FAMILIES, presetById, presetIndex } from '../../src/shared/effects/index.ts';
 import { KINDS, kindOf, requiresAcknowledgement, validateSpec } from '../../src/shared/effects/registry.ts';

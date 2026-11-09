@@ -16,6 +16,7 @@ import { LDJ_PALETTES } from './ldj-palettes.ts';
 import type { BuiltinPalette } from './ldj-palettes.ts';
 import { VISUALIZER_PRESETS } from './ldj-visualizer.ts';
 import { V2_PRESETS } from './v2/presets.ts';
+import { CLASSIC_REDIRECTS } from './v2/classic.ts';
 import type { MacroStep } from './macro.ts';
 import type { Ahdsr, Curve, EffectKindDef, EffectSpec, PaletteEntry, RgbEnvelope } from './types.ts';
 
@@ -147,10 +148,6 @@ function ldjPresets(): CataloguePreset[] {
   if (pulse) pulse.aliases = ['ldj.PartyStrobe'];
   return rows;
 }
-
-// Classic and party pattern ids that play a v2 preset instead of their pattern function, each with the
-// reason it moved. The operator decides each move by A/B test on the rig; every other classic id keeps its function.
-export const CLASSIC_REDIRECTS: Readonly<Record<string, string>> = deepFreeze({});
 
 export function presetIndex(rows: readonly CataloguePreset[], redirects: Readonly<Record<string, string>> = CLASSIC_REDIRECTS): ReadonlyMap<string, CataloguePreset> {
   const index = new Map<string, CataloguePreset>();
