@@ -715,6 +715,7 @@ class AutoShow {
       blackoutIndex: this._blackoutIdx,
       pixels: this._pixels,
       particlePatterns: this._particlePatterns,
+      acknowledged: settings.get('safety.photosensitivityAcknowledged'),
       panels: this._panels,
       lamps: this._lamps,
       history: settings.group('auto').setMemory === false ? null : this._memory.history(this._memoryKey()),

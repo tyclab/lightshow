@@ -3,6 +3,7 @@ import { ENERGY_KIND_BY_ID } from '../shared/effects/energy.ts';
 import { requiresAcknowledgement } from '../shared/effects/registry.ts';
 import { mappingOf } from '../shared/effects/mapping.ts';
 import { legacyTags, specTags, tagFields } from '../shared/effects/tags.ts';
+import { RAPID_PATTERNS } from '../shared/strobe-fx.ts';
 
 interface StrobeFunction {
   id: string;
@@ -101,7 +102,7 @@ const PATTERNS = [
   { id: 'flash-burst',     name: 'Flash Burst',     desc: 'A burst of flashes every four steps, odd and even zones in turn, then a break', pixel: true },
   { id: 'core',            name: 'Strobe Core',     desc: 'A colour wash with a white core striking on every kick', pixel: true },
   ...CATALOGUE.filter((p) => p.legacy).map(({ id, name, desc, party, preset }) => ({ id, name, desc, party, ...(preset ? { preset } : {}) })),
-].map((row) => ({ ...row, legacy: true as const, ...tagFields(legacyTags(row.id)) }));
+].map((row) => ({ ...row, legacy: true as const, ...(RAPID_PATTERNS.has(row.id) ? { rapidFlash: true } : {}), ...tagFields(legacyTags(row.id)) }));
 
 const PATTERN_IDS = PATTERNS.map((p) => p.id);
 

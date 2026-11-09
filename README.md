@@ -1622,7 +1622,12 @@ shelf summaries. The shelf permits 64 saved sequences.
 
 `photosensitivityAcknowledged` starts false and persists when acknowledged via
 `POST /api/safety/acknowledge`. Until then, rapid-flash presets/voices,
-strobes, rapid sequence content and rapid Matrix modes are refused. REST
+strobes, rapid sequence content and rapid Matrix modes are refused, and so are
+the seven classic programs that strike flashes (Flash Chase, Flash Scatter,
+Flash Alternate, Flash Burst, Strobe Core, Ring Strobe, Ring Backlit, marked
+Rapid ⚡). Named by hand they are refused; reached any other way (a saved bar
+picture, a track edit) they render and preview dark, and the automatic show
+plans none of them until the acknowledgement, re-planning when it is given. REST
 returns `409 photosensitivity acknowledgement required`; socket commands
 return `error-msg`; MIDI/Companion report the refusal. Stop/release remains
 available. The acknowledgement indicator in the header's status details and in Perform opens the warning.
