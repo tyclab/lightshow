@@ -1,4 +1,5 @@
 import { control } from './control.ts';
+import type { Programme } from './control.ts';
 import { state, voices } from './state.ts';
 import { applyPatch } from './patch.ts';
 import { settings } from './settings.ts';
@@ -11,6 +12,11 @@ import type { RouteDeps } from './routes/common.ts';
 export function configureControls({ integrations, applier, autoShow }: Pick<RouteDeps, 'integrations' | 'applier' | 'autoShow'>,
   save: () => void): void {
   const sequencer = integrations.sequence.sequencer;
+  const start = (programme: Programme): void => {
+    if (programme === 'auto') integrations.startAutoShow();
+    if (programme === 'sequence') sequencer.play();
+    applyPatch({ running: true });
+  };
   control.configure({
     ready: isEngineReady,
     armed: isArmed,
@@ -32,10 +38,14 @@ export function configureControls({ integrations, applier, autoShow }: Pick<Rout
         throw new HttpError(409, 'Analyse a track or select a listening live input before starting the auto show');
       }
     },
-    start(programme) {
-      if (programme === 'auto') integrations.startAutoShow();
-      if (programme === 'sequence') sequencer.play();
-      applyPatch({ running: true });
+    start,
+    // A switch ends what the programme drives and lets a stopped sequence's picture go, so the next one shows at once;
+    // the pads, a held energy effect and Identify are the operator's own layers and play on: only Stop clears them.
+    switchTo(programme) {
+      autoShow.startPending = null;
+      integrations.stopAutoShow();
+      if (sequencer.current()) sequencer.release();
+      start(programme);
     },
     stop() {
       autoShow.startPending = null;
