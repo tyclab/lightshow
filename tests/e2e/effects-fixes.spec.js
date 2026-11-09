@@ -43,7 +43,7 @@ test('an unfinished hex colour blocks Save copy', async ({ page }) => {
 
 test('after Revert removes itself, Escape still closes the sheet and Tab stays in it', async ({ page }) => {
   const sheet = await sheetFor(page, 'Chase');
-  await sheet.getByLabel('Step Beats', { exact: true }).fill('0.25');
+  await sheet.getByLabel('Step', { exact: true }).fill('0.25');
   await sheet.getByRole('button', { name: 'Revert' }).click();
   await expect(sheet.getByRole('button', { name: 'Revert' })).toHaveCount(0);
   await page.keyboard.press('Tab');

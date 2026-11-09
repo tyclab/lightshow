@@ -37,20 +37,6 @@ class Rhythm:
     def bar_period(self):
         return self.beat_period * self.meter
 
-    def phase_at(self, t):
-        """Position within the current bar at time `t`, as 0..1. -1 when the
-        grid has not been established."""
-        if self.downbeats.size == 0:
-            return -1.0
-        i = int(np.searchsorted(self.downbeats, t, side='right')) - 1
-        if i < 0:
-            return -1.0
-        start = self.downbeats[i]
-        end = self.downbeats[i + 1] if i + 1 < self.downbeats.size else start + self.bar_period
-        span = max(1e-6, end - start)
-        return float(np.clip((t - start) / span, 0.0, 1.0))
-
-
 
 class ModelUnavailable(RuntimeError):
     """The beat model could not be loaded or run. Not the same as "no beats

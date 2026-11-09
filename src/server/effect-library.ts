@@ -4,6 +4,7 @@ import { z } from 'zod';
 
 // The entry point registers every kind, so a stored spec validates against it.
 import { CATALOGUE, deepFreeze, presetById } from '../shared/effects/index.ts';
+import { abSpec } from '../shared/effects/ab-candidates.ts';
 import { EFFECT_LIBRARY_VERSION, migrateEffectSpec } from '../shared/effects/migrate.ts';
 import { requiresAcknowledgement, validateSpec } from '../shared/effects/registry.ts';
 import { canonical } from '../shared/effects/layer.ts';
@@ -137,7 +138,7 @@ export class EffectLibrary extends JsonStore {
   resolve(id: string): EffectSpec | null {
     const row = presetById(id);
     if (row) return row.legacy ? null : row.spec;
-    return this._byId.get(id)?.spec ?? null;
+    return this._byId.get(id)?.spec ?? abSpec(id);
   }
 
   isKnownPattern(id: string): boolean {

@@ -93,9 +93,6 @@ python src/analyze.py track.wav --report /tmp/report.html
 
 # What the server runs: a persistent NDJSON worker on stdin/stdout
 python src/analyze.py --worker
-
-# Live mode: raw float32 mono PCM in, musical events out as NDJSON
-python src/analyze.py --live --rate 22050 < stream.raw
 ```
 
 The worker protocol is one JSON object per line each way:
@@ -1020,8 +1017,8 @@ The worker's peak is a fixed part — about 0.6 GB of libraries and resident
 weights (held only while the process runs: in standby, not while a GPU worker
 is ready), plus one model pass's working memory, of which Demucs's is the largest
 at about 1 GB — and a part per second of audio. Measured with a container per
-run: on tychome, the 16 GB, no-swap CPU host shared with Home Assistant and
-voice services, capped so that 2 GB of the host stayed free; and, uncapped for
+run: on the server, a 16 GB, no-swap CPU host shared with other services,
+capped so that 2 GB of the host stayed free; and, uncapped for
 the true peak, with the same image, environment and models on a 32 GB Ryzen 7
 5800X, which takes about 1.5 times as long per track. *Anon* is memory the
 kernel can only take back by killing the worker; the rest of a peak is mapped
@@ -1029,7 +1026,7 @@ checkpoint pages it can drop and reread.
 
 | Warm-up, then one track | 210 s | 561 s | 900 s |
 |---|---|---|---|
-| tychome, 3.1 GB cap | 2.16 GB anon, 175 s | 2.40 GB anon, 444 s | 3.04 GB anon, 1034 s |
+| 16 GB server, 3.1 GB cap | 2.16 GB anon, 175 s | 2.40 GB anon, 444 s | 3.04 GB anon, 1034 s |
 | 32 GB machine, uncapped | 2.43 GB anon, 244 s | 2.69 GB anon, 655 s | 3.01 GB anon, 1033 s |
 
 At 3.1 GB MuQ's 3.7 GB of mapped weights are read back from disk as they are
@@ -1037,7 +1034,7 @@ used, which is most of the time a long track takes there; on the 32 GB machine
 it is the CPU. Either way fifteen minutes of audio takes longer than 600 s, the
 worker's fixed timeout before it grew with the track's length: about 1.15 s a
 second of audio is the slowest measured, and the default allows 1.5. The 32 GB machine's 210 s and 561 s runs are without
-the 16 MB mapping threshold below, which took 0.5 GB off tychome's 561 s peak.
+the 16 MB mapping threshold below, which took 0.5 GB off the 16 GB server's 561 s peak.
 
 What is still per second of audio is what the track is: the decoded source and
 the five signals derived from it (0.9 MB/s, let go as their last reader

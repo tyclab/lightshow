@@ -6,7 +6,7 @@
 import test from 'node:test';
 import assert from 'node:assert';
 
-import { EVENT, deriveEvents, normalise, byType, inSpan, nearAny } from '../../src/show/musical-events.ts';
+import { EVENT, deriveEvents, normalise, byType } from '../../src/show/musical-events.ts';
 
 /** A pre-2.0 analysis document: no `events` array anywhere. */
 function legacy(over = {}) {
@@ -122,16 +122,9 @@ test('an empty or nonsense analysis produces an empty stream, not a throw', () =
   assert.deepStrictEqual(deriveEvents({ beats: 'nope', segments: 7 }), []);
 });
 
-test('the lookup helpers answer the questions the director asks', () => {
-  const events = deriveEvents(legacy());
-  const grouped = byType(events);
+test('the events group by type', () => {
+  const grouped = byType(deriveEvents(legacy()));
   assert.ok(grouped.get(EVENT.BEAT).length > 0);
-
-  const buildups = grouped.get(EVENT.BUILDUP);
-  assert.ok(inSpan(buildups, 10), 'inside the build-up');
-  assert.ok(!inSpan(buildups, 5), 'before it');
-  assert.ok(inSpan(buildups, 7.9, 0.2), 'inside the margin');
-
-  assert.ok(nearAny(grouped.get(EVENT.DROP), 12.4, 0.5));
-  assert.ok(!nearAny(grouped.get(EVENT.DROP), 15, 0.5));
+  assert.ok(grouped.get(EVENT.BUILDUP).length > 0);
+  assert.ok(grouped.get(EVENT.DROP).length > 0);
 });

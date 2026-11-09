@@ -143,7 +143,7 @@ def analyze(path, target_duration_sec=None, config: AnalysisConfig = None):
 
         # Tag the preprocessed 32 kHz normalised mono: no second decode, and two masters of a track tag alike.
         if tagging:
-            tag_future = start('tagger', _safe_tag, path, audio)
+            tag_future = start('tagger', _safe_tag, audio)
 
         if shared is not None:
             shared.submit(bands_done.wait)
@@ -378,9 +378,9 @@ def _safe_muq(audio):
         return {}
 
 
-def _safe_tag(path, audio=None):
+def _safe_tag(audio):
     """
-    Tag the already-decoded wideband signal, falling back to the file.
+    Tag the already-decoded wideband signal.
 
     `wideband` is None when the source had no bandwidth above the analysis
     rate. Resampling the mono signal up is still cheaper than decoding the file
@@ -388,11 +388,9 @@ def _safe_tag(path, audio=None):
     signal every other stage reads.
     """
     try:
-        if audio is not None:
-            if audio.wideband is not None and audio.wideband_rate:
-                return tagger.tag(samples=audio.wideband, sample_rate=audio.wideband_rate)
-            return tagger.tag(samples=audio.mono, sample_rate=audio.sample_rate)
-        return tagger.tag(path=path)
+        if audio.wideband is not None and audio.wideband_rate:
+            return tagger.tag(samples=audio.wideband, sample_rate=audio.wideband_rate)
+        return tagger.tag(samples=audio.mono, sample_rate=audio.sample_rate)
     except Exception as exc:
         _log(f'tagger failed: {exc}')
         return None

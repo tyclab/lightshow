@@ -112,7 +112,8 @@ function analysis() {
 
 test('an automatic show started after a rig edit re-plans and reseeks once the measurement lands', async (t) => {
   withFixtures(t, ring());
-  const show = new AutoShow(() => {}, COLOR_PRESETS, CLASSIC_LOOKS);
+  const patches = [];
+  const show = new AutoShow((patch) => patches.push(patch), COLOR_PRESETS, CLASSIC_LOOKS);
   // The constructor prewarms the Python analyzer, which nothing here needs.
   show._worker.shutdown();
   show.analysis = analysis();
@@ -126,14 +127,23 @@ test('an automatic show started after a rig edit re-plans and reseeks once the m
   assert.equal(show._particlePatterns.size, 0, 'planned without particle looks while nothing is measured');
 
   const reseek = t.mock.method(show, '_reseek');
+  show.getPositionMs = () => 50_000;
   integrations.startAutoShow();
   assert.equal(show.running, true);
-  const started = { revision: show.timelineRevision, reseeks: reseek.mock.callCount() };
+  assert.equal(patches.at(-1).fadeMs, undefined, 'the start cuts in, as before');
+  const started = { revision: show.timelineRevision, reseeks: reseek.mock.callCount(), patches: patches.length };
   await integrations.particleCoverage.ready;
   assert.ok(show._particlePatterns.size > 0, 'the measured set reached the show');
   assert.equal(show._particlePatterns, integrations.particleCoverage.allowed);
   assert.notEqual(show.timelineRevision, started.revision, 'it planned again');
   assert.equal(reseek.mock.callCount(), started.reseeks + 1, 'and found its place in the new plan');
+  // Regression audit 2026-11-09, finding 2: the new plan's scene came in as a cut a moment after the start.
+  const replanned = patches.slice(started.patches).find((patch) => 'pattern' in patch);
+  assert.equal(replanned?.fadeMs, Math.round(8 * 60000 / show.analysis.bpm), 'the new plan blends in over eight beats');
+  const cut = patches.length;
+  show.analysis = { ...analysis(), bpm: 120 };
+  show.buildTimeline();
+  assert.equal(patches.slice(cut).find((patch) => 'pattern' in patch)?.fadeMs, undefined, 'a new track\'s plan still cuts in');
 
   // A show reload hands the same rig over in new objects: measured again, the same result, the running show left alone.
   const unchanged = { set: show._particlePatterns, revision: show.timelineRevision };

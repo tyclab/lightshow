@@ -113,7 +113,6 @@ const RHYTHMIC = new Set(['chase', 'chase-rev', 'runner', 'pairs', 'ping-pong',
   'split', 'sections', 'stack-up', 'random-flash', 'hit', 'color-cycle', 'comet', 'burst', 'drums']);
 const FLOWY = new Set(['solid', 'fade', 'wave', 'sparkle', 'twinkle', 'gradient', 'plasma']);
 const PULSE_PATTERNS = new Set(['drums', 'stems']);
-const EXPRESSIVE = new Set(['ensemble', 'ribbon']);
 
 const SPATIAL_MATCH: Record<string, string[]> = {
   solid: ['v2.wash'], fade: ['v2.breathe'], ribbon: ['v2.lightOrbs', 'v2.aurora'], wave: ['v2.grooveWave'],
@@ -443,7 +442,6 @@ export {
   TIER_FLOOR,
   RHYTHMIC,
   FLOWY,
-  EXPRESSIVE,
   PULSE_PATTERNS,
   availableFor,
   PAR_PICTURES,
