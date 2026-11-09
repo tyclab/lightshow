@@ -66,7 +66,7 @@ function seeded(value) {
   };
 }
 
-const effectOf = (id) => presetById(id)?.spec ?? null;
+const presetSpec = (id) => presetById(id)?.spec ?? null;
 
 /** Channel offsets of each unit, relative to its fixture's address: a cell's own channels, or a lamp's whole footprint. */
 function unitChannels(fixtures, profileOf) {
@@ -80,7 +80,7 @@ function unitChannels(fixtures, profileOf) {
 }
 
 /** Frames per id on a named rig: one row per unit, its channels at each beat in turn. The synthetic rig plays in its room unless `space` is false. */
-export function renderGolden(ids, rigName, beats, { space = true, audioAt, modulationAt, pictureAt } = {}) {
+export function renderGolden(ids, rigName, beats, { space = true, audioAt, modulationAt, pictureAt, effectOf = presetSpec } = {}) {
   const { fixtures, profileOf } = rigOf(rigName);
   const unitSpace = space && rigName === 'synthetic' ? syntheticSpace() : null;
   const channels = unitChannels(fixtures, profileOf);
@@ -128,11 +128,48 @@ export function frameDiff(a, b) {
   return { maxChannel, units };
 }
 
-// Phase A remains a read-only baseline; this records the complete show against deterministic demo input.
+/** The leading `count` beats of frames recorded over `total` beats. */
+export function leadingBeats(rows, count, total) {
+  return rows.map((row) => row.slice(0, row.length / total * count));
+}
+
+// Paths the demo baseline does not reach: each preset that reacts to input, with none, and scatter's explicit cell selection.
+export const CELL_SCATTER = {
+  'v2.scatterFade+cells': ['v2.scatterFade', { selection: 'cells' }],
+  'v2.scatterFade.2d+cells': ['v2.scatterFade.2d', { selection: 'cells' }],
+  'v2.scatterFade+cells+cluster': ['v2.scatterFade', { selection: 'cells', clusterM: 0.5 }],
+  'v2.frequencyBurst+cells': ['v2.frequencyBurst', { selection: 'cells' }],
+};
+const cellSpec = (key) => {
+  const [id, params] = CELL_SCATTER[key];
+  const spec = presetSpec(id);
+  return { ...spec, params: { ...spec.params, ...params } };
+};
+
+// A preset that stays unlit without input is recorded as dark rather than as rows of zeros.
+export const DARK = 'dark';
+
+export function renderPaths(complete) {
+  const ids = V2_PRESETS.map((p) => p.id);
+  const silent = renderGolden(ids, 'synthetic', V2_BEATS);
+  const total = V2_COMPLETE_BEATS.length;
+  const reactive = ids.filter((id) => frameDiff(silent[id], leadingBeats(complete[id], V2_BEATS.length, total)).maxChannel > 0);
+  return {
+    silent: Object.fromEntries(reactive.map((id) => [id, silent[id].every((row) => row.every((v) => v === 0)) ? DARK : silent[id]])),
+    cells: renderGolden(Object.keys(CELL_SCATTER), 'synthetic', V2_BEATS, { ...V2_COMPLETE_OPTIONS, effectOf: cellSpec }),
+  };
+}
+
+const rowsJson = (frames, indent) => Object.entries(frames).map(([id, rows]) => rows === DARK ? `${indent}${JSON.stringify(id)}: ${JSON.stringify(DARK)}`
+  : `${indent}${JSON.stringify(id)}: [\n${rows.map((row) => `${indent}  ${JSON.stringify(row)}`).join(',\n')}\n${indent}]`).join(',\n');
+
+// Records the complete show against deterministic demo input, then the paths that baseline does not reach.
 function main() {
   const frames = renderGolden(V2_PRESETS.map((p) => p.id), 'synthetic', V2_COMPLETE_BEATS, V2_COMPLETE_OPTIONS);
-  const body = Object.entries(frames).map(([id, rows]) => `  ${JSON.stringify(id)}: [\n${rows.map((row) => `    ${JSON.stringify(row)}`).join(',\n')}\n  ]`);
-  fs.writeFileSync(new URL('../tests/fixtures/golden/v2-complete.json', import.meta.url), `{\n${body.join(',\n')}\n}\n`);
+  fs.writeFileSync(new URL('../tests/fixtures/golden/v2-complete.json', import.meta.url), `{\n${rowsJson(frames, '  ')}\n}\n`);
+  const paths = renderPaths(frames);
+  fs.writeFileSync(new URL('../tests/fixtures/golden/v2-spatial.json', import.meta.url),
+    `{\n${Object.entries(paths).map(([group, rows]) => `  ${JSON.stringify(group)}: {\n${rowsJson(rows, '    ')}\n  }`).join(',\n')}\n}\n`);
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) main();
