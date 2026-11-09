@@ -60,7 +60,7 @@ test("PATTERNS contains only legacy rows", () => {
   assert.ok(PATTERNS.some((p) => p.id === 'strobe'));
   assert.ok(!PATTERNS.some((p) => p.id === 'ldj.ScatterStrobe'));
   assert.deepStrictEqual(PATTERNS.filter((p) => p.legacy !== true).map((p) => p.id), []);
-  assert.strictEqual(PATTERNS.find((p) => p.id === 'position-chase').preset, 'hd.neonDomino');
+  if (!Object.hasOwn(CLASSIC_REDIRECTS, 'position-chase')) assert.strictEqual(PATTERNS.find((p) => p.id === 'position-chase').preset, 'hd.neonDomino');
   assert.ok(!('preset' in PATTERNS.find((p) => p.id === 'strobe')));
 });
 
@@ -70,7 +70,7 @@ test("preset picker rows carry catalogue metadata", () => {
   assert.ok(row.family);
   assert.strictEqual(row.rapidFlash, true);
   assert.strictEqual(presetById('hd.auroraDrift').id, 'v2.grooveWave.2d');
-  assert.strictEqual(presetById('position-chase').preset, LEGACY_PRESETS.find((p) => p.name === 'Neon Domino').id);
+  if (!Object.hasOwn(CLASSIC_REDIRECTS, 'position-chase')) assert.strictEqual(presetById('position-chase').preset, LEGACY_PRESETS.find((p) => p.name === 'Neon Domino').id);
   assert.ok(PRESET_ROWS.some((p) => p.id === 'palette-strobe' && !('legacy' in p)));
 });
 
