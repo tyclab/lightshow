@@ -644,8 +644,8 @@ test('a user preset saved by one client appears in the live state (domain librar
   const until = (find, what) => waitFor(() => patches.find(find), what);
   const fast = (await s.call('POST', '/api/effects', { name: 'Fast', spec: FAST })).body.preset;
   let patch = await until((p) => p.d === 'library' && p.set.effects?.length, 'library patch for the preset');
-  assert.deepEqual(patch.set.effects, [{ id: fast.id, name: 'Fast', kind: 'ldj.StrobeCycle', rapidFlash: true, scope: null, updatedAt: fast.updatedAt, tags: ['beat', 'rapid'] }],
-    'enough for a picker: what it is, its tags, and that it waits for the acknowledgement');
+  assert.deepEqual(patch.set.effects, [{ id: fast.id, name: 'Fast', kind: 'ldj.StrobeCycle', card: fast.id, rapidFlash: true, scope: null, updatedAt: fast.updatedAt, tags: ['beat', 'rapid'] }],
+    'enough for a picker: what it is, its card, its tags, and that it waits for the acknowledgement');
   assert.equal(Object.keys(patch.set).includes('patterns'), false, 'the catalogues are not sent again');
 
   const palette = (await s.call('POST', '/api/palettes', { name: 'Warm', colours: ['#FF8800'] })).body.palette;

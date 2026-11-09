@@ -32,7 +32,8 @@ async function load() {
         export { SHORTCUTS } from './public-src/components/Shortcuts.jsx';
         export { VIEWS } from './public-src/views.js';
         export { CommandBar } from './public-src/components/CommandBar.jsx';
-        export { Effects, PhotosensitivityConfirm, editingSig, filtersSig, FILTER_AXES, filterByChips, chipCounts, byName, matchesSearch, catalogueRows, quickDeck, tapRow, usePress } from './public-src/components/Effects.jsx';
+        export { Effects, PhotosensitivityConfirm, editingSig, filtersSig, FILTER_AXES, filterByChips, chipCounts, byName, matchesSearch, catalogueRows, quickDeck, tapRow, usePress, cardsOf, searchCards, filterCards, cardCounts, currentPreset } from './public-src/components/Effects.jsx';
+        export { CARDS, cardOf } from './src/shared/effects/cards.ts';
         export { TAGS, legacyTags, specTags, tagFields } from './src/shared/effects/tags.ts';
         export { mappingOf } from './src/shared/effects/mapping.ts';
         export { Inspector, SingleColourField, readRecommendedPreference, savePreset, withRecommended } from './public-src/components/Inspector.jsx';
@@ -295,11 +296,12 @@ test('following the music again is POST /api/tempo/auto', async () => {
 // A pre-migration library snapshot exercises the retained rich editors; current picker retirement is checked separately.
 const PRESET_ROWS = ui.CATALOGUE.filter((p) => !p.legacy).map((p) => ({
   id: p.id, name: p.name, desc: p.desc, ...(p.party ? { party: true } : {}), ...(p.pixel ? { pixel: true } : {}),
-  mapping: ui.mappingOf(p.spec), app: p.app, family: p.family, rapidFlash: ui.requiresAcknowledgement(p.spec), scope: p.spec.scope ?? null,
+  ...(p.retired ? { retired: true } : {}), ...(p.variantOf ? { variantOf: p.variantOf } : {}),
+  mapping: ui.mappingOf(p.spec), app: p.app, family: p.family, card: ui.cardOf(p), rapidFlash: ui.requiresAcknowledgement(p.spec), scope: p.spec.scope ?? null,
   ...ui.tagFields(ui.specTags(p.spec, { pixel: !!p.pixel })),
 }));
 const LEGACY_ROWS = ui.CATALOGUE.filter((p) => p.legacy)
-  .map(({ id, name, desc, party, preset }) => ({ id, name, desc, party, ...(preset ? { preset } : {}), legacy: true, ...ui.tagFields(ui.legacyTags(id)) }));
+  .map(({ id, name, desc, party, preset }) => ({ id, name, desc, party, ...(preset ? { preset } : {}), legacy: true, card: id, ...ui.tagFields(ui.legacyTags(id)) }));
 const UPSTREAM_ROWS = [
   { id: 'chase', name: 'Chase →', desc: 'One fixture at a time, forward', legacy: true, ...ui.tagFields(ui.legacyTags('chase')) },
   { id: 'gradient', name: 'Gradient', desc: 'The look\'s colours as a gradient scrolling across the rig', pixel: true, legacy: true, ...ui.tagFields(ui.legacyTags('gradient')) },
@@ -333,63 +335,72 @@ const rowOf = (html, id) => {
   return m ? m[0] : null;
 };
 
-/** The catalogue's rows, in order, as rendered. */
+/** The catalogue's cards, in order, as rendered: the preset each card's button plays. */
 const listOf = (html) => [...(/<div class="effects-catalogue">(.*)$/s.exec(html)?.[1] ?? '').matchAll(/class="pattern-btn[^"]*" data-id="([^"]+)"/g)].map((m) => m[1]);
+/** A card's preset chips, as rendered. */
+const chipsOfCard = (html, card) => {
+  const m = new RegExp(`data-card="${card.replace(/\./g, '\\.')}">(.*?)(?=<div class="effect-row|$)`, 's').exec(html);
+  return m ? [...m[1].matchAll(/data-preset="([^"]+)"/g)].map((c) => c[1]) : null;
+};
 /** A row's tag badges, as text. */
 const badgesOf = (row) => [...row.matchAll(/class="effect-tag[^"]*" data-tag="[^"]+"[^>]*>(.*?)<\/span>(?=<span class="effect-tag|<\/span>)/gs)]
   .map((m) => m[1].replace(/<[^>]+>/g, '').replace(/&amp;/g, '&').trim());
 
-test('Effects lists every look once, A to Z, each with the tags its code states', () => {
+test('Effects lists every effect once as a card, A to Z, its presets as chips and the tags of them all', () => {
   ui.filtersSig.value = [];
   givenLibrary({});
   const html = ui.html(ui.h(ui.Effects, {}));
   assert.strictEqual(count(html, '<details'), 0, 'no folded sections');
   assert.doesNotMatch(html, /effects-group|effects-family|Classic effects|Party &amp; Disco|Entertainment/);
+  const rows = [{ id: 'u1', name: 'My Domino', card: 'u1' }, ...ui.catalogueRows([...PATTERN_ROWS], 'hd.neonDomino')];
+  const cards = ui.cardsOf(rows);
   const list = listOf(html);
-  const rows = ui.catalogueRows([...PATTERN_ROWS], 'hd.neonDomino');
-  assert.strictEqual(list.length, rows.length + 1, 'every look and the preset saved here, once each');
-  assert.deepStrictEqual(list, ui.byName([{ id: 'u1', name: 'My Domino' }, ...rows]).map((r) => r.id));
-  const names = list.map((id) => [{ id: 'u1', name: 'My Domino' }, ...rows].find((r) => r.id === id).name.toLowerCase());
+  assert.strictEqual(list.length, cards.length, 'every card once');
+  assert.ok(cards.length < rows.length, 'fewer cards than presets');
+  const names = list.map((id) => cards.find((card) => card.presets.some((row) => row.id === id)).name.toLowerCase());
   assert.ok(names.every((name, i) => i === 0 || names[i - 1].localeCompare(name, 'en', { sensitivity: 'base', numeric: true }) <= 0), 'A to Z');
-  assert.match(html, /class="effects-list-title">All effects <span class="effects-list-count">/);
-  // The badges: what a look reacts to and from where, its surface, colours and use.
-  assert.deepStrictEqual(badgesOf(rowOf(html, 'v2.impact')), ['Bands & drums · live', 'Room-placed']);
-  assert.deepStrictEqual(badgesOf(rowOf(html, 'v2.stemsSpace')), ['Bands & drums · track + live', 'Room-placed']);
+  assert.doesNotMatch(html, /effects-list-title|All effects/, 'one list under the card title, no second heading');
+  // A kind with labelled controls is one card; its presets are chips, a row of its own is a card without any.
+  assert.deepStrictEqual(chipsOfCard(html, 'effect.wave'), ['v2.grooveWave', 'v2.bigRoomWave', 'v2.ascent', 'v2.doubleWave', 'v2.swagger', 'v2.beatAccentWash', 'v2.volumeGateWash']);
+  assert.deepStrictEqual(chipsOfCard(html, 'effect.wall'), ['v2.risingWall', 'v2.fallingWall']);
+  assert.deepStrictEqual(chipsOfCard(html, 'effect.strobe'), ['energy.whiteStrobe', 'palette-strobe', 'overlay.all', 'overlay.step', 'overlay.scatter', 'overlay.zone']);
+  assert.deepStrictEqual(chipsOfCard(html, 'gradient'), [], 'a classic look is its own card, no chips');
+  assert.match(html, /data-card="effect\.wave"><button[^>]*data-id="v2\.grooveWave"[^>]*>.*?<span class="name">Wave</s, 'the card is named for the effect and plays its first preset');
+  assert.match(html, /data-card="effect\.scatter"><button[^>]*data-id="v2\.scatterFade"/, 'a card does not start on a rapid flash when another preset does not');
+  // The badges: the union of the card's presets, what each reacts to and from where.
+  assert.deepStrictEqual(badgesOf(rowOf(html, 'v2.impact')), ['Beat only', 'Bands & drums · live', 'Room-placed']);
   assert.deepStrictEqual(badgesOf(rowOf(html, 'volume-gate')), ['Audio level · track']);
   assert.deepStrictEqual(badgesOf(rowOf(html, 'gradient')), ['Beat only', 'Bars & panels']);
   assert.deepStrictEqual(badgesOf(rowOf(html, 'v2.visualizerFlow')), ['Screen · screen', 'Room-placed']);
   assert.deepStrictEqual(badgesOf(rowOf(html, 'chase')), ['Beat only']);
-  assert.deepStrictEqual(badgesOf(rowOf(html, 'energy.whiteStrobe')), ['Beat only', 'Whole rig', 'Own colours', 'Energy', 'Rapid ⚡']);
+  assert.deepStrictEqual(badgesOf(rowOf(html, 'energy.whiteStrobe')), ['Beat only', 'Whole rig', 'Room-placed', 'Own colours', 'Energy', 'Rapid ⚡']);
   assert.match(rowOf(html, 'v2.impact'), /title="Follows stems, drum hits or frequency bands\. Reacts in the reactive audio mode with live input"/);
   assert.match(rowOf(html, 'radial-pulse'), /title="[^"]*Reacts only while the auto show plays an analysed track; picked by hand it runs on its clock"/);
-  // A rapid flash carries its warning, its ⚡ hidden from screen readers; a slow one does not.
+  // A rapid flash carries its warning, its ⚡ hidden from screen readers; a slow one does not; a chip says it too.
   assert.match(rowOf(html, 'hd.voltageConfetti'), /class="effect-tag badge-rapid" data-tag="rapid"[^>]*>Rapid <span aria-hidden="true">⚡<\/span>/);
   assert.match(rowOf(html, 'ldj.TrueStrobe'), /badge-rapid/);
   assert.doesNotMatch(rowOf(html, 'hd.neonDomino'), /badge-rapid/);
+  assert.match(html, /data-preset="v2\.scatterStrobe"[^>]*>Scatter Strobe<span class="effect-preset-rapid" aria-label=", flashes fast"> ⚡<\/span>/);
   // The one playing is pressed, and only it.
-  assert.strictEqual(count(html, 'aria-pressed="true"'), 1, 'the row on stage');
+  assert.strictEqual(count(html, 'aria-pressed="true"'), 1, 'the card on stage');
   assert.match(rowOf(html, 'hd.neonDomino'), /class="pattern-btn active/);
   assert.match(html, /type="search"[^>]*aria-label="Search effects"/);
-  // The room mapping is said by its badge; a plot variant still says Across layout.
+  // The room mapping is said by its badge; a plot variant still says Across layout, on its card's chip too.
   assert.doesNotMatch(rowOf(html, 'v2.grooveWave'), /Through room|effect-mapping/);
-  assert.match(rowOf(html, 'v2.grooveWave.2d'), /class="effect-mapping">Across layout</);
-  assert.deepStrictEqual(badgesOf(rowOf(html, 'v2.grooveWave.2d')), ['Beat only']);
+  givenLibrary({ pattern: 'v2.grooveWave.2d' });
+  const plot = ui.html(ui.h(ui.Effects, {}));
+  assert.match(rowOf(plot, 'v2.grooveWave.2d'), /class="effect-mapping">Across layout</);
+  assert.match(plot, /data-preset="v2\.grooveWave\.2d" aria-pressed="true"/);
 });
 
-test('a rapid flash reads the same on a pad and on a row: one tag badge, no second glyph', () => {
+test('a rapid flash reads the same on every card: one tag badge, no second glyph', () => {
   ui.filtersSig.value = [];
   givenLibrary({});
-  globalThis.localStorage = { getItem: (key) => (key === 'lightshow.effects.favourites' ? JSON.stringify(['hd.voltageConfetti']) : null), setItem() {}, removeItem() {} };
-  try {
-    const html = ui.html(ui.h(ui.Effects, {}));
-    const pad = /<div class="effect-pad ?[^"]*" data-id="hd\.voltageConfetti"[^>]*>(.*?)<div class="effect-pad-tools">/s.exec(html)[1];
-    const badge = (markup) => /<span class="effect-tag badge-rapid" data-tag="rapid"[^>]*>Rapid <span aria-hidden="true">⚡<\/span><\/span>/.exec(markup)?.[0];
-    assert.ok(badge(pad), 'the pad carries the Rapid tag badge');
-    assert.strictEqual(badge(pad), badge(rowOf(html, 'hd.voltageConfetti')), 'the same markup as the row');
-    assert.strictEqual(count(html, 'role="img" aria-label="rapid flash"'), 0, 'no separate glyph');
-  } finally {
-    delete globalThis.localStorage;
-  }
+  const html = ui.html(ui.h(ui.Effects, {}));
+  const badge = (markup) => /<span class="effect-tag badge-rapid" data-tag="rapid"[^>]*>Rapid <span aria-hidden="true">⚡<\/span><\/span>/.exec(markup)?.[0];
+  assert.ok(badge(rowOf(html, 'hd.voltageConfetti')));
+  assert.strictEqual(badge(rowOf(html, 'hd.voltageConfetti')), badge(rowOf(html, 'v2.scatterFade')), 'a classic card and a carded effect alike');
+  assert.strictEqual(count(html, 'role="img" aria-label="rapid flash"'), 0, 'no separate glyph');
 });
 
 test('the Strobe row is Static and its badge says which strobe functions follow the beat', () => {
@@ -446,7 +457,8 @@ test('the filters: four axes, Reactive folding the four reactions, a live count 
   assert.match(html, /<div class="effects-filters effects-chips" role="group" aria-label="Filters">/);
   for (const axis of ['Reacts to', 'Surface', 'Colour', 'Use &amp; safety']) assert.match(html, new RegExp(`role="group" aria-label="${axis}"`));
   const rows = [{ id: 'u1', tags: ui.specTags(USER_PRESET.spec).tags }, ...ui.catalogueRows(PATTERN_ROWS, 'hd.neonDomino')];
-  const has = (tags) => rows.filter((r) => tags.some((tag) => r.tags.includes(tag))).length;
+  const cards = ui.cardsOf(rows);
+  const has = (tags) => cards.filter((card) => card.presets.some((r) => tags.some((tag) => r.tags.includes(tag)))).length;
   let chips = chipsOf(html);
   assert.deepStrictEqual(chips.map((c) => c.name), ['Beat only', 'Static', 'Reactive', 'Whole rig', 'Room-placed', 'Bars & panels', 'Own colours', 'Energy', 'Rapid ⚡']);
   assert.deepStrictEqual(chips.map((c) => c.n), [['beat'], ['static'], ['bands', 'level', 'sections', 'screen'], ['rig'], ['room'], ['bars'], ['ownColours'], ['energy'], ['rapid']].map(has));
@@ -463,11 +475,11 @@ test('the filters: four axes, Reactive folding the four reactions, a live count 
     assert.deepStrictEqual(chips.filter((c) => c.on).map((c) => c.id), ['reactive', 'bars']);
     const list = listOf(html);
     const expected = rows.filter((r) => r.tags.includes('bars') && r.tags.some((t) => ['bands', 'level', 'sections', 'screen'].includes(t))).map((r) => r.id);
-    assert.deepStrictEqual([...list].sort(), [...expected].sort());
+    assert.deepStrictEqual([...list].sort(), [...expected].sort(), 'each a card of its own here');
     assert.strictEqual(chips.find((c) => c.id === 'bars').n, list.length);
     assert.ok(chips.find((c) => c.id === 'static').disabled, 'a chip with no matches is off and disabled');
     assert.match(html, /<button type="button" class="effects-chip effects-chip-clear">Clear<\/button>/);
-    assert.match(html, new RegExp(`class="effects-list-count">${list.length} of ${rows.length}<`));
+    assert.match(html, new RegExp(`class="effects-list-count" role="status">${list.length} of ${cards.length} match<`));
   } finally {
     ui.filtersSig.value = [];
   }
@@ -675,30 +687,19 @@ test('the photosensitivity confirm names the risk and asks before a rapid flash 
   assert.match(html, />Cancel</);
 });
 
-/** The deck's pads, in order, as rendered. */
-const deckOf = (html) => {
-  const deck = /<div class="effects-deck"[^>]*>(.*?)<div class="effects-catalogue">/s.exec(html);
-  return deck ? [...deck[1].matchAll(/<div class="effect-pad ?[^"]*" data-id="([^"]+)"/g)].map((m) => m[1]) : null;
-};
-
-test('the deck marks the base among saved and party presets', () => {
+test('one list, no deck: the card on stage is marked, saved and party presets are cards among the rest, and each has its pencil', () => {
+  // The operator, 2026-11-07: "also why we have effects then all effects? both in show tab".
   givenLibrary({ pattern: 'position-chase' });
   const html = ui.html(ui.h(ui.Effects, {}));
-  assert.ok(html.indexOf('class="effects-deck"') < html.indexOf('class="effects-catalogue"'), 'the deck is above the catalogue');
-  const deck = deckOf(html);
-  assert.deepStrictEqual(deck.slice(0, 2), ['u1', 'position-chase'], 'the saved preset, then the party looks in catalogue order');
-  assert.ok(deck.includes('swirl') && !deck.includes('hd.neonDomino') && !deck.includes('chase'), 'party looks only, no built-in or upstream row');
-  // A pad carries its tags; a preset saved here says it is yours. Its ⚡ stays in the corner.
-  assert.match(html, /data-id="u1">(?:(?!<\/div>).)*class="effect-tags">(?:(?!<\/div>).)*>Beat only<(?:(?!<\/div>).)*class="effect-tag effect-pad-yours">Yours</s);
-  assert.match(html, /data-id="position-chase"[^>]*>(?:(?!<\/div>).)*data-tag="beat"[^>]*>Beat only</s);
-  assert.doesNotMatch(html, /effect-pad-app/);
-  assert.match(html, /<div class="effect-pad active" data-id="position-chase" data-layer="base">/);
-  assert.strictEqual(count(html, 'class="effect-pad-now"'), 1);
-  assert.match(html, /class="effect-pad-now">Main effect</, 'the pad on stage is the main effect, not "Base"');
+  assert.doesNotMatch(html, /effects-deck|effect-pad-tap|Star an effect to pin it here|No featured effects match/);
+  assert.strictEqual(count(html, 'class="effects-catalogue"'), 1);
+  assert.strictEqual(count(html, 'data-id="position-chase"'), 1, 'a look appears once');
+  assert.match(rowOf(html, 'position-chase'), /class="pattern-btn active/);
   assert.match(html, /data-layer="base"> · Main effect</);
-  // Every pad and row has its pencil; the pencil is not the pad.
+  assert.match(rowOf(html, 'u1'), /<span class="effect-tag effect-pad-yours">Yours<\/span>/);
   assert.match(html, /<button type="button" class="effect-edit" aria-label="Edit My Domino"/);
   assert.match(html, /<button type="button" class="effect-edit" aria-label="Edit Neon Domino"/);
+  assert.match(html, /<button type="button" class="effect-edit" aria-label="Edit Groove Wave"/, 'a card\'s pencil opens the preset it shows');
 });
 
 test('shared status stays above the effect search', () => {
@@ -711,7 +712,7 @@ test('shared status stays above the effect search', () => {
   assert.ok(html.indexOf('class="effects-now"') < html.indexOf('class="effects-search"'), 'above the search');
   assert.ok(html.indexOf('class="effects-tools"') < html.indexOf('class="effects-now"'), 'inside the sticky tools');
   assert.ok(html.indexOf('class="effects-search"') < html.indexOf('class="effects-filters'), 'the filters under the search');
-  assert.ok(html.indexOf('class="effects-filters') < html.indexOf('class="effects-deck"'), 'and over the deck they filter');
+  assert.ok(html.indexOf('class="effects-filters') < html.indexOf('class="effects-catalogue"'), 'and over the list they filter');
   givenLibrary({ pattern: null });
   assert.match(ui.html(ui.h(ui.Effects, {})), /class="effects-now"/);
 });
@@ -778,21 +779,40 @@ test('Show stacks Background, the effect, then Bands; a Disco shows its bands, a
   assert.doesNotMatch(own, /Bass band|Fast Pulse/);
 });
 
-test('a favourite is pinned first on the deck, whatever it is', () => {
+test('a favourite comes first in the one list, whatever it is; the Pads shelf keeps its own order', () => {
   const rows = [{ id: 'a', party: true }, { id: 'u', user: true }, { id: 'x', app: 'ldj' }, { id: 'b', party: true }];
   assert.deepStrictEqual(ui.quickDeck(rows, []).map((r) => r.id), ['u', 'a', 'b']);
   assert.deepStrictEqual(ui.quickDeck(rows, ['x', 'b']).map((r) => r.id), ['x', 'b', 'u', 'a']);
   assert.deepStrictEqual(ui.quickDeck(rows, ['gone']).map((r) => r.id), ['u', 'a', 'b'], 'a favourite that no longer exists is skipped');
   givenLibrary({});
-  globalThis.localStorage = { getItem: (key) => (key === 'lightshow.effects.favourites' ? JSON.stringify(['ldj.Swirl', 'u1']) : null), setItem() {}, removeItem() {} };
+  globalThis.localStorage = { getItem: (key) => (key === 'lightshow.effects.favourites' ? JSON.stringify(['ldj.Swirl', 'u1', 'v2.ascent']) : null), setItem() {}, removeItem() {} };
   try {
     const html = ui.html(ui.h(ui.Effects, {}));
-    assert.deepStrictEqual(deckOf(html).slice(0, 3), ['ldj.Swirl', 'u1', 'position-chase']);
+    assert.deepStrictEqual(listOf(html).slice(0, 3), ['ldj.Swirl', 'u1', 'v2.ascent'], 'starred first, in the order starred: a starred preset leads its card');
     assert.match(html, /class="effect-star on" aria-pressed="true" aria-label="Favourite Swirl"/);
+    assert.match(html, /class="effect-star on" aria-pressed="true" aria-label="Favourite Wave"/, 'the star is the card\'s');
     assert.match(html, /class="effect-star " aria-pressed="false" aria-label="Favourite Neon Domino"/);
   } finally {
     delete globalThis.localStorage;
   }
+});
+
+test('cards: the search finds a card by its name or any preset, the chips narrow its presets, and a tap plays the preset it shows', () => {
+  const rows = ui.catalogueRows(PATTERN_ROWS, null);
+  const cards = ui.cardsOf(rows);
+  const found = (q, active = []) => ui.filterCards(ui.searchCards(cards, q, ui.FAMILIES), active);
+  const wave = (q) => found(q).find((card) => card.id === 'effect.wave');
+  assert.strictEqual(wave('wave').shown.length, 7, 'the card\'s own name finds all its presets');
+  assert.deepStrictEqual(wave('swagger').shown.map((r) => r.id), ['v2.swagger'], 'an old name finds its chip on the card');
+  assert.strictEqual(ui.currentPreset(wave('swagger'), null, {}).id, 'v2.swagger', 'and the card plays it');
+  const reactive = found('', ['reactive']).find((card) => card.id === 'effect.wave');
+  assert.deepStrictEqual(reactive.shown.map((r) => r.id), ['v2.beatAccentWash', 'v2.volumeGateWash'], 'a chip filter leaves the presets it matches');
+  const all = found('').find((card) => card.id === 'effect.wave');
+  assert.strictEqual(ui.currentPreset(all, 'v2.ascent', {}).id, 'v2.ascent', 'the preset on stage');
+  assert.strictEqual(ui.currentPreset(all, 'chase', { 'effect.wave': 'v2.swagger' }).id, 'v2.swagger', 'else the one last played from the card');
+  assert.strictEqual(ui.currentPreset(all, null, { 'effect.wave': 'gone' }).id, 'v2.grooveWave', 'else its first');
+  const counts = Object.fromEntries(ui.cardCounts(ui.searchCards(cards, '', ui.FAMILIES), []));
+  assert.strictEqual(counts.rapid, cards.filter((card) => card.presets.some((r) => r.rapidFlash || r.tags.includes('rapid'))).length, 'counts are cards');
 });
 
 test('row gestures distinguish long press from tap', () => {
@@ -934,7 +954,7 @@ test('pad editor offers playable presets and migrated legacy looks', () => {
   const { presets, patterns, drops } = ui.padChoices(rows, shelf, ['chase', 'confetti']);
   const values = presets.map((c) => c.value);
   // Every saved and built-in preset once, by its own id, whatever the id looks like.
-  assert.deepStrictEqual([...values].sort(), ['preset:u1', ...PRESET_ROWS.map((r) => `preset:${r.id}`)].sort());
+  assert.deepStrictEqual([...values].sort(), ['preset:u1', ...PRESET_ROWS.filter((r) => !r.retired).map((r) => `preset:${r.id}`)].sort());
   // The favourites lead: chase is no preset and offers none; confetti offers Voltage Confetti, under its own name.
   assert.deepStrictEqual(presets.slice(0, 2), [
     { value: 'preset:hd.voltageConfetti', name: 'Voltage Confetti' }, { value: 'preset:u1', name: 'My Domino' },
@@ -1079,7 +1099,7 @@ test('one header row: the picture source and its effect first, then play, Freeze
   assert.doesNotMatch(header, /now-playing|header-now|stat-pill/, 'the main effect line and the pills are gone from the row');
   assert.doesNotMatch(header, /aria-label="Theme"|Keep awake|Full screen/, 'this device\'s tools are behind ⋮');
   const show = ui.html(ui.h(ui.Show));
-  for (const text of ['stage3d-host', 'effects-deck']) assert.ok(show.includes(text), text);
+  for (const text of ['stage3d-host', 'effects-catalogue']) assert.ok(show.includes(text), text);
   assert.strictEqual(count(show, 'role="switch"'), 0, 'global controls stay in the header');
   assert.doesNotMatch(show, /Global show controls|Master dimmer|Picture source/);
   assert.ok(!show.includes('stage-room-panel'), 'the room panel stays in Stage');

@@ -2,6 +2,7 @@ import { CATALOGUE, presetById } from '../shared/effects/index.ts';
 import { ENERGY_KIND_BY_ID } from '../shared/effects/energy.ts';
 import { requiresAcknowledgement } from '../shared/effects/registry.ts';
 import { mappingOf } from '../shared/effects/mapping.ts';
+import { cardOf } from '../shared/effects/cards.ts';
 import { legacyTags, specTags, tagFields } from '../shared/effects/tags.ts';
 
 interface StrobeFunction {
@@ -101,7 +102,7 @@ const PATTERNS = [
   { id: 'flash-burst',     name: 'Flash Burst',     desc: 'A burst of flashes every four steps, odd and even zones in turn, then a break', pixel: true },
   { id: 'core',            name: 'Strobe Core',     desc: 'A colour wash with a white core striking on every kick', pixel: true },
   ...CATALOGUE.filter((p) => p.legacy).map(({ id, name, desc, party, preset }) => ({ id, name, desc, party, ...(preset ? { preset } : {}) })),
-].map((row) => ({ ...row, legacy: true as const, ...tagFields(legacyTags(row.id)) }));
+].map((row) => ({ ...row, legacy: true as const, card: row.id, ...tagFields(legacyTags(row.id)) }));
 
 const PATTERN_IDS = PATTERNS.map((p) => p.id);
 
@@ -109,7 +110,7 @@ const PATTERN_IDS = PATTERNS.map((p) => p.id);
 const PRESET_ROWS = CATALOGUE.flatMap((p) => p.legacy ? [] : [{
   id: p.id, name: p.name, desc: p.desc, ...(p.party ? { party: true } : {}), ...(p.pixel ? { pixel: true } : {}),
   ...(p.retired ? { retired: true } : {}), ...(p.variantOf ? { variantOf: p.variantOf } : {}),
-  mapping: mappingOf(p.spec), app: p.app, family: p.family, rapidFlash: requiresAcknowledgement(p.spec), scope: p.spec.scope ?? null,
+  mapping: mappingOf(p.spec), app: p.app, family: p.family, card: cardOf(p), rapidFlash: requiresAcknowledgement(p.spec), scope: p.spec.scope ?? null,
   ...tagFields(specTags(p.spec, { pixel: !!p.pixel })),
 }]);
 

@@ -1258,7 +1258,7 @@ input[type=range]::-moz-range-thumb {
   padding: 4px 0 8px;
   background: var(--card);
 }
-.effects-deck button, .effects-catalogue button {
+.effects-catalogue button {
   scroll-margin-top: calc(var(--effects-height, 0px) + 8px);
 }
 /* What is on stage, always in sight above the search. */
@@ -1318,36 +1318,7 @@ input[type=range]::-moz-range-thumb {
 .effects-chip.active { background: var(--accent-fill); border-color: transparent; color: var(--text-on-accent); }
 .effects-chip:focus-visible { outline: .125rem solid var(--accent); outline-offset: .1875rem; }
 
-/* The deck: what a hand reaches for mid-set, as pads. */
-.effects-deck {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(132px, 1fr));
-  gap: 6px;
-  margin-bottom: 10px;
-}
-.effect-pad { position: relative; display: flex; flex-direction: column; }
-.effect-pad-tap {
-  flex: 1;
-  min-height: 72px;
-  padding: 10px 10px 8px;
-  text-align: left;
-  display: flex;
-  flex-direction: column;
-  justify-content: flex-end;
-  gap: 2px;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  color: var(--text);
-}
-.effect-pad-tap:hover { background: var(--card-hi); border-color: var(--border-hi); }
-.effect-pad-tap:focus-visible { outline: .125rem solid var(--accent); outline-offset: .1875rem; }
-.effect-pad.active .effect-pad-tap { background: var(--wash-blue); border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
-.effect-pad-name { font-size: 14px; font-weight: 800; line-height: 1.15; overflow-wrap: anywhere; }
 .effect-pad-yours { color: var(--text-amber); }
-.effect-pad-now { font-size: 9px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; color: var(--text-blue); }
-/* The star and the pencil ride the pad's top corner; the pad itself is the tap. */
-.effect-pad-tools { position: absolute; top: 4px; right: 4px; display: flex; gap: 2px; }
 .effect-star, .effect-edit {
   appearance: none;
   width: 26px;
@@ -1368,17 +1339,29 @@ input[type=range]::-moz-range-thumb {
 .effect-star:focus-visible, .effect-edit:focus-visible { outline: .125rem solid var(--accent); outline-offset: .1875rem; }
 .effect-star.on { color: var(--text-amber); }
 
-/* The catalogue: one list, A to Z, each row with the tags its code states. */
-.effects-list-title {
-  padding: 8px 0;
-  border-top: 1px solid var(--border);
-  font-size: 10px;
-  font-weight: 800;
-  letter-spacing: .14em;
-  text-transform: uppercase;
-  color: var(--muted);
+/* The catalogue: one list of cards, the starred first, then A to Z; a card's presets are chips under it. */
+.effects-list-count { margin: 0 0 6px; font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.effect-card { flex-wrap: wrap; }
+.effect-presets, .picker-presets { display: flex; flex-wrap: wrap; gap: 4px; }
+.effect-presets { flex-basis: 100%; padding: 2px 0 6px 30px; }
+.effect-preset {
+  appearance: none;
+  min-height: 26px;
+  padding: 2px 10px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--text-2);
+  font: inherit;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
 }
-.effects-list-count { margin-left: 6px; letter-spacing: normal; font-variant-numeric: tabular-nums; }
+.effect-preset:hover { border-color: var(--border-hi); color: var(--text); }
+.effect-preset:focus-visible { outline: .125rem solid var(--accent); outline-offset: .125rem; }
+.effect-preset.active { background: var(--wash-blue); border-color: var(--accent); color: var(--text); }
+.effect-preset.yours { border-color: var(--amber); }
+.effect-preset-rapid { color: var(--text-amber); }
 .effect-tags { display: flex; flex-wrap: wrap; gap: 3px; margin-top: 4px; }
 .effect-tag {
   padding: 0 5px;
@@ -1513,9 +1496,8 @@ input[type=range]::-moz-range-thumb {
 .confirm-panel h2 { margin: 0 0 8px; font-size: 13px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; color: var(--text-amber); }
 .confirm-panel p { margin: 0 0 14px; font-size: 13px; line-height: 1.5; color: var(--text-2); }
 .confirm-actions { display: flex; justify-content: flex-end; gap: 8px; }
-/* A phone: two pads a row, and the inspector takes the whole screen. */
+/* A phone: the inspector takes the whole screen. */
 @media (max-width: 640px) {
-  .effects-deck { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .effect-sheet { width: 100%; padding: 6px; border-left: 0; }
 }
 
@@ -3579,12 +3561,11 @@ input[type=range]::-moz-range-thumb {
   .palette-btn, .pattern-btn, .cue-recall, .cue-capture, .sync-nudge,
   .transport-btn, .warm-toggle, .auto-select, .warm-playlist-select, .shortcuts-tab,
   .sub-tab, .remove-btn, .wizard-step-btn, .ofl-hit, .file-upload-btn, .timeline-section,
-  .effects-chip, .effect-star, .effect-edit, .palette-random, .insp-check,
+  .effects-chip, .effect-star, .effect-edit, .effect-preset, .palette-random, .insp-check,
   select, input[type=number], input[type=text], input[type=search], input[type=password], input[type=color], textarea {
     min-height: 44px;
   }
   .effect-star, .effect-edit { min-width: 44px; }
-  .effect-pad-tap { min-height: 88px; }
   .btn.icon, .sync-nudge, .shortcuts-tab, .bd-toggle { min-width: 44px; }
   /* Above the drawer's toggle, which sits in the same corner. */
   .shortcuts-tab { width: 44px; height: 44px; bottom: 76px; }
@@ -4013,8 +3994,8 @@ input[type=range]::-moz-range-thumb {
   min-height: 40px; padding: 6px 10px; background: var(--card); border: 1px solid var(--border-hi);
   border-radius: var(--radius-sm); color: var(--text); font: inherit;
 }
-.picker-deck { display: grid; grid-template-columns: repeat(auto-fill, minmax(9rem, 1fr)); gap: 6px; }
-.picker-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(11rem, 1fr)); gap: 4px; }
+.picker-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(14rem, 1fr)); gap: 8px 6px; align-items: start; }
+.picker-card { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
 .picker-choice {
   display: flex; align-items: center; gap: 6px; min-width: 0; min-height: 40px; padding: 6px 10px;
   background: var(--card); border: 1px solid var(--border); border-radius: var(--radius-sm);
@@ -4022,7 +4003,6 @@ input[type=range]::-moz-range-thumb {
 }
 .picker-choice:hover { border-color: var(--accent); }
 .picker-choice:focus-visible { outline: .125rem solid var(--accent); outline-offset: .125rem; }
-.picker-choice.big { min-height: 52px; font-weight: 700; }
 .picker-choice.active { background: var(--wash-blue); border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
 .picker-icon { flex: none; width: 1.2em; text-align: center; color: var(--muted); }
 .picker-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

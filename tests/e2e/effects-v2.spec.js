@@ -24,18 +24,22 @@ test.afterEach(async ({ request }) => {
   await reset(request);
 });
 
-test('the list has each spatial effect once, in its room form, and keeps old ids available', async ({ page, request }) => {
+test('the list has each spatial effect once, as a chip in its room form on its kind\'s card, and keeps old ids available', async ({ page, request }) => {
   await open(page, 'effects');
   const list = page.locator('.effects-catalogue');
   const s = await state(request);
   expect(s.patterns.filter((p) => p.family === 'spatial' && !p.retired)).toHaveLength(NAMES.length);
-  await expect(list.locator('[data-id^="v2."]')).toHaveCount(NAMES.length);
-  await expect(list.locator('[data-id$=".2d"]')).toHaveCount(0);
+  await expect(list.locator('[data-preset^="v2."]')).toHaveCount(NAMES.length);
+  await expect(list.locator('[data-preset$=".2d"]')).toHaveCount(0);
   await expect(list.getByText(/^Popcorn(?: 2D)?$/)).toHaveCount(0);
+  // Thirteen cards hold them: one per generator, the sweep's walls on a card of their own.
+  const cards = await list.locator('.effect-card', { has: page.locator('[data-preset^="v2."]') }).evaluateAll((els) => els.map((el) => el.dataset.card));
+  expect(cards.sort()).toEqual(['chase', 'clouds', 'globe', 'neural', 'orbit', 'particles', 'ripple', 'scatter', 'screen', 'wall', 'wash', 'wave', 'zones']
+    .map((name) => `effect.${name}`));
   for (const name of NAMES) {
     const row = s.patterns.find((p) => p.name === name && p.family === 'spatial');
     expect(row, name).toBeTruthy();
-    await expect(list.locator(`[data-id="${row.id}"]`)).toContainText(name);
+    await expect(list.locator(`.effect-card[data-card="${row.card}"] [data-preset="${row.id}"]`)).toContainText(name);
     expect(s.patterns.find((p) => p.id === `${row.id}.2d`)?.retired).toBe(true);
   }
   // The room form is placed in the room, except the three that use no positions.
@@ -43,11 +47,16 @@ test('the list has each spatial effect once, in its room form, and keeps old ids
   expect(s.patterns.filter((p) => p.family === 'spatial' && !p.retired && !p.tags.includes('room')).map((p) => p.id).sort())
     .toEqual(['v2.breathe', 'v2.pathRunner', 'v2.wash']);
   await page.getByRole('group', { name: 'Filters' }).getByRole('button', { name: /^Room-placed/ }).click();
-  for (const id of roomPlaced) await expect(list.locator(`[data-id="${id}"]`)).toBeVisible();
-  await expect(list.locator('[data-id="v2.wash"]')).toHaveCount(0);
-  // A plain tap plays the room form; the strobes ask first, the waves do not.
-  await list.locator('[data-id="v2.grooveWave"]').click();
+  for (const id of roomPlaced) await expect(list.locator(`[data-preset="${id}"]`)).toBeVisible();
+  await expect(list.locator('[data-preset="v2.wash"]')).toHaveCount(0);
+  await expect(list.locator('[data-card="effect.wash"]')).toHaveCount(0);
+  // A plain tap on a chip plays the room form; the strobes ask first, the waves do not.
+  await list.locator('[data-preset="v2.grooveWave"]').click();
   await until(request, (st) => st.pattern === 'v2.grooveWave');
+  expect((await state(request)).armed).toBe(false);
+  // A tap on another card plays the preset it shows, at once.
+  await list.locator('[data-card="effect.orbit"] .pattern-btn').click();
+  await until(request, (st) => st.pattern === 'v2.rotation');
   expect((await state(request)).armed).toBe(false);
 });
 
@@ -94,17 +103,21 @@ test('a built-in mapping can be played without saving and stays on its single ca
   expect((await state(request)).armed).toBe(false);
 });
 
-test('a legacy favourite retains its layout mapping and can be unpinned without duplication', async ({ page, request }) => {
+test('a legacy favourite retains its layout mapping on its card and can be unpinned without duplication', async ({ page, request }) => {
   await page.addInitScript(() => localStorage.setItem('lightshow.effects.favourites', JSON.stringify(['ldj.GrooveWave', 'v2.grooveWave'])));
   await open(page, 'effects');
+  // Starred, the Wave card leads the one list and plays the starred layout form.
+  const first = page.locator('.effects-catalogue .effect-card').first();
+  await expect(first).toHaveAttribute('data-card', 'effect.wave');
+  await expect(first.locator('.pattern-btn')).toHaveAttribute('data-id', 'v2.grooveWave.2d');
   await page.getByLabel('Search effects').fill('Groove Wave');
-  const pad = page.locator('.effects-deck .effect-pad');
-  await expect(pad).toHaveCount(1);
-  await expect(pad).toHaveAttribute('data-id', 'v2.grooveWave.2d');
-  await pad.locator('.effect-pad-tap').click();
+  const card = page.locator('.effects-catalogue .effect-card');
+  await expect(card).toHaveCount(1);
+  await expect(card.locator('.pattern-btn')).toHaveAttribute('data-id', 'v2.grooveWave.2d');
+  await card.locator('.pattern-btn').click();
   await until(request, (s) => s.pattern === 'v2.grooveWave.2d');
-  await pad.getByRole('button', { name: 'Favourite Groove Wave', exact: true }).click();
-  await expect(pad).toHaveCount(0);
+  await card.getByRole('button', { name: 'Favourite Wave', exact: true }).click();
+  await expect(card.getByRole('button', { name: 'Favourite Wave', exact: true })).toHaveAttribute('aria-pressed', 'false');
   await expect(page.locator('.effects-catalogue .pattern-btn')).toHaveCount(1);
   expect(await page.evaluate(() => JSON.parse(localStorage.getItem('lightshow.effects.favourites')))).toEqual([]);
 });

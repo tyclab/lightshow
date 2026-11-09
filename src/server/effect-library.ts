@@ -8,6 +8,7 @@ import { EFFECT_LIBRARY_VERSION, migrateEffectSpec } from '../shared/effects/mig
 import { requiresAcknowledgement, validateSpec } from '../shared/effects/registry.ts';
 import { canonical } from '../shared/effects/layer.ts';
 import { specTags, tagFields } from '../shared/effects/tags.ts';
+import { cardOf } from '../shared/effects/cards.ts';
 import type { TagId, TagSource } from '../shared/effects/tags.ts';
 import { PATTERN_FUNCS } from '../shared/patterns.ts';
 import { PATTERN_IDS } from './presets.ts';
@@ -28,7 +29,7 @@ export type LibraryEntry = { source: 'builtin'; preset: CataloguePreset } | { so
 export type Admission = (id: string, spec: EffectSpec) => void;
 
 export interface PresetSummary {
-  id: string; name: string; kind: string; rapidFlash: boolean; scope: EffectSpec['scope'] | null; updatedAt: string;
+  id: string; name: string; kind: string; card: string; rapidFlash: boolean; scope: EffectSpec['scope'] | null; updatedAt: string;
   tags: TagId[]; via?: TagSource[];
 }
 
@@ -157,7 +158,7 @@ export class EffectLibrary extends JsonStore {
 
   summaries(): readonly PresetSummary[] {
     this._summaries ??= deepFreeze(this._presets.map(({ id, name, spec, updatedAt }) => ({
-      id, name, kind: spec.kind, rapidFlash: requiresAcknowledgement(spec), scope: spec.scope ?? null, updatedAt, ...tagFields(specTags(spec)),
+      id, name, kind: spec.kind, card: cardOf({ id, spec }), rapidFlash: requiresAcknowledgement(spec), scope: spec.scope ?? null, updatedAt, ...tagFields(specTags(spec)),
     })));
     return this._summaries;
   }
