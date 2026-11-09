@@ -89,6 +89,8 @@ test('shell sparks light a share of the room with each launch and fade over the 
   assert.ok(late.filter((v, i) => v < early[i]).length > room.n / 2, 'sparks fade over the interval');
   const rapid = (params) => requiresAcknowledgement(validateSpec({ kind: 'v2.shell', params: { ...ring, ...params } }));
   assert.deepEqual([rapid({}), rapid({ sparks: 0.2 }), rapid({ sparks: 0.2, trigger: { mode: 'timeline', band: 'full', beatInterval: 2, threshold: 0.15, reactiveDepth: 1 } })], [false, true, false]);
+  const gaps = (revealGaps) => render('shell', { ...ring, sparks: 0.3 }, 0.1, { revealGaps }).map((slot) => slot.background ?? null);
+  assert.deepEqual(gaps(true), gaps(false), 'a sparking shell strobes, so its rests stay dark whatever Between effect hits says');
   const fresh = (beat) => render('shell', { ...ring, sparks: 0.3 }, beat).map((slot) => slot.level > 0.4);
   assert.notDeepEqual(fresh(0.1), fresh(0.35), 'drawn afresh every quarter interval');
 });
