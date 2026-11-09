@@ -105,7 +105,7 @@ const PATTERNS = [
 const PATTERN_IDS = PATTERNS.map((p) => p.id);
 
 // Every classic look the auto show may pick or lay on bars and panels; a redirected id plays its v2 preset as the look.
-const CLASSIC_LOOKS: readonly { id: string; name: string; desc: string }[] = [...PATTERNS, ...Object.keys(CLASSIC_REDIRECTS).map((id) => {
+const CLASSIC_LOOKS: readonly { id: string; name: string; desc: string }[] = [...PATTERNS, ...Object.keys(CLASSIC_REDIRECTS).filter((id) => !id.startsWith('party.')).map((id) => {
   const { name, desc, party, pixel } = presetById(id)!;
   return { id, name, desc, ...(party ? { party } : {}), ...(pixel ? { pixel } : {}) };
 })];

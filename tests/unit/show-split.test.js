@@ -9,14 +9,14 @@ import path from 'node:path';
 
 import { ShowDirector } from '../../src/show/director.ts';
 import { renderIntents } from '../../src/show/render.ts';
-import { COLOR_PRESETS, PATTERNS } from '../../src/server/presets.ts';
+import { COLOR_PRESETS, CLASSIC_LOOKS } from '../../src/server/presets.ts';
 
 const TRACKS = path.join(import.meta.dirname, '..', 'fixtures', 'tracks');
 const tracks = fs.readdirSync(TRACKS).filter((f) => f.endsWith('.json'))
   .map((f) => JSON.parse(fs.readFileSync(path.join(TRACKS, f), 'utf8')));
 
 const plan = (doc) => new ShowDirector({
-  patterns: PATTERNS, colorPresets: COLOR_PRESETS, paletteSize: 4, intensity: 50,
+  patterns: CLASSIC_LOOKS, colorPresets: COLOR_PRESETS, paletteSize: 4, intensity: 50,
 }).plan(doc);
 
 const WHOLE_RIG = ['solid', 'fade', 'hit', 'strobe', 'split', 'sections', 'ribbon', 'ensemble'];
