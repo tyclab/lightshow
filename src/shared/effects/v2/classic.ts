@@ -3,6 +3,7 @@
 export const CLASSIC_REDIRECTS: Readonly<Record<string, string>> = Object.freeze({
   rise: 'Wall on the v2 engine (option C), merged only once the operator chose B in A/B migration.rise',
   meter: 'Wall on the v2 engine (option C), merged only once the operator chose B in A/B migration.meter',
+
 });
 
 // The classic and party looks on the v2 engine: for each id, the v2 spec closest to its own pattern on the
