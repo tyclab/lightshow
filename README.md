@@ -1200,7 +1200,20 @@ A timed-out DTLS handshake reopens the Entertainment
 session after checking ownership again; retrying only the socket can leave a
 stalled bridge unresponsive. Up to five one-second handshakes are attempted; then the session
 closes and retries back off from 2 s to 60 s until the output is stopped. Pairing keys
-are stored as secrets. Disconnect refuses while lamps remain patched unless
+are stored as secrets.
+
+Hue frames leave from the engine thread's sender together with Art-Net, sACN, DDP and
+OpenRGB, read from the same rendered frame before `hue.latencyMs` holds the others back.
+A bridge gets a frame only when every other output took it, or when a blackout leaves
+its lamps dark, so a pending Art-Net route retirement never lets new light reach Hue
+first. That thread owns each bridge's DTLS socket and session; the main thread keeps
+pairing, discovery, the area watch and the application identity, which it looks up on
+arm for a bridge paired before it was stored. Disarming sends each streamed lamp a dark
+frame, then releases the area; the disarm is acknowledged once those frames are out.
+When the engine thread dies, misses its stop (1.5 s) or is replaced by the main thread,
+the server releases the sessions it held by CLIP alone, and no thread connects to Hue
+until that is done; the next stream stops a session of this application still running
+before it starts its own. Disconnect refuses while lamps remain patched unless
 `removeFixtures: true` is supplied.
 
 Each physical lamp gets a profile built from its bridge capabilities: colour gamut,

@@ -31,6 +31,9 @@ const REAL_ARTNET = pathToFileURL(path.join(ROOT, 'src', 'server', 'artnet.ts'))
 const ENGINE_WORKER = pathToFileURL(path.join(ROOT, 'src', 'server', 'engine-worker.ts')).href;
 const WIRE_CHANNEL = 'lightshow-test-artnet-wire';
 const WIRE_ENV = 'LIGHTSHOW_TEST_ARTNET_WIRE';
+const DTLS = import.meta.resolve('node-dtls-client');
+const HUE_CHANNEL = 'lightshow-test-hue-stream';
+const HUE_ENV = 'LIGHTSHOW_TEST_FAKE_HUE';
 
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 let sequence = 0;                       // one receipt order across every listener and the Hue socket
@@ -183,6 +186,43 @@ export function sendArtDmx(target, data) {
 `);
   fs.writeFileSync(path.join(dir, 'worker.mjs'), `
 import module from 'node:module';
+import https from 'node:https';
+import { EventEmitter } from 'node:events';
+import { BroadcastChannel } from 'node:worker_threads';
+import { dtls } from ${JSON.stringify(DTLS)};
+// Hue streams from this thread: its bridge is a stand-in here, and each stream message and each session start
+// or stop is reported to the test. The bridge answers after a short while, as a real one does.
+if (process.env.${HUE_ENV}) {
+  const area = process.env.${HUE_ENV};
+  const ours = { data: [{ id: area, status: 'active', active_streamer: { rid: 'app-id', rtype: 'auth_v1' } }] };
+  const stream = new BroadcastChannel(${JSON.stringify(HUE_CHANNEL)});
+  stream.unref();
+  https.request = (options, onResponse) => {
+    const req = new EventEmitter();
+    let payload = '';
+    req.write = (chunk) => { payload += chunk; };
+    req.destroy = () => {};
+    req.end = () => {
+      if (options.method === 'PUT') stream.postMessage({ clip: JSON.parse(payload).action });
+      setTimeout(() => {
+        const res = new EventEmitter();
+        res.statusCode = 200;
+        res.headers = {};
+        onResponse(res);
+        res.emit('data', Buffer.from(JSON.stringify(options.method === 'PUT' ? { data: [{ rid: area }], errors: [] } : ours)));
+        res.emit('end');
+      }, 20);
+    };
+    return req;
+  };
+  dtls.createSocket = () => {
+    const socket = new EventEmitter();
+    socket.close = () => {};
+    socket.send = (message, cb) => { stream.postMessage(Array.from(message)); if (cb) cb(); };
+    setTimeout(() => socket.emit('connected'), 10);
+    return socket;
+  };
+}
 const FAKE = ${JSON.stringify(fake)};
 module.registerHooks({
   resolve(specifier, context, next) {
@@ -355,20 +395,30 @@ function fakeBridge(t) {
   });
 }
 
+function received(frames, message) {
+  const channels = [];
+  for (let at = 52; at + 7 <= message.length; at += 7) channels.push({ id: message[at], r: message.readUInt16BE(at + 1), g: message.readUInt16BE(at + 3), b: message.readUInt16BE(at + 5) });
+  frames.push({ at: ++sequence, channels, dark: channels.every((c) => !c.r && !c.g && !c.b) });
+}
+
+// What the lamp receives, from either thread: this one's socket is mocked, the engine thread's reports over a
+// channel, with the session starts and stops it asked its bridge for.
 function fakeStream(t) {
   const frames = [];
   t.mock.method(dtls, 'createSocket', () => {
     const socket = new EventEmitter();
     socket.close = () => {};
-    socket.send = (message, cb) => {
-      const channels = [];
-      for (let at = 52; at + 7 <= message.length; at += 7) channels.push({ id: message[at], r: message.readUInt16BE(at + 1), g: message.readUInt16BE(at + 3), b: message.readUInt16BE(at + 5) });
-      frames.push({ at: ++sequence, channels, dark: channels.every((c) => !c.r && !c.g && !c.b) });
-      if (cb) cb();
-    };
+    socket.send = (message, cb) => { received(frames, message); if (cb) cb(); };
     setTimeout(() => socket.emit('connected'), 10);
     return socket;
   });
+  const channel = new BroadcastChannel(HUE_CHANNEL);
+  channel.onmessage = (event) => {
+    if (Array.isArray(event.data)) received(frames, Buffer.from(event.data));
+    else frames.push({ at: ++sequence, clip: event.data.clip });
+  };
+  process.env[HUE_ENV] = AREA;
+  t.after(() => { channel.close(); delete process.env[HUE_ENV]; });
   return frames;
 }
 
@@ -383,14 +433,34 @@ async function withHue(t, fn) {
     await fn(frames);
   } finally {
     output.configureHue({ bridges: [] });
-    await hue.closeAll().catch(() => {});
+    await output.closeHue();
     hue._reset();
     output.configureHue({ bridges: before.bridges, latencyMs: before.latencyMs });
   }
 }
 
-const litHue = (frames, from = 0) => frames.filter((f) => f.at > from && !f.dark);
-const darkHue = (frames, from = 0) => frames.filter((f) => f.at > from && f.dark);
+const hueFrames = (frames, from = 0) => frames.filter((f) => f.at > from && f.channels);
+const litHue = (frames, from = 0) => hueFrames(frames, from).filter((f) => !f.dark);
+const darkHue = (frames, from = 0) => hueFrames(frames, from).filter((f) => f.dark);
+const clips = (frames, from = 0) => frames.filter((f) => f.at > from && f.clip);
+
+test('stopping the engine thread: the lamp gets its dark frame and the area is released by that thread before the stop resolves', async (t) => {
+  await withHue(t, async (frames) => {
+    await rig(async ({ a, worker }) => {
+      await litOnA({ a, worker });
+      await until(() => litHue(frames).length > 0, 8000, 'the lamp streams the lit look');
+      const mark = sequence;
+      await stopEngine();
+      const stopped = ++sequence;
+      await until(() => clips(frames, mark).some((c) => c.clip === 'stop'), 1000, 'the engine thread released the area');
+      const release = clips(frames, mark).find((c) => c.clip === 'stop');
+      const darkAt = darkHue(frames, mark)[0]?.at;
+      assert.ok(darkAt && darkAt < release.at, `the dark frame (${darkAt}) leaves before the release (${release.at})`);
+      assert.ok(release.at < stopped, `the release (${release.at}) was asked for before the stop resolved (${stopped})`);
+      assert.equal(litHue(frames, mark).length, 0, 'nothing lit follows the stop');
+    }, { fixtures: [...state.fixtures, lamp] });
+  });
+});
 
 test('while the old route fails to retire, Blackout still darkens Hue, without acknowledging the failed Art-Net barrier or letting a newer lit picture through', async (t) => {
   await withHue(t, async (frames) => {
@@ -398,7 +468,7 @@ test('while the old route fails to retire, Blackout still darkens Hue, without a
       await litOnA({ a, worker });
       await until(() => litHue(frames).length > 0, 8000, 'the lamp streams the lit look');
       const stalled = await retirementStalls({ a, b, wire });
-      assert.equal(frames.filter((f) => f.at > stalled).length, 0, 'no Hue frame follows an unapplied Art-Net frame');
+      assert.equal(hueFrames(frames, stalled).length, 0, 'no Hue frame follows an unapplied Art-Net frame');
       // Blackout: the explicitly dark Hue frame goes out; the Art-Net barrier is still not acknowledged.
       const blackout = sequence;
       applyPatch({ masterBlackout: true });
@@ -432,7 +502,7 @@ test('on the main thread, Blackout darkens Hue while the new Art-Net destination
       await wait(100);
       const stalled = sequence;
       await wait(150);
-      assert.equal(frames.filter((f) => f.at > stalled).length, 0, 'no Hue frame while Art-Net cannot be sent');
+      assert.equal(hueFrames(frames, stalled).length, 0, 'no Hue frame while Art-Net cannot be sent');
       applyPatch({ masterBlackout: true });
       const barrier = assert.rejects(awaitFrameApplied(), /did not acknowledge/);
       await until(() => darkHue(frames, stalled).length > 0, 3000, 'Hue receives a dark frame');

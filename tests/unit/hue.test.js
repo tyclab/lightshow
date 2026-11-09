@@ -2,6 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert';
 
 import * as hue from '../../src/server/hue.ts';
+import * as stream from '../../src/server/hue-stream.ts';
+import { createHueWire } from '../../src/server/hue-wire.ts';
 const { nameChannel } = hue;
 
 // ── Packet layout ───────────────────────────────────────────────────────────
@@ -11,7 +13,7 @@ const { nameChannel } = hue;
 const AREA = '0123abcd-1234-5678-9abc-def012345678';
 
 test('a stream message is header + area id + 7 bytes per channel', () => {
-  const packet = hue.buildStreamMessage(AREA, [
+  const packet = stream.buildStreamMessage(AREA, [
     { id: 0, r: 0, g: 0, b: 0 },
     { id: 1, r: 0, g: 0, b: 0 },
   ]);
@@ -19,7 +21,7 @@ test('a stream message is header + area id + 7 bytes per channel', () => {
 });
 
 test('the header names the protocol and version the bridge expects', () => {
-  const packet = hue.buildStreamMessage(AREA, [{ id: 0, r: 1, g: 2, b: 3 }]);
+  const packet = stream.buildStreamMessage(AREA, [{ id: 0, r: 1, g: 2, b: 3 }]);
   assert.strictEqual(packet.subarray(0, 9).toString('ascii'), 'HueStream');
   assert.strictEqual(packet[9], 2, 'major version');
   assert.strictEqual(packet[10], 0, 'minor version');
@@ -29,19 +31,19 @@ test('the header names the protocol and version the bridge expects', () => {
 // The area id is a fixed 36-byte field. A short one would shift every channel
 // after it, which is the kind of bug that looks like "the mapping is wrong".
 test('the area id occupies exactly 36 bytes', () => {
-  const packet = hue.buildStreamMessage(AREA, []);
+  const packet = stream.buildStreamMessage(AREA, []);
   assert.strictEqual(packet.subarray(16, 52).toString('ascii'), AREA);
   assert.strictEqual(packet.length, 52);
 });
 
 test('a short area id is padded rather than shifting the channels', () => {
-  const packet = hue.buildStreamMessage('short', [{ id: 9, r: 255, g: 0, b: 0 }]);
+  const packet = stream.buildStreamMessage('short', [{ id: 9, r: 255, g: 0, b: 0 }]);
   assert.strictEqual(packet.length, 52 + 7);
   assert.strictEqual(packet[52], 9, 'the channel id still starts at byte 52');
 });
 
 test('channels carry a byte id and three 16-bit primaries', () => {
-  const packet = hue.buildStreamMessage(AREA, [{ id: 7, r: 255, g: 128, b: 0 }]);
+  const packet = stream.buildStreamMessage(AREA, [{ id: 7, r: 255, g: 128, b: 0 }]);
   assert.strictEqual(packet[52], 7);
   assert.strictEqual(packet.readUInt16BE(53), 65535, 'red at full');
   assert.strictEqual(packet.readUInt16BE(55), 128 * 257);
@@ -49,7 +51,7 @@ test('channels carry a byte id and three 16-bit primaries', () => {
 });
 
 test('several channels are laid out back to back in order', () => {
-  const packet = hue.buildStreamMessage(AREA, [
+  const packet = stream.buildStreamMessage(AREA, [
     { id: 3, r: 255, g: 0, b: 0 },
     { id: 4, r: 0, g: 255, b: 0 },
   ]);
@@ -63,15 +65,15 @@ test('several channels are laid out back to back in order', () => {
 // ×257 rather than <<8: the naive shift can never reach full output, so a rig
 // at 100% would sit a step below the Hue app's own maximum.
 test('8-bit colour widens to the full 16-bit range', () => {
-  assert.strictEqual(hue.to16(0), 0);
-  assert.strictEqual(hue.to16(255), 65535);
-  assert.strictEqual(hue.to16(128), 32896);
+  assert.strictEqual(stream.to16(0), 0);
+  assert.strictEqual(stream.to16(255), 65535);
+  assert.strictEqual(stream.to16(128), 32896);
 });
 
 test('out-of-range colour is clamped rather than wrapping', () => {
-  assert.strictEqual(hue.to16(-5), 0);
-  assert.strictEqual(hue.to16(300), 65535);
-  assert.strictEqual(hue.to16(undefined), 0);
+  assert.strictEqual(stream.to16(-5), 0);
+  assert.strictEqual(stream.to16(300), 65535);
+  assert.strictEqual(stream.to16(undefined), 0);
 });
 
 // ── Configuration ───────────────────────────────────────────────────────────
@@ -98,7 +100,7 @@ test('configure merges over what is already set, and the id is the registry\'s',
 // Nothing may be sent before there is somewhere to send it: an unconfigured
 // bridge must not have the render loop opening sockets 40 times a second.
 test('an unconfigured or disabled session sends nothing', () => {
-  const session = new hue.HueSession(BRIDGE);
+  const session = new stream.HueStreamer(BRIDGE);
   assert.strictEqual(session.sendFrame([{ id: 0, r: 255, g: 0, b: 0 }]), false);
   session.configure({ enabled: true, host: '10.0.0.2', username: 'user', clientKey: 'aabb' });
   assert.strictEqual(session.sendFrame([{ id: 0, r: 255, g: 0, b: 0 }]), false, 'no area picked');
@@ -116,7 +118,7 @@ test('a fresh session reports itself idle and unconfigured, as its bridge', () =
 // lamps out of normal Hue control. Doing that with nothing bound seizes them
 // and then sends no colours, so the lamps are held hostage for no benefit.
 test('a fully paired session with no bindings never contacts the bridge', () => {
-  const session = new hue.HueSession({
+  const session = new stream.HueStreamer({
     ...BRIDGE, enabled: true, host: '10.0.0.2', username: 'user', clientKey: 'aabb', entertainmentId: AREA,
   });
   assert.strictEqual(session.isConfigured(), true, 'everything is set up');
@@ -156,17 +158,6 @@ test('configuring one bridge leaves the other as it was', () => {
   }
 });
 
-test('Hue frames route only to configured bridge IDs', () => {
-  try {
-    hue.configureBridges([{ ...BRIDGE, id: 'b1' }, { ...BRIDGE, id: 'b2' }]);
-    const frames = new Map([['b1', [{ id: 0, r: 1, g: 2, b: 3 }]], ['b9', [{ id: 0, r: 1, g: 2, b: 3 }]]]);
-    assert.strictEqual(hue.sendFrames(frames), false);
-    assert.ok(hue.getStatusAll().every((s) => s.status === 'idle'), 'no connection was attempted');
-  } finally {
-    hue._reset();
-  }
-});
-
 test('whether any bridge is on is what decides the pars delay', () => {
   try {
     hue.configureBridges([{ ...BRIDGE, id: 'b1' }, { ...BRIDGE, id: 'b2', enabled: true }]);
@@ -182,30 +173,25 @@ test('whether any bridge is on is what decides the pars delay', () => {
 // A bridge that is off, unplugged or mid-reboot fails on its own schedule:
 // the other bridge is not touched, and the render loop is not what retries.
 test('an unreachable bridge fails its own session and backs off; the other stays idle', async () => {
-  try {
-    hue.configureBridges([
-      { ...BRIDGE, id: 'b1', enabled: true, host: 'bridge.invalid', username: 'user', clientKey: 'aabb', applicationId: 'app-id', entertainmentId: AREA },
-      { ...BRIDGE, id: 'b2', enabled: true, host: '10.0.0.3', username: 'user', clientKey: 'aabb', applicationId: 'app-id', entertainmentId: AREA },
-    ]);
-    const frames = new Map([['b1', [{ id: 0, r: 255, g: 0, b: 0 }]]]);
-    assert.strictEqual(hue.sendFrames(frames), false, 'the handshake is in flight, the frame is dropped');
-    assert.strictEqual(hue.getSession('b1').getStatus().status, 'connecting');
-    assert.strictEqual(hue.getSession('b2').getStatus().status, 'idle', 'nothing of it in the patch: never contacted');
-    const deadline = Date.now() + 8000;
-    while (hue.getSession('b1').getStatus().status === 'connecting' && Date.now() < deadline) {
-      await new Promise((r) => setTimeout(r, 50));
-    }
-    const status = hue.getSession('b1').getStatus();
-    assert.strictEqual(status.status, 'failed');
-    assert.ok(status.error);
-    assert.strictEqual(hue.sendFrames(frames), false, 'backing off: no new attempt on the next frame');
-    assert.strictEqual(hue.getSession('b1').getStatus().status, 'failed');
-    assert.strictEqual(hue.getSession('b2').getStatus().status, 'idle');
-    await hue.stopAll();
-    assert.deepStrictEqual(hue.getStatusAll().map((s) => s.status), ['idle', 'idle'], 'stopped, every one');
-  } finally {
-    hue._reset();
+  const b1 = { ...BRIDGE, id: 'b1', enabled: true, host: 'bridge.invalid', username: 'user', clientKey: 'aabb', applicationId: 'app-id', entertainmentId: AREA };
+  const b2 = { ...BRIDGE, id: 'b2', enabled: true, host: '10.0.0.3', username: 'user', clientKey: 'aabb', applicationId: 'app-id', entertainmentId: AREA };
+  const { wires, closeAll, statuses } = createHueWire();
+  const status = (id) => statuses().find((s) => s.id === id);
+  const send = () => [wires.hue(b1, [{ id: 0, r: 255, g: 0, b: 0 }]), wires.hue(b2, [])];
+  assert.deepStrictEqual(send(), [false, false], 'the handshake is in flight, the frame is dropped');
+  assert.strictEqual(status('b1').status, 'connecting');
+  assert.strictEqual(status('b2').status, 'idle', 'nothing of it in the patch: never contacted');
+  const deadline = Date.now() + 8000;
+  while (status('b1').status === 'connecting' && Date.now() < deadline) {
+    await new Promise((r) => setTimeout(r, 50));
   }
+  assert.strictEqual(status('b1').status, 'failed');
+  assert.ok(status('b1').error);
+  assert.deepStrictEqual(send(), [false, false], 'backing off: no new attempt on the next frame');
+  assert.strictEqual(status('b1').status, 'failed');
+  assert.strictEqual(status('b2').status, 'idle');
+  await closeAll();
+  assert.deepStrictEqual(statuses().map((s) => s.status), ['idle', 'idle'], 'stopped, every one');
 });
 
 // ── Protocol limits ─────────────────────────────────────────────────────────
@@ -214,12 +200,12 @@ test('an unreachable bridge fails its own session and backs off; the other stays
 // entertainment area cannot hold more than 20 lights either.
 
 test('the protocol maximum is 20 channel slots', () => {
-  assert.strictEqual(hue.MAX_CHANNELS, 20);
+  assert.strictEqual(stream.MAX_CHANNELS, 20);
 });
 
 test('a full 20-channel message is the largest legal size', () => {
   const channels = Array.from({ length: 20 }, (_, i) => ({ id: i, r: 0, g: 0, b: 0 }));
-  const packet = hue.buildStreamMessage(AREA, channels);
+  const packet = stream.buildStreamMessage(AREA, channels);
   assert.strictEqual(packet.length, 16 + 36 + 20 * 7);
   assert.strictEqual(packet.length, 192);
 });
@@ -342,4 +328,128 @@ test('a hostname that is only an address pairs as "lightshow"', () => {
   assert.strictEqual(hue.deviceType('2a02-842a-00aa-ce01-cbc8-3a3d-ba2d-06d9.rev.sfr.net'), 'tycstation-lightshow#lightshow');
   assert.strictEqual(hue.deviceType('192-168-1-20.lan'), 'tycstation-lightshow#lightshow');
   assert.strictEqual(hue.deviceType(''), 'tycstation-lightshow#lightshow');
+});
+
+// ── The main thread's side of a streamed bridge ─────────────────────────────
+// The thread that holds a bridge's socket streams it; the main thread knows the
+// bridge's settings, finds its application identity, watches its areas, and
+// merges what the streaming thread reports into the status everyone reads.
+
+import { fakeBridge, quiet, settle, actions, AREA as PAIRED_AREA, PAIRED, OURS } from '../helpers/hue-fakes.js';
+
+const IDENTIFIED = { status: 200, body: {}, headers: { 'hue-application-id': 'resolved-app' } };
+
+test('a sender is given only enabled, set-up bridges whose application identity is known', (t) => {
+  t.after(() => hue._reset());
+  hue.configureBridges([
+    PAIRED,
+    { ...PAIRED, id: 'off', enabled: false },
+    { ...PAIRED, id: 'half', entertainmentId: '' },
+    { ...PAIRED, id: 'unknown', host: '10.0.0.7', applicationId: '' },
+  ]);
+  assert.deepStrictEqual(hue.streamConfigs().map((b) => b.id), ['b1'], 'disarmed: an unknown identity is not looked up');
+});
+
+test('armed, a missing identity is looked up once, persisted, and the bridge joins the senders', async (t) => {
+  quiet(t);
+  t.after(() => hue._reset());
+  const calls = fakeBridge(t, { area: () => IDENTIFIED });
+  const stored = [];
+  hue.setApplicationIdSink((identity) => stored.push(identity));
+  hue.configureBridges([{ ...PAIRED, applicationId: '' }]);
+  assert.deepStrictEqual(hue.streamConfigs({ resolve: true }), []);
+  assert.deepStrictEqual(hue.streamConfigs({ resolve: true }), [], 'one lookup at a time');
+  await settle();
+  assert.deepStrictEqual(calls.map((c) => c.path), ['/auth/v1']);
+  assert.deepStrictEqual(stored, [{ source: { id: 'b1', host: PAIRED.host, username: PAIRED.username, applicationId: '' }, applicationId: 'resolved-app' }]);
+  assert.deepStrictEqual(hue.streamConfigs({ resolve: true }).map((b) => [b.id, b.applicationId]), [['b1', 'resolved-app']]);
+});
+
+test('an identity that cannot be read fails the bridge, backs off, and is forgotten on disarm', async (t) => {
+  quiet(t);
+  t.mock.timers.enable({ apis: ['Date'], now: 0 });
+  t.after(() => hue._reset());
+  const calls = fakeBridge(t, { area: () => ({ status: 200, body: {} }) });
+  hue.configureBridges([{ ...PAIRED, applicationId: '' }]);
+  hue.streamConfigs({ resolve: true });
+  await settle();
+  assert.deepStrictEqual([hue.getStatusAll()[0].status, hue.getStatusAll()[0].error], ['failed', 'could not verify the application identity; pair this bridge again']);
+  hue.streamConfigs({ resolve: true });
+  await settle();
+  assert.strictEqual(calls.length, 1, 'backing off');
+  t.mock.timers.tick(2000);
+  hue.streamConfigs({ resolve: true });
+  await settle();
+  assert.strictEqual(calls.length, 2, 'retried after the base delay');
+  hue.streamConfigs({ resolve: false });
+  assert.deepStrictEqual([hue.getStatusAll()[0].status, hue.getStatusAll()[0].error], ['idle', null], 'disarmed: no stream, no failure');
+  hue.streamConfigs({ resolve: true });
+  await settle();
+  assert.strictEqual(calls.length, 3, 'the next arm looks again at once');
+});
+
+test('reliability: delayed application identity never persists into a replacement config', async (t) => {
+  quiet(t);
+  t.after(() => hue._reset());
+  let respond;
+  const writes = [];
+  fakeBridge(t, { area: () => ({ ...IDENTIFIED, headers: { 'hue-application-id': 'old-app' }, defer: (reply) => { respond = reply; } }) });
+  hue.setApplicationIdSink((...args) => writes.push(args));
+  hue.configureBridges([{ ...PAIRED, applicationId: '' }]);
+  hue.streamConfigs({ resolve: true });
+  await settle();
+  hue.configureBridges([{ ...PAIRED, host: 'replacement.invalid', username: 'new-key', applicationId: 'new-app' }]);
+  respond();
+  await settle();
+  assert.deepStrictEqual(writes, []);
+  assert.deepStrictEqual(hue.streamConfigs().map((b) => b.applicationId), ['new-app']);
+});
+
+test('the streaming thread\'s report sets the status; health and the live state read it as before', (t) => {
+  quiet(t);
+  t.after(() => hue._reset());
+  hue.configureBridges([PAIRED, { ...PAIRED, id: 'b2', label: 'Party', host: '10.0.0.3' }]);
+  hue.applyStreamStatus([{ id: 'b1', status: 'failed', error: 'the bridge closed the stream', occupiedBy: null, at: 0 }, { id: 'gone', status: 'streaming', error: null, occupiedBy: null, at: 0 }]);
+  assert.deepStrictEqual(hue.getStatusAll().map((s) => [s.id, s.status, s.error]), [['b1', 'failed', 'the bridge closed the stream'], ['b2', 'idle', null]]);
+  assert.deepStrictEqual(hue.liveStatusAll().map((s) => [s.id, s.status]), [['b1', 'failed'], ['b2', 'idle']]);
+  hue.resetStreamStatus();
+  assert.deepStrictEqual(hue.getStatusAll().map((s) => s.status), ['idle', 'idle'], 'the thread that streamed is gone');
+});
+
+test('of the area watch and the stream, the newer sighting of another app decides, and a change is logged once', async (t) => {
+  const lines = quiet(t);
+  t.after(() => hue._reset());
+  const tv = { id: 'tv', metadata: { name: 'TV Couch' }, status: 'active', active_streamer: { rid: 'sync-box' } };
+  let held = true;
+  fakeBridge(t, { area: () => ({ status: 200, body: { data: held ? [{ id: PAIRED_AREA, status: 'inactive' }, tv] : [{ id: PAIRED_AREA, status: 'inactive' }] } }) });
+  hue.configureBridges([PAIRED]);
+  const occupant = { areaId: 'tv', area: 'TV Couch', streamer: 'sync-box' };
+  hue.applyStreamStatus([{ id: 'b1', status: 'failed', error: 'busy', occupiedBy: occupant, at: Date.now() }]);
+  assert.deepStrictEqual(hue.getStatusAll()[0].occupiedBy, occupant);
+  await hue.checkAreas();
+  assert.strictEqual(lines.filter((l) => /TV Couch/.test(l)).length, 1, 'seen by both, said once');
+  held = false;
+  await hue.checkAreas();
+  assert.strictEqual(hue.getStatusAll()[0].occupiedBy, null, 'the watch saw it end');
+  hue.applyStreamStatus([{ id: 'b1', status: 'failed', error: 'busy', occupiedBy: occupant, at: 1 }]);
+  assert.strictEqual(hue.getStatusAll()[0].occupiedBy, null, 'an older sighting from the stream does not bring it back');
+});
+
+test('the ledger releases by CLIP only the sessions still ours, and keeps what it could not release', async (t) => {
+  quiet(t);
+  let unreadable = false;
+  const calls = fakeBridge(t, { area: ({ host }) => unreadable ? { status: 503, body: { errors: [{ description: 'unavailable' }] } }
+    : { status: 200, body: host === PAIRED.host ? OURS : { data: [{ id: PAIRED_AREA, status: 'inactive' }] } } });
+  const ledger = new hue.HueLedger();
+  ledger.issue([PAIRED, { ...PAIRED, id: 'b2', host: '10.0.0.3' }]);
+  ledger.issue([PAIRED]);
+  assert.strictEqual(ledger.size, 2, 'one entry per session, however often issued');
+  assert.strictEqual(await ledger.release(), true);
+  assert.deepStrictEqual(calls.filter((c) => c.method === 'PUT').map((c) => [c.host, c.body.action]), [[PAIRED.host, 'stop']], 'only the active session that is ours is stopped');
+  assert.strictEqual(ledger.size, 0);
+  ledger.issue([PAIRED]);
+  unreadable = true;
+  assert.strictEqual(await ledger.release(), false);
+  assert.deepStrictEqual(actions(calls), ['stop'], 'unknown ownership stops nothing');
+  assert.strictEqual(ledger.size, 1, 'and stays to be released later');
 });

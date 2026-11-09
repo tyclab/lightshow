@@ -3,6 +3,7 @@ import type { PostedReading } from './clock-follow.ts';
 import type { FrameSummary } from './frame-clock.ts';
 import type { BaseIntent, CommandResult, RenderInput } from './renderer.ts';
 import type { ArtnetDestination, TransmitConfig } from './transmit.ts';
+import type { HueStreamStatus } from './hue-stream.ts';
 import type { SharedUniverses } from './universes.ts';
 import type { Profile } from '../types/rig.ts';
 import type { SequenceTable } from '../shared/effects/sequence.ts';
@@ -17,6 +18,8 @@ export interface EngineWorkerData {
   startNow?: number | null;
   /** Art-Net destinations a previous sender may have left lit: retired before this one lights anything. */
   retire?: ArtnetDestination[];
+  /** A previous engine thread streamed Hue and its release is not confirmed: each first open stops our old session. */
+  hueReclaim?: boolean;
 }
 
 export type RenderedFrames = Record<number, number[] | null>;
@@ -34,9 +37,10 @@ export type ToWorker =
 
 export type FromWorker =
   | { type: 'ready' }
-  // `applied` false with `dark` true: a blackout the sender could not fully apply, offered for protective Hue dark.
-  | { type: 'frame'; barrierRevision?: number; outputSeq?: number; applied?: boolean; dark?: boolean }
+  | { type: 'frame'; barrierRevision?: number; outputSeq?: number }
   | { type: 'stats'; stats: FrameSummary }
-  | { type: 'stopped'; applied?: boolean }
+  // `hue`: every Hue stream got its dark frame and its session was released.
+  | { type: 'stopped'; applied?: boolean; hue?: boolean }
+  | { type: 'hue'; status: HueStreamStatus[] }
   | { type: 'commands'; results: CommandResult[]; processed: number; applied: number }
   | { type: 'rendered'; id: number; frames: RenderedFrames; commands?: CommandResult[] };

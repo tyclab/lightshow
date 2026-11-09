@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert';
 
 import * as output from '../../src/server/output.ts';
+import { hueChannelColors } from '../helpers/hue-colours.js';
 
 // Art-Net counts universes from 0, sACN from 1. Getting the offset wrong sends
 // every fixture one universe away from where the console is listening.
@@ -80,14 +81,14 @@ function withLamps(lamps, fn) {
 }
 
 /** The frame for bridge b1, which is where every lamp here is unless it says otherwise. */
-const colors = (bridge = 'b1') => output.hueChannelColors().get(bridge) ?? [];
+const colors = (bridge = 'b1') => hueChannelColors().get(bridge) ?? [];
 
 // Two bridges stream two areas: each is sent the colours of its own lamps,
 // and the same channel number on each is two different lamps.
 test('Hue output groups patched lamps by bridge', () => {
   withLamps([{ channel: 0 }, { channel: 0, bridge: 'b2' }, { channel: 4, bridge: 'b2' }], (set) => {
     set(0, 'red', 10); set(1, 'red', 20); set(2, 'green', 30);
-    const frames = output.hueChannelColors();
+    const frames = hueChannelColors();
     assert.deepStrictEqual([...frames.keys()], ['b1', 'b2']);
     assert.deepStrictEqual(frames.get('b1'), [{ id: 0, r: 10, g: 0, b: 0 }]);
     assert.deepStrictEqual(frames.get('b2'), [{ id: 0, r: 20, g: 0, b: 0 }, { id: 4, r: 0, g: 30, b: 0 }]);
@@ -283,7 +284,7 @@ async function artnetCapture(fn) {
 
 // A bridge that is on and fully set up; nothing here sends it a frame, so it is never contacted.
 const ON = {
-  id: 'b1', label: 'Lounge', enabled: true, host: '10.0.0.9', username: 'key', clientKey: 'aabb', applicationId: '',
+  id: 'b1', label: 'Lounge', enabled: true, host: '10.0.0.9', username: 'key', clientKey: 'aabb', applicationId: 'app-id',
   entertainmentId: '0123abcd-1234-5678-9abc-def012345678',
 };
 const frameMarked = (marker) => { const f = Buffer.alloc(512); f[0] = marker; return f; };

@@ -8,6 +8,9 @@ import type { DdpRoute } from './ddp-routes.ts';
 import type { OpenRgbTarget } from './openrgb.ts';
 import { openrgbKey, openrgbHostKey, openrgbPixels } from './openrgb-routes.ts';
 import type { OpenRgbRoute } from './openrgb-routes.ts';
+import { hueChannelColours } from '../shared/hue-frame.ts';
+import type { HueChannelColour, HueRoute } from '../shared/hue-frame.ts';
+import type { HueBridgeConfig } from './hue-clip.ts';
 import type { ArtDmxTarget } from './artnet.ts';
 import type { ArtRoutes } from './artnet-nodes.ts';
 import type { SacnTarget } from './sacn.ts';
@@ -23,6 +26,14 @@ export interface ArtnetOutput {
 
 export type SacnOutput = Settings['sacn'];
 
+/** A bridge this sender may stream to: enabled, set up, its application identity known. */
+export type HueStreamConfig = HueBridgeConfig;
+
+export interface HueOutput {
+  bridges: HueStreamConfig[];
+  lamps: HueRoute[];
+}
+
 export interface TransmitConfig {
   rigRevision?: number;
   universes?: readonly number[];
@@ -31,6 +42,7 @@ export interface TransmitConfig {
   delayMs: number;
   ddp?: DdpRoute[];
   openrgb?: OpenRgbRoute[];
+  hue?: HueOutput;
   armed?: boolean;
 }
 
@@ -52,6 +64,10 @@ export interface Wires {
   /** True while the device's SDK session is still being set up; a wire without it is never setting up. */
   openrgbSettingUp?(target: OpenRgbTarget): boolean;
   openrgbClose(target: { host: string; port: number }): unknown;
+  /** One applied frame's colours for a bridge; the wire opens the bridge's session on demand. */
+  hue?(bridge: HueStreamConfig, channels: readonly HueChannelColour[]): boolean;
+  /** Dark frame, then release: true once the dark frame is out or nothing was lit. `retire`: it left the config. */
+  hueClose?(bridge: HueStreamConfig, retire: boolean): boolean;
 }
 
 export interface SendOptions {
@@ -168,6 +184,10 @@ function createTransmitter({ wires = DEFAULT_WIRES, now = () => performance.now(
   let routingKey = '';
 
   const delayLine = new Map<number, { at: number; frame: Buffer }[]>();
+  // This frame's universes as rendered, before the delay line: Hue is what the delay waits for.
+  const hueFrames = new Map<number, Buffer>();
+  let hueBlackout = true;
+  const hueSent = new Map<string, HueStreamConfig>();
 
   function queueSync(host: string, port: number): void { syncTargets.set(`${host}:${port}`, { host, port }); }
   function flushSync(): boolean {
@@ -237,7 +257,12 @@ function createTransmitter({ wires = DEFAULT_WIRES, now = () => performance.now(
     const sent: Wire[] = [];
 
     if (!syncArmed(config)) return sent;
-    if (!syncRouting(config)) { frameReady = false; return sent; }
+    const routed = syncRouting(config);
+    if (wires.hue && config.hue?.lamps.length) {
+      hueFrames.set(universe, frame);
+      if (!immediate || !terminate) hueBlackout = false;
+    }
+    if (!routed) { frameReady = false; return sent; }
     if (immediate && !terminate && !protectiveFrame) { clearPending(); protectiveFrame = true; }
     if (immediate || terminate) { delayLine.delete(universe); ddpFrames.delete(universe); openrgbFrames.delete(universe); }
 
@@ -332,7 +357,7 @@ function createTransmitter({ wires = DEFAULT_WIRES, now = () => performance.now(
   function syncArmed(config: TransmitConfig): boolean {
     const armed = config.armed !== false;
     if (armed === live) {
-      if (!armed && (artnetSent.size || syncTargets.size || sacnSent.size || ddpSent.size || openrgbSent.size)) goDark();
+      if (!armed && (artnetSent.size || syncTargets.size || sacnSent.size || ddpSent.size || openrgbSent.size || hueSent.size)) goDark();
       return armed;
     }
     live = armed;
@@ -368,6 +393,12 @@ function createTransmitter({ wires = DEFAULT_WIRES, now = () => performance.now(
     }
     hangUpOpenRgb(openrgbSent, pendingRgb);
     openrgbSent = pendingRgb;
+    for (const [id, bridge] of hueSent) {
+      if (!wires.hueClose || wires.hueClose(bridge, false)) hueSent.delete(id);
+      else frameReady = false;
+    }
+    hueFrames.clear();
+    hueBlackout = true;
   }
 
   function endFrame(config: TransmitConfig | null | undefined): boolean {
@@ -375,18 +406,47 @@ function createTransmitter({ wires = DEFAULT_WIRES, now = () => performance.now(
     if (config && !syncArmed(config)) {
       ddpFrames.clear();
       openrgbFrames.clear();
-      const ready = frameReady && artnetSent.size === 0 && syncTargets.size === 0 && sacnSent.size === 0 && ddpSent.size === 0 && openrgbSent.size === 0;
+      const ready = frameReady && artnetSent.size === 0 && syncTargets.size === 0 && sacnSent.size === 0 && ddpSent.size === 0
+        && openrgbSent.size === 0 && hueSent.size === 0;
       frameReady = true;
       return ready;
     }
-    if (config && !syncRouting(config)) { frameReady = true; return false; }
+    if (config && !syncRouting(config)) { endHueFrame(config, false); frameReady = true; return false; }
     endDdpFrame(config && config.ddp);
     endOpenRgbFrame(config && config.openrgb);
     if (!flushSync()) frameReady = false;
     endSacnFrame(config && config.sacn);
+    endHueFrame(config, retirementReady && frameReady);
     const ready = retirementReady && frameReady;
     frameReady = true;
     return ready;
+  }
+
+  // Hue follows only a frame every other output applied, or a blackout that leaves it dark: no newer light slips out.
+  function endHueFrame(config: TransmitConfig | null | undefined, applied: boolean): void {
+    const hue = config?.hue;
+    const bridges = hue?.bridges ?? [];
+    if (config) {
+      const current = new Set(bridges.map((bridge) => bridge.id));
+      for (const [id, gone] of hueSent) {
+        if (current.has(id)) continue;
+        if (!wires.hueClose || wires.hueClose(gone, true)) hueSent.delete(id);
+        else frameReady = false;
+      }
+    }
+    const protective = !applied && hueBlackout && hueFrames.size > 0;
+    if (wires.hue && bridges.length && (applied || protective)) {
+      const colours = hueChannelColours(hue?.lamps ?? [], (universe) => hueFrames.get(universe));
+      const dark = [...colours.values()].every((list) => list.every((c) => !c.r && !c.g && !c.b));
+      if (applied || dark) {
+        for (const bridge of bridges) {
+          wires.hue(bridge, colours.get(bridge.id) ?? []);
+          hueSent.set(bridge.id, bridge);
+        }
+      }
+    }
+    hueFrames.clear();
+    hueBlackout = true;
   }
 
   function endDdpFrame(routes: DdpRoute[] | null | undefined): void {
@@ -581,6 +641,7 @@ class ArtnetLedger {
 }
 
 export {
+  DEFAULT_WIRES,
   createTransmitter,
   sacnUniverseFor,
   artnetDestinations,

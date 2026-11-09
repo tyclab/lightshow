@@ -1,16 +1,13 @@
 import { state, universeOf, activeUniverses } from './state.ts';
 import { getProfile } from './profiles.ts';
-import { isHueProfile, hueChannels } from '../shared/hue-lamp.ts';
-import { hueSectionColour } from '../shared/hue-colour.ts';
-import { channelReader } from '../shared/placement.ts';
-import * as universes from './universes.ts';
-import { createTransmitter, sacnUniverseFor as mapSacnUniverse } from './transmit.ts';
+import { hueRoutes } from './hue-routes.ts';
+import { createHueWire } from './hue-wire.ts';
+import { DEFAULT_WIRES, createTransmitter, sacnUniverseFor as mapSacnUniverse } from './transmit.ts';
 import { createDiscovery, interfaces, isBroadcastTarget } from './artnet-nodes.ts';
 import { isLoopback } from './loopback.ts';
 import * as hue from './hue.ts';
 import { isArmed, setArmedFlag } from './armed.ts';
 import { defaultHueBridgeId } from './settings.ts';
-import type { HueChannelColour } from './hue.ts';
 import { ddpRoutes } from './ddp-routes.ts';
 import { openrgbRoutes } from './openrgb-routes.ts';
 import type { ArtnetDestination, SacnOutput, SendOptions, TransmitConfig, Wire } from './transmit.ts';
@@ -48,7 +45,11 @@ function getHueConfig(): HueOutputConfig {
   return { bridges: hue.getConfigs(), latencyMs: hueLatencyMs };
 }
 
-const transmitter = createTransmitter();
+// This thread's sender streams Hue only while this thread renders; its status reaches hue.ts directly.
+const hueWire = createHueWire({ onStatus: hue.applyStreamStatus });
+const transmitter = createTransmitter({ wires: { ...DEFAULT_WIRES, ...hueWire.wires } });
+// While a lost engine thread's sessions are released, or this thread's close, no sender is given a bridge.
+const hueHolds = new Set<Promise<unknown>>();
 let rigRevision = 0;
 export function setRigRevision(revision: number): void { rigRevision = revision; }
 
@@ -77,54 +78,38 @@ function transmitConfig(): TransmitConfig {
     delayMs: hueLatencyMs > 0 && hue.anyEnabled() ? hueLatencyMs : 0,
     ddp: ddpRoutes(state.fixtures, getProfile, universeOf),
     openrgb: openrgbRoutes(state.fixtures, getProfile, universeOf),
+    hue: {
+      bridges: hueHolds.size ? [] : hue.streamConfigs({ resolve: isArmed() }),
+      lamps: hueRoutes(state.fixtures, getProfile, universeOf, defaultHueBridgeId(hue.getConfigs())),
+    },
     armed: isArmed(),
   };
 }
 
+// The sender that holds the Hue streams darkens and releases them when it sees the outputs disarmed.
 function setArmed(on: boolean): boolean {
-  if (!setArmedFlag(on)) return false;
-  if (!on) hue.closeAll().catch(() => { /* best effort, as every teardown is */ });
-  return true;
+  return setArmedFlag(on);
 }
+
+function holdHue(task: Promise<unknown>): void {
+  hueHolds.add(task);
+  void task.catch(() => {}).finally(() => hueHolds.delete(task));
+}
+
+/** This thread's Hue streams: each gets its dark frame and is released; true once every session was released. */
+function closeHue(): Promise<boolean> {
+  const closing = hueWire.closeAll();
+  holdHue(closing);
+  return closing;
+}
+
+/** An engine thread that held Hue was lost: this thread's next opens stop a session it may have left active. */
+function reclaimHue(): void { hueWire.reclaim(); }
 
 function onHueApplicationId(fn: hue.ApplicationIdSink): void { hue.setApplicationIdSink(fn); }
 
 function sacnUniverseFor(universe: number, offset = sacn.universeOffset): number | null {
   return mapSacnUniverse(universe, offset);
-}
-
-// Read final DMX so Hue output includes masters, trim, overrides and blackout.
-function hueChannelColors(): Map<string, HueChannelColour[]> {
-  const out = new Map<string, HueChannelColour[]>();
-
-  const fallback = defaultHueBridgeId(hue.getConfigs());
-
-  for (const fix of state.fixtures) {
-    const lamp = fix.output;
-    if (!lamp || lamp.protocol !== 'hue') continue;
-    const bridge = lamp.bridge || fallback;
-    let channels = out.get(bridge);
-    if (!channels) {
-      channels = [];
-      out.set(bridge, channels);
-    }
-    const profile = getProfile(fix);
-    const traits = isHueProfile(profile) ? profile.hue : null;
-    const sections = profile.cells ? profile.cells.map((cell) => cell.channelMap) : [profile.channelMap];
-    const at = channelReader(universeOf(fix), fix.address, profile, (u) => universes.getBuffer(u));
-    sections.forEach((ch, c) => {
-      const id = hueChannels(lamp)[c];
-      if (id === undefined || channels.some((sent) => sent.id === id)) return;
-      channels.push({ id, ...hueSectionColour(ch, at, traits) });
-    });
-  }
-  return out;
-}
-
-// Send Hue once per frame because an area can span several DMX universes.
-function sendHue(): boolean {
-  if (!isArmed()) return false;
-  return hue.sendFrames(hueChannelColors());
 }
 
 function sendUniverse(universe: number, frame: Buffer, { immediate = false, terminate = false }: SendOptions = {}):
@@ -143,7 +128,6 @@ function seedArtnet(destinations: readonly ArtnetDestination[]): void {
 
 export const getHueStatus = () => hue.getStatusAll();
 export const startHueAreaWatch = () => hue.startAreaWatch();
-export const stopHue = () => hue.stopAll();
 
 export {
   configureSacn,
@@ -159,6 +143,7 @@ export {
   configureHue,
   getHueConfig,
   onHueApplicationId,
-  hueChannelColors,
-  sendHue,
+  holdHue,
+  closeHue,
+  reclaimHue,
 };

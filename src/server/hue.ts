@@ -1,35 +1,13 @@
-import https from 'node:https';
-import type { IncomingHttpHeaders } from 'node:http';
-import { dtls } from 'node-dtls-client';
 import { messageOf } from '../errors.ts';
+import {
+  REST_TIMEOUT_MS, AREAS_PATH, bridgeRequest, describeClipError, setStreaming, isForeign, occupantOf, occupiedProblem,
+  ownership, isConfigured,
+} from './hue-clip.ts';
+import type { HueBridgeConfig, HueState, HueOccupant, ClipList, ClipChannel, ClipEntertainmentConfig } from './hue-clip.ts';
 import type { HueLight } from '../types/rig.ts';
+import type { HueStreamStatus } from './hue-stream.ts';
 
-export interface HueBridgeConfig {
-  id: string;
-  label: string;
-  enabled: boolean;
-  host: string;
-  username: string;
-  clientKey: string;
-  applicationId: string;
-  entertainmentId: string;
-}
-
-export interface HueChannelColour {
-  id: number;
-  r: number;
-  g: number;
-  b: number;
-}
-
-export type HueState = 'idle' | 'connecting' | 'streaming' | 'failed';
-
-/** An entertainment area another app streams on the bridge; `streamer` is that app's id. */
-export interface HueOccupant {
-  areaId: string;
-  area: string;
-  streamer: string | null;
-}
+export type { HueBridgeConfig, HueState, HueOccupant, HueStreamStatus };
 
 export interface HueStatus {
   id: string;
@@ -84,18 +62,6 @@ export type PairResult =
   | { ok: true; username: string; clientKey: string; applicationId: string }
   | { ok: false; error: string; pressLink: boolean };
 
-interface BridgeRequest {
-  method?: string;
-  path: string;
-  key?: string;
-  body?: unknown;
-  withHeaders?: boolean;
-}
-
-interface ClipList<T> {
-  data?: T[];
-}
-
 interface ClipDevice {
   id: string;
   metadata?: { name?: string; archetype?: unknown };
@@ -120,20 +86,6 @@ interface ClipLight {
   metadata?: { fixed_mired?: unknown; archetype?: unknown };
 }
 
-interface ClipChannel {
-  channel_id: number;
-  position?: unknown;
-  members?: { service?: { rid?: string }; index?: number }[];
-}
-
-interface ClipEntertainmentConfig {
-  id: string;
-  metadata?: { name?: string };
-  status?: string;
-  active_streamer?: { rid?: string };
-  channels?: ClipChannel[];
-}
-
 type PairReply = {
   success?: { username?: string; clientkey?: string };
   error?: { type?: number; description?: string };
@@ -149,17 +101,6 @@ interface Lamp {
   segmentLengths?: number[];
 }
 
-// Open and close Entertainment sessions around DTLS streaming so the bridge releases the area afterwards.
-
-const STREAM_PORT = 2100;
-
-const CIPHER_SUITE = 'TLS_PSK_WITH_AES_128_GCM_SHA256' as const;
-
-const REST_TIMEOUT_MS = 5000;
-// A stalled bridge can ignore every new socket until its Entertainment session is reopened.
-const HANDSHAKE_TIMEOUT_MS = 1000;
-const HANDSHAKE_TRIES = 5;
-
 const DISCOVERY_URL = 'https://discovery.meethue.com/';
 
 const DEVICE_TYPE = 'tycstation-lightshow';
@@ -170,78 +111,6 @@ function deviceType(label: string): string {
   const plain = first.replace(/[^A-Za-z0-9 _-]+/g, '').trim().slice(0, DEVICE_NAME_MAX).trim();
   const address = /^[0-9a-f-]+$/i.test(first) && /\d/.test(first);
   return `${DEVICE_TYPE}#${plain && !address ? plain : 'lightshow'}`;
-}
-
-// Limit transport messages separately from effect cadence; Zigbee relays fewer updates than the stream.
-const MIN_FRAME_INTERVAL_MS = 20;
-
-// Limit frames to 20 channels because larger HueStream messages are malformed.
-const MAX_CHANNELS = 20;
-
-function bridgeRequest(host: string, options: BridgeRequest & { withHeaders: true }):
-  Promise<{ body: unknown; headers: IncomingHttpHeaders }>;
-function bridgeRequest(host: string, options: BridgeRequest): Promise<unknown>;
-function bridgeRequest(host: string, { method = 'GET', path, key, body, withHeaders = false }: BridgeRequest): Promise<unknown> {
-  return new Promise((resolve, reject) => {
-    let settled = false;
-    let deadline: ReturnType<typeof setTimeout> | undefined;
-    const finish = (error: Error | null, value?: unknown) => {
-      if (settled) return;
-      settled = true;
-      clearTimeout(deadline);
-      if (error) reject(error); else resolve(value);
-    };
-    const payload = body === undefined ? null : Buffer.from(JSON.stringify(body));
-    const req = https.request({
-      host, port: 443, path, method, rejectUnauthorized: false,
-      headers: {
-        Accept: 'application/json',
-        ...(payload ? { 'Content-Type': 'application/json', 'Content-Length': payload.length } : {}),
-        ...(key ? { 'hue-application-key': key } : {}),
-      },
-      timeout: REST_TIMEOUT_MS,
-    }, (res) => {
-      const chunks: Buffer[] = [];
-      let ended = false;
-      res.on('error', (err: Error) => finish(err));
-      res.on('aborted', () => finish(new Error('bridge response was aborted')));
-      res.on('close', () => { if (!ended) finish(new Error('bridge response closed before completion')); });
-      res.on('data', (chunk: Buffer) => { if (!settled) chunks.push(chunk); });
-      res.on('end', () => {
-        ended = true;
-        if (settled) return;
-        const text = Buffer.concat(chunks).toString('utf8');
-        let parsed;
-        try { parsed = text ? JSON.parse(text) : null; }
-        catch (_) { finish(new Error(`bridge returned ${res.statusCode} with a non-JSON body`)); return; }
-        if ((res.statusCode ?? 0) >= 400) {
-          finish(new Error(describeClipError(parsed) || `bridge returned HTTP ${res.statusCode}`));
-          return;
-        }
-        finish(null, withHeaders ? { body: parsed, headers: res.headers } : parsed);
-      });
-    });
-    const timeout = () => {
-      const error = new Error(`no complete answer from ${host} within ${REST_TIMEOUT_MS}ms`);
-      finish(error);
-      req.destroy(error);
-    };
-    req.on('timeout', timeout);
-    req.on('error', (err: Error) => finish(err));
-    if (!settled) {
-      deadline = setTimeout(timeout, REST_TIMEOUT_MS);
-      deadline.unref?.();
-    }
-    if (payload) req.write(payload);
-    req.end();
-  });
-}
-
-function describeClipError(parsed: unknown): string | null {
-  const list = parsed && typeof parsed === 'object' ? (parsed as { errors?: unknown }).errors : null;
-  const errors: { description?: string }[] = Array.isArray(list) ? list : [];
-  if (errors.length) return errors[0]?.description || 'bridge returned a CLIP error';
-  return null;
 }
 
 async function discoverBridges(): Promise<{ bridges: { id: string; host: string }[]; error: string | null }> {
@@ -466,106 +335,7 @@ async function identifyDevices(host: string, key: string, devices: readonly stri
   return sent;
 }
 
-async function setStreaming(host: string, key: string, configId: string, active: boolean): Promise<void> {
-  const parsed = await bridgeRequest(host, {
-    method: 'PUT',
-    path: `/clip/v2/resource/entertainment_configuration/${encodeURIComponent(configId)}`,
-    key,
-    body: { action: active ? 'start' : 'stop' },
-  });
-  const error = describeClipError(parsed);
-  if (error) throw new Error(error);
-}
-
-// Entertainment ownership is bridge-wide, even when the selected area is inactive.
-type Ownership = { kind: 'available' | 'owned' } | { kind: 'occupied'; area: ClipEntertainmentConfig };
-// What the area was before a handshake try and when its start returned, for the try's log line.
-interface OpenedSession { before: Ownership['kind']; startedAt: number }
-
-const AREAS_PATH = '/clip/v2/resource/entertainment_configuration';
-
-function isForeign(area: ClipEntertainmentConfig, config: Pick<HueBridgeConfig, 'entertainmentId'>, identity: string | null): boolean {
-  return area.status === 'active' && (area.id !== config.entertainmentId || area.active_streamer?.rid !== identity);
-}
-
-function occupantOf(area: ClipEntertainmentConfig): HueOccupant {
-  return { areaId: area.id, area: area.metadata?.name || area.id, streamer: area.active_streamer?.rid || null };
-}
-
-function occupiedProblem(label: string, occupant: HueOccupant): string {
-  return `Hue bridge "${label}": area "${occupant.area}" is streaming from another app (a Sync Box, the Hue app or another controller). `
-    + 'The lightshow cannot stream to this bridge until it stops.';
-}
-
-async function ownership(config: HueBridgeConfig, identity: string): Promise<Ownership> {
-  let parsed: ClipList<ClipEntertainmentConfig>;
-  try {
-    parsed = await bridgeRequest(config.host, { path: AREAS_PATH, key: config.username }) as ClipList<ClipEntertainmentConfig>;
-    const error = describeClipError(parsed);
-    if (error) throw new Error(error);
-    if (!Array.isArray(parsed?.data)) throw new Error('invalid area list');
-  } catch (err) {
-    throw new Error(`could not verify Entertainment ownership: ${messageOf(err)}`, { cause: err });
-  }
-  for (const area of parsed.data) {
-    if (!area || typeof area.id !== 'string' || !['active', 'inactive'].includes(area.status || '')) {
-      throw new Error('could not verify Entertainment ownership: invalid area');
-    }
-    if (isForeign(area, config, identity)) return { kind: 'occupied', area };
-  }
-  const selected = parsed.data.find(area => area.id === config.entertainmentId);
-  if (!selected) throw new Error('could not verify Entertainment ownership: selected area is missing');
-  return { kind: selected.status === 'active' ? 'owned' : 'available' };
-}
-
-const busyMessage = (area: ClipEntertainmentConfig): string =>
-  `Entertainment area "${area.metadata?.name || area.id}" is already in use. Stop its sync in the Hue app, Sync Box or other controller; Lightshow will retry automatically.`;
-
-const HEADER = Buffer.from('HueStream', 'ascii');    // 9 bytes
-const CONFIG_ID_BYTES = 36;                          // a UUID, as ASCII
-const CHANNEL_BYTES = 7;                             // id + 3 × 16-bit colour
-const HEADER_BYTES = 16;
-
-// HueStream 2.0 byte layout:
-// 0..8 HueStream; 9..10 version 2.0; 11 sequence; 12..13 reserved;
-// 14 colour space (0 RGB, 1 xy+brightness); 15 reserved;
-// 16..51 entertainment configuration ID, 36 ASCII bytes;
-// 52.. channel ID plus 16-bit big-endian R, G, B.
-// Scale bytes by 257 so 255 reaches 65535 exactly.
-function buildStreamMessage(configId: unknown, channels: readonly HueChannelColour[], sequence = 0): Buffer {
-  const id = String(configId || '');
-  const packet = Buffer.alloc(HEADER_BYTES + CONFIG_ID_BYTES + channels.length * CHANNEL_BYTES);
-
-  HEADER.copy(packet, 0);
-  packet[9] = 0x02;                                  // version major
-  packet[10] = 0x00;                                 // version minor
-  packet[11] = sequence & 0xff;
-  packet[12] = 0x00;
-  packet[13] = 0x00;
-  packet[14] = 0x00;                                 // RGB
-  packet[15] = 0x00;
-  packet.write(id.slice(0, CONFIG_ID_BYTES).padEnd(CONFIG_ID_BYTES, '\0'), 16, CONFIG_ID_BYTES, 'ascii');
-
-  let at = HEADER_BYTES + CONFIG_ID_BYTES;
-  for (const ch of channels) {
-    packet[at] = ch.id & 0xff;
-    packet.writeUInt16BE(to16(ch.r), at + 1);
-    packet.writeUInt16BE(to16(ch.g), at + 3);
-    packet.writeUInt16BE(to16(ch.b), at + 5);
-    at += CHANNEL_BYTES;
-  }
-  return packet;
-}
-
-function to16(value: unknown): number {
-  const v = Math.max(0, Math.min(255, Math.round(Number(value) || 0)));
-  return v * 257;
-}
-
-// Keep failed sessions in backoff so render frames cannot trigger repeated handshakes.
 const IDLE: HueState = 'idle';
-const CONNECTING: HueState = 'connecting';
-const STREAMING: HueState = 'streaming';
 const FAILED: HueState = 'failed';
 
 const RETRY_BASE_MS = 2000;
@@ -573,51 +343,36 @@ const RETRY_MAX_MS = 60000;
 // A Sync Box or the Hue app can take an area at any time, armed or not: read every area this often.
 const AREA_WATCH_MS = 10_000;
 
-function isConfigured(c: Pick<HueBridgeConfig, 'host' | 'username' | 'clientKey' | 'entertainmentId'>): boolean {
-  return !!(c.host && c.username && c.clientKey && c.entertainmentId);
-}
+const UNVERIFIED = 'could not verify the application identity; pair this bridge again';
 
 export interface ApplicationIdentity {
   source: Pick<HueBridgeConfig, 'id' | 'host' | 'username' | 'applicationId'>;
   applicationId: string;
 }
 export type ApplicationIdSink = (identity: ApplicationIdentity) => void;
-interface OwnedSession { config: HueBridgeConfig; identity: string }
 
-// DNS names are case insensitive and a final dot denotes the same absolute name.
-// Do not guess whether different addresses or aliases identify the same bridge.
-function physicalHost(host: string): string { return host.trim().toLowerCase().replace(/\.$/, ''); }
-
+// A bridge as the main thread knows it: its settings, its application identity, its area watch, and the
+// stream status the thread that streams to it last reported.
 class HueSession {
   readonly id: string;
   private config: HueBridgeConfig;
-  private status: HueState = IDLE;
-  private socket: dtls.Socket | null = null;
-  private sequence = 0;
-  private lastSentAt = 0;
-  private lastError: string | null = null;
-  private retryAt = 0;
-  private retryDelay = RETRY_BASE_MS;
-  private sessionConfig: OwnedSession | null = null;
-  private releasing: Promise<void> | null = null;
-  private connecting: Promise<void> | null = null;
-  private connectEpoch = 0;
   private resolvedApplicationId: string | null = null;
-  private lastChannels: number[] = [];
+  private resolving = false;
+  private identityError: string | null = null;
+  private identityRetryAt = 0;
+  private identityDelay = RETRY_BASE_MS;
+  private stream: { status: HueState; error: string | null } = { status: IDLE, error: null };
   private readonly sink: () => ApplicationIdSink | null;
-  private readonly owners: Map<string, HueSession>;
-  private claimedHost: string | null = null;
-  private retired = false;
   private occupant: HueOccupant | null = null;
+  private occupantAt = 0;
   private watching = false;
   private watchFailures = 0;
   private watchNextAt = 0;
 
-  constructor(config: HueBridgeConfig, sink: () => ApplicationIdSink | null = () => null, owners = new Map<string, HueSession>()) {
+  constructor(config: HueBridgeConfig, sink: () => ApplicationIdSink | null = () => null) {
     this.id = config.id;
     this.config = { ...config };
     this.sink = sink;
-    this.owners = owners;
   }
 
   private get name(): string { return this.config.label || this.id; }
@@ -626,16 +381,22 @@ class HueSession {
 
   isConfigured(): boolean { return isConfigured(this.config); }
 
+  private state(): { status: HueState; error: string | null } {
+    if (this.identityError && this.stream.status === IDLE) return { status: FAILED, error: this.identityError };
+    return this.stream;
+  }
+
   getStatus(): HueStatus {
+    const { status, error } = this.state();
     return {
       id: this.id,
       label: this.config.label,
-      status: this.status,
+      status,
       enabled: !!this.config.enabled,
       configured: this.isConfigured(),
       host: this.config.host,
       entertainmentId: this.config.entertainmentId,
-      error: this.lastError,
+      error,
       occupiedBy: this.occupant ? { ...this.occupant } : null,
     };
   }
@@ -644,16 +405,16 @@ class HueSession {
     return {
       id: this.id,
       label: this.config.label,
-      status: this.status,
+      status: this.state().status,
       occupiedBy: this.occupant ? { ...this.occupant } : null,
       problem: this.occupant ? occupiedProblem(this.name, this.occupant) : null,
     };
   }
 
-  private noteOccupant(area: ClipEntertainmentConfig | null): void {
-    const next = area ? occupantOf(area) : null;
+  private noteOccupant(next: HueOccupant | null, at = Date.now()): void {
     const was = this.occupant;
     this.occupant = next;
+    this.occupantAt = at;
     if (next && (was?.areaId !== next.areaId || was?.streamer !== next.streamer)) {
       console.warn(`[hue] ${occupiedProblem(this.name, next)} (app ${next.streamer || 'unknown'})`);
     } else if (!next && was) {
@@ -680,7 +441,8 @@ class HueSession {
       if (!Array.isArray(parsed?.data)) throw new Error('invalid area list');
       this.watchFailures = 0;
       this.watchNextAt = 0;
-      if (same()) this.noteOccupant(parsed.data.find((area) => area && typeof area.id === 'string' && isForeign(area, config, identity)) || null);
+      const area = parsed.data.find((a) => a && typeof a.id === 'string' && isForeign(a, config, identity));
+      if (same()) this.noteOccupant(area ? occupantOf(area) : null);
     } catch (_) {
       this.watchFailures++;
       this.watchNextAt = Date.now() + Math.min(RETRY_MAX_MS, AREA_WATCH_MS * 2 ** this.watchFailures);
@@ -691,9 +453,7 @@ class HueSession {
     }
   }
 
-  // Close the old session before reconfiguration because a bridge allows only one active stream.
   configure(next: Partial<HueBridgeConfig> | null | undefined): HueBridgeConfig {
-    this.retired = false;
     const previous = this.config;
     this.config = { ...this.config, ...next, id: this.id };
 
@@ -703,310 +463,80 @@ class HueSession {
     if (previous.host !== this.config.host || previous.username !== this.config.username) {
       this.resolvedApplicationId = null;
     }
-
-    if (moved || !this.config.enabled) {
-      this.stop().catch(() => { /* teardown is best effort */ });
-    }
-    if (moved) {
-      this.retryDelay = RETRY_BASE_MS;
-      this.retryAt = 0;
-      this.lastError = null;
-    }
+    if (moved) this.forgetIdentityFailure();
     if (moved || !this.config.enabled) {
       this.occupant = null;
+      this.occupantAt = Date.now();
       this.watchFailures = 0;
       this.watchNextAt = 0;
     }
     return { ...this.config };
   }
 
-  private track(task: Promise<void>): void {
-    this.connecting = task;
-    void task.finally(() => { if (this.connecting === task) this.connecting = null; }).catch(() => {});
+  /** What a sender streams with, once the bridge is on, set up and its application identity is known. */
+  streamConfig(): HueBridgeConfig | null {
+    const identity = this.config.applicationId || this.resolvedApplicationId;
+    if (!this.config.enabled || !this.isConfigured() || !identity) return null;
+    return { ...this.config, applicationId: identity };
   }
 
-  private async claimHost(host: string, current: () => boolean): Promise<void> {
-    const key = physicalHost(host);
-    while (current()) {
-      const owner = this.owners.get(key);
-      if (!owner || owner === this) {
-        this.owners.set(key, this);
-        this.claimedHost = key;
-        return;
-      }
-      // A pending STOP belongs to the physical bridge, even when its logical ID
-      // was removed. Starting under a new ID before it settles loses the stream.
-      if (owner.releasing) await owner.releasing;
-      else if (owner.status !== CONNECTING && owner.status !== STREAMING
-        && (owner.retired || !owner.config.enabled || physicalHost(owner.config.host) !== key)) {
-        // Retry failed cleanup of an inactive owner using its captured credentials.
-        // A failed configured duplicate remains exclusive to its existing session.
-        await owner.stop();
-      } else throw new Error('this physical bridge is already managed by another configured bridge');
-    }
-  }
-
-  private releaseHost(): void {
-    if (this.claimedHost && this.owners.get(this.claimedHost) === this) this.owners.delete(this.claimedHost);
-    this.claimedHost = null;
-    if (this.retired && retiring.get(this.id) === this) retiring.delete(this.id);
-  }
-
-  private async connect(): Promise<void> {
-    if (this.status === CONNECTING || this.status === STREAMING) return;
-    if (!this.config.enabled || !this.isConfigured()) return;
-    this.status = CONNECTING;
+  // DTLS needs the application id; one paired before it was stored is looked up here, never by a sender.
+  async resolveIdentity(): Promise<void> {
+    if (this.resolving || Date.now() < this.identityRetryAt || this.streamConfig() || !this.config.enabled || !this.isConfigured()) return;
+    this.resolving = true;
     const config = { ...this.config };
-    const epoch = ++this.connectEpoch;
-    const current = () => this.connectEpoch === epoch && this.status === CONNECTING;
-    if (this.sessionConfig) await this.releaseAfter();
-    if (!current()) return;
-    await this.claimHost(config.host, current);
-    if (!current()) return;
-    let identity = config.applicationId || this.resolvedApplicationId;
-    if (!identity) {
-      identity = await fetchApplicationId(config.host, config.username);
-      if (!current()) return;
-      if (identity) {
-        this.resolvedApplicationId = identity;
-        const sink = this.sink();
-        if (sink) {
-          try { sink({ source: { id: this.id, host: config.host, username: config.username, applicationId: config.applicationId }, applicationId: identity }); }
-          catch (_) { /* persistence does not own the attempt */ }
-        }
-      }
-    }
-    if (!current()) return;
-    if (!identity) throw new Error('could not verify the application identity; pair this bridge again');
-    const opened = await this.openSession(config, identity, current);
-    if (opened) this.handshake(config, identity, 1, opened);
-  }
-
-  private async openSession(config: HueBridgeConfig, identity: string, current: () => boolean, restart = false): Promise<OpenedSession | null> {
-    const before = await ownership(config, identity);
-    if (!current()) return null;
-    this.noteOccupant(before.kind === 'occupied' ? before.area : null);
-    if (before.kind === 'occupied') {
-      this.sessionConfig = null;
-      throw new Error(busyMessage(before.area));
-    }
-    if (restart) {
-      if (before.kind === 'owned') await setStreaming(config.host, config.username, config.entertainmentId, false);
-      this.sessionConfig = null;
-      if (!current()) return null;
-      const opened = await this.openSession(config, identity, current);
-      // A retry reports the area before its stop: whether the bridge still held the try that timed out.
-      return opened && { ...opened, before: before.kind };
-    }
-    // A cancelled or failed request may still have changed the bridge.
-    this.sessionConfig = { config, identity };
-    await setStreaming(config.host, config.username, config.entertainmentId, true);
-    const startedAt = Date.now();
-    if (!current()) return null;
-    const after = await ownership(config, identity);
-    if (!current()) return null;
-    this.noteOccupant(after.kind === 'occupied' ? after.area : null);
-    if (after.kind === 'occupied') {
-      this.sessionConfig = null;
-      throw new Error(busyMessage(after.area));
-    }
-    if (after.kind !== 'owned') throw new Error('could not verify Entertainment ownership after start');
-    return { before: before.kind, startedAt };
-  }
-
-  private handshake(config: HueBridgeConfig, identity: string, attempt: number, opened: OpenedSession): void {
-    // Tells, on the next arm, a bridge that ignored a socket (a late try connects at once) from a slow one.
-    const settled = (outcome: string) => console.log(`[hue] ${this.name}: handshake try ${attempt} ${outcome} after `
-      + `${Date.now() - opened.startedAt} ms (ownership before: ${opened.before})`);
-    let pending: dtls.Socket;
+    const same = () => this.config.host === config.host && this.config.username === config.username
+      && this.config.applicationId === config.applicationId;
     try {
-      pending = dtls.createSocket({
-        type: 'udp4',
-        address: config.host,
-        port: STREAM_PORT,
-        psk: { [identity]: Buffer.from(config.clientKey, 'hex') },
-        ciphers: [CIPHER_SUITE],
-        timeout: HANDSHAKE_TIMEOUT_MS,
-      });
-    } catch (err) {
-      this.fail(`could not open the stream socket: ${messageOf(err)}`);
-      return;
-    }
-
-    pending.on('connected', () => {
-      if (this.socket !== pending) {
-        try { pending.close(); } catch (_) { /* already gone */ }
+      const identity = await fetchApplicationId(config.host, config.username);
+      if (!same()) return;
+      if (!identity) {
+        this.identityError = UNVERIFIED;
+        console.warn(`[hue] ${this.name}: ${UNVERIFIED}`);
+        this.identityRetryAt = Date.now() + this.identityDelay;
+        this.identityDelay = Math.min(RETRY_MAX_MS, this.identityDelay * 2);
         return;
       }
-      settled('connected');
-      this.status = STREAMING;
-      this.lastError = null;
-      this.retryDelay = RETRY_BASE_MS;
-      console.log(`[hue] ${this.name}: streaming to ${config.host}, area ${config.entertainmentId}`);
-    });
-
-    pending.on('error', (err: Error) => {
-      if (this.socket !== pending) return;
-      const timedOut = /timed out/.test(err.message);
-      if (timedOut) settled('timed out');
-      if (timedOut && attempt < HANDSHAKE_TRIES && this.status === CONNECTING && this.sessionConfig) {
-        console.warn(`[hue] ${this.name}: ${err.message}, try ${attempt + 1} of ${HANDSHAKE_TRIES}`);
-        this.socket = null;
-        try { pending.close(); } catch (_) { /* already gone */ }
-        const epoch = this.connectEpoch;
-        const current = () => this.connectEpoch === epoch && this.status === CONNECTING;
-        this.track(this.openSession(config, identity, current, true).then((next) => {
-          if (next) this.handshake(config, identity, attempt + 1, next);
-        }).catch((error) => {
-          if (current()) this.fail(messageOf(error));
-        }));
-        return;
+      this.resolvedApplicationId = identity;
+      this.forgetIdentityFailure();
+      const sink = this.sink();
+      if (sink) {
+        try { sink({ source: { id: this.id, host: config.host, username: config.username, applicationId: config.applicationId }, applicationId: identity }); }
+        catch (_) { /* persistence does not own the attempt */ }
       }
-      this.fail(err.message);
-    });
-
-    pending.on('close', () => {
-      if (this.socket !== pending) return;
-      if (this.status === STREAMING || this.status === CONNECTING) this.fail('the bridge closed the stream');
-    });
-
-    this.socket = pending;
-  }
-
-  private recordFailure(message: string): void {
-    this.lastError = message;
-    console.warn(`[hue] ${this.name}: ${message}`);
-    this.status = FAILED;
-    this.retryAt = Date.now() + this.retryDelay;
-    this.retryDelay = Math.min(RETRY_MAX_MS, this.retryDelay * 2);
-  }
-
-  private closeSocket(): void {
-    const dying = this.socket;
-    this.socket = null;
-    if (dying) {
-      try { dying.close(); } catch (_) { /* already gone */ }
+    } finally {
+      this.resolving = false;
     }
   }
 
-  private releaseAfter(pending: Promise<void> | null = null): Promise<void> {
-    if (this.releasing) return this.releasing;
-    const release = (async () => {
-      if (pending) await pending.catch(() => {});
-      const owned = this.sessionConfig;
-      if (!owned) { this.releaseHost(); return; }
-      const { config, identity } = owned;
-      const holder = await ownership(config, identity);
-      if (holder.kind === 'owned') await setStreaming(config.host, config.username, config.entertainmentId, false);
-      if (this.sessionConfig === owned) this.sessionConfig = null;
-      this.releaseHost();
-    })();
-    this.releasing = release;
-    void release.finally(() => { if (this.releasing === release) this.releasing = null; }).catch(() => {});
-    return release;
+  // Disarmed, as a stopped stream does, a failed lookup is no longer reported and the next arm retries at once.
+  forgetIdentityFailure(): void {
+    this.identityError = null;
+    this.identityRetryAt = 0;
+    this.identityDelay = RETRY_BASE_MS;
   }
 
-  private fail(message: string): void {
-    this.recordFailure(message);
-    this.closeSocket();
-    const epoch = this.connectEpoch;
-    void this.releaseAfter(this.connecting).catch(err => {
-      if (this.connectEpoch === epoch) this.recordFailure(`could not release the session: ${messageOf(err)}`);
-    });
+  /** The streaming thread's report: its status stands; its occupant only if it saw it after the area watch did. */
+  applyStream(report: HueStreamStatus): void {
+    this.stream = { status: report.status, error: report.error };
+    if (report.at > this.occupantAt) this.noteOccupant(report.occupiedBy, report.at);
   }
 
-  async stop(): Promise<void> {
-    const epoch = ++this.connectEpoch;
-    this.status = IDLE;
-    this.lastError = null;
-    this.retryDelay = RETRY_BASE_MS;
-    this.retryAt = 0;
-    this.closeSocket();
-    try {
-      await this.releaseAfter(this.connecting);
-    } catch (err) {
-      if (this.connectEpoch === epoch) this.recordFailure(`could not release the session: ${messageOf(err)}`);
-      throw err;
-    }
-  }
-
-  retire(): Promise<void> { this.retired = true; return this.stop(); }
-
-  async close(): Promise<void> {
-    if (this.status === STREAMING && this.socket && this.lastChannels.length) {
-      this.sequence = (this.sequence + 1) & 0xff;
-      const dark = this.lastChannels.map((id) => ({ id, r: 0, g: 0, b: 0 }));
-      try {
-        this.socket.send(buildStreamMessage(this.sessionConfig?.config.entertainmentId || this.config.entertainmentId, dark, this.sequence), () => { /* on the way out */ });
-      } catch (_) { /* the session closes regardless */ }
-    }
-    await this.stop();
-  }
-
-  sendFrame(channels: readonly HueChannelColour[]): boolean {
-    if (!this.config.enabled || !this.isConfigured()) return false;
-
-    if (!channels.length) {
-      if (this.status === STREAMING || this.status === CONNECTING) {
-        console.log(`[hue] ${this.name}: no lamp of it in the patch — releasing the entertainment area`);
-        void this.stop().catch(() => {});
-      }
-      return false;
-    }
-
-    if (this.status === IDLE || (this.status === FAILED && Date.now() >= this.retryAt)) {
-      if (!this.connecting && !this.releasing) {
-        const epoch = this.connectEpoch + 1;
-        this.track(this.connect().catch((err) => {
-          if (this.connectEpoch === epoch && this.status === CONNECTING) this.fail(messageOf(err));
-        }));
-      }
-      return false;
-    }
-    if (this.status !== STREAMING || !this.socket) return false;
-
-    const now = Date.now();
-    if (now - this.lastSentAt < MIN_FRAME_INTERVAL_MS) return false;
-    this.lastSentAt = now;
-
-    this.sequence = (this.sequence + 1) & 0xff;
-    const slots = channels.length > MAX_CHANNELS ? channels.slice(0, MAX_CHANNELS) : channels;
-    this.lastChannels = slots.map((c) => c.id);
-    const sending = this.socket;
-    try {
-      sending.send(buildStreamMessage(this.config.entertainmentId, slots, this.sequence), (err) => {
-        if (err && this.socket === sending && this.status === STREAMING) this.fail(`send failed: ${err.message}`);
-      });
-    } catch (err) {
-      this.fail(`send failed: ${messageOf(err)}`);
-      return false;
-    }
-    return true;
-  }
+  resetStream(): void { this.stream = { status: IDLE, error: null }; }
 }
 
 const sessions = new Map<string, HueSession>();
-const retiring = new Map<string, HueSession>();
-const physicalOwners = new Map<string, HueSession>();
 
 let onApplicationId: ApplicationIdSink | null = null;
 function setApplicationIdSink(fn: ApplicationIdSink | null): void { onApplicationId = fn; }
 
 function configureBridges(list: readonly HueBridgeConfig[]): void {
   const keep = new Set(list.map((b) => b.id));
-  for (const [id, session] of sessions) {
-    if (keep.has(id)) continue;
-    retiring.set(id, session);
-    sessions.delete(id);
-    void session.retire().catch(() => {});
-  }
+  for (const id of sessions.keys()) if (!keep.has(id)) sessions.delete(id);
   for (const bridge of list) {
-    const session = sessions.get(bridge.id) || retiring.get(bridge.id);
-    retiring.delete(bridge.id);
-    if (session) {
-      session.configure(bridge);
-      sessions.set(bridge.id, session);
-    } else sessions.set(bridge.id, new HueSession(bridge, () => onApplicationId, physicalOwners));
+    const session = sessions.get(bridge.id);
+    if (session) session.configure(bridge);
+    else sessions.set(bridge.id, new HueSession(bridge, () => onApplicationId));
   }
 }
 
@@ -1020,6 +550,66 @@ function getStatusAll(): HueStatus[] { return listSessions().map((s) => s.getSta
 
 function liveStatusAll(): HueLiveStatus[] {
   return listSessions().filter((s) => s.getConfig().enabled && s.isConfigured()).map((s) => s.liveStatus());
+}
+
+/**
+ * The bridges a sender may stream to. With `resolve` (armed), an enabled, set-up bridge whose application id is
+ * not known yet is looked up, with backoff, and joins once it is; disarmed, a failed lookup is forgotten.
+ */
+function streamConfigs({ resolve = false }: { resolve?: boolean } = {}): HueBridgeConfig[] {
+  const out: HueBridgeConfig[] = [];
+  for (const session of sessions.values()) {
+    const config = session.streamConfig();
+    if (config) out.push(config);
+    else if (resolve) void session.resolveIdentity();
+    else session.forgetIdentityFailure();
+  }
+  return out;
+}
+
+function applyStreamStatus(reports: readonly HueStreamStatus[]): void {
+  for (const report of reports) sessions.get(report.id)?.applyStream(report);
+}
+
+/** The thread that streamed is gone: nothing streams until a sender reports again. */
+function resetStreamStatus(): void {
+  for (const session of sessions.values()) session.resetStream();
+}
+
+/**
+ * Bridges issued to an engine thread: what it may have left streaming if it dies. The main thread releases
+ * them by CLIP alone (ownership, then stop for a session that is still this application's) before any sender
+ * may connect again; a bridge released, or confirmed closed by its thread, leaves the ledger.
+ */
+class HueLedger {
+  private readonly entries = new Map<string, HueBridgeConfig>();
+
+  get size(): number { return this.entries.size; }
+
+  issue(bridges: readonly HueBridgeConfig[]): void {
+    for (const bridge of bridges) {
+      const key = [bridge.host, bridge.username, bridge.entertainmentId, bridge.applicationId].join('\n');
+      if (!this.entries.has(key)) this.entries.set(key, { ...bridge });
+    }
+  }
+
+  outstanding(): HueBridgeConfig[] { return [...this.entries.values()].map((b) => ({ ...b })); }
+
+  clear(): void { this.entries.clear(); }
+
+  async release(): Promise<boolean> {
+    const results = await Promise.allSettled([...this.entries].map(async ([key, config]) => {
+      try {
+        const holder = await ownership(config, config.applicationId);
+        if (holder.kind === 'owned') await setStreaming(config.host, config.username, config.entertainmentId, false);
+        this.entries.delete(key);
+      } catch (err) {
+        console.warn(`[hue] ${config.label || config.id}: could not release the session a lost engine thread held: ${messageOf(err)}`);
+        throw err;
+      }
+    }));
+    return results.every((result) => result.status === 'fulfilled');
+  }
 }
 
 let areaWatch: ReturnType<typeof setInterval> | null = null;
@@ -1042,46 +632,14 @@ function stopAreaWatch(): void {
 
 function anyEnabled(): boolean { return listSessions().some((s) => s.getConfig().enabled); }
 
-function sendFrames(frames: ReadonlyMap<string, readonly HueChannelColour[]>): boolean {
-  let sent = false;
-  for (const session of sessions.values()) {
-    if (session.sendFrame(frames.get(session.id) || [])) sent = true;
-  }
-  return sent;
-}
-
-async function finishAll(operation: 'stop' | 'close'): Promise<void> {
-  const all = new Set([...sessions.values(), ...retiring.values()]);
-  const results = await Promise.allSettled([...all].map((s) => s[operation]()));
-  const errors = results.filter((result): result is PromiseRejectedResult => result.status === 'rejected').map(result => result.reason);
-  if (errors.length) throw new AggregateError(errors, 'could not release all Hue sessions');
-}
-
-async function stopAll(): Promise<void> { await finishAll('stop'); }
-
-async function closeAll(): Promise<void> {
-  await finishAll('close');
-}
-
 function _reset(): void {
   stopAreaWatch();
   sessions.clear();
-  retiring.clear();
-  physicalOwners.clear();
   onApplicationId = null;
 }
 
-export const STATES = { IDLE, CONNECTING, STREAMING, FAILED };
-
 export {
-  STREAM_PORT,
-  CIPHER_SUITE,
-  MAX_CHANNELS,
   DISCOVERY_URL,
-  MIN_FRAME_INTERVAL_MS,
-  HEADER_BYTES,
-  CONFIG_ID_BYTES,
-  CHANNEL_BYTES,
   discoverBridges,
   identifyDevices,
   deviceType,
@@ -1098,22 +656,21 @@ export {
   lampsOf,
   channelMembers,
   setStreaming,
-  buildStreamMessage,
-  to16,
   isConfigured,
   HueSession,
+  HueLedger,
   configureBridges,
   getSession,
   listSessions,
   getConfigs,
   getStatusAll,
   liveStatusAll,
+  streamConfigs,
+  applyStreamStatus,
+  resetStreamStatus,
   checkAreas,
   startAreaWatch,
   anyEnabled,
-  sendFrames,
-  stopAll,
-  closeAll,
   _reset,
 };
 

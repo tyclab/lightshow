@@ -14,7 +14,7 @@ import { channelReader } from '../../src/shared/placement.ts';
 import { PictureInput } from '../../src/server/picture.ts';
 import { DEFAULTS } from '../../src/server/settings.ts';
 import { getProfile, HUE_COLOR_PROFILE_ID } from '../../src/server/profiles.ts';
-import * as hue from '../../src/server/hue.ts';
+import * as hue from '../../src/server/hue-stream.ts';
 
 const srgb = (v) => { const c = v / 255; return c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4; };
 
