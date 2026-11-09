@@ -1,6 +1,9 @@
 // Classic and party pattern ids that play a v2 preset instead of their pattern function, each with the
 // reason it moved. The operator decides each move by A/B test on the rig; every other classic id keeps its function.
-export const CLASSIC_REDIRECTS: Readonly<Record<string, string>> = Object.freeze({});
+export const CLASSIC_REDIRECTS: Readonly<Record<string, string>> = Object.freeze({
+  fireworks: 'Particles on the v2 engine (option C), merged only once the operator chose B in A/B migration.fireworks',
+  rain: 'Particles on the v2 engine (option C), merged only once the operator chose B in A/B migration.rain',
+});
 
 // The classic and party looks on the v2 engine: for each id, the v2 spec closest to its own pattern on the
 // diff rig (scripts/effects-v2-alias-diff.js --classic) and that diff as [largest channel, mean absolute
@@ -24,9 +27,9 @@ export const CLASSIC_V2: Readonly<Record<string, ClassicLook>> = {
   fire: { family: 'Clouds', name: 'Fire', pixel: true, diff: [255, 10.24, 129],
     spec: { kind: 'v2.noise', params: { space: 'plan', shape: 'fire', scaleM: 2, speed: 0.2, contrast: 1.6, cutoff: 0.2 } } },
   // Particles
-  fireworks: { family: 'Particles', name: 'Fireworks', diff: [253, 53.814, 129],
+  fireworks: { family: 'Particles', name: 'Fireworks', desc: 'On every beat a light fills out from a random place and fades over a beat, over a dim floor in the look\'s last colour', diff: [253, 53.814, 129],
     spec: { kind: 'v2.shell', params: { space: 'plan', origin: 'random', trigger: { mode: 'beatAccent', band: 'full', beatInterval: 1, threshold: 0, reactiveDepth: 1 }, envelope: { curve: 'easeOut', attack: 0, hold: 0.3, release: 1 }, profile: 'fill', speed: 4, width: 0.25, background: 0.18 } } },
-  rain: { family: 'Particles', name: 'Rain', pixel: true, diff: [255, 14.881, 129],
+  rain: { family: 'Particles', name: 'Rain', desc: 'Drops falling down the plot a few at a time, with short trails', pixel: true, diff: [255, 14.881, 129],
     spec: { kind: 'v2.particles', params: { space: 'plan', mode: 'rain', count: 8, radiusM: 0.3, speed: 3, gravity: 0.3, trail: 1 } } },
   // Orbit
   swirl: { family: 'Orbit', name: 'Swirl', diff: [210, 47.287, 129],
