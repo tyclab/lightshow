@@ -56,6 +56,8 @@ test('choosing an effect clears them, other patches keep them, and cues capture 
   const { effectParams: _edit, ...older } = cue;
   recallLook(older);
   assert.equal(state.effectParams, null, 'a cue saved before live variables plays the preset as saved');
+  // Without a live edit a cue carries no effectParams key, so a build from before live variables still reads it.
+  assert.equal(Object.hasOwn(captureLook(), 'effectParams'), false);
   applyPatch({ pattern: 'v2.ascent', effectParams: { pattern: 'v2.ascent', params: { speed: 2 } } });
   assert.deepEqual(state.effectParams, { pattern: 'v2.ascent', params: { speed: 2 } }, 'an effect and its variables in one patch');
 });
