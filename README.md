@@ -430,13 +430,13 @@ flowchart LR
 | Generator | What moves | Presets |
 |-----------|------------|---------|
 | Sweep | a plane through the room by azimuth and elevation (90° runs floor to ceiling): crest, line, comet, gradient or stripe, looping, bouncing or random | Groove Wave, Big Room Wave, Ascent, Double Wave, Swagger, Beat Accent Wash, Volume Gate Wash |
-| Shell | rings from a speaker anchor, the listener, the centre or a random light, outward or inward, optionally twisted into a vortex | Impact, Vortex, Speaker Shockwave |
+| Shell | rings from a speaker anchor, the listener, the centre or a random light, outward or inward, optionally twisted into a vortex, optionally with sparks in the last colour on each launch | Impact, Vortex, Speaker Shockwave |
 | Orbit | a beam, sectors or a colour wheel turning round the listener from their facing | Rotation, Swirl, Beacon |
 | Scatter | random places, fixtures and physical segments, optionally only on band hits | Scatter Strobe, Scatter Fade, Scatter Grow, Frequency Burst |
-| Neural | bass, mids and highs placed by height, by distance from the speakers, or by zone round the listener | Neural, Neural Distance |
+| Neural | bass, mids and highs placed by height, by distance from the speakers, by zone round the listener, as three level columns side by side, or bass thrown out from the middle with mids at both ends and highs scattered | Neural, Neural Distance |
 | Wash | a steady colour or a shared breathing envelope | Wash, Breathe |
-| Step | a pulse following an axis, each strip's cell order, height or listener azimuth | Chase, Path Runner, Surround |
-| Zones | alternating or filling sides, height bands, distances or stem regions | Zones, Surround Answer, Near and Far, Stems in Space |
+| Step | a pulse following an axis, each strip's cell order, height, listener azimuth or the patch order lamp by lamp | Chase, Path Runner, Surround |
+| Zones | alternating, filling, covering in the next colour or swapping colours between sides, height bands, distances, stem regions, odd and even lamps, palette blocks, diagonals, corners, or halves that turn every other step | Zones, Surround Answer, Near and Far, Stems in Space |
 | Noise | continuous clouds, aurora or flames sampled in space | Drifting Clouds, Aurora, Fire |
 | Particles | soft objects and ballistic sparks, trails, falling drops and floor splashes | Light Orbs, Orb Collision, Fireworks, Rain |
 | Visualizer | the incoming picture's palette and motion speed drive an independent spatial field | Visualizer Flow, Visualizer Drift |
@@ -655,6 +655,8 @@ generator; **Show all** retains every historical palette id.
 
 Every generator shares one trigger: the timeline, a beat accent (a pulse per interval,
 as strong as its band with live audio) or a volume gate (the band above its threshold).
+Colours follow position, time, the first palette colour, or step: the next palette
+colour on every trigger interval.
 Positions come from the Stage room: point bindings place their light, a strip path
 spreads its cells along the path, and a weighted mean gives each source the lamp's
 position. A light without a binding keeps its Rig plot position scaled into the room;
