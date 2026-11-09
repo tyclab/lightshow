@@ -187,7 +187,7 @@ test('reading the patched ball again: 80 cells under its id, its DDP spread over
       assert.deepEqual([asked.body.applied, asked.body.cells, asked.body.room, asked.body.fullGrid],
         [false, { before: 120, after: 80 }, { moved: 79, dropped: 2 }, { before: true, after: false }]);
       assert.deepEqual([getProfile(state.fixtures[1]), state.fixtures[1].output.areas, rooms.snapshot().room.bindings.length], [plain, undefined, 82]);
-      const done = await call({ fixtureId: 38, confirm: 80 });
+      const done = await call({ fixtureId: 38, confirm: { cells: 80, grid: { columns: 20, rows: 6 } } });
       assert.equal(done.status, 200, JSON.stringify(done.body));
       assert.deepEqual([done.body.applied, done.body.cells, done.body.ledmap, done.body.profile.id], [true, { before: 120, after: 80 }, { width: 20, height: 6 }, plain.id]);
       const fixture = state.fixtures.find((f) => f.id === 38);

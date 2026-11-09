@@ -118,8 +118,8 @@ test('Read again shows what the server answers: its refusal word for word, a cha
       sent.push(route.request().postDataJSON());
       return route.fulfill({ json: { ok: true, ...body } });
     });
-    const curtainCells = { cells: { before: 2856, after: 1560 }, ledmap: { width: 68, height: 42 }, room: { moved: 1552, dropped: 0 }, fullGrid: { before: true, after: false },
-      profile: { grid: { columns: 68, rows: 42 } } };
+    const curtainCells = { cells: { before: 2856, after: 1560 }, grid: { before: { columns: 68, rows: 42 }, after: { columns: 68, rows: 42 } }, ledmap: { width: 68, height: 42 },
+      room: { moved: 1552, dropped: 0 }, fullGrid: { before: true, after: false }, profile: { grid: { columns: 68, rows: 42 } } };
     await answer({ applied: false, ...curtainCells });
     const apply = section.getByRole('button', { name: 'Apply 1560 cells' }), keep = section.getByRole('button', { name: 'Keep as is' });
     await curtainRow.getByRole('button', { name: 'Read Curtain again from its WLED' }).click();
@@ -139,16 +139,30 @@ test('Read again shows what the server answers: its refusal word for word, a cha
     await answer({ applied: true, ...curtainCells });
     await apply.click();
     await expect(status).toHaveText('"Curtain": 2856 cells before, 1560 cells now, from its 68 × 42 ledmap. The Stage room\'s bindings follow their cells: 1552 moved, 0 without an LED dropped.');
-    expect(sent.slice(1)).toEqual([{ fixtureId: curtain }, { fixtureId: curtain, confirm: 1560 }]);
+    expect(sent.slice(1)).toEqual([{ fixtureId: curtain }, { fixtureId: curtain, confirm: { cells: 1560, grid: { columns: 68, rows: 42 } } }]);
+    await page.unroute('**/api/wled/refresh');
+
+    // The same count on another grid asks first too, and Apply confirms the grid it showed.
+    const regrid = { cells: { before: 120, after: 120 }, grid: { before: { columns: 20, rows: 6 }, after: { columns: 10, rows: 12 } }, ledmap: null,
+      room: { moved: 0, dropped: 0, stale: 80 }, fullGrid: { before: true, after: true }, profile: { grid: { columns: 10, rows: 12 } } };
+    sent.length = 0;
+    await answer({ applied: false, ...regrid });
+    await row.getByRole('button', { name: 'Read GLORB again from its WLED' }).click();
+    await expect(status).toHaveText('"GLORB" would go from 120 cells on 20 × 6 to 120 cells on 10 × 12. Nothing has changed yet. '
+      + '80 Stage room bindings for it would still name its old cells: export the room again.');
+    await page.unroute('**/api/wled/refresh');
+    await answer({ applied: true, ...regrid });
+    await section.getByRole('button', { name: 'Apply 120 cells on 10 × 12' }).click();
+    await expect(status).toHaveText('"GLORB": 120 cells on 20 × 6 before, 120 cells on 10 × 12 now. 80 Stage room bindings for it still name its old cells: export the room again.');
+    expect(sent).toEqual([{ fixtureId: ball }, { fixtureId: ball, confirm: { cells: 120, grid: { columns: 10, rows: 12 } } }]);
     await page.unroute('**/api/wled/refresh');
 
     // Answers applied at once, as the button words them.
     const applied = [
-      [{ cells: { before: 80, after: 80 }, ledmap: { width: 20, height: 6 }, room: { moved: 0, dropped: 0 } },
+      [{ cells: { before: 80, after: 80 }, grid: { before: { columns: 20, rows: 6 }, after: { columns: 20, rows: 6 } }, ledmap: { width: 20, height: 6 }, room: { moved: 0, dropped: 0 } },
         '"GLORB": 80 cells before, 80 cells now, from its 20 × 6 ledmap.'],
-      [{ cells: { before: 120, after: 120 }, ledmap: null, room: { moved: 0, dropped: 0, stale: 80 } },
-        '"GLORB": 120 cells before, 120 cells now. 80 Stage room bindings for it still name its old cells: export the room again.'],
-      [{ cells: { before: 120, after: 120 }, ledmap: { width: 20, height: 6, unused: 'its ledmap lists 123 LEDs for 20 × 6 places' }, room: null },
+      [{ cells: { before: 120, after: 120 }, grid: { before: { columns: 20, rows: 6 }, after: { columns: 20, rows: 6 } },
+        ledmap: { width: 20, height: 6, unused: 'its ledmap lists 123 LEDs for 20 × 6 places' }, room: null },
         '"GLORB": 120 cells before, 120 cells now; its ledmap lists 123 LEDs for 20 × 6 places, so it is not used.'],
     ];
     for (const [body, text] of applied) {

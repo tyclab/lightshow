@@ -218,9 +218,9 @@ export function attachFixtureRoutes(app: Express, ctx: RouteContext): void {
    * change on the same grid, the Stage room's bindings follow each cell to its new index, and a
    * binding whose LED the ledmap no longer keeps is dropped.
    *
-   * A refresh that would change the fixture's cell count writes nothing: it answers what would change
-   * (`applied: false`), and only a second call confirming that count (`confirm`) applies it. `dryRun`
-   * only ever answers. One that keeps the count applies at once.
+   * A refresh that would change the fixture's cell count or its grid writes nothing: it answers what
+   * would change (`applied: false`), and only a second call confirming that count and grid (`confirm`)
+   * applies it. `dryRun` only ever answers. One that keeps both applies at once.
    */
   app.post('/api/wled/refresh', asyncHandler(async (req, res) => {
     try {
@@ -271,17 +271,19 @@ export function attachFixtureRoutes(app: Express, ctx: RouteContext): void {
       const remapped = remap && (remap.moved || remap.dropped) ? roomSceneSchema.safeParse(remap.room) : null;
       if (remapped && !remapped.success) return res.status(400).json({ ok: false, error: 'The Stage room would not hold the refreshed cells', issues: remapped.error.issues });
       const cells = { before: unitCount(before), after: unitCount(profile) };
+      const grid = { before: gridSize(before), after: gridSize(profile) };
       const answer = {
-        cells, ledmap: ledmapAnswer(ledmap, info),
+        cells, grid, ledmap: ledmapAnswer(ledmap, info),
         room: remap ? { moved: remap.moved, dropped: remap.dropped } : stale ? { moved: 0, dropped: 0, stale } : null,
         // A full grid is what a pixel feed sized to it (the browser helper's --panels, the curtain feed) can drive.
         fullGrid: { before: isFullGrid(before), after: isFullGrid(profile) },
       };
-      if (dryRun || (cells.after !== cells.before && confirm === undefined)) {
+      const reshaped = cells.after !== cells.before || !sameSize(grid.before, grid.after);
+      if (dryRun || (reshaped && confirm === undefined)) {
         return res.json({ ok: true, applied: false, ...answer, fixture: current, profile, info });
       }
-      if (confirm !== undefined && confirm !== cells.after) {
-        return res.status(409).json({ ok: false, error: `${info.name} now reads as ${cells.after} cells, not the ${confirm} confirmed: read it again`, ...answer });
+      if (confirm !== undefined && (confirm.cells !== cells.after || !sameSize(confirm.grid, grid.after))) {
+        return res.status(409).json({ ok: false, error: `${info.name} now reads as ${cellsOn(cells.after, grid.after)}, not the ${cellsOn(confirm.cells, confirm.grid)} confirmed: read it again`, ...answer });
       }
       if (!registerProfile(profile)) return res.status(400).json({ ok: false, error: 'Invalid profile' });
       state.fixtures = draft;
@@ -790,6 +792,19 @@ function ledmapAnswer(ledmap: WledLedmap | null, info: WledInfo): { width: numbe
   const unused = ledmapUnused(ledmap, info);
   return { width: ledmap.width, height: ledmap.height, ...(unused ? { unused } : {}) };
 }
+
+type GridSize = { columns: number; rows: number } | null;
+
+// A profile's grid as a refresh answers and confirms it: columns and rows, null for a strip.
+function gridSize(profile: Profile): GridSize {
+  return profile.grid ? { columns: profile.grid.columns, rows: profile.grid.rows } : null;
+}
+
+function sameSize(a: GridSize, b: GridSize): boolean {
+  return a === null || b === null ? a === b : a.columns === b.columns && a.rows === b.rows;
+}
+
+const cellsOn = (count: number, size: GridSize) => `${count} ${count === 1 ? 'cell' : 'cells'}${size ? ` on ${size.columns} × ${size.rows}` : ''}`;
 
 // Every place of its grid holds a cell: what a pixel feed sized to the grid can drive (pixel-input.ts).
 function isFullGrid(profile: Profile): boolean {

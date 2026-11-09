@@ -881,14 +881,16 @@ A fixture already in the patch takes a new ledmap when it is read again: **Read
 again** beside it in Rig → Outputs → WLED (`POST /api/wled/refresh` with
 `{ fixtureId }`) asks its WLED for its LEDs, its segment and its ledmap and
 rebuilds its profile under the same id, so shows, sequences and its place keep
-resolving it. A read that would change the fixture's cell count changes nothing at
-first: it answers what would change (`applied: false`: the cells before and after,
-the room bindings that would move, drop or go stale, and whether a full grid stops
-being one, which a pixel feed sized to the grid then no longer reaches), and Read
-again shows that with **Apply** and **Keep as is**. Apply sends the request again
-with `confirm` set to the count it showed; a device that answers another count then
-is refused. `dryRun: true` only ever answers. A read that keeps the cell count is
-applied at once. When the cells change on the same grid, the Stage room's bindings
+resolving it. A read that would change the fixture's cell count or its grid (as many
+cells on another grid, or a matrix that now answers as a strip) changes nothing at
+first: it answers what would change (`applied: false`: the cells and the grid before
+and after, the room bindings that would move, drop or go stale, and whether a full
+grid stops being one, which a pixel feed sized to the grid then no longer reaches),
+and Read again shows that with **Apply** and **Keep as is**. Apply sends the request
+again with `confirm: { cells, grid }` set to what it showed (`grid` null for a
+strip); a device that answers another count or grid then is refused. `dryRun: true`
+only ever answers. A read that keeps both the cell count and the grid is applied at
+once. When the cells change on the same grid, the Stage room's bindings
 follow each cell to its new index by column and row; a binding (or a weighted
 source) whose cell no longer has an LED is dropped, and a furniture object it lit
 loses only the light. When the device is now set up as another grid, the bindings
