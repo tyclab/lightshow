@@ -7,7 +7,7 @@ import test from 'node:test';
 import assert from 'node:assert';
 
 import LiveDirector from '../../src/show/live-director.ts';
-import { PATTERNS, ENERGY_EFFECT_IDS } from '../../src/server/presets.ts';
+import { ENERGY_EFFECT_IDS, CLASSIC_LOOKS } from '../../src/server/presets.ts';
 import { SPATIAL_AUTO_PATTERNS } from '../../src/show/look.ts';
 import { setupIntegrations } from '../../src/server/integrations.ts';
 import { state } from '../../src/server/state.ts';
@@ -22,7 +22,7 @@ function director({ refuse = () => null } = {}) {
       if (err) throw err;
       patches.push(p);
     },
-    patterns: PATTERNS,
+    patterns: CLASSIC_LOOKS,
     now: () => now,
     setTimer: (fn, ms) => { const t = { fn, at: now + ms }; timers.push(t); return t; },
     clearTimer: (t) => { const i = timers.indexOf(t); if (i >= 0) timers.splice(i, 1); },
@@ -42,7 +42,7 @@ function director({ refuse = () => null } = {}) {
   return { d, patches, run, hear, event, last: () => patches[patches.length - 1] };
 }
 
-const patternIds = new Set([...PATTERNS, ...SPATIAL_AUTO_PATTERNS].map((p) => p.id));
+const patternIds = new Set([...CLASSIC_LOOKS, ...SPATIAL_AUTO_PATTERNS].map((p) => p.id));
 
 test('it takes the rig with a look chosen from what it hears', () => {
   const t = director();
