@@ -250,6 +250,7 @@ test('a declined offer is not a failure, and the worker gets no more until it is
   await assert.rejects(handle.result, (err) => err.remote === 'declined');
   assert.equal(h.pool.idleWorker(), null);
   assert.equal(h.pool.hasCompatible(), false, 'no prefetch waits for a worker that is not taking work');
+  assert.equal(h.pool.hasWorker(), true, 'but it is connected: the analyser here stays on standby');
   assert.equal(h.pool.status().workers[0].reason, 'a fullscreen game is running');
 });
 

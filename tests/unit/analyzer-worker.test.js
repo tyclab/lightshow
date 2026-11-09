@@ -396,6 +396,23 @@ test('a restart when idle with nothing queued leaves no process until the next a
   } finally { w.shutdown(); }
 });
 
+// Standby asks for a restart when idle while a track runs here; the track is
+// then cancelled or its process dies. The process the next track starts is not
+// the one that request was about.
+test('a restart when idle is forgotten with the process it was for', async () => {
+  const w = worker('hangslow');
+  try {
+    const slow = w.analyze('/tmp/slow.wav', null, { tag: 'slow' });
+    await new Promise((r) => setTimeout(r, 50));
+    w.restart('standby while a GPU worker is ready', { whenIdle: true });
+    w.cancel('slow');
+    await assert.rejects(slow, /cancelled/);
+    assert.strictEqual(w._proc, null);
+    assert.deepStrictEqual(await w.analyze('/tmp/late.wav', null), { bpm: 128, source: '/tmp/late.wav', pid: w._proc.pid });
+    assert.strictEqual(w.state(), 'warm', 'the process that answered stays');
+  } finally { w.shutdown(); }
+});
+
 // Changing the separator (or the interpreter) restarts the worker. Work that
 // was running must go to the new process, not sit on the killed one until the
 // timeout.

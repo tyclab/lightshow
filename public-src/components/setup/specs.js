@@ -221,9 +221,9 @@ export const ANALYSIS = {
         { value: 'standby', label: 'Standby while a GPU worker is ready' },
         { value: 'resident', label: 'Resident (loaded all the time)' },
       ],
-      help: 'Standby frees about 0.9 GB while a GPU worker is connected and ready: the first track that falls back to '
-        + 'this machine loads the models first, seconds from disk. When the last worker goes, the analyser loads again '
-        + 'only while the outputs are disarmed. Resident keeps it loaded from start-up.' },
+      help: 'Standby frees about 0.9 GB while a GPU worker is connected: the first track that falls back to this '
+        + 'machine loads the models first, seconds from disk. When the last worker disconnects, the analyser loads '
+        + 'again only while the outputs are disarmed. Resident keeps it loaded from start-up.' },
     { path: 'analysis.analyzerTimeoutMs', label: 'Analysis Timeout', type: 'number', unit: 'ms', min: 60000, max: 3600000,
       help: 'How long one track may analyse before the worker is considered wedged and recycled. A long track gets '
         + 'longer: see the next field.' },

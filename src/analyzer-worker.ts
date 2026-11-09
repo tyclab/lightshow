@@ -265,6 +265,7 @@ class AnalyzerWorker {
 
   // Recycle without rejecting pending jobs so a replacement process can continue the queue.
   _recycleProcess(): void {
+    this._recycleWhenIdle = null;   // it was about this process
     if (!this._proc) return;
     // Detach the old process first so late exit handlers cannot reject the replacement’s queue.
     const proc = this._proc;
@@ -334,6 +335,7 @@ class AnalyzerWorker {
     if (!this._proc) return;
     this._proc = null;
     this._stdoutBuf = '';
+    this._recycleWhenIdle = null;
     if (!this._shuttingDown && this._pending) {
       console.warn(`[analyzer] ${reason} — pending request will be rejected`);
     } else if (!this._shuttingDown) {

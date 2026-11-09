@@ -1652,10 +1652,15 @@ sequenceDiagram
   machine's analyser process ends, freeing about 0.9 GB, when a compatible
   worker becomes ready (after the track running here, if there is one). The
   next track that runs here starts it and loads the models from disk inside
-  its own time limit; it then stays until a worker becomes ready again. When
-  the last ready worker goes, it is loaded again only while the outputs are
-  disarmed, else at the next disarm; while armed the first track here loads
-  it. `'resident'` keeps it loaded from start-up. A change applies at once.
+  its own time limit; it then stays until a worker becomes ready again. A
+  connected worker that takes no jobs for the moment (stopping a cancelled
+  one, declining, restarting its analyser) changes nothing here. When the
+  last compatible worker disconnects, the analyser is loaded again only while
+  the outputs are disarmed, else at the next disarm; while armed the first
+  track here loads it. At start-up with a worker token set nothing loads
+  until a track needs it or a worker has come and gone; with no token it
+  loads at start-up. `'resident'` keeps it loaded from start-up. A change
+  applies at once.
 - **Version.** The analysis version is `<schema>+<digest>` of the Python
   package, its launcher, `scripts/download-models.py`, `scripts/setup-panns.py`,
   `pyproject.toml` and `uv.lock`. A worker takes jobs only at the server's

@@ -1005,9 +1005,10 @@ MuQ and MuQ-MuLan are built from their configs and then pointed at their
 checkpoint files (`models.map_weights`), so what stays resident is page cache
 the kernel can reclaim. Building them at start-up, with no track in memory, is
 also when their construction costs least.
-With `analysis.localWorker: 'standby'` (the default) the process ends while a
-remote GPU worker is ready, and the next track analysed here starts it and pays
-the load first; see README → Remote GPU analysis.
+With `analysis.localWorker: 'standby'` (the default) the process ends once a
+remote GPU worker takes the work, and loads at start-up only when no worker
+token is set; the next track analysed here starts it and pays the load first.
+See README → Remote GPU analysis.
 
 Curves are decimated to one point every half second before they enter the
 document. Undecimated, eleven curves on a four-minute track is tens of megabytes
