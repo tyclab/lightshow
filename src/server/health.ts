@@ -103,6 +103,11 @@ let liveProvider: (() => LiveStatus | null) | null = null;
 /** Where the summary reads the live input from, once integrations has one. */
 export function setLiveProvider(fn: (() => LiveStatus | null) | null): void { liveProvider = fn; }
 
+let awakeProvider: (() => string[]) | null = null;
+
+/** What keeps the engine from idling, as integrations names it (armed, dmx, v1, identify). */
+export function setAwakeProvider(fn: (() => string[]) | null): void { awakeProvider = fn; }
+
 // Whitelist scalars: health() also contains device addresses and recent error text.
 export function performanceSample(
   engine: EngineStatus,
@@ -112,6 +117,7 @@ export function performanceSample(
   previous: EngineStatus | null,
   nowMs = hrtimeMs(),
   live: Pick<LiveStatus, 'listening' | 'quiet'> | null = null,
+  awake: readonly string[] | null = null,
 ) {
   const elapsed = (engine.sampledAtMs ?? NaN) - (previous?.sampledAtMs ?? NaN);
   const frames = (engine.totalFrames ?? NaN) - (previous?.totalFrames ?? NaN);
@@ -130,6 +136,8 @@ export function performanceSample(
     actualFps: continuous ? Math.round(frames * 100_000 / elapsed) / 100 : null,
     renderedFps: continuous && rendered >= 0 ? Math.round(rendered * 100_000 / elapsed) / 100 : null,
     idle: typeof engine.idle === 'boolean' ? engine.idle : null,
+    // Empty while the source allows idling: then only a frame still owed (barrier, command, route) keeps it awake.
+    awake: awake ? [...awake] : null,
     intervalMs: continuous ? Math.round(elapsed) : null,
     intervalSkipped: continuous ? skipped : null,
     engineSampleAgeMs: metric(engine.sampledAtMs) === null ? null : Math.max(0, Math.round(nowMs - engine.sampledAtMs!)),
@@ -163,7 +171,7 @@ export function startHealthMonitor(): void {
     try {
       const engine = engineStatus();
       const sample = performanceSample(engine, lastWindow, process.memoryUsage(), isArmed(), previous, hrtimeMs(),
-        liveProvider ? liveProvider() : null);
+        liveProvider ? liveProvider() : null, awakeProvider ? awakeProvider() : null);
       previous = engine;
       performanceLog.info(sample, 'Periodic performance summary');
     } catch (_) { /* Telemetry must not interrupt the show. */ }

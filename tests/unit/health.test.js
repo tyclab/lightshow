@@ -5,7 +5,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import express from 'express';
-import { assess, health, performanceSample, startHealthMonitor, setLiveProvider, loopDelayOf, LOOP_RESOLUTION_MS } from '../../src/server/health.ts';
+import { assess, health, performanceSample, startHealthMonitor, setLiveProvider, setAwakeProvider, loopDelayOf, LOOP_RESOLUTION_MS } from '../../src/server/health.ts';
 import { buffer } from '../../src/server/log.ts';
 import { supervision, startHeartbeat, EXIT_RESTART, EXIT_CONFIG } from '../../src/server/supervised.ts';
 import { attachRoutes } from '../../src/server/routes.ts';
@@ -157,12 +157,26 @@ test('performance summaries say whether the live input hears silence', () => {
   assert.equal(sample(next, timing).liveQuiet, null);
 });
 
+test('performance summaries name what keeps the engine awake', () => {
+  const next = { ...timing, sampledAtMs: 31_000, totalFrames: 1240 };
+  const awake = (reasons) => performanceSample(next, fine.eventLoop, memory, false, timing, 31_010, null, reasons).awake;
+  assert.deepEqual(awake(['dmx', 'v1']), ['dmx', 'v1'], 'the integrations name the holders');
+  assert.deepEqual(awake([]), [], 'empty: the source allows idling, a frame still owed keeps it awake');
+  assert.equal(awake(null), null, 'nothing registered yet');
+  assert.equal(sample(next, timing).awake, null);
+  const reasons = ['armed'];
+  const copy = awake(reasons);
+  reasons.push('dmx');
+  assert.deepEqual(copy, ['armed'], 'the sample keeps its own copy');
+});
+
 test('one existing health timer emits bounded summaries and survives collection failure', (t) => {
   t.mock.timers.enable({ apis: ['setInterval'] });
   const since = buffer.last;
   const summaries = () => buffer.since(since).filter((entry) => entry.component === 'performance');
   setLiveProvider(() => ({ listening: true, quiet: true }));
-  t.after(() => setLiveProvider(null));
+  setAwakeProvider(() => ['v1']);
+  t.after(() => { setLiveProvider(null); setAwakeProvider(null); });
   startHealthMonitor();
   startHealthMonitor();
   t.mock.timers.tick(29_999);
@@ -170,6 +184,7 @@ test('one existing health timer emits bounded summaries and survives collection 
   t.mock.timers.tick(1);
   assert.equal(summaries().length, 1);
   assert.equal(summaries()[0].data.liveQuiet, true, 'read from the live input the integrations registered');
+  assert.deepEqual(summaries()[0].data.awake, ['v1'], 'read from the idle source the integrations registered');
   const usage = t.mock.method(process, 'memoryUsage', () => { throw new Error('collection failed'); });
   assert.doesNotThrow(() => t.mock.timers.tick(30_000));
   usage.mock.restore();
