@@ -7,7 +7,7 @@ import path from 'node:path';
 import http from 'node:http';
 import express from 'express';
 
-import { readInfo, readLedmap, ledmapCells, wledProfile, wledSpan, wledLedmap } from '../../src/server/wled.ts';
+import { readInfo, readLedmap, ledmapCells, ledmapUnused, wledProfile, wledSpan, wledLedmap } from '../../src/server/wled.ts';
 import { ddpRoutes, spreadPixels } from '../../src/server/ddp-routes.ts';
 import { buildRig, gridOf } from '../../src/shared/rig.ts';
 import { buildUnitSpace } from '../../src/shared/space.ts';
@@ -118,8 +118,10 @@ test('the ledmap WLED has loaded, read over HTTP: none is null, and a file that 
     assert.deepEqual(await wledLedmap('127.0.0.1', glorbInfo(), { port }), GLORB_LEDMAP);
     assert.deepEqual(asked, ['/json/state', '/ledmap2.json'], 'the map state.ledmap names');
     files['/json/state'] = GLORB_STATE;
-    const bad = await wledLedmap('127.0.0.1', glorbInfo(), { port }).catch((err) => err);
-    assert.deepEqual([bad.status, /20 × 6/.test(bad.message)], [502, true]);
+    // A map whose entries do not fill the matrix is read, and gives no cells: the ball stays its full grid.
+    const short = await wledLedmap('127.0.0.1', glorbInfo(), { port });
+    assert.deepEqual([short, ledmapUnused(short, glorbInfo()), ledmapCells(short, glorbInfo())],
+      [{ width: 20, height: 6, map: [1, 2] }, 'its ledmap lists 2 LEDs for 20 × 6 places', null]);
     delete files['/ledmap.json'];
     assert.equal(await wledLedmap('127.0.0.1', glorbInfo(), { port }), null, 'a WLED without a ledmap answers 404');
     asked.length = 0;
@@ -179,9 +181,15 @@ test('reading the patched ball again: 80 cells under its id, its DDP spread over
     await withApp(glorbClient(), rooms, async (call) => {
       state.fixtures = [{ ...PAR }, { id: 38, label: 'GLORB · Segment 1', address: 1, universe: INTERNAL_UNIVERSE + 1, profileId: plain.id, maxBrightness: 255,
         override: null, position: { x: 33, y: 89.7, height: 30 }, group: null, geometry: { length: 3, angle: 0 }, output: { protocol: 'ddp', host: '10.0.0.60', at: 0, leds: 120, columns: 20 } }];
-      const done = await call({ fixtureId: 38 });
+      // 120 cells to 80: the first answer only says so, and the room and the patch stay as they are.
+      const asked = await call({ fixtureId: 38 });
+      assert.equal(asked.status, 200, JSON.stringify(asked.body));
+      assert.deepEqual([asked.body.applied, asked.body.cells, asked.body.room, asked.body.fullGrid],
+        [false, { before: 120, after: 80 }, { moved: 79, dropped: 2 }, { before: true, after: false }]);
+      assert.deepEqual([getProfile(state.fixtures[1]), state.fixtures[1].output.areas, rooms.snapshot().room.bindings.length], [plain, undefined, 82]);
+      const done = await call({ fixtureId: 38, confirm: 80 });
       assert.equal(done.status, 200, JSON.stringify(done.body));
-      assert.deepEqual([done.body.cells, done.body.ledmap, done.body.profile.id], [{ before: 120, after: 80 }, { width: 20, height: 6 }, plain.id]);
+      assert.deepEqual([done.body.applied, done.body.cells, done.body.ledmap, done.body.profile.id], [true, { before: 120, after: 80 }, { width: 20, height: 6 }, plain.id]);
       const fixture = state.fixtures.find((f) => f.id === 38);
       assert.deepEqual(fixture.output, { protocol: 'ddp', host: '10.0.0.60', at: 0, leds: 120, columns: 20, areas: refreshed.cells.map(({ at }) => [at.x, at.y, 1, 1]) });
       assert.deepEqual([fixture.position, fixture.geometry, fixture.label], [{ x: 33, y: 89.7, height: 30 }, { length: 3, angle: 0 }, 'GLORB · Segment 1']);
@@ -210,7 +218,7 @@ test('reading the patched ball again: 80 cells under its id, its DDP spread over
 
       const revision = rooms.snapshot().revision;
       const again = await call({ fixtureId: 38 });
-      assert.deepEqual([again.status, again.body.room, again.body.cells], [200, { moved: 0, dropped: 0 }, { before: 80, after: 80 }]);
+      assert.deepEqual([again.status, again.body.applied, again.body.room, again.body.cells], [200, true, { moved: 0, dropped: 0 }, { before: 80, after: 80 }]);
       assert.equal(rooms.snapshot().revision, revision, 'reading it again changes nothing');
     });
   } finally {

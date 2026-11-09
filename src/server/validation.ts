@@ -401,8 +401,13 @@ const wledAddSchema = z.object({
   zones: z.number().int().min(2).max(64).optional(),
 }).strict();
 
-// A WLED fixture read again from its device: its LED count, grid and ledmap.
-const wledRefreshSchema = z.object({ fixtureId }).strict();
+// A WLED fixture read again from its device: its LED count, grid and ledmap. A refresh that changes the
+// fixture's cell count only answers what it would change, until it is sent again confirming the count it showed.
+const wledRefreshSchema = z.object({
+  fixtureId,
+  dryRun: z.boolean().optional(),
+  confirm: z.number().int().min(1).max(MAX_CELLS_PER_FIXTURE).optional(),
+}).strict();
 
 const ddpAddSchema = z.object({
   host: z.string().regex(HOSTNAME_RE, 'is not a hostname or an IPv4 address'),

@@ -870,15 +870,24 @@ an LED: each becomes a cell of the fixture at its column and row (the profile's
 `cells[].at`, its grid the matrix or segment), in row-major order, and the output
 carries `leds`, `columns` and one `areas` entry per cell, so DDP still sends the
 whole matrix in WLED's logical order with the cells without an LED black; WLED maps
-the rest as before. A ledmap that keeps every cell changes nothing. A ball wired as
-a 20 × 6 matrix whose ledmap keeps rings of 5, 15, 20, 20, 15 and 5 LEDs is a
-fixture of 80 cells. Zones, washes and strobe panels ignore the ledmap.
+the rest as before. A ledmap that keeps every cell changes nothing, and so does one
+that does not fit the matrix (another size, or a map whose entries do not fill
+it): the matrix stays its full grid and the answer says why the ledmap is not used.
+A ball wired as a 20 × 6 matrix whose ledmap keeps rings of 5, 15, 20, 20, 15 and
+5 LEDs is a fixture of 80 cells. Zones, washes and strobe panels ignore the ledmap.
 
 A fixture already in the patch takes a new ledmap when it is read again: **Read
 again** beside it in Rig → Outputs → WLED (`POST /api/wled/refresh` with
 `{ fixtureId }`) asks its WLED for its LEDs, its segment and its ledmap and
 rebuilds its profile under the same id, so shows, sequences and its place keep
-resolving it. When the cells change on the same grid, the Stage room's bindings
+resolving it. A read that would change the fixture's cell count changes nothing at
+first: it answers what would change (`applied: false`: the cells before and after,
+the room bindings that would move, drop or go stale, and whether a full grid stops
+being one, which a pixel feed sized to the grid then no longer reaches), and Read
+again shows that with **Apply** and **Keep as is**. Apply sends the request again
+with `confirm` set to the count it showed; a device that answers another count then
+is refused. `dryRun: true` only ever answers. A read that keeps the cell count is
+applied at once. When the cells change on the same grid, the Stage room's bindings
 follow each cell to its new index by column and row; a binding (or a weighted
 source) whose cell no longer has an LED is dropped, and a furniture object it lit
 loses only the light. When the device is now set up as another grid, the bindings

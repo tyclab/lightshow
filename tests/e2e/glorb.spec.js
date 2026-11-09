@@ -83,44 +83,83 @@ test('two balls of 80 cells: the Stage counts and places every cell, the plot la
   }
 });
 
-test('Read again shows what the server answers: its refusal word for word, and the cells and room bindings it moved', async ({ page, request }) => {
+test('Read again shows what the server answers: its refusal word for word, a change of cell count only after Apply, and what it moved', async ({ page, request }) => {
   const grid = { ...PROFILE, id: 'e2e-wled-grid', modeName: '120 pixels, RGB, 20 × 6', channelCount: 360,
     cells: Array.from({ length: 120 }, (_, c) => ({ channelMap: { red: 3 * c, green: 3 * c + 1, blue: 3 * c + 2 } })) };
-  let id = null;
+  // The curtain's 2856 cells, built by the server: their profile is past the size of a JSON request.
+  const curtainGrid = { id: 'e2e-wled-curtain', name: 'Curtain', cells: 2856, firstChannel: 1, order: 'RGB' };
+  const ids = [];
   try {
     expect((await request.post('/api/profiles', { data: grid })).ok()).toBe(true);
-    // A WLED at an address with nothing listening on its HTTP port, patched as a saved show brings it back: the server's own refusal.
-    const restored = await request.post('/api/fixtures/restore', { data: { index: 0, fixture: { label: 'GLORB', profileId: grid.id, output: { protocol: 'ddp', host: '127.0.0.1' } } } });
-    expect(restored.ok(), await restored.text()).toBe(true);
-    id = (await restored.json()).id;
-    const refused = await (await request.post('/api/wled/refresh', { data: { fixtureId: id } })).json();
+    const built = await request.post('/api/profiles/bar', { data: curtainGrid });
+    expect(built.ok(), await built.text()).toBe(true);
+    // WLEDs at an address with nothing listening on its HTTP port, patched as a saved show brings them back: the server's own refusal.
+    for (const [label, profileId, host] of [['GLORB', grid.id, '127.0.0.1'], ['Curtain', curtainGrid.id, '127.0.0.2']]) {
+      const restored = await request.post('/api/fixtures/restore', { data: { index: 0, fixture: { label, profileId, output: { protocol: 'ddp', host } } } });
+      expect(restored.ok(), await restored.text()).toBe(true);
+      ids.push((await restored.json()).id);
+    }
+    const [ball, curtain] = ids;
+    const refused = await (await request.post('/api/wled/refresh', { data: { fixtureId: ball } })).json();
     expect(refused.ok).toBe(false);
 
     await open(page, 'rig/outputs');
     const section = page.locator('section[aria-labelledby="wled-title"]');
-    const row = section.locator('tr', { hasText: 'GLORB' });
+    const row = section.locator('tr', { hasText: 'GLORB' }), curtainRow = section.locator('tr', { hasText: 'Curtain' });
     await expect(row).toContainText('20 × 6');
+    await expect(curtainRow).toContainText('2856');
     const status = section.locator('p[role="status"]').last();
     await row.getByRole('button', { name: 'Read GLORB again from its WLED' }).click();
     await expect(status).toHaveText(refused.error);
 
-    // The answers the server gives for the balls (tests/unit/wled-ledmap.test.js, wled-refresh.test.js), as the button words them.
-    const answers = [
-      [{ cells: { before: 120, after: 80 }, ledmap: { width: 20, height: 6 }, room: { moved: 79, dropped: 0 } },
-        '"GLORB": 120 cells before, 80 cells now, from its 20 × 6 ledmap. The Stage room\'s bindings follow their cells: 79 moved, 0 without an LED dropped.'],
+    // The curtain's ledmap keeps 1560 of its 2856 places: the server's first answer changes nothing (tests/unit/wled-refresh.test.js).
+    const sent = [];
+    const answer = (body) => page.route('**/api/wled/refresh', (route) => {
+      sent.push(route.request().postDataJSON());
+      return route.fulfill({ json: { ok: true, ...body } });
+    });
+    const curtainCells = { cells: { before: 2856, after: 1560 }, ledmap: { width: 68, height: 42 }, room: { moved: 1552, dropped: 0 }, fullGrid: { before: true, after: false },
+      profile: { grid: { columns: 68, rows: 42 } } };
+    await answer({ applied: false, ...curtainCells });
+    const apply = section.getByRole('button', { name: 'Apply 1560 cells' }), keep = section.getByRole('button', { name: 'Keep as is' });
+    await curtainRow.getByRole('button', { name: 'Read Curtain again from its WLED' }).click();
+    const warning = '"Curtain" would go from 2856 cells to 1560 cells, from its 68 × 42 ledmap. Nothing has changed yet. It is a full 68 × 42 grid now and would not be after: '
+      + 'a pixel feed sized to that grid (the browser helper\'s --panels, the curtain feed) no longer reaches it. The Stage room\'s bindings would follow their cells: 1552 moved, 0 without an LED dropped.';
+    await expect(status).toHaveText(warning);
+    expect(sent).toEqual([{ fixtureId: curtain }]);
+    await keep.click();
+    await expect(status).toHaveText('"Curtain" is left as it was.');
+    await expect(apply).toHaveCount(0);
+    expect(sent).toHaveLength(1);
+    expect((await state(request)).profiles[curtainGrid.id].cells).toHaveLength(2856);
+
+    await curtainRow.getByRole('button', { name: 'Read Curtain again from its WLED' }).click();
+    await expect(status).toHaveText(warning);
+    await page.unroute('**/api/wled/refresh');
+    await answer({ applied: true, ...curtainCells });
+    await apply.click();
+    await expect(status).toHaveText('"Curtain": 2856 cells before, 1560 cells now, from its 68 × 42 ledmap. The Stage room\'s bindings follow their cells: 1552 moved, 0 without an LED dropped.');
+    expect(sent.slice(1)).toEqual([{ fixtureId: curtain }, { fixtureId: curtain, confirm: 1560 }]);
+    await page.unroute('**/api/wled/refresh');
+
+    // Answers applied at once, as the button words them.
+    const applied = [
       [{ cells: { before: 80, after: 80 }, ledmap: { width: 20, height: 6 }, room: { moved: 0, dropped: 0 } },
         '"GLORB": 80 cells before, 80 cells now, from its 20 × 6 ledmap.'],
-      [{ cells: { before: 80, after: 120 }, ledmap: null, room: { moved: 0, dropped: 0, stale: 80 } },
-        '"GLORB": 80 cells before, 120 cells now. 80 Stage room bindings for it still name its old cells: export the room again.'],
+      [{ cells: { before: 120, after: 120 }, ledmap: null, room: { moved: 0, dropped: 0, stale: 80 } },
+        '"GLORB": 120 cells before, 120 cells now. 80 Stage room bindings for it still name its old cells: export the room again.'],
+      [{ cells: { before: 120, after: 120 }, ledmap: { width: 20, height: 6, unused: 'its ledmap lists 123 LEDs for 20 × 6 places' }, room: null },
+        '"GLORB": 120 cells before, 120 cells now; its ledmap lists 123 LEDs for 20 × 6 places, so it is not used.'],
     ];
-    for (const [answer, text] of answers) {
-      await page.route('**/api/wled/refresh', (route) => route.fulfill({ json: { ok: true, ...answer } }));
+    for (const [body, text] of applied) {
+      await answer({ applied: true, ...body });
       await row.getByRole('button', { name: 'Read GLORB again from its WLED' }).click();
       await expect(status).toHaveText(text);
+      await expect(apply).toHaveCount(0);
       await page.unroute('**/api/wled/refresh');
     }
   } finally {
-    if (id !== null) await request.delete(`/api/fixtures/${id}`);
-    await request.delete(`/api/profiles/${grid.id}`);
+    for (const id of ids) await request.delete(`/api/fixtures/${id}`);
+    for (const profile of [grid, curtainGrid]) await request.delete(`/api/profiles/${profile.id}`);
   }
 });

@@ -5,7 +5,7 @@ import { BUILTIN_PROFILE_ID, HUE_BY_HAND, isBuiltinProfile, MAX_FIXTURES, UNIVER
 import { MAX_UNIVERSES } from '../universes.ts';
 import { INTERNAL_UNIVERSE, footprintOf, hasNoAddress, isHueLamp, isWled, universeCount } from '../../shared/placement.ts';
 import { isHueProfile, hueSections, hueChannels } from '../../shared/hue-lamp.ts';
-import { geometryUnitIssue } from '../../shared/rig.ts';
+import { geometryUnitIssue, unitCount } from '../../shared/rig.ts';
 import { refreshHueFixtures } from '../hue-migration.ts';
 import { hueProfile, hueProfileId } from '../hue-profile.ts';
 import type { AreaLamp, EntertainmentArea } from '../hue.ts';
@@ -14,7 +14,7 @@ import { ddpConflict } from '../ddp-routes.ts';
 import { showStore, snapshotShow } from '../show-store.ts';
 import { barProfile } from '../bar-profile.ts';
 import { parseOfl } from '../ofl.ts';
-import { DEFAULT_WLED_MODE, wledProfile, wledSeat, wledSpan } from '../wled.ts';
+import { DEFAULT_WLED_MODE, ledmapUnused, wledProfile, wledSeat, wledSpan } from '../wled.ts';
 import type { WledClient, WledInfo, WledLedmap, WledLook } from '../wled.ts';
 import { bindingsOf, remapRoomCells, sameCells } from '../wled-refresh.ts';
 import { sharedRoomScene } from '../room-scene-store.ts';
@@ -156,7 +156,7 @@ export function attachFixtureRoutes(app: Express, ctx: RouteContext): void {
       resizeFixtureBuffers();
       showStore.scheduleSave();
       integrations.broadcast();
-      res.json({ ok: true, fixture, profile, info });
+      res.json({ ok: true, fixture, profile, info, ledmap: ledmapAnswer(ledmap, info) });
     } catch (err) {
       res.status(statusOf(err) || 400).json({ ok: false, error: messageOf(err) });
     }
@@ -209,7 +209,7 @@ export function attachFixtureRoutes(app: Express, ctx: RouteContext): void {
     resizeFixtureBuffers();
     showStore.scheduleSave();
     integrations.broadcast();
-    return res.json({ ok: true, fixtures: draft, profiles: fresh.map(({ profile }) => profile), info, segments: fresh.length });
+    return res.json({ ok: true, fixtures: draft, profiles: fresh.map(({ profile }) => profile), info, segments: fresh.length, ledmap: ledmapAnswer(ledmap, info) });
   }
 
   /**
@@ -217,10 +217,14 @@ export function attachFixtureRoutes(app: Express, ctx: RouteContext): void {
    * profile id, so the fixture keeps its place in the patch, its shows and its id. When the cells
    * change on the same grid, the Stage room's bindings follow each cell to its new index, and a
    * binding whose LED the ledmap no longer keeps is dropped.
+   *
+   * A refresh that would change the fixture's cell count writes nothing: it answers what would change
+   * (`applied: false`), and only a second call confirming that count (`confirm`) applies it. `dryRun`
+   * only ever answers. One that keeps the count applies at once.
    */
   app.post('/api/wled/refresh', asyncHandler(async (req, res) => {
     try {
-      const { fixtureId } = validate(wledRefreshSchema, req.body || {}, 'wled');
+      const { fixtureId, dryRun = false, confirm } = validate(wledRefreshSchema, req.body || {}, 'wled');
       const fixture = state.fixtures.find((f) => f.id === fixtureId);
       if (!fixture || !isWled(fixture) || fixture.output?.protocol !== 'ddp') {
         return res.status(404).json({ ok: false, error: `Fixture ${fixtureId} is not a WLED in the patch` });
@@ -266,6 +270,19 @@ export function attachFixtureRoutes(app: Express, ctx: RouteContext): void {
       const stale = room && !remap && !sameCells(before, profile) ? bindingsOf(room, fixtureId) : 0;
       const remapped = remap && (remap.moved || remap.dropped) ? roomSceneSchema.safeParse(remap.room) : null;
       if (remapped && !remapped.success) return res.status(400).json({ ok: false, error: 'The Stage room would not hold the refreshed cells', issues: remapped.error.issues });
+      const cells = { before: unitCount(before), after: unitCount(profile) };
+      const answer = {
+        cells, ledmap: ledmapAnswer(ledmap, info),
+        room: remap ? { moved: remap.moved, dropped: remap.dropped } : stale ? { moved: 0, dropped: 0, stale } : null,
+        // A full grid is what a pixel feed sized to it (the browser helper's --panels, the curtain feed) can drive.
+        fullGrid: { before: isFullGrid(before), after: isFullGrid(profile) },
+      };
+      if (dryRun || (cells.after !== cells.before && confirm === undefined)) {
+        return res.json({ ok: true, applied: false, ...answer, fixture: current, profile, info });
+      }
+      if (confirm !== undefined && confirm !== cells.after) {
+        return res.status(409).json({ ok: false, error: `${info.name} now reads as ${cells.after} cells, not the ${confirm} confirmed: read it again`, ...answer });
+      }
       if (!registerProfile(profile)) return res.status(400).json({ ok: false, error: 'Invalid profile' });
       state.fixtures = draft;
       placeAddresslessFixtures();
@@ -273,9 +290,7 @@ export function attachFixtureRoutes(app: Express, ctx: RouteContext): void {
       if (remapped?.success) rooms.save(remapped.data);
       showStore.scheduleSave();
       integrations.broadcast();
-      res.json({ ok: true, fixture: next, profile, info, cells: { before: before.cells?.length ?? 1, after: profile.cells?.length ?? 1 },
-        ledmap: ledmap ? { width: ledmap.width, height: ledmap.height } : null,
-        room: remap ? { moved: remap.moved, dropped: remap.dropped } : stale ? { moved: 0, dropped: 0, stale } : null });
+      res.json({ ok: true, applied: true, ...answer, fixture: next, profile, info });
     } catch (err) {
       res.status(statusOf(err) || 400).json({ ok: false, error: messageOf(err) });
     }
@@ -767,6 +782,18 @@ export function attachFixtureRoutes(app: Express, ctx: RouteContext): void {
 
 function hueProfileBlocked(profile: Profile): string | null {
     return isHueProfile(profile) || isHueProfile(listProfiles()[profile.id]) ? HUE_BY_HAND : null;
+}
+
+// What an answer says of the ledmap a WLED has loaded: its size, and why it gives no cells when it does not fit.
+function ledmapAnswer(ledmap: WledLedmap | null, info: WledInfo): { width: number; height: number; unused?: string } | null {
+  if (!ledmap) return null;
+  const unused = ledmapUnused(ledmap, info);
+  return { width: ledmap.width, height: ledmap.height, ...(unused ? { unused } : {}) };
+}
+
+// Every place of its grid holds a cell: what a pixel feed sized to the grid can drive (pixel-input.ts).
+function isFullGrid(profile: Profile): boolean {
+  return !!profile.grid && !profile.zoned && unitCount(profile) === profile.grid.columns * profile.grid.rows;
 }
 
 // Only a patch pixel by pixel takes its cells from the ledmap; zones and strobe panels spread over every LED.

@@ -254,18 +254,26 @@ function readInfo(raw: unknown, host: string): WledInfo {
   };
 }
 
-// A 2D ledmap names its own size; an older one without it covers the configured matrix.
+// A 2D ledmap names its own size; an older one without it covers the configured matrix. One whose
+// entries do not fill that size is read all the same and gives no cells (ledmapUnused says why).
 function readLedmap(raw: unknown, wled: WledInfo, host: string): WledLedmap {
   const body = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>;
   const matrix = wled.matrix;
   const width = Number.isInteger(body.width) ? body.width as number : matrix?.w ?? 0;
   const height = Number.isInteger(body.height) ? body.height as number : matrix?.h ?? 0;
   const map = body.map;
-  if (!Array.isArray(map) || width < 1 || height < 1 || map.length !== width * height) {
-    throw new HttpError(502, `${host}'s ledmap is not a ${width} × ${height} map of LED numbers`);
-  }
+  if (!Array.isArray(map) || width < 1 || height < 1) throw new HttpError(502, `${host}'s ledmap is not a map of LED numbers`);
   if (!map.every((v) => Number.isInteger(v) && (v as number) >= -1)) throw new HttpError(502, `${host}'s ledmap holds something other than LED numbers`);
   return { width, height, map: map as number[] };
+}
+
+/** Why a loaded ledmap gives the matrix no cells of its own, so it stays the full grid it was before ledmaps were read; null when it fits. */
+function ledmapUnused(map: WledLedmap | null | undefined, wled: WledInfo): string | null {
+  const matrix = wled.matrix;
+  if (!map || !matrix) return null;
+  if (map.map.length !== map.width * map.height) return `its ledmap lists ${map.map.length} LEDs for ${map.width} × ${map.height} places`;
+  if (map.width !== matrix.w || map.height !== matrix.h) return `its ledmap is ${map.width} × ${map.height} and its matrix ${matrix.w} × ${matrix.h}`;
+  return null;
 }
 
 /**
@@ -275,7 +283,7 @@ function readLedmap(raw: unknown, wled: WledInfo, host: string): WledLedmap {
  */
 function ledmapCells(map: WledLedmap | null | undefined, wled: WledInfo, segment: WledSegment | null = null): LedmapCell[] | null {
   const matrix = wled.matrix;
-  if (!map || !matrix || map.width !== matrix.w || map.height !== matrix.h) return null;
+  if (!map || !matrix || ledmapUnused(map, wled)) return null;
   const grid = segment ? segment.grid : { columns: matrix.w, rows: matrix.h };
   if (!grid) return null;
   const at = segment ? segment.at : 0;
@@ -502,6 +510,7 @@ export {
   readSegments,
   readLedmap,
   ledmapCells,
+  ledmapUnused,
   wledProfile,
   wledSpan,
   wledSeat,
