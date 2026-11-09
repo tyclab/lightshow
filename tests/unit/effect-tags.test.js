@@ -177,7 +177,7 @@ test('the 113 visible looks make 79 cards: fourteen effects with their presets a
   const tagged = (tag) => [...cards.values()].filter((ids) => ids.some((id) => VISIBLE.find((r) => r.id === id).tags.includes(tag))).length;
   assert.deepEqual(Object.fromEntries(Object.keys(TAGS).map((tag) => [tag, tagged(tag)])), {
     beat: 57, static: 7, bands: 17, level: 4, sections: 3, screen: 1,
-    rig: 13, room: 13, bars: 21, ownColours: 8, energy: 5, rapid: 2,
+    rig: 13, room: 13, bars: 21, ownColours: 8, energy: 5, rapid: 9,
   });
 });
 
