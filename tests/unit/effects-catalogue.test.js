@@ -48,10 +48,11 @@ test("every public catalogue spec validates", () => {
   for (const p of CATALOGUE.filter((c) => !c.legacy)) assert.doesNotThrow(() => validateSpec(p.spec), p.id);
 });
 
-test("own looks retain their legacy pattern ids", () => {
+test("own looks retain their legacy pattern ids, or play their v2 form once redirected", () => {
   for (const id of LOOKS) {
-    assert.ok(PATTERN_IDS.includes(id), id);
-    assert.strictEqual(presetById(id).legacy, true, id);
+    const redirected = Object.hasOwn(CLASSIC_REDIRECTS, id);
+    assert.strictEqual(PATTERN_IDS.includes(id), !redirected, id);
+    assert.deepStrictEqual([presetById(id).legacy, presetById(id).party], redirected ? [undefined, true] : [true, true], id);
   }
 });
 
@@ -251,7 +252,7 @@ const LINKS = {
 
 test("own looks retain legacy pattern metadata", () => {
   const legacy = CATALOGUE.filter((p) => p.legacy);
-  assert.deepStrictEqual(legacy.map((p) => p.id), LOOKS);
+  assert.deepStrictEqual(legacy.map((p) => p.id), LOOKS.filter((id) => !Object.hasOwn(CLASSIC_REDIRECTS, id)));
   for (const p of legacy) {
     assert.ok(!('spec' in p), `${p.id} has no effect to render`);
     assert.ok(p.id in PATTERN_FUNCS, p.id);

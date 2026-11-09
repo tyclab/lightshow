@@ -6,7 +6,7 @@
 import test from 'node:test';
 import assert from 'node:assert';
 import { PATTERN_FUNCS, CELL_PATTERNS, LAMP_PATTERNS, PARTY_PATTERNS, roomOf, MAX_LAMP_FLASH_HZ, BACKLIGHT } from '../../src/shared/patterns.ts';
-import { PATTERNS, COLOR_PRESETS } from '../../src/server/presets.ts';
+import { COLOR_PRESETS, CLASSIC_LOOKS } from '../../src/server/presets.ts';
 import { buildRig } from '../../src/shared/rig.ts';
 import { renderLayer } from '../../src/shared/layer.ts';
 import { EXPRESSION_REST, HUE_PULSE_MS, HUE_PULSE_FLOOR } from '../../src/shared/look-math.ts';
@@ -61,7 +61,7 @@ test('party effects register on their fixture or pixel level', () => {
     assert.strictEqual(PATTERN_FUNCS[id], PARTY_PATTERNS[id], id);
     assert.strictEqual(LAMP_PATTERNS.has(id), lamps.includes(id), id);
     assert.strictEqual(CELL_PATTERNS.has(id), !lamps.includes(id), id);
-    const entry = PATTERNS.find((p) => p.id === id);
+    const entry = CLASSIC_LOOKS.find((p) => p.id === id);
     assert.ok(entry && entry.party === true && !entry.pixel, `${id} is listed as a party effect`);
   }
 });
