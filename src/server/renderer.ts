@@ -656,7 +656,7 @@ function createRenderer({ profileOf, profilesRevision = () => 0, now = performan
   }
 
   // Derive pattern steps from musical position so timers and seeks cannot cause phase drift.
-  function renderPattern(input: FrameInput, rigNow: Rig<RenderFixture>, reading: MusicalTime): void {
+  function renderPattern(input: FrameInput, rigNow: Rig<RenderFixture>, reading: MusicalTime, hidden: boolean): void {
     if (!input.running) return;
     if (baseKinds) { baseKind.fill(null); baseKinds = false; }
     const pixelPattern = rigNow.hasPixels && input.pixelPattern ? input.pixelPattern : null;
@@ -676,12 +676,13 @@ function createRenderer({ profileOf, profilesRevision = () => 0, now = performan
       panelPattern,
     };
     if (!known && !knownPixel && !panelPattern) {
-      renderLayer(rigNow, look, null, setUnitColor, { skipPattern: true, skipPixelPattern: true, skipPanelPattern: true });
+      if (!hidden) renderLayer(rigNow, look, null, setUnitColor, { skipPattern: true, skipPixelPattern: true, skipPanelPattern: true });
       return;
     }
 
     const fixtureCount = input.fixtures.length;
     const { step, anchor: from, division } = patternStep(input, reading);
+    if (hidden) return;
     const lookKey = `${step}|${input.colorA},${input.colorB},${input.colorC},${input.colorD}|${input.split}|${fixtureCount}|${JSON.stringify([input.basePalette, input.overridePalette, input.paletteOverride])}`;
     const pixels = `|${rigNow.hasPixels ? rigNow.units.length : ''}|${input.pixelMap}|${panelPattern}`;
     let skipPattern = !known;
@@ -723,7 +724,7 @@ function createRenderer({ profileOf, profilesRevision = () => 0, now = performan
   }
 
   function renderBaseEffect(input: FrameInput, rigNow: Rig<RenderFixture>, reading: MusicalTime, fb: FrameBase,
-    commands: ReturnType<typeof takeCommands>): void {
+    commands: ReturnType<typeof takeCommands>, hidden: boolean): void {
     const cells = baseCells!;
     const def = kindOf(input.effect!.kind);
     if (!input.running) {
@@ -743,6 +744,15 @@ function createRenderer({ profileOf, profilesRevision = () => 0, now = performan
     }
     const { anchor: from, division } = patternStep(input, reading);
     const instance = baseInstance(input, from, division, fb.nowMs);
+    if (hidden) {
+      // Kept like a held look, so the sweep spares it and it resumes, not relaunches, when the picture ends.
+      stepper.keep(instance.id, fb.nowMs);
+      baseKind.fill(null);
+      baseOwner.length = 0;
+      baseKinds = false;
+      commands.decide(false);
+      return;
+    }
     let prepared = false;
     const prepare = (state: unknown) => {
       prepared = true;
@@ -1018,11 +1028,17 @@ function createRenderer({ profileOf, profilesRevision = () => 0, now = performan
       fb.unitSpace = space && space.n === rigNow.units.length ? space : null;
     }
     const commands = takeCommands(input);
+    // The room picture paints units without a live pixel stream, below voices and overrides.
+    const art = input.programmePlaying !== false && input.safety.acknowledged && input.picture && now < input.picture.expiresAt
+      && input.picture.data instanceof Uint8Array && input.picture.data.length === rigNow.units.length * 3 ? input.picture : null;
+    // A picture on every unit hides the base layer, so it is not drawn unless a command must reach its state.
+    // Sequences still play: a one-shot activation missed under the picture would never fire.
+    const hidden = !!art && !commands.due.length;
 
-    if (input.effect) renderBaseEffect(input, rigNow, reading, fb!, commands);
+    if (input.effect) renderBaseEffect(input, rigNow, reading, fb!, commands, hidden);
     else {
       commands.decide(false);
-      renderPattern(input, rigNow, reading);
+      renderPattern(input, rigNow, reading, hidden);
     }
     renderSequence(input, rigNow, fb);
 
@@ -1059,10 +1075,7 @@ function createRenderer({ profileOf, profilesRevision = () => 0, now = performan
       .filter((p) => now < p.expiresAt && p.data instanceof Uint8Array && p.data.length === p.width * p.height * 3)
       .map((p) => [p.fixtureId, p]));
     const pixelOwners: (string | null)[] = new Array(rigNow.units.length).fill(null);
-    // The room picture paints units without a live pixel stream, below voices and overrides.
-    // Both come from a screen: their bytes are lifted off the black point, decoded first when asked.
-    const art = input.programmePlaying !== false && input.safety.acknowledged && input.picture && now < input.picture.expiresAt
-      && input.picture.data instanceof Uint8Array && input.picture.data.length === rigNow.units.length * 3 ? input.picture : null;
+    // Picture and pixel streams both come from a screen: their bytes are lifted off the black point, decoded first when asked.
     const { levels, gains } = liftFor(input);
     const watch = !!voiceTop || baseKinds || seqUnits;
     const scope = backgroundScope(input.background, rigNow.cellMaps, (i) => fixtures[i].id);
