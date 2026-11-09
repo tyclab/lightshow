@@ -2225,10 +2225,10 @@ The UI token does not open it and the worker token opens nothing else.
 The UI uses Socket.IO rather than polling. Clients send `set`, `override`,
 `fixture`, `tap`, `voice-hold`, `energy-hold` and `midi-connect`; the server emits
 `auto-position`, `midi-status`, `midi-map`, `midi-learn` and `error-msg`, and
-the state in one of two forms, chosen when the client connects:
+the state in protocol 2:
 
-- **Protocol 2** — asked for with `auth: { protocol: 2 }`; what the live page
-  uses. A `snapshot` on connect (`{ protocol, versions, state }`), then
+- **Protocol 2** — asked for with `auth: { protocol: 2 }`; a client that asks
+  for none is answered the same way. A `snapshot` on connect (`{ protocol, versions, state }`), then
   `patch` events carrying only the keys that changed, grouped by domain (`look`,
   `rig`, `show`, `sources`, `audio`, `sequence`, `catalogs`, `library`,
   `voices`, `pads`, `system`) and numbered per domain:
@@ -2254,12 +2254,6 @@ the state in one of two forms, chosen when the client connects:
   once on subscribing. The live page holds the DMX and picture topics only
   while its tab is visible: hidden, it unsubscribes, and shown again it
   subscribes.
-- **Protocol 1** — anything that does not ask, such as the Companion module
-  before 2.1: `state` (the full snapshot on connect, the
-  whole live state, fixtures and profiles included, again whenever any of it
-  changes) and `dmx` (channel values
-  as JSON, keyed by universe, ten times a second — built only while such a
-  client is connected).
 
 The `voice-hold` message holds a voice while a button is down:
 `{ action: 'press' | 'renew' | 'release', token, pad?: { bank, slot }, effect?, targets? }`.
@@ -2314,7 +2308,7 @@ supervisor and effect/voice/sequence counts. Disarmed is informational. In
 pre-show engine check and the Settings → Engine note read the last minute only,
 so a stall at start-up stops warning a minute later. `renderedTotal` counts the
 ticks that rendered a frame. `idle` is true while the outputs are disarmed, no
-page watches the DMX feed or protocol 1 and no identify runs: the engine then
+page watches the DMX feed and no identify runs: the engine then
 renders every ninth tick (about 5 a second), and every tick again as soon as a
 change, an effect command or an Art-Net retirement waits on a frame. `eventLoop`
 gives the main thread's delay in milliseconds over the last 30 s window: the
@@ -2345,10 +2339,10 @@ both are null while the engine renders on the main thread, and from a start or a
 thread restart until that thread's first report. `liveQuiet` is true while the live input hears digital
 silence and reports four states a second, false while it hears sound, and null
 while it is not listening. `awake` lists what keeps the engine from idling:
-`armed`, `dmx` (a page on the DMX feed), `v1` (a client on the original
-protocol) or `identify`; an empty list with `idle` false means a frame is still
+`armed`, `dmx` (a page on the DMX feed) or `identify`; an empty list with `idle` false means a frame is still
 owed (a barrier wait, an effect command or an Art-Net route). Each client's
-connect line names its protocol, address and user agent.
+connect line names the protocol it asked for (`none` for a client too old to ask),
+its address and its user agent.
 
 The existing Docker log collector can query these records without another
 endpoint or credential. For example, in Loki:
