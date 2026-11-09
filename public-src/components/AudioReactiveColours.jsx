@@ -19,29 +19,29 @@ export function shuffleColours(colours, random = Math.random) {
   return next;
 }
 
-const isVisualizerSpec = (spec) => spec?.kind === 'ldj.visualizer';
+const isAudioReactiveSpec = (spec) => spec?.kind === 'ldj.visualizer';
 const MELLOW = new Set(['swirl', 'wave', 'solid']);
 
-/** The built-in Visualizer looks as the header offers them: the hits (Active) and the bed between them (Mellow). */
-export function visualizerChoices(library) {
-  return (library.builtin || []).filter((p) => isVisualizerSpec(p.spec)).map((p) => {
+/** The built-in Audio-reactive looks as the picker offers them: the hits (Active) and the bed between them (Mellow). */
+export function audioReactiveChoices(library) {
+  return (library.builtin || []).filter((p) => isAudioReactiveSpec(p.spec)).map((p) => {
     const mode = p.id.split('.').pop();
-    return { id: p.id, name: p.name.replace(/^Visualizer\s+/, ''), group: MELLOW.has(mode) ? 'Mellow' : 'Active' };
+    return { id: p.id, name: p.name.replace(/^Audio-reactive\s+/, ''), group: MELLOW.has(mode) ? 'Mellow' : 'Active' };
   });
 }
 
-/** Whether the effect `id` names is a Visualizer, built in or saved here. */
-export function isVisualizer(id, library) {
-  return isVisualizerSpec([...(library.builtin || []), ...(library.user || [])].find((p) => p.id === id)?.spec);
+/** Whether the effect `id` names is an Audio-reactive look, built in or saved here. */
+export function isAudioReactive(id, library) {
+  return isAudioReactiveSpec([...(library.builtin || []), ...(library.user || [])].find((p) => p.id === id)?.spec);
 }
 
-export function VisualizerColours() {
+export function AudioReactiveColours() {
   const s = pick(['pattern', 'paletteOverride', 'overridePalette', 'basePalette', 'colorPresets', 'colorA', 'colorB']);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const library = librarySig.value;
   const preset = [...(library.builtin || []), ...(library.user || [])].find((p) => p.id === s.pattern);
-  if (!isVisualizerSpec(preset?.spec)) return null;
+  if (!isAudioReactiveSpec(preset?.spec)) return null;
   const spec = preset.spec;
   const body = s.overridePalette ?? (s.paletteOverride?.length ? { colours: s.paletteOverride }
     : spec.palette?.length ? { colours: spec.palette, ...gradientSettings(spec) }
@@ -53,13 +53,13 @@ export function VisualizerColours() {
       if (!r.ok) setError(r.error || 'Could not change colours');
     } finally { setBusy(false); }
   };
-  return <section class="card visualizer-colours" aria-label="Lighting visualizer colours">
-    <fieldset disabled={busy}><legend>Live visualizer colours</legend>
+  return <section class="card audio-reactive-colours" aria-label="Audio-reactive colours">
+    <fieldset disabled={busy}><legend>Live Audio-reactive colours</legend>
       <div class="palette-tools">{body.colours.map((colour, index) => <label key={index}>
         {index === 0 ? 'Background' : index === 1 ? 'Hit colour' : `Colour ${index + 1}`}
         <input type="color" value={pickerValue(colour)} onChange={(e) => apply(body.colours.map((c, i) => i === index ? replaceRgb(c, e.target.value) : c))} />
       </label>)}</div>
-      <button type="button" class="btn" disabled={body.colours.length < 2} onClick={() => apply(shuffleColours(body.colours))}>Shuffle visualizer colours</button>
+      <button type="button" class="btn" disabled={body.colours.length < 2} onClick={() => apply(shuffleColours(body.colours))}>Shuffle Audio-reactive colours</button>
       <p class="setting-help">Changes the shared palette override immediately. White, amber and UV channels are retained; Edit palette above exposes all channels and gradients.</p>
       {spec.params.autoColours && <p class="setting-help">This preset also chooses colours automatically. Turn off Auto colours in its effect editor to hold your choices.</p>}
       {error && <p role="status">{error}</p>}

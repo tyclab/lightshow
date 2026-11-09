@@ -35,10 +35,10 @@ const period = (mellow: VisualizerMellow) => mellow === 'wave' ? 8 : 1;
 export const VISUALIZER_DEFAULTS: VisualizerParams = { active: 'firework', mellow: 'swirl', trigger: .3, autoColours: false };
 
 export const VISUALIZER_PRESETS: { id: string; name: string; params: VisualizerParams }[] = ([
-  ['firework', 'Visualizer Firework', 'firework', 'swirl'], ['flash', 'Visualizer Flash', 'flash', 'swirl'],
-  ['splotch', 'Visualizer Splotch', 'splotch', 'swirl'], ['pulse', 'Visualizer Pulse', 'pulse', 'swirl'],
-  ['solid', 'Visualizer Solid', 'firework', 'solid'], ['swirl', 'Visualizer Swirl', 'firework', 'swirl'],
-  ['wave', 'Visualizer Wave', 'firework', 'wave'],
+  ['firework', 'Audio-reactive Firework', 'firework', 'swirl'], ['flash', 'Audio-reactive Flash', 'flash', 'swirl'],
+  ['splotch', 'Audio-reactive Splotch', 'splotch', 'swirl'], ['pulse', 'Audio-reactive Pulse', 'pulse', 'swirl'],
+  ['solid', 'Audio-reactive Solid', 'firework', 'solid'], ['swirl', 'Audio-reactive Swirl', 'firework', 'swirl'],
+  ['wave', 'Audio-reactive Wave', 'firework', 'wave'],
 ] as const).map(([mode, name, active, mellow]) => ({ id: `ldj.visualizer.${mode}`, name, params: { ...VISUALIZER_DEFAULTS, active, mellow } }));
 
 export function mixSpike(draw: number): Exclude<SpikeMode, 'splotch'> {

@@ -195,18 +195,23 @@ test("entertainment catalogue has 162 distinct preset rows", () => {
   }
 });
 
-test("visualizer presets pair spikes with backgrounds", () => {
+test("Audio-reactive presets pair spikes with backgrounds and keep their visualizer ids", () => {
   const pairs = CLASSES['preset:visualizer'].map((o) => {
     const preset = presetById(LDJ_IDS[o].id);
     assert.strictEqual(preset.spec.kind, 'ldj.visualizer');
     assert.strictEqual(preset.family, 'ldj.visualizer');
-    return [preset.id, preset.spec.params.active, preset.spec.params.mellow];
+    assert.strictEqual(preset.desc, 'Audio-reactive: hits on loud beats over a calm bed', preset.id);
+    return [preset.id, preset.name, preset.spec.params.active, preset.spec.params.mellow];
   });
   assert.deepStrictEqual(pairs, [
-    ['ldj.visualizer.firework', 'firework', 'swirl'], ['ldj.visualizer.flash', 'flash', 'swirl'],
-    ['ldj.visualizer.splotch', 'splotch', 'swirl'], ['ldj.visualizer.pulse', 'pulse', 'swirl'],
-    ['ldj.visualizer.solid', 'firework', 'solid'], ['ldj.visualizer.swirl', 'firework', 'swirl'], ['ldj.visualizer.wave', 'firework', 'wave'],
+    ['ldj.visualizer.firework', 'Audio-reactive Firework', 'firework', 'swirl'], ['ldj.visualizer.flash', 'Audio-reactive Flash', 'flash', 'swirl'],
+    ['ldj.visualizer.splotch', 'Audio-reactive Splotch', 'splotch', 'swirl'], ['ldj.visualizer.pulse', 'Audio-reactive Pulse', 'pulse', 'swirl'],
+    ['ldj.visualizer.solid', 'Audio-reactive Solid', 'firework', 'solid'], ['ldj.visualizer.swirl', 'Audio-reactive Swirl', 'firework', 'swirl'],
+    ['ldj.visualizer.wave', 'Audio-reactive Wave', 'firework', 'wave'],
   ]);
+  assert.strictEqual(FAMILIES.find((f) => f.id === 'ldj.visualizer').name, 'Audio-reactive');
+  // "Visualizer" names the picture source; no entertainment row or family borrows it.
+  for (const p of ldjRows()) assert.doesNotMatch(`${p.name} ${p.desc}`, /Visualizer/, p.id);
 });
 
 test("bitmap presets share one engine kind", () => {
@@ -273,7 +278,7 @@ test("entertainment names follow the catalogue labels", () => {
   assert.strictEqual(name('ldj.SMStudioN3Pulse'), 'Studio Pulse 4');
   assert.strictEqual(name('ldj.SMStudioN5PulseMulti'), 'Studio Pulse 8 Multi');
   assert.strictEqual(name('ldj.SMStudioN4Fill'), 'Studio Fill 6');
-  assert.strictEqual(name('ldj.visualizer.splotch'), 'Visualizer Splotch');
+  assert.strictEqual(name('ldj.visualizer.splotch'), 'Audio-reactive Splotch');
   assert.strictEqual(name('ldj.bitmap.OGGrooveWave'), 'OG Groove Wave');
   assert.strictEqual(name('ldj.bitmap.SolidBGSineWave'), 'Backlit Sine Wave');
   assert.strictEqual(name('ldj.bitmap.VertLines'), 'Vertical Lines');
@@ -335,7 +340,7 @@ test("built-in palettes preserve app order and colours", () => {
     ['rainbow', 'ldj', ['#FF0000', '#FF9900', '#FFFF00', '#00FF00', '#00BFFF', '#2A00FF', '#AA00FF', '#FF0095']],
     ['hdDefault', 'hd', ['#A855F7', '#22D3EE', '#F472B6']], ['hdStrobe', 'hd', ['#FFFFFF']],
   ]);
-  // One source: the catalogue's entertainment palettes are the Visualizer's own records.
+  // One source: the catalogue's entertainment palettes are the Audio-reactive looks' own records.
   BUILTIN_PALETTES.filter((p) => p.app === 'ldj').forEach((p, i) => assert.strictEqual(p, LDJ_PALETTES[i]));
 });
 

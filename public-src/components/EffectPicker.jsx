@@ -3,7 +3,7 @@ import { librarySig, pick, send } from '../state.js';
 import { acknowledgeThen } from './Photosensitivity.jsx';
 import { NowPlaying } from './NowPlaying.jsx';
 import { PhotosensitivityConfirm, byName, catalogueOf, iconOf, matchesSearch, quickDeck, readFavourites, tapRow } from './Effects.jsx';
-import { VisualizerColours, isVisualizer, visualizerChoices } from './VisualizerColours.jsx';
+import { AudioReactiveColours, audioReactiveChoices, isAudioReactive } from './AudioReactiveColours.jsx';
 
 const coarse = () => typeof window !== 'undefined' && typeof window.matchMedia === 'function' && window.matchMedia('(pointer: coarse)').matches;
 
@@ -20,10 +20,10 @@ function Choice({ row, active, onChoose, big = false, twin = false }) {
 
 /**
  * The main effect, one tap from the header: the favourites, your presets and the party looks first, then
- * every look A to Z. A tap puts it on stage and leaves the picker open for the next one. With the
- * visualizer picture chosen, or a Visualizer on stage, its looks and colours come first.
+ * every look A to Z. A tap puts it on stage and leaves the picker open for the next one. With an
+ * Audio-reactive look on stage, the other looks of that family and its colours come first, whatever paints the room.
  */
-export function EffectPicker({ source, hint, onClose }) {
+export function EffectPicker({ hint, onClose }) {
   const s = pick(['pattern', 'patterns', 'effects', 'families', 'safety']);
   const lib = librarySig.value;
   const families = s.families || lib.families || [];
@@ -41,8 +41,7 @@ export function EffectPicker({ source, hint, onClose }) {
   // Looks that share a name say which is which under it.
   const named = new Map();
   for (const row of rows) named.set(row.name, (named.get(row.name) || 0) + 1);
-  const visualizer = source === 'visualizer' || isVisualizer(playingId, lib);
-  const looks = visualizer ? visualizerChoices(lib) : [];
+  const looks = isAudioReactive(playingId, lib) ? audioReactiveChoices(lib) : [];
   const choose = (row) => tapRow(row, acknowledged, setConfirm);
 
   // A keyboard goes straight to the search; a finger gets the list, not the on-screen keyboard over it.
@@ -55,20 +54,20 @@ export function EffectPicker({ source, hint, onClose }) {
         <button type="button" class="btn sm" onClick={onClose}>Close</button>
       </div>
       <p class="picker-hint">{hint}</p>
-      {looks.length > 0 && <div class="picker-visualizer" role="group" aria-label="Visualizer looks">
+      {looks.length > 0 && <div class="picker-audio-reactive" role="group" aria-label="Audio-reactive looks">
         {['Active', 'Mellow'].map((group) => (
-          <div key={group} class="picker-visualizer-row" role="group" aria-label={`Visualizer ${group}`}>
-            <span class="picker-visualizer-label" aria-hidden="true">{group}</span>
+          <div key={group} class="picker-audio-reactive-row" role="group" aria-label={`Audio-reactive ${group}`}>
+            <span class="picker-audio-reactive-label" aria-hidden="true">{group}</span>
             {looks.filter((look) => look.group === group).map((look) => (
               <button key={look.id} type="button" class={`btn sm${playingId === look.id ? ' active' : ''}`} aria-pressed={playingId === look.id}
-                aria-label={`Visualizer ${look.name}`} onClick={() => choose(rows.find((row) => row.id === look.id) || { id: look.id, rapidFlash: true, name: look.name })}>
+                aria-label={`Audio-reactive ${look.name}`} onClick={() => choose(rows.find((row) => row.id === look.id) || { id: look.id, rapidFlash: true, name: look.name })}>
                 {look.name}
               </button>
             ))}
           </div>
         ))}
       </div>}
-      <VisualizerColours />
+      <AudioReactiveColours />
       <input ref={search} class="picker-search" type="search" aria-label="Find an effect" placeholder="Find an effect" value={q}
         onInput={(e) => setQ(e.currentTarget.value)} />
       {deck.length > 0 && <div class="picker-deck" role="group" aria-label="Quick effects">

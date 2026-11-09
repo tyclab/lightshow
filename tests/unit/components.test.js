@@ -539,7 +539,7 @@ test("the entertainment Swirl inspector omits a backlit variant", () => {
   assert.doesNotMatch(html, />Backlit</);
 });
 
-test("Visualizer inspector exposes activity and automatic colours", () => {
+test("Audio-reactive inspector exposes activity and automatic colours", () => {
   givenLibrary({});
   const html = ui.html(ui.h(ui.Inspector, { id: 'ldj.visualizer.firework' }));
   for (const label of ['Active', 'Mellow', 'Auto colours']) assert.match(html, new RegExp(`>${label}<`), label);
@@ -1100,25 +1100,47 @@ test('the play button is Stop while the programme plays, Start (or Resume) other
   assert.match(paused, />Resume<\/span><\/button>/);
 });
 
-test('a Visualizer look reads as the Visualizer\'s own, and the picker offers the Visualizer looks with their colours', () => {
-  givenLibrary({ pattern: ui.CATALOGUE.find((row) => row.name === 'Visualizer Splotch').id, picture: { source: 'visualizer', input: { units: 4, receiving: true } }, armed: true });
-  const header = ui.html(ui.h(ui.Header));
-  assert.match(header, /aria-label="Visualizer: Splotch"/);
-  const picker = ui.html(ui.h(ui.EffectPicker, { source: 'visualizer', hint: 'Visualizer picture on 4 lamp cells', onClose: () => {} }));
-  assert.match(picker, /role="dialog" aria-label="Main effect"/);
-  assert.match(picker, /Visualizer picture on 4 lamp cells/);
-  const looks = /aria-label="Visualizer looks">(.*?)<input/s.exec(picker)[1];
-  for (const [group, names] of [['Active', ['Firework', 'Flash', 'Splotch', 'Pulse']], ['Mellow', ['Solid', 'Swirl', 'Wave']]]) {
-    const row = new RegExp(`aria-label="Visualizer ${group}">(.*?)</div>`, 's').exec(looks)[1];
-    assert.deepStrictEqual([...row.matchAll(/aria-label="Visualizer (\w+)"/g)].map((m) => m[1]), names, group);
-  }
-  assert.match(looks, /aria-pressed="true" aria-label="Visualizer Splotch"/, 'the one on stage is pressed');
-  assert.match(picker, /aria-label="Lighting visualizer colours"/, 'its colours beside its looks');
-  givenLibrary({ picture: { source: 'effects', input: null } });
-  const plain = ui.html(ui.h(ui.EffectPicker, { source: 'effects', hint: '', onClose: () => {} }));
-  assert.doesNotMatch(plain, /Visualizer looks|Lighting visualizer colours/, 'neither without the visualizer');
-  assert.match(plain, /class="picker-choice big active" data-id="hd.neonDomino" aria-pressed="true"|class="picker-choice active" data-id="hd.neonDomino" aria-pressed="true"/, 'the main effect is marked');
+test('the Visualizer segment names the picture while it paints and the effect until then, and never strips a look\'s name', () => {
+  const splotch = ui.CATALOGUE.find((row) => row.name === 'Audio-reactive Splotch').id;
+  const segment = () => /<button[^>]*aria-pressed="true"[^>]*>.*?<\/button>/s.exec(ui.html(ui.h(ui.PictureSource)))[0];
+  givenLibrary({ picture: { source: 'visualizer', input: { units: 4, receiving: true } }, armed: true });
+  const painting = segment();
+  assert.match(painting, /aria-haspopup="dialog"[^>]*aria-label="Visualizer: picture" title="The picture paints the room; effects return 2 s after it stops\. Choose the fallback effect \(E\)\."/,
+    'the fallback effect is still chosen from the segment');
+  assert.match(painting, /class="picture-segment-effect">picture</);
+  givenLibrary({ picture: { source: 'visualizer', input: null }, armed: true });
+  assert.match(segment(), new RegExp(`aria-label="Visualizer: ${domino.name}" title="No picture arriving — effects show meanwhile\\. Until the picture arrives: choose the effect \\(E\\)\\."`));
+  givenLibrary({ pattern: splotch, picture: { source: 'visualizer', input: { units: 4, receiving: false } }, armed: true });
+  assert.match(segment(), /aria-label="Visualizer: Audio-reactive Splotch"/, 'a look is never read as the picture\'s own');
+  givenLibrary({ pattern: splotch, picture: { source: 'inspired', input: { units: 4, receiving: true } } });
+  assert.match(segment(), /aria-label="Colour \+ motion: Audio-reactive Splotch" title="Picture colours and motion drive spatial effects\. Choose the main effect \(E\)\."/);
+  givenLibrary({ pattern: splotch, picture: { source: 'effects', input: { units: 4, receiving: true } } });
+  assert.match(segment(), /aria-label="Effects: Audio-reactive Splotch"/);
+});
+
+test('the picker offers the Audio-reactive looks and their colours only while one is on stage, whatever the picture source', () => {
+  const splotch = ui.CATALOGUE.find((row) => row.name === 'Audio-reactive Splotch').id;
+  const receiving = { units: 4, receiving: true };
+  givenLibrary({ picture: { source: 'visualizer', input: receiving }, armed: true });
+  const plain = ui.html(ui.h(ui.EffectPicker, { hint: 'Visualizer picture on 4 lamp cells', onClose: () => {} }));
+  assert.match(plain, /role="dialog" aria-label="Main effect"/);
+  assert.match(plain, /Visualizer picture on 4 lamp cells/);
+  assert.doesNotMatch(plain, /Audio-reactive looks|Audio-reactive colours|Visualizer looks/, 'the Visualizer picture brings no looks of its own');
+  assert.match(plain, /class="picker-choice(?: big)? active" data-id="hd\.neonDomino" aria-pressed="true"/, 'the main effect is marked');
   assert.match(plain, /aria-label="Every effect"/);
+  for (const source of ['effects', 'inspired', 'visualizer']) {
+    givenLibrary({ pattern: splotch, picture: { source, input: receiving }, armed: true });
+    const picker = ui.html(ui.h(ui.EffectPicker, { hint: '', onClose: () => {} }));
+    const looks = /aria-label="Audio-reactive looks">(.*?)<input/s.exec(picker)?.[1];
+    assert.ok(looks, `${source}: the looks while an Audio-reactive look plays`);
+    for (const [group, names] of [['Active', ['Firework', 'Flash', 'Splotch', 'Pulse']], ['Mellow', ['Solid', 'Swirl', 'Wave']]]) {
+      const row = new RegExp(`aria-label="Audio-reactive ${group}">(.*?)</div>`, 's').exec(looks)[1];
+      assert.deepStrictEqual([...row.matchAll(/<button[^>]*>([^<]*)<\/button>/g)].map((m) => m[1]), names, `${source} ${group}: the look name alone`);
+    }
+    assert.match(looks, /aria-pressed="true" aria-label="Audio-reactive Splotch"/, 'the one on stage is pressed');
+    assert.match(picker, /aria-label="Audio-reactive colours"><fieldset><legend>Live Audio-reactive colours<\/legend>/, 'its colours beside its looks');
+    assert.match(picker, />Shuffle Audio-reactive colours</);
+  }
 });
 
 test('the Colours card gives way to one line while the picture sets the colours', () => {
