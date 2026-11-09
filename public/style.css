@@ -1423,7 +1423,7 @@ input[type=range]::-moz-range-thumb {
 /* A/B compare: a sheet like the inspector, one block per pair; the pair the keys act on is outlined. */
 .effects-compare { align-self: flex-start; }
 .ab-title { justify-content: space-between; }
-.ab-title h2 { margin: 0; font-size: inherit; }
+.ab-title h2 { flex: 1; margin: 0; font-size: inherit; }
 .ab-disarmed { margin: 0 0 8px; padding: 6px 8px; border: 1px solid var(--amber); border-radius: var(--radius); font-size: 12px; }
 .ab-pair { margin: 0 0 8px; padding: 8px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); }
 .ab-pair.current { border-color: var(--accent); }

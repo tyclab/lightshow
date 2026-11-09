@@ -54,7 +54,7 @@ test('an ad-hoc side plays under an ab: id that resolves to one frozen spec, and
   assert.deepEqual(spec, validateSpec({ kind: 'v2.scatter', params: { density: 0.3, stepBeats: 0.25 } }), 'validated, defaults filled');
   assert.ok(Object.isFrozen(spec) && Object.isFrozen(spec.params));
   assert.equal(adHocSpecs([{ ...PAIRS[1], b: { kind: 'v2.nothing', params: {}, name: 'x' } }]).size, 0, 'an invalid side plays nothing');
-  for (const id of ['solid', 'v2.wash', 'ab:', 'ab:missing:b', 'ab:strobe-vs-scatter:c']) assert.equal(abSpec(id), null, id);
+  for (const id of ['solid', 'v2.wash', 'ab:', 'ab:missing:b', 'ab:strobe-vs-scatter:c', undefined, null]) assert.equal(abSpec(id), null, id);
   assert.equal(abName('solid'), null);
   assert.equal(abName('ab:missing:b'), null);
 });

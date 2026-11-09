@@ -146,19 +146,34 @@ export function ComparePanel({ onClose }) {
     setData({ ...data, decisions });
     if (!row.decision) setChosenKey(compareRows(data.candidates, decisions).pending[0]?.key ?? row.key);
   };
-  const onKeyDown = (e) => {
-    const action = compareKey(e);
-    if (!action || !current) return;
-    e.preventDefault();
-    play(current, action === 'flip' ? flipSide(playingSide(current, s.pattern)) : action);
-  };
-  // A button takes Space on key up: the flip has happened already.
-  const onKeyUp = (e) => { if (compareKey(e) === 'flip') e.preventDefault(); };
+  // A decided pair moves, and the button pressed with it: focus stays in the panel.
+  useEffect(() => {
+    if (box.current && !box.current.contains(document.activeElement)) box.current.focus();
+  }, [data.decisions]);
+  const keys = useRef(null);
+  keys.current = { current, confirm, play, pattern: s.pattern };
+  // Heard before the tap and view shortcuts on the document, which skip a key once it is taken.
+  useEffect(() => {
+    const down = (e) => {
+      const { current: pair, confirm: asking, play: run, pattern } = keys.current;
+      const action = compareKey(e);
+      if (!action || !pair || asking) return;
+      e.preventDefault();
+      run(pair, action === 'flip' ? flipSide(playingSide(pair, pattern)) : action);
+    };
+    // A focused button takes Space on key up: the swap has happened already.
+    const up = (e) => { if (compareKey(e) === 'flip' && !keys.current.confirm) e.preventDefault(); };
+    document.addEventListener('keydown', down, true);
+    document.addEventListener('keyup', up, true);
+    return () => {
+      document.removeEventListener('keydown', down, true);
+      document.removeEventListener('keyup', up, true);
+    };
+  }, []);
 
   return (
     <div class="effect-sheet-veil" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
-      <div ref={box} class="effect-sheet ab-compare" role="dialog" aria-modal="true" aria-labelledby="ab-title" tabIndex={-1}
-        onKeyDown={onKeyDown} onKeyUp={onKeyUp}>
+      <div ref={box} class="effect-sheet ab-compare" role="dialog" aria-modal="true" aria-labelledby="ab-title" tabIndex={-1}>
         <div class="card-title ab-title">
           <h2 id="ab-title">Compare A/B</h2>
           <button type="button" class="btn sm" onClick={onClose}>Close</button>

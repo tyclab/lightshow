@@ -1,6 +1,5 @@
 import { DUPLICATE_CANDIDATES } from './ab-duplicates.ts';
 import { MIGRATION_CANDIDATES } from './ab-migration.ts';
-import { deepFreeze } from './catalogue.ts';
 import { validateSpec } from './registry.ts';
 import type { EffectSpec } from './types.ts';
 
@@ -42,25 +41,34 @@ export function adHocSpecs(candidates: readonly AbCandidate[]): ReadonlyMap<stri
       const ref = candidate[side];
       if ('id' in ref) continue;
       // A side that does not validate plays nothing; the unit test keeps the shipped ones valid.
-      try { specs.set(abPattern(candidate, side), deepFreeze(validateSpec({ kind: ref.kind, params: structuredClone(ref.params) }))); }
+      try { specs.set(abPattern(candidate, side), freeze(validateSpec({ kind: ref.kind, params: structuredClone(ref.params) }))); }
       catch { /* skipped */ }
     }
   }
   return specs;
 }
 
+// The catalogue's deepFreeze is not imported: only entry points may load the catalogue.
+function freeze<T>(value: T): T {
+  if (value !== null && typeof value === 'object' && !Object.isFrozen(value)) {
+    Object.freeze(value);
+    for (const child of Object.values(value)) freeze(child);
+  }
+  return value;
+}
+
 let shipped: ReadonlyMap<string, EffectSpec> | null = null;
 
 /** The spec an `ab:` pattern id plays, or null for any other id. */
-export function abSpec(pattern: string): EffectSpec | null {
-  if (!pattern.startsWith(PREFIX)) return null;
+export function abSpec(pattern: unknown): EffectSpec | null {
+  if (typeof pattern !== 'string' || !pattern.startsWith(PREFIX)) return null;
   shipped ??= adHocSpecs(AB_CANDIDATES);
   return shipped.get(pattern) ?? null;
 }
 
 /** The name an `ab:` pattern id shows while it plays, or null for any other id. */
-export function abName(pattern: string): string | null {
-  if (!pattern.startsWith(PREFIX)) return null;
+export function abName(pattern: unknown): string | null {
+  if (typeof pattern !== 'string' || !pattern.startsWith(PREFIX)) return null;
   for (const candidate of AB_CANDIDATES) {
     for (const side of ['a', 'b'] as const) {
       const ref = candidate[side];
