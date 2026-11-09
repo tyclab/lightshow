@@ -19,9 +19,9 @@ function Choice({ row, active, onChoose, big = false, twin = false }) {
 }
 
 /**
- * The main effect, one tap from the header: the favourites, your presets and the party looks first, then
- * every look A to Z. A tap puts it on stage and leaves the picker open for the next one. With an
- * Audio-reactive look on stage, the other looks of that family and its colours come first, whatever paints the room.
+ * The main effect, one tap from the Effects or Colour + motion segment: the favourites, your presets and the
+ * party looks first, then every look A to Z. A tap puts it on stage and leaves the picker open for the next one.
+ * With an Audio-reactive look on stage, the other looks of that family and its colours come first.
  */
 export function EffectPicker({ hint, onClose }) {
   const s = pick(['pattern', 'patterns', 'effects', 'families', 'safety']);

@@ -125,6 +125,17 @@ desktop sketch above; the rest of the brief stands.
   "Visualizer: <effect>". Its ▾ still opens the effect picker, where the fallback effect is chosen. No
   effect name is shortened to read as the picture's own.
 
+## Revision 2026-11-09, second
+
+The operator, 2026-11-08: "the visualizer button doesnt make sense for me. why does it has effects to
+select?"
+
+The first revision kept the effect picker behind the Visualizer segment, to choose the fallback effect,
+so it did not answer that question. The rule now: the Visualizer segment names no effect and opens
+nothing. It reads "Visualizer", with the picture's hint line as its tooltip; E does nothing while it is
+chosen, and choosing it closes an open picker. The main effect, which still shows while no picture
+arrives, is chosen under Effects or Colour + motion. This replaces the last point of the first revision.
+
 ## Left to the builder
 
 Icons, exact spacing, keyboard shortcuts and accessible names (keep every current label reachable),

@@ -18,12 +18,12 @@ async function load() {
     stdin: {
       contents: `
         export { render as html } from 'preact-render-to-string';
-        export { h } from 'preact';
+        export { h, options } from 'preact';
         export { store } from './public-src/state.js';
         export { Perform, sourceHealth } from './public-src/components/Perform.jsx';
         export { Show } from './public-src/components/Show.jsx';
         export { Header, StatusDetails } from './public-src/components/Header.jsx';
-        export { PictureSource, pickerOpenSig } from './public-src/components/PictureSource.jsx';
+        export { PictureSource, pickerKey, pickerOpenSig } from './public-src/components/PictureSource.jsx';
         export { EffectPicker } from './public-src/components/EffectPicker.jsx';
         export { Bands } from './public-src/components/Bands.jsx';
         export { pictureColours } from './public-src/picture-source.js';
@@ -1100,35 +1100,100 @@ test('the play button is Stop while the programme plays, Start (or Resume) other
   assert.match(paused, />Resume<\/span><\/button>/);
 });
 
-test('the Visualizer segment names the picture while it paints and the effect until then, and never strips a look\'s name', () => {
+/** The picture source as rendered: its markup, the chosen segment's, and the props a click on that segment runs. */
+function pictureSource() {
+  const props = [];
+  const before = ui.options.vnode;
+  ui.options.vnode = (vnode) => { if (vnode.type === 'button' && vnode.props['data-source']) props.push(vnode.props); before?.(vnode); };
+  try {
+    const html = ui.html(ui.h(ui.PictureSource));
+    return { html, chosen: /<button[^>]*aria-pressed="true"[^>]*>.*?<\/button>/s.exec(html)[0], props: props.find((p) => p['aria-pressed'] === 'true') };
+  } finally { ui.options.vnode = before; }
+}
+/** E pressed on the page, outside any field: whether it opened the picker and kept the key. */
+function pressE() {
+  const event = { key: 'e', target: { tagName: 'BODY' }, defaultPrevented: false, preventDefault() { this.defaultPrevented = true; } };
+  const had = Object.hasOwn(globalThis, 'document');
+  globalThis.document ??= { querySelector: () => null };
+  try { ui.pickerKey(event); } finally { if (!had) delete globalThis.document; }
+  return { opened: ui.pickerOpenSig.value, kept: event.defaultPrevented };
+}
+
+test('the Visualizer segment reads Visualizer and its hint: it names no effect, and neither a click nor E opens a picker', () => {
   const splotch = ui.CATALOGUE.find((row) => row.name === 'Audio-reactive Splotch').id;
-  const segment = () => /<button[^>]*aria-pressed="true"[^>]*>.*?<\/button>/s.exec(ui.html(ui.h(ui.PictureSource)))[0];
-  givenLibrary({ picture: { source: 'visualizer', input: { units: 4, receiving: true } }, armed: true });
-  const painting = segment();
-  assert.match(painting, /aria-haspopup="dialog"[^>]*aria-label="Visualizer: picture" title="The picture paints the room; effects return 2 s after it stops\. Choose the fallback effect \(E\)\."/,
-    'the fallback effect is still chosen from the segment');
-  assert.match(painting, /class="picture-segment-effect">picture</);
-  givenLibrary({ picture: { source: 'visualizer', input: null }, armed: true });
-  assert.match(segment(), new RegExp(`aria-label="Visualizer: ${domino.name}" title="No picture arriving — effects show meanwhile\\. Until the picture arrives: choose the effect \\(E\\)\\."`));
-  givenLibrary({ pattern: splotch, picture: { source: 'visualizer', input: { units: 4, receiving: false } }, armed: true });
-  assert.match(segment(), /aria-label="Visualizer: Audio-reactive Splotch"/, 'a look is never read as the picture\'s own');
-  givenLibrary({ pattern: splotch, picture: { source: 'inspired', input: { units: 4, receiving: true } } });
-  assert.match(segment(), /aria-label="Colour \+ motion: Audio-reactive Splotch" title="Picture colours and motion drive spatial effects\. Choose the main effect \(E\)\."/);
-  givenLibrary({ pattern: splotch, picture: { source: 'effects', input: { units: 4, receiving: true } } });
-  assert.match(segment(), /aria-label="Effects: Audio-reactive Splotch"/);
+  const cases = [
+    [{ source: 'visualizer', input: null }, false, 'Arm the outputs; the picture needs a live rig'],
+    [{ source: 'visualizer', input: { units: 4, receiving: true } }, true, 'Visualizer picture on 4 lamp cells'],
+    [{ source: 'visualizer', input: { units: 4, receiving: false } }, true, 'No picture arriving — effects show meanwhile'],
+  ];
+  try {
+    for (const [picture, armed, hint] of cases) {
+      for (const pattern of ['hd.neonDomino', splotch]) {
+        givenLibrary({ pattern, picture, armed });
+        ui.pickerOpenSig.value = false;
+        const { html, chosen, props } = pictureSource();
+        assert.match(chosen, new RegExp(`data-source="visualizer" aria-pressed="true" aria-label="Visualizer" title="${hint}"`), hint);
+        assert.strictEqual(chosen.replace(/<[^>]+>/g, ''), 'VisualizerVisualizer', 'its name (and the phone\'s), no effect and no ▾');
+        assert.doesNotMatch(chosen, /aria-haspopup|aria-expanded|aria-controls|picture-segment-effect|picture-segment-caret/);
+        assert.doesNotMatch(html, /Neon Domino|Splotch|role="dialog"/, 'no effect is named and no picker is drawn');
+        assert.strictEqual(count(html, 'aria-haspopup'), 0, 'no segment opens a picker');
+        assert.strictEqual(props.onClick, undefined, 'a click opens nothing');
+        assert.deepStrictEqual(pressE(), { opened: false, kept: false }, 'E opens nothing and leaves the key alone');
+      }
+    }
+  } finally { ui.pickerOpenSig.value = false; }
 });
 
-test('the picker offers the Audio-reactive looks and their colours only while one is on stage, whatever the picture source', () => {
+test('Effects and Colour + motion still name the main effect, and a click or E opens its picker', () => {
+  const splotch = ui.CATALOGUE.find((row) => row.name === 'Audio-reactive Splotch').id;
+  const cases = [
+    ['effects', 'Effects', 'The show\'s effects paint the room'],
+    ['inspired', 'Colour \\+ motion', 'Picture colours and motion drive spatial effects'],
+  ];
+  try {
+    for (const [source, label, hint] of cases) {
+      givenLibrary({ pattern: splotch, picture: { source, input: { units: 4, receiving: true } } });
+      ui.pickerOpenSig.value = false;
+      const { chosen, props } = pictureSource();
+      assert.match(chosen, new RegExp(`aria-haspopup="dialog" aria-expanded="false" aria-label="${label}: Audio-reactive Splotch" title="${hint}\\. Choose the main effect \\(E\\)\\."`), source);
+      assert.match(chosen, /<span class="picture-segment-effect">Audio-reactive Splotch<\/span><span class="picture-segment-caret" aria-hidden="true">▾<\/span>/);
+      props.onClick();
+      assert.strictEqual(ui.pickerOpenSig.value, true, `${source}: a click opens the picker`);
+      assert.match(pictureSource().html, /role="dialog" aria-label="Main effect"/);
+      ui.pickerOpenSig.value = false;
+      assert.deepStrictEqual(pressE(), { opened: true, kept: true }, `${source}: E opens it`);
+    }
+  } finally { ui.pickerOpenSig.value = false; }
+});
+
+test('an open picker closes when the source becomes the Visualizer, from this page, another client or Home Assistant alike', () => {
+  try {
+    givenLibrary({ picture: { source: 'effects', input: null } });
+    ui.pickerOpenSig.value = true;
+    assert.match(pictureSource().html, /role="dialog" aria-label="Main effect"/);
+    // Every switch reaches the page as the same broadcast.
+    givenLibrary({ picture: { source: 'visualizer', input: null } });
+    assert.strictEqual(ui.pickerOpenSig.value, false);
+    assert.doesNotMatch(pictureSource().html, /role="dialog"/);
+    givenLibrary({ picture: { source: 'effects', input: null } });
+    assert.strictEqual(ui.pickerOpenSig.value, false, 'closed, not hidden: it stays shut on the way back');
+    ui.pickerOpenSig.value = true;
+    givenLibrary({ picture: { source: 'inspired', input: null } });
+    assert.strictEqual(ui.pickerOpenSig.value, true, 'Effects to Colour + motion keeps it open');
+  } finally { ui.pickerOpenSig.value = false; }
+});
+
+test('the picker offers the Audio-reactive looks and their colours only while one is on stage, under either source that opens it', () => {
   const splotch = ui.CATALOGUE.find((row) => row.name === 'Audio-reactive Splotch').id;
   const receiving = { units: 4, receiving: true };
-  givenLibrary({ picture: { source: 'visualizer', input: receiving }, armed: true });
-  const plain = ui.html(ui.h(ui.EffectPicker, { hint: 'Visualizer picture on 4 lamp cells', onClose: () => {} }));
+  givenLibrary({ picture: { source: 'inspired', input: receiving }, armed: true });
+  const plain = ui.html(ui.h(ui.EffectPicker, { hint: 'Picture colours and motion drive spatial effects', onClose: () => {} }));
   assert.match(plain, /role="dialog" aria-label="Main effect"/);
-  assert.match(plain, /Visualizer picture on 4 lamp cells/);
-  assert.doesNotMatch(plain, /Audio-reactive looks|Audio-reactive colours|Visualizer looks/, 'the Visualizer picture brings no looks of its own');
+  assert.match(plain, /Picture colours and motion drive spatial effects/);
+  assert.doesNotMatch(plain, /Audio-reactive looks|Audio-reactive colours/, 'no Audio-reactive look on stage, none offered');
   assert.match(plain, /class="picker-choice(?: big)? active" data-id="hd\.neonDomino" aria-pressed="true"/, 'the main effect is marked');
   assert.match(plain, /aria-label="Every effect"/);
-  for (const source of ['effects', 'inspired', 'visualizer']) {
+  for (const source of ['effects', 'inspired']) {
     givenLibrary({ pattern: splotch, picture: { source, input: receiving }, armed: true });
     const picker = ui.html(ui.h(ui.EffectPicker, { hint: '', onClose: () => {} }));
     const looks = /aria-label="Audio-reactive looks">(.*?)<input/s.exec(picker)?.[1];
