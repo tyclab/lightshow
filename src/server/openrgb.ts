@@ -850,7 +850,6 @@ export {
   sendOpenRgb,
   settingUpOpenRgb,
   closeOpenRgb,
-  discover as discoverOpenRgb,
   openrgbClient,
   asHttpError as openrgbHttpError,
   keyOf as openrgbConnectionKey,

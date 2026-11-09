@@ -10,6 +10,7 @@ import { AB_CANDIDATES, AB_KEY, abName, abPattern, abSpec, adHocSpecs } from '..
 import { presetById } from '../../src/shared/effects/catalogue.ts';
 import { requiresAcknowledgement, validateSpec } from '../../src/shared/effects/registry.ts';
 import { PATTERN_FUNCS } from '../../src/shared/patterns.ts';
+import { PATTERNS } from '../../src/server/presets.ts';
 import { AbDecisionStore } from '../../src/server/ab-decisions.ts';
 import { attachAbRoutes } from '../../src/server/routes/ab.ts';
 import { errorHandler } from '../../src/server/routes/common.ts';
@@ -112,6 +113,14 @@ test('GET /api/ab lists each pair as shipped, with what each side plays, its nam
   });
   assert.deepEqual(body.candidates[1].play.b, { pattern: 'ab:strobe-vs-scatter:b', name: 'Scatter, a third',
     rapidFlash: requiresAcknowledgement(specs.get('ab:strobe-vs-scatter:b')) });
+});
+
+test('a classic side asks for the acknowledgement exactly when its row is tagged Rapid', async (t) => {
+  const pairs = PATTERNS.map((row) => ({ key: `c-${row.id}`.slice(0, 48), family: 'Classic', reason: 'migration', a: { id: row.id }, b: { id: 'v2.wash' } }));
+  const api = await serve(t, { store: new AbDecisionStore(tempFile(t, 'ab-decisions.json')).load(), candidates: pairs,
+    resolve: (p) => presetById(p)?.spec ?? null });
+  const body = await api.get();
+  assert.deepEqual(body.candidates.map((c) => [c.a.id, c.play.a.rapidFlash]), PATTERNS.map((row) => [row.id, row.tags.includes('rapid')]));
 });
 
 test('POST /api/ab/decision validates, stores the choice where a restart finds it and logs one structured line', async (t) => {

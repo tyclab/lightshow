@@ -6,7 +6,7 @@
 import test from 'node:test';
 import assert from 'node:assert';
 
-import { colourMixer, chromaOf } from '../../src/shared/color.ts';
+import { colourMixer, toLch } from '../../src/shared/color.ts';
 import { PATTERN_FUNCS } from '../../src/shared/patterns.ts';
 import { COLOR_PRESETS } from '../../src/server/presets.ts';
 import { TETRADS } from '../../src/server/palettes.ts';
@@ -14,6 +14,7 @@ import { TETRADS } from '../../src/server/palettes.ts';
 const P = Object.fromEntries(COLOR_PRESETS.map((c) => [c.name, c]));
 const KEYS = ['r', 'g', 'b', 'w', 'a', 'uv'];
 const pick = (c) => Object.fromEntries(KEYS.map((k) => [k, c[k] || 0]));
+const chromaOf = (c) => toLch(c).C;
 
 // The banks whose A and B are both genuinely coloured: a white end has no
 // saturation to lose.

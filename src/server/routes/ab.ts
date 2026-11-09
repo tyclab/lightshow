@@ -26,6 +26,8 @@ const decisionSchema = z.object({
 }).strict();
 
 const nameOf = (id: string) => PATTERNS.find((p) => p.id === id)?.name ?? presetById(id)?.name ?? id;
+// A classic program has no spec: its row's Rapid tag says whether it waits for the acknowledgement.
+const classicRapid = (id: string) => !!PATTERNS.find((p) => p.id === id)?.tags.includes('rapid');
 const builtinSpec = (pattern: string) => abSpec(pattern) ?? presetById(pattern)?.spec ?? null;
 
 export function attachAbRoutes(app: Express, { store, candidates = AB_CANDIDATES, resolve = builtinSpec, log }: AbRouteOptions = {}): void {
@@ -33,7 +35,7 @@ export function attachAbRoutes(app: Express, { store, candidates = AB_CANDIDATES
   const decisionLog = () => (log ??= logger('ab'));
   const side = (candidate: AbCandidate, which: AbSide) => {
     const ref = candidate[which], pattern = abPattern(candidate, which), spec = resolve(pattern);
-    return { pattern, name: 'id' in ref ? nameOf(ref.id) : ref.name, rapidFlash: spec ? requiresAcknowledgement(spec) : false };
+    return { pattern, name: 'id' in ref ? nameOf(ref.id) : ref.name, rapidFlash: spec ? requiresAcknowledgement(spec) : classicRapid(pattern) };
   };
 
   app.get('/api/ab', (_req, res) => {

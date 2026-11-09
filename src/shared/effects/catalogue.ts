@@ -16,6 +16,7 @@ import { LDJ_PALETTES } from './ldj-palettes.ts';
 import type { BuiltinPalette } from './ldj-palettes.ts';
 import { VISUALIZER_PRESETS } from './ldj-visualizer.ts';
 import { V2_PRESETS } from './v2/presets.ts';
+import { CLASSIC_REDIRECTS } from './v2/classic.ts';
 import type { MacroStep } from './macro.ts';
 import type { Ahdsr, Curve, EffectKindDef, EffectSpec, PaletteEntry, RgbEnvelope } from './types.ts';
 
@@ -24,7 +25,7 @@ interface CatalogueMetadata {
   party?: boolean; pixel?: boolean; aliases?: string[]; retired?: boolean; variantOf?: string;
   lengthBeats?: number;
 }
-// Legacy ids keep their pattern function; preset links must not redirect playback.
+// A legacy row plays its pattern function; a classic id names a v2 preset only through CLASSIC_REDIRECTS.
 export type CataloguePreset = CatalogueMetadata & (
   | { legacy: true; spec?: never; preset?: string }
   | { legacy?: false; spec: EffectSpec; preset?: never }
@@ -148,15 +149,17 @@ function ldjPresets(): CataloguePreset[] {
   return rows;
 }
 
-export function presetIndex(rows: readonly CataloguePreset[]): ReadonlyMap<string, CataloguePreset> {
+export function presetIndex(rows: readonly CataloguePreset[], redirects: Readonly<Record<string, string>> = CLASSIC_REDIRECTS): ReadonlyMap<string, CataloguePreset> {
   const index = new Map<string, CataloguePreset>();
   for (const row of rows) {
     const keys = [row.id, ...(row.aliases ?? [])];
-    if (row.legacy && (!Object.hasOwn(PATTERN_FUNCS, row.id) || keys.length > 1)) {
-      throw new Error(`legacy row ${row.id} must be exactly one pattern function's id`);
+    if (row.legacy && (!Object.hasOwn(PATTERN_FUNCS, row.id) || keys.length > 1 || Object.hasOwn(redirects, row.id))) {
+      throw new Error(`legacy row ${row.id} must be exactly one pattern function's id that is not redirected`);
     }
     for (const key of keys) {
-      if (!row.legacy && Object.hasOwn(PATTERN_FUNCS, key)) throw new Error(`catalogue id ${key} is a legacy pattern's id`);
+      if (!row.legacy && Object.hasOwn(PATTERN_FUNCS, key) && !Object.hasOwn(redirects, key)) {
+        throw new Error(`catalogue id ${key} is a legacy pattern's id that CLASSIC_REDIRECTS does not list`);
+      }
       if (index.has(key)) throw new Error(`catalogue id ${key} is claimed twice`);
       index.set(key, row);
     }
@@ -325,6 +328,9 @@ const available = new Set(modern.map((row) => row.id));
 const compatibility = LEGACY_PRESETS.filter((row) => !available.has(V2_ALIASES[row.id])).map((row) => ({ ...row, ...(row.id.startsWith('party.') ? {} : { retired: true }) }));
 export const CATALOGUE: readonly CataloguePreset[] = deepFreeze([...compatibility, ...CONTROL_ROWS, ...OVERLAY_ROWS, ...modern]);
 const INDEX = presetIndex(CATALOGUE);
+for (const id of Object.keys(CLASSIC_REDIRECTS)) {
+  if (!Object.hasOwn(PATTERN_FUNCS, id) || !INDEX.get(id) || INDEX.get(id)!.legacy) throw new Error(`redirected classic id ${id} must name a preset with a spec`);
+}
 
 export function presetById(id: string): CataloguePreset | null {
   return INDEX.get(id) ?? null;

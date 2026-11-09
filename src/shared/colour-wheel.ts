@@ -41,11 +41,6 @@ export function stopAt(previous: string, hue: number, saturation: number): strin
   return hsvColour({ hue: turn(hue), saturation: clamp(saturation, 0, 1) * 100, brightness: brightness > 0 ? brightness : 100 }, previous);
 }
 
-export function stopPlace(hex: string): WheelPlace {
-  const { hue, saturation } = colourHsv(hex);
-  return wheelPlace(hue, saturation / 100);
-}
-
 /** The next stop added at `at` (the end by default); a full sequence stays as it is. */
 export function insertStop(stops: readonly string[], hex: string, at = stops.length): string[] {
   if (stops.length >= MAX_BAND_STOPS) return [...stops];

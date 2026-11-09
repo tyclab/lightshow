@@ -340,7 +340,6 @@ function readSegments(raw: unknown, wled: WledInfo, host: string): WledSegment[]
 // strobe = white core segments with colour zones, rendered as a zoned fixture.
 export type WledMode = 'wash' | 'zones' | 'pixels' | 'strobe';
 
-export const WLED_MODES: readonly WledMode[] = ['wash', 'zones', 'pixels', 'strobe'];
 export const DEFAULT_WLED_MODE: WledMode = 'pixels';
 export const DEFAULT_WLED_ZONES = 8;
 
