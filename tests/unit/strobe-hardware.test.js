@@ -75,7 +75,7 @@ for (const cells of [1, 3]) {
       const store = createUniverseStore(allocateShared());
       const config = input();
       config.strobeFunction = function_;
-      config.fixtures[0] = { ...config.fixtures[0], profileId: hueProfile.id, hue: true, output: { protocol: 'hue', bridge: 'test', channel: 0 },
+      config.fixtures[0] = { ...config.fixtures[0], profileId: hueProfile.id, hue: true, output: { protocol: 'hue', bridge: 'test', channels: [0] },
         emission: { kind: cells === 1 ? 'beam' : 'strip' } };
       const rises = maps.map(() => []), previous = maps.map(() => false);
       for (let frame = 0; frame < 440; frame++) {

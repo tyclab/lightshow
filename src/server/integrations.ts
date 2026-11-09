@@ -1,7 +1,7 @@
 import { control } from './control.ts';
 import { transitionFor } from '../show/transition.ts';
 import { presetById } from '../shared/effects/catalogue.ts';
-import { state, getLiveState, getCatalogs, getDmxSnapshot, getDmxUniverses, rigSource, setExtrasProvider, setSequenceProvider, setSequenceRuns, reconcileFreeClock, voices, strobe } from './state.ts';
+import { state, getLiveState, getCatalogs, getDmxUniverses, rigSource, setExtrasProvider, setSequenceProvider, setSequenceRuns, reconcileFreeClock, voices, strobe } from './state.ts';
 import { HOLD_STROBE_MAX_HZ } from '../shared/look-math.ts';
 import { createPublisher, ROOM } from './protocol.ts';
 import { encodeDmxFrame } from '../shared/dmx-frame.ts';
@@ -286,7 +286,6 @@ function setupIntegrations({ io, midi, spotify, nowPlaying, deezerSource, prolin
   const awake = (): string[] => [
     isArmed() && 'armed',
     publisher.wants(ROOM.dmx) && 'dmx',
-    publisher.wants(ROOM.v1) && 'v1',
     identify.request()?.ids.length && 'identify',
   ].filter((reason): reason is string => typeof reason === 'string');
   setIdleSource(() => awake().length === 0);
@@ -960,17 +959,6 @@ function setupIntegrations({ io, midi, spotify, nowPlaying, deezerSource, prolin
     lastPosition = position;
   }), 100);
   if (positionTimer.unref) positionTimer.unref();
-
-  let lastDmxJson = '';
-  const dmxTimer = setInterval(guarded('dmx-broadcast', () => {
-    if (!publisher.wants(ROOM.v1)) { lastDmxJson = ''; return; }
-    const snapshot = getDmxSnapshot();
-    const json = JSON.stringify(snapshot);
-    if (json === lastDmxJson) return;      // blackout / idle rig: nothing to send
-    lastDmxJson = json;
-    io.to(ROOM.v1).emit('dmx', snapshot);
-  }), 100);
-  if (dmxTimer.unref) dmxTimer.unref();
 
   // Sample at the engine's frame period so the Stage preview sees every frame Art-Net sends.
   const dmxFrameTimer = setInterval(guarded('dmx-frame', () => {

@@ -31,7 +31,7 @@ const fixture = (id, address, profileId = BUILTIN_PROFILE_ID, extra = {}) => ({
 
 // Ids that are not slot numbers, and a Hue lamp among the pars.
 const PARS = [fixture(10, 1), fixture(11, 13), fixture(12, 25), fixture(13, 37)];
-const LAMP = fixture(14, 60, HUE_COLOR_PROFILE_ID, { hue: true, output: { protocol: 'hue', channel: 1 } });
+const LAMP = fixture(14, 60, HUE_COLOR_PROFILE_ID, { hue: true, output: { protocol: 'hue', channels: [1] } });
 const RIG = [...PARS, LAMP];
 
 // A bar of four bare RGB cells: no fixture dimmer, so every cell drives as the preview counts it.
@@ -739,11 +739,11 @@ test("legacy preview bursts retain safety and Hue mode", () => {
     at(energy, { safety: { acknowledged: false } }, { safety: { hdFlashIntervalMs: 350, acknowledged: false } });
     at(energy, {}, {});
   }
-  // The flash looks of the pattern layer follow the setting too.
-  for (const hueStrobe of ['flash', 'pulse']) {
-    const ring = previewRun(createPreviewSampler([{ timeMs: 0, action: 'patch', data: { pattern: 'ring-strobe', ...LOOK } }], GRID, { hueStrobe }), fixtures, times);
-    const rig = times.map((t) => rigRun(fixtures, [t], () => ({ pattern: 'ring-strobe', hueStrobe, patternAnchor: { step: 0, epoch: 0 } }))[0]);
-    assertSame(rig, ring, times, `ring-strobe ${hueStrobe}`);
+  // The flash looks of the pattern layer follow the setting too, once acknowledged; before it both hold them dark.
+  for (const [hueStrobe, safety] of [['flash', ACK], ['pulse', ACK], ['flash', { hdFlashIntervalMs: 350, acknowledged: false }]]) {
+    const ring = previewRun(createPreviewSampler([{ timeMs: 0, action: 'patch', data: { pattern: 'ring-strobe', ...LOOK } }], GRID, { hueStrobe, safety }), fixtures, times);
+    const rig = times.map((t) => rigRun(fixtures, [t], () => ({ pattern: 'ring-strobe', hueStrobe, safety, patternAnchor: { step: 0, epoch: 0 } }))[0]);
+    assertSame(rig, ring, times, `ring-strobe ${hueStrobe} ${safety.acknowledged}`);
   }
 });
 

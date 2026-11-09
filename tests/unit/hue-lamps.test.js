@@ -298,13 +298,12 @@ test('the second bridge\'s lamps are added beside the first\'s, channel for chan
   });
 });
 
-// A rig with one bridge keeps the routes it had: they mean the first bridge.
-test('the routes from before several bridges address the first one, and an unknown bridge is a 404', async () => {
+test('the routes name their bridge, and an unknown bridge is a 404', async () => {
   await withApp([par(0, 1)], async (call) => {
-    const listed = await call('GET', '/api/hue/lamps');
+    const listed = await call('GET', '/api/hue/b1/lamps');
     assert.deepStrictEqual(listed.body.bridge, { id: 'b1', label: 'Lounge' });
     assert.deepStrictEqual(listed.body.channels, (await areaOf(LAMPS)())[0].channels);
-    const added = await call('POST', '/api/hue/add', { lamps: ['hall'] });
+    const added = await call('POST', '/api/hue/b1/add', { lamps: ['hall'] });
     assert.deepStrictEqual(added.body.fixtures.map((f) => f.output), [{ protocol: 'hue', bridge: 'b1', channels: [2] }]);
     assert.strictEqual((await call('GET', '/api/hue/nope/lamps')).status, 404);
     assert.strictEqual((await call('POST', '/api/hue/nope/add', {})).status, 404);
@@ -314,9 +313,9 @@ test('the routes from before several bridges address the first one, and an unkno
 test('a lamp the bridge will not describe is not added', async () => {
   const unread = { ...areaLamp({ id: 'mystery', name: 'Mystery', channels: [9] }), kind: null, capabilities: null };
   await withApp([par(0, 1)], async (call) => {
-    const listed = await call('GET', '/api/hue/lamps');
+    const listed = await call('GET', '/api/hue/b1/lamps');
     assert.strictEqual(listed.body.lamps[0].shows, null);
-    const res = await call('POST', '/api/hue/add', {});
+    const res = await call('POST', '/api/hue/b1/add', {});
     assert.strictEqual(res.status, 502);
     assert.match(res.body.error, /would not say what "Mystery" can show/);
   }, areaOf([unread]));

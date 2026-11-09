@@ -382,9 +382,10 @@ function pickPattern({ character, available, score = null, seed = 0, drive = 0.5
 const PAR_PICTURES: ReadonlySet<string> = new Set(['gradient', 'plasma', 'comet', 'burst']);
 const PAR_PICTURES_WITH_DRUMS: ReadonlySet<string> = new Set([...PAR_PICTURES, 'drums']);
 
-function availableFor(patterns: readonly { id: string }[], analysis: { pulse?: unknown } | null | undefined,
-  { particles }: { particles?: ReadonlySet<string> } = {}): Set<string> {
-  const ids = new Set(patterns.map((p) => p.id).filter((id) => automaticPattern(id, particles)));
+function availableFor(patterns: readonly { id: string; rapidFlash?: unknown }[], analysis: { pulse?: unknown } | null | undefined,
+  { particles, acknowledged = true }: { particles?: ReadonlySet<string>; acknowledged?: boolean } = {}): Set<string> {
+  // A Rapid flash row is planned only once the photosensitivity acknowledgement is given; the renderer holds it dark before.
+  const ids = new Set(patterns.filter((p) => acknowledged || !p.rapidFlash).map((p) => p.id).filter((id) => automaticPattern(id, particles)));
   if (!analysis || !analysis.pulse) for (const id of PULSE_PATTERNS) ids.delete(id);
   return ids;
 }

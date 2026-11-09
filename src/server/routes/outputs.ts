@@ -147,7 +147,7 @@ export function attachOutputRoutes(app: Express, ctx: RouteContext): void {
     res.json({ ok: true, bridge: { id: entry.id, label: entry.label, host }, host, areas, areasError });
   }));
 
-  app.get(['/api/hue/areas', '/api/hue/:bridge/areas'], asyncHandler(async (req, res) => {
+  app.get('/api/hue/:bridge/areas', asyncHandler(async (req, res) => {
     const bridge = resolveHueBridge(req, res);
     if (!bridge) return;
     if (!bridge.host || !bridge.username) {
@@ -195,10 +195,6 @@ export function attachOutputRoutes(app: Express, ctx: RouteContext): void {
     } catch (err) {
       res.status(400).json({ ok: false, error: messageOf(err) });
     }
-  });
-
-  app.post('/api/hue/disconnect', (_req, res) => {
-    res.status(400).json({ ok: false, error: 'Name the bridge: POST /api/hue/:bridge/disconnect — GET /api/hue/status lists them.' });
   });
 }
 

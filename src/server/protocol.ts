@@ -5,7 +5,7 @@ import type { PictureImage } from '../types/picture.ts';
 
 export const PROTOCOL = 2;
 
-export const ROOM = { v1: 'protocol:1', v2: 'protocol:2', dmx: 'feed:dmx', audio: 'feed:audio', picture: 'feed:picture' } as const;
+export const ROOM = { v2: 'protocol:2', dmx: 'feed:dmx', audio: 'feed:audio', picture: 'feed:picture' } as const;
 
 export const TOPICS = { dmx: ROOM.dmx, audio: ROOM.audio, picture: ROOM.picture } as const;
 
@@ -169,8 +169,6 @@ export function createPublisher(io: Io) {
 
   const room = (name: string) => (typeof io.to === 'function' ? io.to(name) : io);
   const size = (name: string): number => io.sockets?.adapter?.rooms?.get(name)?.size ?? 0;
-  // Socket.IO encodes a room's packet before it looks for members: only a server without rooms sends blind.
-  const heard = (name: string): boolean => (io.sockets?.adapter?.rooms ? size(name) > 0 : true);
 
   return {
     // The per-key diff is the change check: live values are edited in place, so contents decide, never references.
@@ -178,8 +176,6 @@ export function createPublisher(io: Io) {
     publishState(live: Record<string, unknown>, rig?: RigSource): void {
       const patches = differ.diff(live, rig);
       if (!patches.length) return;
-      // Protocol 1 takes the whole state, rig data included, on every change.
-      if (heard(ROOM.v1)) room(ROOM.v1).emit('state', rig ? { ...live, ...rig.values() } : live);
       for (const patch of patches) room(ROOM.v2).emit('patch', patch);
     },
 

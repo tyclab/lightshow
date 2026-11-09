@@ -64,10 +64,10 @@ function common(plan: CommonPlan = {}): Control[] {
   const envelope = { when: plan.envelopeWhen ?? accenting, advanced: !plan.envelope };
   const react = { advanced: !plan.react };
   return [
-    choice('colour', 'Colours', { along: 'Spread', time: 'Drift', solid: 'One colour' }, { advanced: !plan.colours }),
+    choice('colour', 'Colours', { along: 'Spread', time: 'Drift', solid: 'One colour', step: 'Next each interval' }, { advanced: !plan.colours }),
     choice('trigger.mode', 'React', { timeline: 'Off', beatAccent: 'Beat', volumeGate: 'Volume' }, react),
     choice('trigger.band', 'Band', { full: 'Full', bass: 'Bass', mid: 'Mids', high: 'Highs' }, { ...react, when: plan.bandWhen ?? reacting }),
-    num('trigger.beatInterval', 'Accent every', 1 / 16, 16, 1 / 16, 'beats', { advanced: true, when: plan.intervalWhen ?? accenting, ...plan.interval }),
+    num('trigger.beatInterval', 'Accent every', 1 / 16, 16, 1 / 16, 'beats', { advanced: true, when: any(plan.intervalWhen ?? accenting, is('colour', 'step')), ...plan.interval }),
     num('trigger.threshold', 'Threshold', 0, 1, 0.01, undefined, { advanced: true, when: plan.thresholdWhen ?? reacting }),
     num('trigger.reactiveDepth', 'Reaction depth', 0, 1, 0.01, undefined, { advanced: true, when: reacting }),
     choice('envelope.curve', 'Envelope curve', { linear: 'Linear', easeIn: 'Ease in', easeOut: 'Ease out', easeInOut: 'Ease in and out', cut: 'Cut' }, envelope),
@@ -113,12 +113,13 @@ const shell: Control[] = [
   num('width', 'Width', 0.05, 10, 0.05, 'm', { vary: [0.3, 1.2] }),
   num('speed', 'Speed', 0.05, 20, 0.05, 'm/beat', { vary: [1, 5] }),
   num('twistDeg', 'Twist', -360, 360, 5, '°/m'),
+  num('sparks', 'Sparks', 0, 1, 0.01, undefined, ADVANCED),
   // Rings launch on every interval whatever the trigger; a beat accent sets each ring's strength, not an envelope.
   ...common({ react: true, envelopeWhen: shellFill, intervalWhen: () => true, interval: { label: 'Rings every', advanced: false } }),
 ];
 
 const step: Control[] = [
-  choice('order', 'Order', { orbit: 'Around the listener', axis: 'Across the room', path: 'Along each strip', height: 'Bottom to top', random: 'Random' }),
+  choice('order', 'Order', { orbit: 'Around the listener', axis: 'Across the room', path: 'Along each strip', height: 'Bottom to top', random: 'Random', patch: 'Patch order' }),
   HEADING({ when: is('order', 'axis') }), TILT({ when: is('order', 'axis') }),
   choice('direction', 'Direction', { forward: 'Forward', reverse: 'Reverse', bounce: 'Bounce' }),
   num('window', 'Lit at once', 1, 32, 1, undefined, { when: not('fill', true) }),
@@ -126,7 +127,8 @@ const step: Control[] = [
   toggle('fill', 'Fill up'),
   STEP(0.125),
   choice('stages', 'Stages', [[1, '1'], [3, '3'], [5, '5']]),
-  num('steps', 'Steps', 2, 128, 1, undefined, ADVANCED),
+  // Patch order takes one step per lamp, whatever Steps says.
+  num('steps', 'Steps', 2, 128, 1, undefined, { advanced: true, when: not('order', 'patch') }),
   field('list', 'score', 'Accent score', ADVANCED),
   ...common({ envelopeWhen: any(not('fill', true), accenting) }),
 ];
@@ -134,8 +136,9 @@ const step: Control[] = [
 const notStems = not('partition', 'stems');
 const zones: Control[] = [
   choice('partition', 'Split', { leftRight: 'Left and right', frontBack: 'Front and back', floorCeiling: 'Floor and ceiling', nearFar: 'Near and far',
-    surround: 'Around the listener', technology: 'Technology', role: 'Role', stems: 'Stems' }),
-  choice('mode', 'Mode', { alternate: 'Alternate', fill: 'Fill', rotate: 'Rotate' }, { when: notStems }),
+    surround: 'Around the listener', technology: 'Technology', role: 'Role', stems: 'Stems', patch: 'Patch order', blocks: 'Palette blocks',
+    diagonals: 'Diagonals', corners: 'Corners', halves: 'Halves' }),
+  choice('mode', 'Mode', { alternate: 'Alternate', fill: 'Fill', rotate: 'Rotate', swap: 'Swap colours', cover: 'Cover' }, { when: notStems }),
   STEP(0.125, { when: notStems }),
   num('softness', 'Softness', 0, 1, 0.01, undefined, { when: is('partition', 'floorCeiling'), vary: [0, 0.5] }),
   toggle('reverse', 'Reverse', { when: notStems }),
@@ -197,7 +200,8 @@ const particles: Control[] = [
 ];
 
 const neural: Control[] = [
-  choice('layout', 'Layout', { height: 'Height', distance: 'Distance from the speakers', zones: 'Around the listener' }),
+  choice('layout', 'Layout', { height: 'Height', distance: 'Distance from the speakers', zones: 'Around the listener',
+    columns: 'Columns', centre: 'Edges and centre' }),
   num('idle', 'Idle', 0, 1, 0.01, undefined, { vary: [0, 0.2] }),
   SMOOTHING({ vary: [0.2, 0.6] }),
   toggle('pitchColour', 'Pitch colour'),

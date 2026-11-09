@@ -7,9 +7,10 @@ import type { Point, Positions } from './common.ts';
 import type { EffectFrame, EffectSlot } from '../types.ts';
 import type { Room } from '../../room.ts';
 
-// The music in space: bass, mids and highs each light their own part of the room, live.
+// The music in space: bass, mids and highs each light their own part of the room, live. 'columns' stands the
+// three bands side by side as a level meter; 'centre' throws the bass out from the middle, mids at both ends, highs scattered.
 export const neuralSchema = v2CommonSchema.extend({
-  layout: z.enum(['height', 'distance', 'zones']).default('height'),
+  layout: z.enum(['height', 'distance', 'zones', 'columns', 'centre']).default('height'),
   // The wash with no music.
   idle: z.number().min(0).max(1).default(0),
   speakerAnchors: z.array(z.string().max(100)).max(32).default(['speakerLeft', 'speakerRight']),
@@ -44,12 +45,27 @@ function heardBands(p: NeuralParams, s: NeuralState, f: EffectFrame): Bands | nu
   return s.bands;
 }
 
+// Across the room, 0 at one side and 1 at the other, and height, 0 at the floor (on the plot: the bottom row).
+const acrossOf = (pos: Positions, i: number) => clamp(pos.plan ? pos.x[i] : pos.x[i] / Math.max(1e-6, pos.bounds.width) + 0.5);
+const heightOf = (pos: Positions, i: number) => (pos.plan ? 1 - pos.z[i] : pos.y[i] / Math.max(1e-6, pos.bounds.height));
+// A light's own roll for the highs, fresh every half beat.
+const scattered = (i: number, half: number) => ((Math.imul(i + 1, 0x9e3779b1) ^ Math.imul(half + 7, 0x85ebca6b)) >>> 0) / 4294967296;
+
 // What each band gives a unit where it stands.
-function bandLevels(p: NeuralParams, room: Room, pos: Positions, i: number, speakers: Point[], reach: number, [bass, mid, high]: Bands): Bands {
+function bandLevels(p: NeuralParams, room: Room, pos: Positions, i: number, speakers: Point[], reach: number, [bass, mid, high]: Bands, half: number): Bands {
   if (p.layout === 'height') {
     // On the plot "up" is the plot's rows toward its top.
-    const h = pos.plan ? 1 - pos.z[i] : pos.y[i] / Math.max(1e-6, pos.bounds.height);
+    const h = heightOf(pos, i);
     return [bass * lowWeight(h), mid * midWeight(h), high * highWeight(h)];
+  }
+  if (p.layout === 'columns') {
+    const band = Math.min(2, Math.floor(acrossOf(pos, i) * 3)), level = [bass, mid, high][band], h = heightOf(pos, i);
+    const lit = !(level > 0) || h > level ? 0 : level - h < 0.07 ? 1 : 0.67 + 0.23 * h;
+    return [band === 0 ? lit : 0, band === 1 ? lit : 0, band === 2 ? lit : 0];
+  }
+  if (p.layout === 'centre') {
+    const q = Math.abs(acrossOf(pos, i) - 0.5) * 2;
+    return [bass * clamp((0.15 + 0.85 * bass - q) / 0.12), mid * clamp((q - 0.55) / 0.3), scattered(i, half) < 0.28 ? high : 0];
   }
   if (p.layout === 'distance') {
     // Bass fills out from the nearest speaker as far as it is loud; mids and highs ring further out.
@@ -71,10 +87,11 @@ function renderNeural(p: NeuralParams, s: NeuralState, room: Room, f: EffectFram
   const speakers = (anchors.length ? anchors : [room.space?.listener ?? centreOf(pos)]).map((a) => pointIn(room, pos, a) ?? centreOf(pos));
   const reach = Math.max(1e-6, ...speakers.map((sp) => farthestCorner(pos, sp)));
   const background = p.idle > 0 ? { ...p, background: Math.max(p.background, p.idle) } : p;
+  const half = Math.floor(Math.max(0, f.beatPos - f.anchorBeat) * 2);
   for (let i = 0; i < room.n; i++) {
     let level = 0, band = 0;
     if (bands) {
-      const given = bandLevels(p, room, pos, i, speakers, reach, bands);
+      const given = bandLevels(p, room, pos, i, speakers, reach, bands, half);
       for (let k = 0; k < 3; k++) if (given[k] > level) { level = given[k]; band = k; }
     }
     const colour = p.pitchColour && reading ? reading.frequency : BAND_COLOUR[band];
