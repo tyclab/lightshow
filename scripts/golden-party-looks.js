@@ -88,9 +88,15 @@ export function mixedBytes(fixtures) {
   return Object.fromEntries([...LOOKS, ...MIXED_EFFECTS].map((id) => [id, renderLookBytes(id, fixtures, resolve)]));
 }
 
+// As the engine resolves a look id: a legacy row draws its pattern function, a redirected id its v2 preset.
+export const lookEffect = (id) => {
+  const row = presetById(id);
+  return row && !row.legacy ? row.spec : null;
+};
+
 function capture(fixtures) {
   const looks = LOOKS.map((id) => {
-    const rows = renderLookBytes(id, fixtures).map((bytes) => `    ${JSON.stringify(bytes)}`);
+    const rows = renderLookBytes(id, fixtures, lookEffect).map((bytes) => `    ${JSON.stringify(bytes)}`);
     return `  ${JSON.stringify(id)}: [\n${rows.join(',\n')}\n  ]`;
   });
   return `{\n${looks.join(',\n')}\n}\n`;
