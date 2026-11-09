@@ -2290,8 +2290,8 @@ displayed every frame. `rssBytes` is the whole process; `heapUsedBytes` and
 `heapTotalBytes` are the main thread's used and committed V8 heap.
 `engineHeapUsedBytes` and `engineHeapTotalBytes` are the engine thread's own
 heap from its last once-a-second report, which the main heap does not include;
-both are null while the engine renders on the main thread or before its first
-report. `liveQuiet` is true while the live input hears digital
+both are null while the engine renders on the main thread, and from a start or a
+thread restart until that thread's first report. `liveQuiet` is true while the live input hears digital
 silence and reports four states a second, false while it hears sound, and null
 while it is not listening. `awake` lists what keeps the engine from idling:
 `armed`, `dmx` (a page on the DMX feed), `v1` (a client on the original

@@ -637,6 +637,7 @@ function spawnWorker(epochMs: number): void {
   w.on('exit', (code) => {
     if (worker !== w) return;           // a worker already replaced or stopped
     worker = null;
+    workerHeap = null;                  // that isolate is gone; a replacement reports its own
     ready = false;
     control.rendererLost();
     frames.fail('The renderer restarted before acknowledging this change');

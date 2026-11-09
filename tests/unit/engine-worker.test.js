@@ -395,6 +395,62 @@ test('the engine thread reports its own heap with its timings, and nothing once 
   }
 });
 
+// A stand-in engine thread that reports a heap once, when HEAP_WORKER says so, and dies after it
+// when HEAP_WORKER_EXIT does; otherwise it never reports.
+const HEAP_WORKER = `
+import { parentPort } from 'node:worker_threads';
+const timing = { frames: 1, lateMs: { p50: 0, p95: 0, max: 0 }, renderMs: { p50: 0, p95: 0, max: 0 }, lateFrames: 0, skippedFramesTotal: 0 };
+parentPort.on('message', (msg) => { if (msg.type === 'stop') parentPort.postMessage({ type: 'stopped', applied: true }); });
+parentPort.postMessage({ type: 'ready' });
+if (process.env.HEAP_WORKER === 'report') {
+  parentPort.postMessage({ type: 'stats', stats: timing, heap: { usedBytes: 1000, totalBytes: 2000 } });
+  if (process.env.HEAP_WORKER_EXIT) setTimeout(() => process.exit(1), 50);
+}
+`;
+
+// The summary attributes memory by these numbers: an isolate that is gone must not stand in for the one running.
+test('a restarted or replaced engine thread has no heap until it reports one itself', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'engine-heap-worker-'));
+  const file = path.join(dir, 'heap-worker.mjs');
+  fs.writeFileSync(file, HEAP_WORKER);
+  state.artnet.enabled = false;
+  const warn = console.warn;
+  console.warn = () => {};
+  try {
+    process.env.HEAP_WORKER = 'report';
+    process.env.HEAP_WORKER_EXIT = '1';
+    startEngine({ thread: 'worker', file });
+    let end = Date.now() + 5000;
+    while (!engineStatus().heap && Date.now() < end) await wait(5);
+    assert.deepStrictEqual(engineStatus().heap, { usedBytes: 1000, totalBytes: 2000 });
+    // The thread dies 50 ms after its report and the engine starts another, which stays silent.
+    process.env.HEAP_WORKER = 'silent';
+    delete process.env.HEAP_WORKER_EXIT;
+    await wait(700);
+    assert.strictEqual(engineStatus().thread, 'worker', 'restarted, not fallen back');
+    assert.strictEqual(engineStatus().heap, null, 'the dead thread\'s heap is not the running one\'s');
+    await stopEngine();
+
+    process.env.HEAP_WORKER = 'report';
+    startEngine({ thread: 'worker', file });
+    end = Date.now() + 5000;
+    while (!engineStatus().heap && Date.now() < end) await wait(5);
+    assert.ok(engineStatus().heap);
+    await stopEngine();
+    process.env.HEAP_WORKER = 'silent';
+    startEngine({ thread: 'worker', file });
+    await wait(300);
+    assert.strictEqual(engineStatus().thread, 'worker');
+    assert.strictEqual(engineStatus().heap, null, 'a new thread before its first report');
+  } finally {
+    delete process.env.HEAP_WORKER;
+    delete process.env.HEAP_WORKER_EXIT;
+    await stopEngine();
+    console.warn = warn;
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 test('the main thread never reads a frame the worker is part way through', async () => {
   // The DMX monitor reads the shared buffers from this thread at any moment.
   // A static look renders the same bytes every frame, so every read must match.
