@@ -1421,7 +1421,7 @@ input[type=range]::-moz-range-thumb {
 }
 .effect-sheet:focus { outline: none; }
 /* A/B compare: a sheet like the inspector, one block per pair; the pair the keys act on is outlined. */
-.effects-compare { align-self: flex-start; }
+.effects-compare { margin-left: auto; text-transform: none; letter-spacing: normal; }
 .ab-title { justify-content: space-between; }
 .ab-title h2 { flex: 1; margin: 0; font-size: inherit; }
 .ab-disarmed { margin: 0 0 8px; padding: 6px 8px; border: 1px solid var(--amber); border-radius: var(--radius); font-size: 12px; }

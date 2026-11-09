@@ -400,7 +400,7 @@ MIDI's **Browse patterns** and **Browse effects** and Companion's pattern and ef
 lists are built from them: effects are the Energy looks, the bars' picture the Bars &
 panels looks, patterns every other look; retired ids are in none.
 
-**Compare A/B**, beside the search, opens the pairs of looks waiting for your decision:
+**Compare A/B**, in the Effects card's title, opens the pairs of looks waiting for your decision:
 two looks that may be one look twice, or a classic look against the v2 preset it would
 move onto. Each pair shows its frame diff; Play A and Play B (or the keys A and B, and
 Space to swap) set the main effect as a tap in the list does, and Keep A, Keep B, Keep

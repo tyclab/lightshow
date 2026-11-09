@@ -365,7 +365,10 @@ export function Effects() {
 
   return <>
     <div class="card effects">
-      <div class="card-title">Effects</div>
+      <div class="card-title">Effects
+        <button type="button" class="btn sm effects-compare" aria-haspopup="dialog" title="Play pairs of looks on the rig and decide between them"
+          onClick={() => setComparing(true)}>Compare A/B</button>
+      </div>
       <div class="effects-tools">
         <div class="effects-now" role="status" aria-live="polite">
           <NowPlaying />
@@ -373,8 +376,6 @@ export function Effects() {
         </div>
         <PictureLayers />
         <input class="effects-search" type="search" aria-label="Search effects" placeholder="Search effects" value={q} onInput={(e) => setQ(e.target.value)} />
-        <button type="button" class="btn sm effects-compare" aria-haspopup="dialog" title="Play pairs of looks on the rig and decide between them"
-          onClick={() => setComparing(true)}>Compare A/B</button>
       </div>
       <div class="effects-filters effects-chips" role="group" aria-label="Filters">
         {FILTER_AXES.map((axis) => (
