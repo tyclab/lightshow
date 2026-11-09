@@ -18,7 +18,7 @@ const palette = { colours: ['#FF0000', '#00BFFF'], gradients: [{ name: 'Pair', s
 let restore;
 test.before(() => { restore = acknowledgeFlashes(); setEffectSource((id) => presetById(id)?.spec ?? null); });
 test.after(() => { setEffectSource(null); restore(); stopEngine(); });
-test.beforeEach(() => applyPatch({ pattern, effectColours: null, paletteOverride: null }));
+test.beforeEach(() => applyPatch({ pattern, effectColours: null, effectParams: null, paletteOverride: null }));
 
 test('an active colour edit reaches engine and preview without changing the library or effect phase', () => {
   const original = presetById(pattern).spec;
@@ -33,7 +33,10 @@ test('an active colour edit reaches engine and preview without changing the libr
   assert.deepEqual(previewOptions(getLiveState()).resolveEffect(pattern), input.effect);
   assert.deepEqual(original.palette, ['#FFFFFF']);
   assert.equal(withEffectColours('another-effect', original, state.effectColours), original);
+  // The distribution is read on every frame: the scatter carries on; a new step length starts it afresh.
   applyPatch({ effectColours: { pattern, palette, mode: 'along' } });
+  assert.equal(renderInput().effectRevision, revision);
+  applyPatch({ effectParams: { pattern, params: { stepBeats: 0.5 } } });
   assert.equal(renderInput().effectRevision, revision + 1);
 });
 

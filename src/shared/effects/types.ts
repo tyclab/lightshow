@@ -126,7 +126,8 @@ export interface EffectKindDef<P = unknown, S = unknown> {
   gapsApply?(params: P, spec: EffectSpec): boolean;
   // Fresh instances reset self-paced flash limits, so macros and clips must reject them.
   pacesOwnFlashes?(params: P): boolean;
-  // The part of the params whose change restarts an instance; params a kind reads on every render may be left out.
+  // The part of the params whose change restarts an instance: what init reads and what state is keyed by.
+  // Params a kind reads on every render may be left out, so a live variable moves without a restart.
   restartKey?(params: P): unknown;
   command?(state: S, cmd: EffectCommand, arg?: Colour): void;
   rollOf?(state: S): number;

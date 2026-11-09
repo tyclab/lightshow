@@ -76,7 +76,7 @@ export function putBack(saved: SavedLook): boolean {
     } catch (err) {
       if (statusOf(err) !== 409) throw err;
       console.warn(`[look] the look from ${saved.savedAt} comes back without ${look.pattern}: ${messageOf(err)}`);
-      recallLook({ ...look, pattern: state.pattern, effectColours: null, energyOverride: null }, true);
+      recallLook({ ...look, pattern: state.pattern, effectColours: null, effectParams: null, energyOverride: null }, true);
     }
     applyPatch({ running: false, masterBlackout: look.masterBlackout });
     return true;

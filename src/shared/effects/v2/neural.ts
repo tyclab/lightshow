@@ -85,7 +85,7 @@ function renderNeural(p: NeuralParams, s: NeuralState, room: Room, f: EffectFram
 registerKind<NeuralParams, NeuralState>({
   kind: 'v2.neural', app: 'own', level: 'cell', schema: neuralSchema, gapsApply: gapsWithoutFloor,
   defaults: { params: neuralSchema.parse({}), brightness: 1 }, stateful: true,
-  rapidFlashWhen: accentStrobes,
+  rapidFlashWhen: accentStrobes, restartKey: () => null,
   init: () => ({ bands: null, reading: null }),
   render: (params, state, room, frame, out) => renderNeural(params, state, room, frame, out),
 });

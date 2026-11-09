@@ -1372,6 +1372,19 @@ are refused before other fields change. Palette bodies retain gradients and all
 six channels. Palette-only edits preserve effect phase. Distribution changes follow
 the effect's normal parameter-change behaviour. A global override still takes precedence.
 
+**Live variables.** While an effect with labelled controls plays (the twelve spatial
+generators and the strobe), Effects shows its own variables under the status as
+**Variables**: a move reaches the lights at once and does not restart the effect, and
+a move that would make it flash fast asks for the photosensitivity acknowledgement
+first. They last until another effect is chosen; cues capture and restore them;
+**Reset** returns to the preset and **Save as…** keeps them as a preset of your own.
+`POST /api/set` accepts `effectParams: { pattern, params }`, `params` mapping control
+paths (`speed`, `trigger.mode`) to values, or `null` to reset; moves add up, and a
+path the effect has no number, choice or toggle for, a value it cannot play or a
+stale `pattern` refuses the whole patch. A v2 kind restarts only for what its state
+is built from (`restartKey`: a step's order and heading, a zone split, a scatter's
+step length), so every other variable moves without a restart.
+
 `PUT /api/palette-override` accepts the same body or `{ paletteId }`.
 `paletteOverride` and `paletteOverrideId` remain compatible with existing
 clients. Old indexed palettes retain their curated 2/3/4-colour variants;

@@ -39,6 +39,7 @@ registerKind<StepParams, Float32Array>({
   kind: 'v2.step', app: 'own', level: 'cell', schema: stepSchema, gapsApply: gapsWithoutFloor,
   defaults: { params: stepSchema.parse({}), brightness: 1 },
   rapidFlashWhen: (p) => accentStrobes(p) || (p.stepBeats <= 0.25 && isFlashEnvelope(p.envelope)),
+  restartKey: (p) => [p.space, p.order, p.azimuthDeg, p.elevationDeg],
   init: orderOf,
   render(p, order, room, f, out) {
     const tick = Math.max(0, f.beatPos - f.anchorBeat) / p.stepBeats;

@@ -151,7 +151,8 @@ function renderScatter(p: ScatterParams, s: ScatterState, room: Room, f: EffectF
 registerKind<ScatterParams, ScatterState>({
   kind: 'v2.scatter', app: 'own', level: 'cell', schema: scatterSchema, gapsApply: gapsWithoutFloor,
   defaults: { params: scatterSchema.parse({}), brightness: 1 }, stateful: true,
-  rapidFlashWhen: scatterRapidFlash,
+  // Each step's band decision is remembered by its index: a new step length starts afresh.
+  rapidFlashWhen: scatterRapidFlash, restartKey: (p) => [p.stepBeats, p.bands],
   init: () => ({ fired: new Map() }),
   render: (params, state, room, frame, out) => renderScatter(params, state, room, frame, out),
 });

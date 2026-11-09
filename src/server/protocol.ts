@@ -19,7 +19,7 @@ export const DOMAIN_OF: Readonly<Record<string, Domain>> = {
   masterDimmer: 'look', masterBlackout: 'look', flashLimit: 'look',
   strobeSpeed: 'look', strobeFunction: 'look', pixelMap: 'look', pixelPattern: 'look', panelPattern: 'look',
   energyOverride: 'look', paletteOverride: 'look', paletteOverrideId: 'look', safety: 'look',
-  background: 'look', effectColours: 'look', basePalette: 'look', overridePalette: 'look',
+  background: 'look', effectColours: 'look', effectParams: 'look', basePalette: 'look', overridePalette: 'look',
   strobe: 'look',
   liveAutomation: 'look',
   matrix: 'look',

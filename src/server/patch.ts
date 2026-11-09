@@ -1,4 +1,5 @@
 import { bandEffect, colourModes, withEffectColours } from '../shared/effect-colours.ts';
+import { liveControls, withEffectParams } from '../shared/effect-params.ts';
 import { validateSpec } from '../shared/effects/registry.ts';
 import { state, getFixture, latchEnergy, reconcileFreeClock } from './state.ts';
 import { beginFade, resolveEffect } from './engine.ts';
@@ -112,6 +113,23 @@ function applyPatch(rawData: unknown, { beforeCommit, origin = 'hand', paletteOv
       catch (err) { throw new HttpError(400, `These band colours cannot play: ${err instanceof Error ? err.message : String(err)}`); }
     }
   }
+  const paramEdit = data.effectParams;
+  if (paramEdit) {
+    const pattern = data.pattern ?? state.pattern;
+    if (paramEdit.pattern !== pattern) throw new HttpError(409, 'Select the effect again before changing its variables');
+    const spec = resolveEffect(pattern);
+    const paths = new Set(liveControls(spec).map((control) => control.path));
+    const unknown = Object.keys(paramEdit.params).find((path) => !paths.has(path));
+    if (unknown || !spec) throw new HttpError(400, `This effect has no variable ${unknown ?? 'to change'}`);
+    // Checked as it will play, with its colours; a value that makes it strobe asks for the acknowledgement first.
+    const fresh = data.pattern !== undefined;
+    const kept = !fresh && state.effectParams?.pattern === pattern ? state.effectParams.params : {};
+    const colours = data.effectColours !== undefined ? data.effectColours : fresh ? null : state.effectColours;
+    let live;
+    try { live = validateSpec(withEffectParams(pattern, withEffectColours(pattern, spec, colours ?? null), { pattern, params: { ...kept, ...paramEdit.params } })!); }
+    catch (err) { throw new HttpError(400, `These values cannot play: ${err instanceof Error ? err.message : String(err)}`); }
+    safety.requireAcknowledged(live);
+  }
   // Naming the pattern is starting it, even the one on stage; a fader moved under it is not.
   if (data.pattern !== undefined) {
     const effect = resolveEffect(data.pattern);
@@ -129,6 +147,7 @@ function applyPatch(rawData: unknown, { beforeCommit, origin = 'hand', paletteOv
     || data.split !== undefined || data.pixelMap !== undefined || data.pixelPattern !== undefined
     || data.panelPattern !== undefined || data.paletteOverride !== undefined
     || data.basePalette !== undefined || data.overridePalette !== undefined || data.effectColours !== undefined
+    || data.effectParams !== undefined
     || COLOR_SLOTS.some((slot) => data[slot] !== undefined);
   if (data.fadeMs !== undefined || changesLook) beginFade(data.fadeMs || 0);
 
@@ -160,9 +179,12 @@ function applyPatch(rawData: unknown, { beforeCommit, origin = 'hand', paletteOv
     && (data.pattern !== undefined || data.pixelPattern !== undefined || data.panelPattern !== undefined
       || data.beatDivision !== undefined);
   if (data.beatDivision !== undefined) state.beatDivision = data.beatDivision;
-  if (data.pattern !== undefined) { state.pattern = data.pattern; state.effectColours = null; }
+  if (data.pattern !== undefined) { state.pattern = data.pattern; state.effectColours = null; state.effectParams = null; }
   if (data.effectColours !== undefined) state.effectColours = data.effectColours
     ? { ...state.effectColours, ...data.effectColours } : null;
+  if (data.effectParams !== undefined) state.effectParams = data.effectParams
+    ? { pattern: data.effectParams.pattern, params: { ...(state.effectParams?.pattern === data.effectParams.pattern ? state.effectParams.params : {}),
+      ...data.effectParams.params } } : null;
   if (patternChanges || divisionChanges || scheduled) anchorPattern(data.anchorMs);
   // Before the single slots, so "this look, but slot A in red" lands as it reads.
   const wantsPalette = data.palette !== undefined

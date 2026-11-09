@@ -64,7 +64,7 @@ function renderOrbit(p: OrbitParams, room: Room, f: EffectFrame, out: EffectSlot
 registerKind<OrbitParams, Record<string, never>>({
   kind: 'v2.orbit', app: 'own', level: 'cell', schema: orbitSchema, gapsApply: gapsWithoutFloor,
   defaults: { params: orbitSchema.parse({}), brightness: 1 },
-  rapidFlashWhen: accentStrobes,
+  rapidFlashWhen: accentStrobes, restartKey: () => null,
   init: () => ({}),
   render: (params, _state, room, frame, out) => renderOrbit(params, room, frame, out),
 });

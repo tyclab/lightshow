@@ -46,5 +46,5 @@ function render(p: Params, state: Motion, room: Room, f: EffectFrame, out: Effec
 registerKind<Params, Motion>({
   kind: 'v2.visualizer', app: 'own', level: 'cell', schema: visualizerSchema, gapsApply: gapsWithoutFloor,
   defaults: { params: visualizerSchema.parse({}), brightness: 1 }, stateful: true,
-  rapidFlashWhen: accentStrobes, init: () => ({ phase: 0, lastMs: null }), render,
+  rapidFlashWhen: accentStrobes, restartKey: () => null, init: () => ({ phase: 0, lastMs: null }), render,
 });

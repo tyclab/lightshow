@@ -527,6 +527,28 @@ test("the inspector draws a kind's labelled controls: the shape's own above Adva
   assert.doesNotMatch(ui.html(ui.h(ui.Inspector, { id: 'v2.grooveWave' })), /Elevation Deg|Turn Per Lap|Azimuth/, 'no label is a parameter name');
 });
 
+test('the main effect\'s variables sit under its status, moved live, with Reset and Save as…; a classic look has none', () => {
+  givenLibrary({ pattern: 'v2.grooveWave', effectParams: { pattern: 'v2.grooveWave', params: { speed: 3 } } });
+  const html = ui.html(ui.h(ui.Effects, {}));
+  const strip = /<details class="live-controls">(.*?)<\/details>/s.exec(html)?.[1];
+  assert.ok(strip, 'the strip is there');
+  assert.match(strip, /<summary>Variables · Groove Wave<span class="insp-dirty"> Changed<\/span><\/summary>/);
+  const labels = [...strip.matchAll(/<label for="live-[^"]+">([^<]+)<\/label>/g)].map((m) => m[1]);
+  assert.deepStrictEqual(labels, ['Shape', 'Heading', 'Tilt', 'Width', 'Speed', 'Motion', 'Turn per lap', 'Colours', 'React']);
+  assert.match(strip, /id="live-speed" type="range"[^>]*value="3"/, 'the live value, not the preset\'s');
+  assert.match(strip, /<output class="insp-unit" for="live-speed">3 m\/beat<\/output>/);
+  assert.match(strip, />Reset<\/button>/);
+  assert.match(strip, />Save as…<\/button>/);
+  assert.doesNotMatch(strip, /id="spatial-/, 'its ids do not collide with an open inspector\'s');
+  assert.ok(html.indexOf('class="live-controls"') < html.indexOf('class="effects-catalogue"'), 'above the list');
+  givenLibrary({ pattern: 'position-chase' });
+  assert.doesNotMatch(ui.html(ui.h(ui.Effects, {})), /live-controls/);
+  givenLibrary({ pattern: 'v2.risingWall' });
+  const wall = /<details class="live-controls">(.*?)<\/details>/s.exec(ui.html(ui.h(ui.Effects, {})))[1];
+  assert.doesNotMatch(wall, /Changed/);
+  assert.ok(wall.includes('>Driven by<') && !wall.includes('>Speed<'), 'the wall\'s own variables');
+});
+
 test("Position Chase inspector exposes ordered envelope controls", () => {
   givenLibrary({});
   const html = ui.html(ui.h(ui.Inspector, { id: 'hd.neonDomino' }));

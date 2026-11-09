@@ -128,7 +128,7 @@ function renderSweep(p: SweepParams, room: Room, f: EffectFrame, out: EffectSlot
 registerKind<SweepParams, Record<string, never>>({
   kind: 'v2.sweep', app: 'own', level: 'cell', schema: sweepSchema, gapsApply: gapsWithoutFloor,
   defaults: { params: sweepSchema.parse({}), brightness: 1 },
-  rapidFlashWhen: accentStrobes,
+  rapidFlashWhen: accentStrobes, restartKey: () => null,
   init: () => ({}),
   render: (params, _state, room, frame, out) => renderSweep(params, room, frame, out),
 });
