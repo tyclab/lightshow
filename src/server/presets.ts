@@ -108,7 +108,7 @@ const PATTERN_IDS = PATTERNS.map((p) => p.id);
 
 // Every classic look the auto show may pick or lay on bars and panels; a redirected id plays its v2 preset as the look and,
 // when that is a Rapid flash, waits for the acknowledgement as any Rapid flash row does.
-const CLASSIC_LOOKS: readonly { id: string; name: string; desc: string; rapidFlash?: true }[] = [...PATTERNS, ...Object.keys(CLASSIC_REDIRECTS).filter((id) => !id.startsWith('party.')).map((id) => {
+const CLASSIC_LOOKS: readonly { id: string; name: string; desc: string; rapidFlash?: boolean }[] = [...PATTERNS, ...Object.keys(CLASSIC_REDIRECTS).filter((id) => !id.startsWith('party.')).map((id) => {
   const { name, desc, party, pixel, spec } = presetById(id)!;
   return { id, name, desc, ...(party ? { party } : {}), ...(pixel ? { pixel } : {}), ...(spec && requiresAcknowledgement(spec) ? { rapidFlash: true as const } : {}) };
 })];
