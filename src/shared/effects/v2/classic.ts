@@ -1,6 +1,13 @@
 // Classic and party pattern ids that play a v2 preset instead of their pattern function, each with the
 // reason it moved. The operator decides each move by A/B test on the rig; every other classic id keeps its function.
-export const CLASSIC_REDIRECTS: Readonly<Record<string, string>> = Object.freeze({});
+export const CLASSIC_REDIRECTS: Readonly<Record<string, string>> = Object.freeze({
+  solid: 'Wash on the v2 engine (option C), merged only once the operator chose B in A/B migration.solid',
+  fade: 'Wash on the v2 engine (option C), merged only once the operator chose B in A/B migration.fade',
+  hit: 'Wash on the v2 engine (option C), merged only once the operator chose B in A/B migration.hit',
+  'color-cycle': 'Wash on the v2 engine (option C), merged only once the operator chose B in A/B migration.color-cycle',
+  breathe: 'Wash on the v2 engine (option C), merged only once the operator chose B in A/B migration.breathe',
+  'party.ice': 'Wash on the v2 engine (option C), merged only once the operator chose B in A/B migration.party.ice',
+});
 
 // The classic and party looks on the v2 engine: for each id, the v2 spec closest to its own pattern on the
 // diff rig (scripts/effects-v2-alias-diff.js --classic) and that diff as [largest channel, mean absolute
@@ -88,17 +95,17 @@ export const CLASSIC_V2: Readonly<Record<string, ClassicLook>> = {
   'party.fire': { family: 'Wave', name: 'Fire', diff: [152, 16.319, 129],
     spec: { kind: 'v2.sweep', palette: ['#B51D00004000', '#E16A00102000', '#FFAF30300000'], gradients: [{ name: 'Embers', space: 'rgb', wrap: true, stops: [{ at: 0, slot: 0 }, { at: 0.3333333333333333, slot: 1 }, { at: 0.6666666666666666, slot: 2 }] }], gradient: 'Embers', brightness: 0.4, background: { version: 1, level: 0.4 }, params: { space: 'plan', profile: 'gradient', width: 4, speed: 0.02, azimuthDeg: 90 } } },
   // Wash
-  solid: { family: 'Wash', name: 'Solid', diff: [0, 0, 0],
+  solid: { family: 'Wash', name: 'Solid', desc: 'Every light on the first colour', diff: [0, 0, 0],
     spec: { kind: 'v2.wash', params: { space: 'plan', colour: 'solid' } } },
-  fade: { family: 'Wash', name: 'Fade', diff: [221, 30.659, 129],
+  fade: { family: 'Wash', name: 'Fade', desc: 'Every light swelling up and fading down in the first colour every two beats', diff: [221, 30.659, 129],
     spec: { kind: 'v2.wash', params: { space: 'plan', colour: 'solid', envelope: { curve: 'easeInOut', attack: 0.25, hold: 0, release: 1 }, shape: 'envelope', cycleBeats: 2, depth: 0.8 } } },
-  hit: { family: 'Wash', name: 'Hit', diff: [129, 7.059, 64],
+  hit: { family: 'Wash', name: 'Hit', desc: 'Every light punching on the beat in the first colour and decaying between', diff: [129, 7.059, 64],
     spec: { kind: 'v2.wash', params: { space: 'plan', colour: 'solid', shape: 'envelope', cycleBeats: 1, envelope: { curve: 'easeOut', attack: 0, hold: 0, release: 0.6 }, depth: 0.8 } } },
-  'color-cycle': { family: 'Wash', name: 'Colour Cycle', diff: [0, 0, 0],
+  'color-cycle': { family: 'Wash', name: 'Colour Cycle', desc: 'Every light on one colour, the next of the look\'s colours on every beat', diff: [0, 0, 0],
     spec: { kind: 'v2.wash', params: { space: 'plan', colour: 'step' } } },
-  breathe: { family: 'Wash', name: 'Breathe', diff: [255, 42.706, 129],
+  breathe: { family: 'Wash', name: 'Breathe', desc: 'The whole room swelling and falling as one over a bar, the colour drifting round the look', diff: [255, 42.706, 129],
     spec: { kind: 'v2.wash', params: { space: 'plan', envelope: { curve: 'easeInOut', attack: 1.6, hold: 0.6, release: 1.6 }, shape: 'envelope', cycleBeats: 4, depth: 0.9, colour: 'time' } } },
-  'party.ice': { family: 'Wash', name: 'Ice', diff: [17, 1.483, 29],
+  'party.ice': { family: 'Wash', name: 'Ice', desc: 'A gentle blue, cyan and cool-white breath over twelve bars, without strobing', diff: [17, 1.483, 29],
     spec: { kind: 'v2.wash', palette: ['#164A9B100000', '#3FAEC7300000', '#9EDDEA500000'], gradients: [{ name: 'Glacier', space: 'rgb', wrap: true, stops: [{ at: 0, slot: 0 }, { at: 0.3333333333333333, slot: 1 }, { at: 0.6666666666666666, slot: 2 }] }], gradient: 'Glacier', brightness: 0.35, background: { version: 1, level: 0.35 }, params: { space: 'plan', envelope: { curve: 'easeInOut', attack: 16, hold: 16, release: 16 }, shape: 'envelope', cycleBeats: 48 } } },
   // Chase
   chase: { family: 'Chase', name: 'Chase →', diff: [46, 17.739, 129],

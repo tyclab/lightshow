@@ -55,11 +55,7 @@ const tagged = (tags: Iterable<TagId>, via: Iterable<TagSource> = []): LookTags 
 // The auto show's expression is no input tag: only the show sets it, by hand every reader sees the resting
 // expression, and under the show it shapes 37 of these patterns and dims every lamp look alike.
 const LEGACY: Readonly<Record<string, LookTags>> = Object.freeze({
-  solid: tagged(['static', 'rig']),
-  fade: tagged(['beat', 'rig']),
-  hit: tagged(['bands', 'rig'], ['track']),
   strobe: tagged(['static', 'rig']),
-  'color-cycle': tagged(['beat', 'rig']),
   rainbow: tagged(['beat', 'ownColours']),
   chase: tagged(['beat']),
   'chase-rev': tagged(['beat']),
@@ -102,7 +98,6 @@ const LEGACY: Readonly<Record<string, LookTags>> = Object.freeze({
   'bounce-scan': tagged(['beat']),
   streak: tagged(['beat']),
   starlight: tagged(['beat']),
-  breathe: tagged(['beat', 'rig']),
   'volume-gate': tagged(['level'], ['track']),
   confetti: tagged(['bands'], ['track']),
   'anchor-fill': tagged(['beat']),

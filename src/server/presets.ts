@@ -55,11 +55,7 @@ const COLOR_PRESETS = [
 
 // Legacy patterns have no EffectSpec and cannot run as pads, clips or voices; a redirected id is a preset row instead.
 const PATTERNS = [
-  { id: 'solid',        name: 'Solid',         desc: 'All fixtures on colour A' },
-  { id: 'fade',         name: 'Fade',          desc: 'All fixtures breathe together' },
-  { id: 'hit',          name: 'Hit',           desc: 'All fixtures punch on the beat, decay between' },
   { id: 'strobe',       name: 'Strobe',        desc: 'All fixtures on colour A, strobing at the Strobe card\'s speed (0 is none): Standard runs the fixture\'s own rate; the ramps, Random and Burst follow the beat' },
-  { id: 'color-cycle',  name: 'Colour Cycle',  desc: 'Whole rig steps to the next palette colour' },
   { id: 'rainbow',      name: 'Rainbow',       desc: 'Full spectrum spread across the rig — ignores the palette' },
 
   { id: 'chase',        name: 'Chase →',       desc: 'One fixture at a time, forward' },

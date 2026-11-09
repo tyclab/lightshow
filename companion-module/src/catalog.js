@@ -33,11 +33,7 @@ export const COLOR_PRESETS = [
 ]
 
 export const PATTERNS = [
-	{ id: 'solid', name: 'Solid' },
-	{ id: 'fade', name: 'Fade' },
-	{ id: 'hit', name: 'Hit' },
 	{ id: 'strobe', name: 'Strobe' },
-	{ id: 'color-cycle', name: 'Colour Cycle' },
 	{ id: 'rainbow', name: 'Rainbow' },
 	{ id: 'chase', name: 'Chase →' },
 	{ id: 'chase-rev', name: 'Chase ←' },
@@ -80,7 +76,6 @@ export const PATTERNS = [
 	{ id: 'bounce-scan', name: 'Bouncing Scan' },
 	{ id: 'streak', name: 'Streak' },
 	{ id: 'starlight', name: 'Starlight' },
-	{ id: 'breathe', name: 'Breathe' },
 	{ id: 'volume-gate', name: 'Volume Gate' },
 	{ id: 'confetti', name: 'Confetti' },
 	{ id: 'anchor-fill', name: 'Anchor Fill' },
