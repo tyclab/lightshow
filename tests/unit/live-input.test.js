@@ -139,8 +139,8 @@ test('quiet states four a second keep the input listening, and each change is lo
     c.live.handleLine(state({ t: at, captured: at + 0.035, quiet: true }));
     assert.deepStrictEqual([c.live.status().listening, c.live.status().quiet], [true, true]);
   }
-  c.advance(240);
-  assert.strictEqual(c.live.status().listening, true, 'between two quiet states');
+  c.advance(280);
+  assert.strictEqual(c.live.status().listening, true, 'between two quiet states: up to 280 ms when the sound card is read eight hops at a time');
   for (let i = 0; i < 3; i++) {
     c.advance(11.6);
     at += 0.0116;

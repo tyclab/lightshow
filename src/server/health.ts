@@ -14,6 +14,7 @@ import type { Supervision } from './supervised.ts';
 import type { EngineStatus } from './engine.ts';
 import type { WledBoardStatus } from './wled-watch.ts';
 import type { HueStatus } from './hue.ts';
+import type { LiveStatus } from '../live-input.ts';
 
 export type HealthStatus = 'ok' | 'degraded' | 'failing';
 
@@ -97,6 +98,11 @@ export const loopDelayOf = (h: Pick<NonNullable<typeof histogram>, 'count' | 'pe
 
 const metric = (value: number | undefined): number | null => Number.isFinite(value) ? value! : null;
 
+let liveProvider: (() => LiveStatus | null) | null = null;
+
+/** Where the summary reads the live input from, once integrations has one. */
+export function setLiveProvider(fn: (() => LiveStatus | null) | null): void { liveProvider = fn; }
+
 // Whitelist scalars: health() also contains device addresses and recent error text.
 export function performanceSample(
   engine: EngineStatus,
@@ -105,6 +111,7 @@ export function performanceSample(
   armed: boolean,
   previous: EngineStatus | null,
   nowMs = hrtimeMs(),
+  live: Pick<LiveStatus, 'listening' | 'quiet'> | null = null,
 ) {
   const elapsed = (engine.sampledAtMs ?? NaN) - (previous?.sampledAtMs ?? NaN);
   const frames = (engine.totalFrames ?? NaN) - (previous?.totalFrames ?? NaN);
@@ -114,6 +121,7 @@ export function performanceSample(
     && Number.isFinite(elapsed) && elapsed > 0 && frames >= 0 && skipped >= 0;
   return {
     armed,
+    liveQuiet: live?.listening ? live.quiet : null,
     engineRunning: engine.running,
     engineThread: engine.thread,
     engineFallback: !!engine.fellBack,
@@ -151,7 +159,8 @@ export function startHealthMonitor(): void {
     h.reset();
     try {
       const engine = engineStatus();
-      const sample = performanceSample(engine, lastWindow, process.memoryUsage(), isArmed(), previous);
+      const sample = performanceSample(engine, lastWindow, process.memoryUsage(), isArmed(), previous, hrtimeMs(),
+        liveProvider ? liveProvider() : null);
       previous = engine;
       performanceLog.info(sample, 'Periodic performance summary');
     } catch (_) { /* Telemetry must not interrupt the show. */ }

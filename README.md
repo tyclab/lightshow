@@ -2237,7 +2237,9 @@ describe the last 2,640 rendered frames; `skippedFramesTotal` is cumulative for
 the current ticker, while `intervalSkipped` covers `intervalMs`.
 `eventLoopP50Ms`, `eventLoopP99Ms` and `eventLoopMaxMs` exclude the 10 ms
 sampling interval. These are engine timings, not confirmation that a device
-displayed every frame.
+displayed every frame. `liveQuiet` is true while the live input hears digital
+silence and reports four states a second, false while it hears sound, and null
+while it is not listening.
 
 The existing Docker log collector can query these records without another
 endpoint or credential. For example, in Loki:

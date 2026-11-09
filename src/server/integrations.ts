@@ -42,6 +42,7 @@ import { SequenceWorkspace } from './sequence-workspace.ts';
 import { SequenceStore } from './sequence-store.ts';
 import { LiveAutomation } from './live-automation.ts';
 import { isArmed } from './armed.ts';
+import { setLiveProvider } from './health.ts';
 import { toHex } from '../shared/effects/palette.ts';
 import { configFile } from './config-dir.ts';
 import type { Server } from 'socket.io';
@@ -472,6 +473,7 @@ function setupIntegrations({ io, midi, spotify, nowPlaying, deezerSource, prolin
   });
   if (liveInput) {
     liveInput.useBands(() => audioFeatures.bandList());
+    setLiveProvider(() => (liveInput ? liveInput.status() : null));
     // Guard both live listeners independently so failure in one cannot starve the other.
     const directorHears = liveDirector ? guarded('live director', (r: LiveReading) => liveDirector.onReading(r)) : null;
     const featuresHear = guarded('audio features', (r: LiveReading) => audioFeatures.onReading(r));

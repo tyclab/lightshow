@@ -5,7 +5,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import express from 'express';
-import { assess, health, performanceSample, startHealthMonitor, loopDelayOf, LOOP_RESOLUTION_MS } from '../../src/server/health.ts';
+import { assess, health, performanceSample, startHealthMonitor, setLiveProvider, loopDelayOf, LOOP_RESOLUTION_MS } from '../../src/server/health.ts';
 import { buffer } from '../../src/server/log.ts';
 import { supervision, startHeartbeat, EXIT_RESTART, EXIT_CONFIG } from '../../src/server/supervised.ts';
 import { attachRoutes } from '../../src/server/routes.ts';
@@ -135,23 +135,36 @@ test('performance deltas reject startup, restart, fallback and stale or reset co
   assert.equal(sample({ ...timing, frames: undefined, renderMs: undefined }).renderMaxMs, null);
 });
 
+test('performance summaries say whether the live input hears silence', () => {
+  const next = { ...timing, sampledAtMs: 31_000, totalFrames: 1240 };
+  const quiet = (live) => performanceSample(next, fine.eventLoop, memory, false, timing, 31_010, live).liveQuiet;
+  assert.deepEqual([{ listening: true, quiet: true }, { listening: true, quiet: false }, { listening: false, quiet: false }, null].map(quiet),
+    [true, false, null, null], 'true in silence, false in sound, null without a fresh reading or a live input');
+  assert.equal(sample(next, timing).liveQuiet, null);
+});
+
 test('one existing health timer emits bounded summaries and survives collection failure', (t) => {
   t.mock.timers.enable({ apis: ['setInterval'] });
   const since = buffer.last;
   const summaries = () => buffer.since(since).filter((entry) => entry.component === 'performance');
+  setLiveProvider(() => ({ listening: true, quiet: true }));
+  t.after(() => setLiveProvider(null));
   startHealthMonitor();
   startHealthMonitor();
   t.mock.timers.tick(29_999);
   assert.equal(summaries().length, 0);
   t.mock.timers.tick(1);
   assert.equal(summaries().length, 1);
+  assert.equal(summaries()[0].data.liveQuiet, true, 'read from the live input the integrations registered');
   const usage = t.mock.method(process, 'memoryUsage', () => { throw new Error('collection failed'); });
   assert.doesNotThrow(() => t.mock.timers.tick(30_000));
   usage.mock.restore();
+  setLiveProvider(() => ({ listening: false, quiet: false }));
   t.mock.timers.tick(30_000);
   assert.equal(summaries().length, 2);
   assert.equal(summaries()[1].data.engineRunning, false);
   assert.equal(summaries()[1].data.actualFps, null);
+  assert.equal(summaries()[1].data.liveQuiet, null, 'not listening: nothing to say about silence');
   assert.ok(JSON.stringify(summaries()[1]).length < 1500);
 });
 

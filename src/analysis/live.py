@@ -242,7 +242,7 @@ class LiveService:
         return True
 
     def block_frames(self):
-        """How much the sound card loop reads next: a hop, or QUIET_BLOCK hops while quiet."""
+        """Next read for the sound card loop: a hop, or QUIET_BLOCK hops while quiet (sound then at most 93 ms late)."""
         return HOP * QUIET_BLOCK if self.quiet else HOP
 
     def state(self):
@@ -368,7 +368,6 @@ def capture_soundcard(sc, source, device, service, emitter, stop):
         emitter.send({'type': 'ready', 'backend': 'soundcard', 'source': source, 'device': name,
                       'sampleRate': SAMPLE_RATE, 'hop': HOP})
         while not stop():
-            # Bigger reads while quiet: the first loud block after 3 s of digital silence is at most 93 ms late, once.
             service.push(recorder.record(numframes=service.block_frames()))
 
 

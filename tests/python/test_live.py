@@ -278,6 +278,18 @@ class Quiet(unittest.TestCase):
         self.assertAlmostEqual(len(states) / track.duration, 86.1, delta=1.0)
         self.assertFalse(service.quiet)
 
+    def test_the_floor_is_eighty_decibels_under_full_scale(self):
+        import numpy as np
+        tone = synth.tone(440.0, 5.0)
+        edge = synth.SR // 10
+        steady = float(np.sqrt(np.mean(tone[edge:-edge] ** 2)))
+        for db, silent in ((-78.0, False), (-82.0, True)):
+            with self.subTest(db=db):
+                samples = (tone * (10 ** (db / 20.0) / steady)).astype(np.float32)
+                lines, service = serve(synth.Track(samples, synth.SR, 0.0, [], [], []))
+                self.assertEqual(any('quiet' in s for s in lines if s['type'] == 'state'), silent)
+                self.assertEqual(service.quiet, silent)
+
     def test_a_quiet_sound_card_is_read_eight_hops_at_a_time(self):
         import itertools
         from analysis import live
