@@ -9,7 +9,7 @@ import * as output from './output.ts';
 import * as universes from './universes.ts';
 import { guarded, report } from './guard.ts';
 import { conductor } from './conductor.ts';
-import { invalidateRig } from './rig.ts';
+import { currentRig, invalidateRig } from './rig.ts';
 import { currentSpace } from './unit-space.ts';
 import { baseIntentOf, createRenderer } from './renderer.ts';
 import { createTicker, hrtimeMs, FRAME_MS } from './frame-clock.ts';
@@ -18,7 +18,8 @@ import { createIdentify } from './identify.ts';
 import type { EngineHeap, FromWorker, ToWorker } from './engine-messages.ts';
 import type { FrameSummary, Ticker } from './frame-clock.ts';
 import type { CommandResult, FadeRequest, RenderInput, SyncTestRequest, VoiceFrame } from './renderer.ts';
-import type { Profile, PulseReading } from '../types/rig.ts';
+import type { Geometry, Profile, PulseReading } from '../types/rig.ts';
+import type { Rig } from '../shared/rig.ts';
 import type { AudioFrame } from '../shared/effects/audio-frame.ts';
 import type { EffectModulation, EffectSpec, HdMaster } from '../shared/effects/types.ts';
 import type { MusicalTime } from './conductor.ts';
@@ -237,7 +238,14 @@ function voiceFrames(): VoiceFrame[] {
     untilMs: v.untilMs === null ? null : v.untilMs + WORKER_CLOCK_SHIFT }));
 }
 
-function renderInput(): RenderInput {
+// A curtain maps thousands of points: the engine thread holds them (postPoints), so a snapshot it is sent carries none.
+function withoutPoints(geometry: Geometry | null | undefined): Geometry | null {
+  if (!geometry?.points) return geometry || null;
+  const { points: _points, ...rest } = geometry;
+  return rest;
+}
+
+function renderInput({ points = true }: { points?: boolean } = {}): RenderInput {
   const effect = currentEffect();
   noteEffect(state.pattern, effect);
   const pictureSource = settings.get('picture.source');
@@ -309,7 +317,7 @@ function renderInput(): RenderInput {
       override: f.override || null,
       position: f.position || null,
       group: f.group || null,
-      geometry: f.geometry || null,
+      geometry: points ? f.geometry || null : withoutPoints(f.geometry),
       hue: f.output?.protocol === 'hue',
       output: f.output ? { protocol: f.output.protocol } : null,
       productId: f.productId, hardware: f.hardware, admission: f.admission,
@@ -479,6 +487,7 @@ let crashes: number[] = [];
 let postedRevision = -1;
 let postedSequence: number | null | undefined;
 let postedSpace: ReturnType<typeof currentSpace> | undefined;
+let postedRig: Rig | undefined;                  // the patch whose points the worker holds
 let stopping: ((applied: boolean, hueClosed: boolean) => void) | null = null;   // resolves when the worker has blacked out
 let restartTimer: ReturnType<typeof setTimeout> | null = null;
 let workerFile = path.join(import.meta.dirname, 'engine-worker.ts');
@@ -510,7 +519,7 @@ function failPendingCommands(): void {
 function effectCommand(cmd: string, arg?: unknown): Promise<CommandResult> {
   const seq = ++commandSeq;
   if (!thread) return Promise.resolve({ seq, status: 'unavailable' });
-  const input = renderInput();
+  const input = renderInput({ points: thread !== 'worker' });
   const intent = baseIntentOf(input);
   return new Promise((resolve) => {
     pendingCommands.set(seq, resolve);
@@ -519,6 +528,7 @@ function effectCommand(cmd: string, arg?: unknown): Promise<CommandResult> {
       // Post the intended base snapshot first so the worker command targets that look.
       if (lastPosted) {
         postSequence(worker);
+        postPoints(worker);
         post(worker, { type: 'snapshot', at: lastPosted.at, input, reading: { ...lastPosted.reading, moving: freeClockRuns() }, ...issueOutputs(), barrierRevision: frames.revision });
       }
       post(worker, { type: 'command', seq, cmd, arg, intent });
@@ -555,6 +565,14 @@ function startMainDriver(): void {
   ticker.start();
 }
 
+// The cached Rig is replaced whenever a point moves (its key compares coordinates), the patch changes or its array is replaced.
+function postPoints(w: Worker): void {
+  const rig = currentRig();
+  if (rig === postedRig) return;
+  post(w, { type: 'points', points: state.fixtures.map((f) => f.geometry?.points ?? null) });
+  postedRig = rig;
+}
+
 function importedProfiles(): Profile[] {
   return Object.values(listProfiles()).filter((p) => !isBuiltinProfile(p.id));
 }
@@ -577,13 +595,14 @@ function controlTick(): void {
     post(worker, { type: 'space', space });
     postedSpace = space;
   }
+  postPoints(worker);
   postSequence(worker);
   const idle = isIdle();
   if (idleSkip(idle)) return;
   post(worker, {
     type: 'snapshot',
     at,
-    input: renderInput(),
+    input: renderInput({ points: false }),
     // Keep the free clock stopped when no pattern, voice or sequence needs it.
     reading: { ...reading, moving: freeClockRuns() },
     ...issueOutputs(),
@@ -627,6 +646,7 @@ function spawnWorker(epochMs: number): void {
   postedRevision = -1;
   postedSequence = undefined;
   postedSpace = undefined;
+  postedRig = undefined;
   w.on('message', (msg: FromWorker | null) => {
     if (worker !== w && msg?.type !== 'stopped') return;
     if (msg && msg.type === 'ready') { started = true; markReady(); }

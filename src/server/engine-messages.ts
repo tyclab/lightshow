@@ -5,7 +5,7 @@ import type { BaseIntent, CommandResult, RenderInput } from './renderer.ts';
 import type { ArtnetDestination, TransmitConfig } from './transmit.ts';
 import type { HueStreamStatus } from './hue-stream.ts';
 import type { SharedUniverses } from './universes.ts';
-import type { Profile } from '../types/rig.ts';
+import type { Point, Profile } from '../types/rig.ts';
 import type { SequenceTable } from '../shared/effects/sequence.ts';
 import type { UnitSpace } from '../shared/space.ts';
 
@@ -30,6 +30,8 @@ export interface EngineHeap { usedBytes: number; totalBytes: number }
 export type ToWorker =
   | { type: 'profiles'; profiles: Profile[] }
   | { type: 'space'; space: UnitSpace | null }
+  // Each fixture's mapped points by its place in the snapshots that follow, which carry none: sent when they change.
+  | { type: 'points'; points: (Point[] | null)[] }
   // `idle`: nothing can see the frames, so the worker renders only for a snapshot or command that reaches it.
   | { type: 'snapshot'; at: number; input: RenderInput; reading: PostedReading; outputs: TransmitConfig; barrierRevision?: number; outputSeq?: number;
     idle?: boolean }

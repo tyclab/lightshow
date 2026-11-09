@@ -51,6 +51,7 @@ async function captureWorker({ seed, startNow }) {
   });
   return {
     profiles: (profiles) => w.postMessage({ type: 'profiles', profiles }),
+    points: (points) => w.postMessage({ type: 'points', points }),
     render: (input, reading, now, gridOriginMs) => new Promise((resolve) => {
       const k = ++id;
       pending.set(k, resolve);
@@ -318,6 +319,245 @@ test('failed driver commands reject late answers without replay', async () => {
     delete process.env.FAKE_WORKER_CRASH;
     await stopEngine();
     setEffectSource(null);
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+// ── Mapped points, held by the engine thread ────────────────────────────────
+
+const MAPPED = barProfile({ id: 'worker-mapped-bar', name: 'Mapped bar', cells: 24, firstChannel: 1, order: 'RGB' });
+
+/** The pars beside a bar mapped point by point, as a curtain is; `shift` moves the points. */
+function mappedRig(shift = 0) {
+  return [...RIGS.pars, fixture(6, 1, { universe: 1, profileId: MAPPED.id, position: { x: 50, y: 30, height: 40 },
+    geometry: { length: 30, angle: 0, points: Array.from({ length: 24 }, (_, i) => ({
+      x: ((i * 5 + shift) % 24) - 12, y: Math.floor(i / 6) * 3, height: (i * 7 + shift * 3) % 60 })) } })];
+}
+
+/** The input as the engine now posts it: every fixture's geometry without its points. */
+const withoutPoints = (input) => ({ ...input, fixtures: input.fixtures.map((f) => {
+  if (!f.geometry?.points) return f;
+  const { points: _points, ...geometry } = f.geometry;
+  return { ...f, geometry };
+}) });
+
+test('a seeded run renders the same bytes with the points held by the worker as with the points in every input', async () => {
+  registerProfile(MAPPED);
+  const seed = 23;
+  const before = await captureWorker({ seed, startNow: 0 });
+  const after = await captureWorker({ seed, startNow: 0 });
+  try {
+    for (const w of [before, after]) w.profiles([MAPPED]);
+    const runs = [
+      ...effectScenes(mappedRig(), { pattern: 'wave', frames: 40 }),
+      ...effectScenes(mappedRig(), { pattern: 'rainbow', frames: 40, now: 3000 }),
+      ...effectScenes(mappedRig(), { pattern: 'v2.lightOrbs', effect: presetById('v2.lightOrbs').spec, frames: 60, now: 5000 }),
+    ];
+    after.points(runs[0][0].fixtures.map((f) => f.geometry?.points ?? null));
+    let frame = 0;
+    for (const [input, reading, now] of runs) {
+      const posted = withoutPoints(input);
+      assert.ok(posted.fixtures.every((f) => !f.geometry?.points), 'nothing cloned carries a point');
+      assert.deepStrictEqual(await after.render(posted, reading, now), await before.render(input, reading, now), `frame ${frame}`);
+      frame++;
+    }
+
+    // Edited part way through a run: the next frame draws the new points.
+    const scenes = effectScenes(mappedRig(), { pattern: 'wave', frames: 20, now: 9000 });
+    const edited = mappedRig(7);
+    for (let f = 0; f < scenes.length; f++) {
+      const [input, reading, now] = scenes[f];
+      if (f === 10) after.points(edited.map((x) => x.geometry?.points ?? null));
+      const full = f < 10 ? input : { ...input, fixtures: edited };
+      const got = await after.render(withoutPoints(full), reading, now);
+      assert.deepStrictEqual(got, await before.render(full, reading, now), `frame ${f}`);
+      if (f === 10) {
+        const stale = localRenderer({ seed, startNow: 0 });
+        assert.notDeepStrictEqual(got[1], stale(input, reading, now)[1], 'the edit shows in the bar\'s universe');
+      }
+    }
+  } finally {
+    await before.close();
+    await after.close();
+    unregisterProfile(MAPPED.id);
+  }
+});
+
+// A capture render, or a snapshot from a driver that never strips them, brings each fixture's own points.
+// The points the worker holds are the live patch's: they must not replace what an input brings.
+test('a fixture that brings its own points keeps them over the ones the worker holds', async () => {
+  registerProfile(MAPPED);
+  const seed = 29;
+  const reference = await captureWorker({ seed, startNow: 0 });
+  const holding = await captureWorker({ seed, startNow: 0 });
+  try {
+    for (const w of [reference, holding]) w.profiles([MAPPED]);
+    holding.points(mappedRig().map((f) => f.geometry?.points ?? null));
+    const own = effectScenes(mappedRig(7), { pattern: 'wave', frames: 12, now: 2000 });
+    const held = effectScenes(mappedRig(), { pattern: 'wave', frames: 12, now: 2000 });
+    const stale = localRenderer({ seed, startNow: 0 });
+    let differs = false;
+    for (let f = 0; f < own.length; f++) {
+      const [input, reading, now] = own[f];
+      const got = await holding.render(input, reading, now);
+      assert.deepStrictEqual(got, await reference.render(input, reading, now), `frame ${f}`);
+      differs ||= JSON.stringify(got[1]) !== JSON.stringify(stale(...held[f])[1]);
+    }
+    assert.ok(differs, 'the held points would have drawn something else');
+  } finally {
+    await reference.close();
+    await holding.close();
+    unregisterProfile(MAPPED.id);
+  }
+});
+
+/** A worker that records what the engine posts it: message types, and whether a snapshot carried any point. */
+const POINTS_WORKER = `
+import { parentPort } from 'node:worker_threads';
+const log = [{ type: 'start', crash: !!process.env.POINTS_WORKER_CRASH }];
+parentPort.on('message', (msg) => {
+  if (msg.type === 'points') log.push({ type: 'points', counts: msg.points.map((p) => p?.length ?? 0), first: msg.points.find(Boolean)?.[0] ?? null });
+  if (msg.type === 'snapshot') {
+    log.push({ type: 'snapshot', points: msg.input.fixtures.some((f) => f.geometry && 'points' in f.geometry),
+      ids: msg.input.fixtures.map((f) => f.id), trims: msg.input.fixtures.map((f) => f.maxBrightness) });
+    if (process.env.POINTS_WORKER_CRASH && log.filter((e) => e.type === 'snapshot').length >= 3) process.exit(1);
+    parentPort.postMessage({ type: 'frame', barrierRevision: msg.barrierRevision });
+  }
+  if (msg.type === 'stop') parentPort.postMessage({ type: 'stopped', applied: true });
+  parentPort.postMessage({ type: 'stats', stats: { log } });
+});
+parentPort.postMessage({ type: 'ready' });
+`;
+
+test('the engine posts a fixture\'s points once and again only when they change; its snapshots carry none', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'engine-points-worker-'));
+  const file = path.join(dir, 'points-worker.mjs');
+  fs.writeFileSync(file, POINTS_WORKER);
+  registerProfile(MAPPED);
+  const before = { fixtures: state.fixtures, artnet: state.artnet.enabled };
+  state.artnet.enabled = false;
+  state.fixtures = mappedRig().map((f) => structuredClone(f));
+  const log = () => engineStatus().log ?? [];
+  const points = () => log().filter((e) => e.type === 'points');
+  const snapshots = () => log().filter((e) => e.type === 'snapshot');
+  try {
+    startEngine({ thread: 'worker', file });
+    await until(() => snapshots().length >= 20, 'twenty snapshots');
+    assert.strictEqual(points().length, 1, 'the points once, however many snapshots');
+    assert.deepStrictEqual(points()[0].counts, [0, 0, 0, 0, 0, 0, 24]);
+    assert.ok(snapshots().every((e) => !e.points), 'no snapshot carries a point');
+
+    const mapped = state.fixtures[6];
+    mapped.geometry.points[0].x = 11;
+    await until(() => points().length === 2, 'the edited points');
+    assert.strictEqual(points()[1].first.x, 11, 'an edit in place is seen');
+    const seen = snapshots().length;
+    await until(() => snapshots().length >= seen + 10, 'ten more snapshots');
+    assert.strictEqual(points().length, 2, 'and nothing more while they stand still');
+
+    mapped.label = 'Renamed';
+    mapped.geometry = structuredClone(mapped.geometry);
+    const quiet = snapshots().length;
+    await until(() => snapshots().length >= quiet + 10, 'ten more snapshots');
+    assert.strictEqual(points().length, 2, 'equal points in new objects are no change');
+
+    delete mapped.geometry.points;
+    await until(() => points().length === 3, 'the points gone');
+    assert.deepStrictEqual(points()[2].counts, [0, 0, 0, 0, 0, 0, 0]);
+  } finally {
+    await stopEngine();
+    state.fixtures = before.fixtures;
+    state.artnet.enabled = before.artnet;
+    unregisterProfile(MAPPED.id);
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+// The worker puts the held points back by each fixture's place in the snapshot: a snapshot rendered
+// before the points of its own patch arrive draws the previous patch's points, or puts them on the wrong fixture.
+test('every snapshot follows the points of its own patch: after an edit, a removal and a new order', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'engine-points-order-'));
+  const file = path.join(dir, 'points-worker.mjs');
+  fs.writeFileSync(file, POINTS_WORKER);
+  registerProfile(MAPPED);
+  const before = { fixtures: state.fixtures, artnet: state.artnet.enabled };
+  state.artnet.enabled = false;
+  state.fixtures = mappedRig().map((f) => structuredClone(f));
+  const mappedId = state.fixtures.at(-1).id;
+  const log = () => engineStatus().log ?? [];
+  const snapshots = () => log().filter((e) => e.type === 'snapshot');
+  // Each snapshot against the last points message before it: the mapped fixture's place, and its first point.
+  const consistent = (what) => {
+    let held = null;
+    for (const e of log()) {
+      if (e.type === 'points') held = e;
+      if (e.type !== 'snapshot') continue;
+      assert.ok(held, `${what}: points before the first snapshot`);
+      assert.deepStrictEqual(held.counts, e.ids.map((id) => (id === mappedId ? 24 : 0)), `${what}: snapshot of ${e.ids}`);
+      const at = e.ids.indexOf(mappedId);
+      if (e.trims[at] === 77) assert.strictEqual(held.first.x, 11, `${what}: the edited trim came with the edited point`);
+    }
+  };
+  const more = async (what) => { const seen = snapshots().length; await until(() => snapshots().length >= seen + 5, what); };
+  try {
+    startEngine({ thread: 'worker', file });
+    await until(() => snapshots().length >= 5, 'five snapshots');
+    consistent('started');
+
+    const mapped = state.fixtures.at(-1);
+    mapped.geometry.points[0].x = 11;
+    mapped.maxBrightness = 77;
+    await more('the edit');
+    consistent('a point and a trim edited together');
+
+    state.fixtures.splice(0, 2);
+    await more('the removal');
+    consistent('two fixtures before it removed');
+
+    state.fixtures = [mapped, ...state.fixtures.filter((f) => f !== mapped).reverse()];
+    await more('the new order');
+    consistent('the mapped fixture first');
+    assert.strictEqual(snapshots().at(-1).ids[0], mappedId);
+  } finally {
+    await stopEngine();
+    state.fixtures = before.fixtures;
+    state.artnet.enabled = before.artnet;
+    unregisterProfile(MAPPED.id);
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+// A replacement engine thread holds no points, though the patch has not changed since the last one got them.
+test('an engine thread restarted after a crash gets the points before its first snapshot', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'engine-points-restart-'));
+  const file = path.join(dir, 'points-worker.mjs');
+  fs.writeFileSync(file, POINTS_WORKER);
+  registerProfile(MAPPED);
+  const before = { fixtures: state.fixtures, artnet: state.artnet.enabled };
+  state.artnet.enabled = false;
+  state.fixtures = mappedRig().map((f) => structuredClone(f));
+  const log = () => engineStatus().log ?? [];
+  const snapshots = () => log().filter((e) => e.type === 'snapshot').length;
+  const warn = console.warn;
+  console.warn = () => {};
+  try {
+    process.env.POINTS_WORKER_CRASH = '1';
+    startEngine({ thread: 'worker', file });
+    await until(() => log()[0]?.crash === true && snapshots() >= 2, 'the first thread');
+    // It dies at its third snapshot; its replacement starts a quarter of a second later and lives.
+    delete process.env.POINTS_WORKER_CRASH;
+    await until(() => log()[0]?.crash === false && snapshots() >= 3, 'its replacement');
+    assert.strictEqual(engineStatus().thread, 'worker');
+    const points = log().findIndex((e) => e.type === 'points');
+    assert.ok(points >= 0 && points < log().findIndex((e) => e.type === 'snapshot'), 'the points before the first snapshot');
+    assert.deepStrictEqual(log()[points].counts, [0, 0, 0, 0, 0, 0, 24]);
+  } finally {
+    delete process.env.POINTS_WORKER_CRASH;
+    await stopEngine();
+    console.warn = warn;
+    state.fixtures = before.fixtures;
+    state.artnet.enabled = before.artnet;
+    unregisterProfile(MAPPED.id);
     fs.rmSync(dir, { recursive: true, force: true });
   }
 });

@@ -17,7 +17,7 @@ import type { Ticker } from './frame-clock.ts';
 import type { RenderInput } from './renderer.ts';
 import type { SequenceTable } from '../shared/effects/sequence.ts';
 import type { TransmitConfig } from './transmit.ts';
-import type { Profile } from '../types/rig.ts';
+import type { Point, Profile } from '../types/rig.ts';
 
 if (!parentPort) throw new Error('engine-worker.ts runs as a worker thread');
 const port = parentPort;
@@ -85,6 +85,17 @@ function warmUp(): void {
 }
 
 let snapshot: { input: RenderInput; outputs: TransmitConfig; barrierRevision: number; outputSeq: number; idle: boolean } | null = null;
+let points: (Point[] | null)[] = [];               // each fixture's mapped points, by its place in the snapshots
+
+/** Each fixture's mapped points, held here rather than cloned into every snapshot; a fixture that brings its own keeps them. */
+function withPoints(input: RenderInput): RenderInput {
+  const { fixtures } = input;
+  for (let i = 0; i < fixtures.length; i++) {
+    const held = points[i], geometry = fixtures[i].geometry;
+    if (held && geometry && !geometry.points) geometry.points = held;
+  }
+  return input;
+}
 let fresh = false;                                 // a snapshot or command arrived since the last render
 let pendingSequence: { table: SequenceTable | null } | null = null;
 
@@ -193,9 +204,12 @@ port.on('message', guarded('engine-worker', (msg: ToWorker | null) => {
     case 'space':
       renderer.setSpace(msg.space);
       break;
+    case 'points':
+      points = msg.points;
+      break;
     case 'snapshot':
       takeSequence();
-      snapshot = { input: msg.input, outputs: msg.outputs, barrierRevision: msg.barrierRevision ?? 0, outputSeq: msg.outputSeq ?? 0,
+      snapshot = { input: withPoints(msg.input), outputs: msg.outputs, barrierRevision: msg.barrierRevision ?? 0, outputSeq: msg.outputSeq ?? 0,
         idle: msg.idle === true };
       follow.push(msg.reading, msg.at);
       fresh = true;
@@ -207,7 +221,7 @@ port.on('message', guarded('engine-worker', (msg: ToWorker | null) => {
     case 'render': {
       takeSequence();
       if (msg.table !== undefined) renderer.setSequence(msg.table);
-      const frames = renderOnce(msg);
+      const frames = renderOnce({ ...msg, input: withPoints(msg.input) });
       const commands = renderer.takeCommandResults();
       post({ type: 'rendered', id: msg.id, frames, ...(commands.length ? { commands } : {}) });
       break;
