@@ -27,10 +27,4 @@ export class StateStore {
 		this.versions[d] = v
 		return keys
 	}
-
-	merge(values) {
-		const keys = new Set(Object.keys(values || {}))
-		Object.assign(this.state, values || {})
-		return keys
-	}
 }

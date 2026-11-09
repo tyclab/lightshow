@@ -116,6 +116,7 @@ function applyPatch(rawData: unknown, { beforeCommit, origin = 'hand', paletteOv
   if (data.pattern !== undefined) {
     const effect = resolveEffect(data.pattern);
     if (effect) safety.requireAcknowledged(effect);
+    else safety.requireAcknowledgedPattern(data.pattern);
   }
   // Naming an energy effect is starting it too; an id that is none takes the latch off.
   if (data.energyOverride) {

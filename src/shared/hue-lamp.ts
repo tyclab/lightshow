@@ -33,7 +33,6 @@ function kelvinColour(kelvin: number): {
 }
 export { isHueProfile, hueSections, hueChannelsLabel, kelvinColour };
 
-// Read legacy channel-shaped outputs while saved shows migrate to ordered sections.
-export function hueChannels(output: { channel?: number; channels?: readonly number[] }): readonly number[] {
-  return output.channels ?? (output.channel === undefined ? [] : [output.channel]);
+export function hueChannels(output: { channels?: readonly number[] }): readonly number[] {
+  return output.channels ?? [];
 }

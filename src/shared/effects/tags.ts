@@ -1,5 +1,6 @@
 // Catalogue tags: facts a look's code states (what it reads, where it draws, its colours, its use), never how it looks.
 import { ENERGY_KIND_BY_ID } from './energy.ts';
+import { RAPID_PATTERNS } from '../strobe-fx.ts';
 import { mappingOf } from './mapping.ts';
 import { kindOf, requiresAcknowledgement } from './registry.ts';
 import { legacyKind } from './migrate.ts';
@@ -201,7 +202,7 @@ export function specTags(raw: EffectSpec, { pixel = false }: { pixel?: boolean }
 /** A legacy pattern's tags, or none for an id the table does not know. */
 export function legacyTags(id: string): LookTags {
   const entry = Object.hasOwn(LEGACY, id) ? LEGACY[id] : null;
-  return tagged(entry?.tags ?? [], entry?.via ?? []);
+  return tagged([...entry?.tags ?? [], ...(RAPID_PATTERNS.has(id) ? ['rapid' as const] : [])], entry?.via ?? []);
 }
 
 export type BrowseList = 'pattern' | 'effect' | 'bars';
