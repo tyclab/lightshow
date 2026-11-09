@@ -4171,8 +4171,7 @@ input[type=range]::-moz-range-thumb {
    BANDS — the main effect's colours: band channels, colour bars, palettes
    ============================================================= */
 .bands .band-title { text-transform: none; letter-spacing: 0; font-size: 15px; font-weight: 800; color: var(--text); flex-wrap: wrap; }
-.band-for { margin-left: auto; font-size: 13px; font-weight: 500; color: var(--muted); }
-.band-reset { min-height: 44px; }
+.band-reset { margin-left: auto; min-height: 44px; }
 .band-channel { padding: 10px 0 12px; border-top: 1px solid var(--border); display: grid; gap: 8px; }
 .band-channel:first-of-type { border-top: 0; }
 .band-head { display: flex; align-items: center; gap: 12px; min-width: 0; }

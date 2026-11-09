@@ -1385,9 +1385,7 @@ Peak or Neural. Each has a level meter (Spectrum: the band's power against twice
 hit gate, the gate at the middle mark), **Enabled**, **Fade** and **Fast Pulse**, and a
 strip of the colours it plays, which opens its colours. A control that cannot act is
 hidden: a band switched off shows only Enabled, Fast Pulse and the fade brightness only
-act through Fade, Neural ignores them. The header chip names
-the lamp assignment (**Auto** shares the lamps among the enabled bands; **Manual** when
-some lamps keep a band of their own) and the main effect, for example *Auto · Ambient*.
+act through Fade, Neural ignores them.
 
 While the picture sets the colours (the **Visualizer** picture source with a picture
 arriving, or **Colour + motion** feeding a spatial Visualizer effect) the card shrinks to
