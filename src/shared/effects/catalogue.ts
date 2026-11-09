@@ -16,7 +16,7 @@ import { LDJ_PALETTES } from './ldj-palettes.ts';
 import type { BuiltinPalette } from './ldj-palettes.ts';
 import { VISUALIZER_PRESETS } from './ldj-visualizer.ts';
 import { V2_PRESETS } from './v2/presets.ts';
-import { CLASSIC_REDIRECTS } from './v2/classic.ts';
+import { CLASSIC_REDIRECTS, CLASSIC_V2 } from './v2/classic.ts';
 import type { MacroStep } from './macro.ts';
 import type { Ahdsr, Curve, EffectKindDef, EffectSpec, PaletteEntry, RgbEnvelope } from './types.ts';
 
@@ -259,8 +259,19 @@ const OWN_LOOKS: [id: string, name: string, desc: string, preset?: string][] = [
   ['flashes', 'Flashes', 'A third of the lamps, drawn afresh on every step, flash hard and are cut'],
   ['swirl', 'Swirl', 'The look\'s colours laid round the room by angle and turning, a turn every eight steps'],
 ];
-const OWN_ROWS: CataloguePreset[] = OWN_LOOKS.map(([id, name, desc, preset]) =>
+const OWN_ROWS: CataloguePreset[] = OWN_LOOKS.filter(([id]) => !Object.hasOwn(CLASSIC_REDIRECTS, id)).map(([id, name, desc, preset]) =>
   ({ id, name, desc, app: 'own', family: 'own.party', party: true, legacy: true, ...(preset ? { preset } : {}) }));
+
+// Each classic look on the v2 engine, hidden as `classic.<id>` for the A/B test until CLASSIC_REDIRECTS moves its id there.
+const CLASSIC_ROWS: CataloguePreset[] = Object.entries(CLASSIC_V2).map(([id, look]): CataloguePreset => {
+  const spec = validateSpec(look.spec), family = spec.kind.startsWith('v2.') ? 'spatial' : 'own.energy';
+  const own = OWN_LOOKS.find(([look]) => look === id), desc = look.desc ?? own?.[2];
+  if (Object.hasOwn(CLASSIC_REDIRECTS, id) && !desc) throw new Error(`redirected classic id ${id} needs its description`);
+  return Object.hasOwn(CLASSIC_REDIRECTS, id)
+    ? { id, name: look.name, desc: desc!, app: 'own', family, ...(own ? { party: true } : {}), ...(look.pixel ? { pixel: true } : {}), aliases: [`classic.${id}`], spec }
+    : { id: `classic.${id}`, name: `${look.name} (v2 ${look.family})`, desc: `The classic ${look.name} on the v2 ${look.family} engine, to compare with it`,
+      app: 'own', family, retired: true, spec };
+});
 
 const ENERGY_LABELS: Record<keyof typeof ENERGY_KIND_BY_ID, [name: string, desc: string]> = {
   'white-strobe': ['White Strobe', 'White strobe overlay, up to five flashes a second'],
@@ -326,7 +337,7 @@ const modern = V2_PRESETS.map((preset): CataloguePreset => ({ ...preset,
 }));
 const available = new Set(modern.map((row) => row.id));
 const compatibility = LEGACY_PRESETS.filter((row) => !available.has(V2_ALIASES[row.id])).map((row) => ({ ...row, ...(row.id.startsWith('party.') ? {} : { retired: true }) }));
-export const CATALOGUE: readonly CataloguePreset[] = deepFreeze([...compatibility, ...CONTROL_ROWS, ...OVERLAY_ROWS, ...modern]);
+export const CATALOGUE: readonly CataloguePreset[] = deepFreeze([...compatibility, ...CONTROL_ROWS, ...OVERLAY_ROWS, ...modern, ...CLASSIC_ROWS]);
 const INDEX = presetIndex(CATALOGUE);
 for (const id of Object.keys(CLASSIC_REDIRECTS)) {
   if (!Object.hasOwn(PATTERN_FUNCS, id) || !INDEX.get(id) || INDEX.get(id)!.legacy) throw new Error(`redirected classic id ${id} must name a preset with a spec`);

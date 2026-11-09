@@ -1,6 +1,6 @@
 import { fileURLToPath } from 'node:url';
 import { LEGACY_PRESETS, V2_ALIASES, presetById } from '../src/shared/effects/catalogue.ts';
-import { CLASSIC_REDIRECTS } from '../src/shared/effects/v2/classic.ts';
+import { CLASSIC_REDIRECTS, CLASSIC_V2 } from '../src/shared/effects/v2/classic.ts';
 import { DEMO_AUDIO_SOURCE, DEMO_BEATS, DEMO_BPM } from '../src/shared/demo-track.ts';
 import { BPM, renderLookBytes } from './golden-party-looks.js';
 import { syntheticRig, syntheticSpace } from './golden-frames.js';
@@ -83,6 +83,16 @@ export function aliasFrameDiffs(pairs = []) {
   return [...aliases, ...redirects, ...asked];
 }
 
+/** Every classic and party look against its v2 form in CLASSIC_V2; a party preset with a spec of its own is A. */
+export function classicFrameDiffs(ids = Object.keys(CLASSIC_V2)) {
+  return ids.map((id) => {
+    const own = Object.hasOwn(CLASSIC_REDIRECTS, id) ? null : presetById(id);
+    return { id, family: CLASSIC_V2[id].family, ...lookDiff(id, own && !own.legacy ? own.spec : null, presetById(`classic.${id}`).spec) };
+  });
+}
+
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
-  console.log(JSON.stringify(aliasFrameDiffs(process.argv.slice(2).map((pair) => pair.split('='))), null, 2));
+  const [first, ...rest] = process.argv.slice(2);
+  console.log(JSON.stringify(first === '--classic' ? classicFrameDiffs(rest.length ? rest : undefined)
+    : aliasFrameDiffs(process.argv.slice(2).map((pair) => pair.split('='))), null, 2));
 }

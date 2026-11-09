@@ -54,7 +54,7 @@ test('their family is Spatial, which the inspector and the search still read', (
   const spatial = FAMILIES.find((f) => f.id === 'spatial');
   assert.equal(spatial.name, 'Spatial');
   for (const p of V2_PRESETS) assert.ok(spatial.kinds.some((k) => k.kind === p.spec.kind), p.spec.kind);
-  const rows = PRESET_ROWS.filter((r) => r.family === 'spatial');
+  const rows = PRESET_ROWS.filter((r) => r.family === 'spatial' && !r.id.startsWith('classic.'));
   assert.equal(rows.length, V2_PRESETS.length);
   assert.ok(rows.every((r) => r.app === 'own'));
 });

@@ -270,7 +270,7 @@ test("own looks retain legacy pattern metadata", () => {
 });
 
 test("control presets resolve to energy and strobe kinds", () => {
-  const controls = CATALOGUE.filter((p) => p.family === 'own.energy' && !p.id.startsWith('overlay.'));
+  const controls = CATALOGUE.filter((p) => p.family === 'own.energy' && !p.id.startsWith('overlay.') && !p.id.startsWith('classic.'));
   assert.deepStrictEqual(controls.map((p) => [p.id, p.aliases ?? []]), [
     ['energy.whiteStrobe', ['white-strobe']], ['energy.colorStrobe', ['color-strobe']], ['energy.blinder', ['blinder']],
     ['energy.uvWash', ['uv-wash']], ['energy.kill', ['kill']], ['energy.glow', ['glow']], ['palette-strobe', []],
@@ -298,7 +298,7 @@ test("control presets resolve to energy and strobe kinds", () => {
 });
 
 test("catalogue ids are unique across apps and legacy patterns", () => {
-  assert.strictEqual(CATALOGUE.filter((p) => p.family === 'spatial').length, V2_PRESETS.length);
+  assert.strictEqual(CATALOGUE.filter((p) => p.family === 'spatial' && !p.id.startsWith('classic.')).length, V2_PRESETS.length);
   for (const old of LEGACY_PRESETS) assert.ok(presetById(old.id), old.id);
   assert.ok(CATALOGUE.filter((p) => p.app !== 'own').every((p) => p.retired));
   const keys = CATALOGUE.flatMap((p) => [p.id, ...(p.aliases ?? [])]);
