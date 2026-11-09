@@ -746,6 +746,8 @@ function createRenderer({ profileOf, profilesRevision = () => 0, now = performan
     const instance = baseInstance(input, from, division, fb.nowMs);
     if (hidden) {
       // Kept like a held look, so the sweep spares it and it resumes, not relaunches, when the picture ends.
+      // unitColors stays at the base look of the first hidden frame: a fade adopted under the picture
+      // starts from that look, not the live one. Neither is output; rendering the base would undo the skip.
       stepper.keep(instance.id, fb.nowMs);
       baseKind.fill(null);
       baseOwner.length = 0;
