@@ -6,6 +6,7 @@ import { useEffect, useRef, useState } from 'preact/hooks';
 import { librarySig, pick, send } from '../state.js';
 import { useFocusTrap } from '../focus-trap.js';
 import { Inspector, familyOf } from './Inspector.jsx';
+import { ComparePanel } from './Compare.jsx';
 import { Photosensitivity as PhotosensitivityConfirm, acknowledgeThen } from './Photosensitivity.jsx';
 import { mappingOf, MAPPING_LABELS } from '../../src/shared/effects/mapping.ts';
 import { REACTIVE_TAGS, SOURCES, TAG_AXES, TAG_NOTES, TAGS } from '../../src/shared/effects/tags.ts';
@@ -316,6 +317,7 @@ export function Effects() {
   const filters = filtersSig.value;
   const [favourites, setFavourites] = useState(readFavourites);
   const [confirm, setConfirm] = useState(null);
+  const [comparing, setComparing] = useState(false);
   const acknowledged = !!(s.safety && s.safety.photosensitivityAcknowledged);
 
   const { allRows, rows, playingId, savedPins, pins, familyId } = catalogueOf(s, lib, families, favourites);
@@ -371,6 +373,8 @@ export function Effects() {
         </div>
         <PictureLayers />
         <input class="effects-search" type="search" aria-label="Search effects" placeholder="Search effects" value={q} onInput={(e) => setQ(e.target.value)} />
+        <button type="button" class="btn sm effects-compare" aria-haspopup="dialog" title="Play pairs of looks on the rig and decide between them"
+          onClick={() => setComparing(true)}>Compare A/B</button>
       </div>
       <div class="effects-filters effects-chips" role="group" aria-label="Filters">
         {FILTER_AXES.map((axis) => (
@@ -428,5 +432,6 @@ export function Effects() {
     <Strobe />
     {editing && <InspectorSheet id={editing} onSelect={edit} onPlay={playById} onClose={() => edit(null)} />}
     {confirm && <PhotosensitivityConfirm preset={confirm} onConfirm={confirmPlay} onCancel={() => setConfirm(null)} />}
+    {comparing && <ComparePanel onClose={() => setComparing(false)} />}
   </>;
 }
