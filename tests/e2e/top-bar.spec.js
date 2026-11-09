@@ -1,4 +1,4 @@
-// The header of the 2026-11-05 brief (docs/superpowers/specs/2026-11-05-top-bar-design.md): one row on a
+// The header ruled in docs/agents/header.md: one row on a
 // desktop, two on a phone; the picture source and its effect first, then play, Freeze, Blackout, Arm and the
 // master in fixed places, then the status chip and this device's menu.
 
