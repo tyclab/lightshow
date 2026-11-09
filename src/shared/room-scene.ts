@@ -27,9 +27,10 @@ const fixtureRef = {
 const stripPath = z.array(vector).min(2).max(128).refine((points) => points.every((point, index) => !index
   || Math.hypot(point.x - points[index - 1].x, point.y - points[index - 1].y, point.z - points[index - 1].z) > 1e-6), 'Strip edges must have length');
 const meshCoordinate = z.number().finite().min(-0.5).max(0.5);
+// Each mesh is drawn with an index of its own, 32-bit where it needs one, so only the request limit bounds mesh size.
 const triangleMesh = z.object({
-  vertices: z.array(z.tuple([meshCoordinate, meshCoordinate, meshCoordinate])).min(3).max(32768),
-  triangles: z.array(z.tuple([z.number().int().min(0).max(32767), z.number().int().min(0).max(32767), z.number().int().min(0).max(32767)])).min(1).max(65536),
+  vertices: z.array(z.tuple([meshCoordinate, meshCoordinate, meshCoordinate])).min(3),
+  triangles: z.array(z.tuple([z.number().int().min(0), z.number().int().min(0), z.number().int().min(0)])).min(1),
 }).strict().superRefine((mesh, ctx) => {
   for (const [index, triangle] of mesh.triangles.entries()) {
     if (new Set(triangle).size !== 3 || triangle.some(vertex => !Number.isInteger(vertex) || vertex < 0 || vertex >= mesh.vertices.length)) {
@@ -91,10 +92,6 @@ export const roomSceneSchema = z.object({
   listeners: z.array(z.object({ id, label: name.optional(), position: vector,
     facingDeg: z.number().finite().min(-360).max(360) }).strict()).max(8).optional(),
 }).strict().superRefine((room, ctx) => {
-  if (room.objects.reduce((count, object) => count + (object.mesh?.vertices.length ?? 0), 0) > 65536
-    || room.objects.reduce((count, object) => count + (object.mesh?.triangles.length ?? 0), 0) > 131072) {
-    ctx.addIssue({ code: 'custom', path: ['objects'], message: 'At most 65536 mesh vertices and 131072 triangles are allowed per room' });
-  }
   if (room.bindings.reduce((count, entry) => count + (entry.path?.length ?? 1) - 1, 0) > 8192) {
     ctx.addIssue({ code: 'custom', path: ['bindings'], message: 'At most 8192 strip edges are allowed' });
   }

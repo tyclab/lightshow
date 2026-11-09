@@ -68,7 +68,7 @@ export function StageRoomPanel({ snapshot, coverage, fixtures, rig, onChange }) 
     if (!file) return;
     setPending(null);
     try {
-      if (file.size > ROOM_SCENE_BODY_LIMIT) throw new Error('Room files must be at most 4 MB.');
+      if (file.size > ROOM_SCENE_BODY_LIMIT) throw new Error(`Room files must be at most ${ROOM_SCENE_BODY_LIMIT / 2 ** 20} MiB.`);
       const parsed = JSON.parse(await file.text());
       if (!parsed || parsed.version !== 1 || typeof parsed.name !== 'string') throw new Error('Choose a version 1 room file.');
       setPending(parsed);

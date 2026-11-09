@@ -12,18 +12,20 @@ const script = buildSync({
     let disposedLights = 0;
     const disposeLight = THREE.Light.prototype.dispose;
     THREE.Light.prototype.dispose = function() { disposedLights++; disposeLight.call(this); };
-    let materials = [], objectMaterials = [];
+    let materials = [], objectMaterials = [], indexTypes = [];
     const addObject = THREE.Group.prototype.add;
     THREE.Group.prototype.add = function(...objects) {
       for (const object of objects) {
         if (object.isMesh && object.material) objectMaterials.push(object.material);
         if (object.userData?.roomObject && object.material?.isMeshStandardMaterial) materials.push(object.material);
+        if (object.userData?.roomObject && object.geometry?.index) indexTypes.push(object.geometry.index.array.constructor.name);
       }
       return addObject.apply(this, objects);
     };
     const scene = createStageScene(canvas, { haze: 0, lightRGB, room: { width: 6, depth: 4, trussHeight: 3 } });
     scene.resize();
-    window.meshRoom = model => { materials = []; objectMaterials = []; scene.setRoom(model); scene.render(); return { image: canvas.toDataURL(), disposedLights }; };
+    window.meshRoom = model => { materials = []; objectMaterials = []; indexTypes = []; scene.setRoom(model); scene.render(); return { image: canvas.toDataURL(), disposedLights }; };
+    window.meshIndexTypes = () => indexTypes;
     window.meshOpacity = () => objectMaterials.map(({opacity, transparent, depthWrite}) => ({opacity, transparent, depthWrite}));
     window.meshRig = objectLights => { scene.setRig({ lamps: [], cells: [], trusses: [], objectLights }, 2); };
     window.meshFrame = frame => { scene.setLights(frame); scene.setHaze(0); scene.render(); return { image: canvas.toDataURL(), materials: materials.map(material => ({ color: material.color.toArray(), emissive: material.emissive.toArray(), emissiveIntensity: material.emissiveIntensity, opacity: material.opacity, transparent: material.transparent, depthWrite: material.depthWrite })), info: scene.info() }; };
@@ -47,6 +49,31 @@ test('replacing and clearing a mesh room releases its lights and preserves the r
   expect(cleared.image).not.toBe(first.image);
   await page.evaluate(model => window.meshRoom(model), model);
   expect(await page.evaluate(() => window.disposeMeshRoom())).toBe(6);
+});
+
+
+test('a mesh past the 16-bit index range draws every triangle through a 32-bit index', async ({ page }) => {
+  const errors = [];
+  page.on('console', (message) => { if (message.type() === 'error' || message.type() === 'warning') errors.push(message.text()); });
+  await page.goto('about:blank');
+  await page.addScriptTag({ content: script });
+  // A rippled 280 × 250 sheet: 70,000 vertices, so its last rows sit past index 65,535.
+  const columns = 280, rows = 250, vertices = [], triangles = [];
+  for (let j = 0; j < rows; j++) for (let i = 0; i < columns; i++) vertices.push([i / (columns - 1) - 0.5, Math.sin(i / 9) * Math.cos(j / 7) * 0.4, j / (rows - 1) - 0.5]);
+  for (let j = 0; j + 1 < rows; j++) for (let i = 0; i + 1 < columns; i++) {
+    const a = j * columns + i;
+    triangles.push([a, a + columns, a + 1], [a + 1, a + columns, a + columns + 1]);
+  }
+  const sheet = (kept) => ({ bounds: { width: 6, depth: 4, height: 3 }, rooms: [], bindings: [], objects: [{
+    id: 'sheet', kind: 'mesh', role: 'furniture', position: { x: 0, y: 0.6, z: 0 }, size: { x: 4, y: 0.6, z: 3 }, color: '#aabbdd',
+    mesh: { vertices, triangles: triangles.filter(kept) } }] });
+  const whole = await page.evaluate(model => window.meshRoom(model), sheet(() => true));
+  expect(await page.evaluate(() => window.meshIndexTypes())).toEqual(['Uint32Array']);
+  const lower = await page.evaluate(model => window.meshRoom(model), sheet(triangle => triangle.every(index => index < 65535)));
+  expect(await page.evaluate(() => window.meshIndexTypes())).toEqual(['Uint16Array']);
+  expect(whole.image).not.toBe(lower.image);
+  expect(errors).toEqual([]);
+  await page.evaluate(() => window.disposeMeshRoom());
 });
 
 

@@ -73,10 +73,9 @@ local origin when exporting. Triangle indices are zero-based and must refer to
 three different existing vertices enclosing a nonzero area; winding determines
 the outside face. Near-zero triangles (cross-product squared length ≤ 1e-20) are
 rejected. Meshes support furniture and walls; screen meshes need texture coordinates
-and are not accepted. Meshes accept at most 32,768 vertices and 65,536 triangles each,
-and a room at most 65,536 mesh vertices and 131,072 triangles. The 4 MB
-request limit also applies, so decimate detailed source models and round exported
-coordinates. Downloads use compact JSON so valid detailed rooms can be imported again. Stage computes smooth surface normals and uses fixed neutral lighting
+and are not accepted. Stage draws each mesh with an index of its own, 32-bit where
+it needs one, so only the request limit below bounds mesh geometry; decimate detailed
+source models and round exported coordinates to stay within it. Downloads use compact JSON so valid detailed rooms can be imported again. Stage computes smooth surface normals and uses fixed neutral lighting
 to show relief without drawing triangle outlines. Object colours affect the preview
 only; they do not change fixture output colours. Mesh data is inline and private,
 with no external model URL or source asset needed by the public application.
@@ -115,8 +114,10 @@ Both stay inside the room bounds; a room holds up to 32 anchors and 8 listeners,
 IDs must be unique across the whole room. A room without them is unchanged.
 
 Models accept up to 128 room polygons, 1,500 objects and 4,096 bindings, with up
-to 128 vertices per polygon, 8,192 total source references and a 1 MB JSON
-request limit. External asset URLs, scripts and unrecognised fields are rejected. Keep the original floor-plan
+to 128 vertices per polygon and 8,192 total source references. A request carries at most
+12 MiB of JSON: the server parses, validates and stores an import on its main thread, about
+0.1 s per MB, and 12 MiB is three times the largest real room (a whole flat with detailed
+furniture, 4.2 MB). External asset URLs, scripts and unrecognised fields are rejected. Keep the original floor-plan
 source and measurements separately; this is a rendering format, not an archive
 of the floor-plan source.
 

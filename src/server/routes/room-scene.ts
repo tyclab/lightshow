@@ -9,8 +9,9 @@ export function attachRoomSceneRoutes(app: Express, suppliedStore?: RoomSceneSto
   let store = suppliedStore;
   const current = () => (store ??= sharedRoomScene());
   const matches = (value: string | undefined, revision: string) => value === revision || value === `"${revision}"`;
+  // The held room itself, not a copy: express only serialises it, and copying a mesh-heavy room costs about half its parse.
   const response = (res: Response) => {
-    const snapshot = current().snapshot();
+    const snapshot = current().peek();
     res.set('ETag', `"${snapshot.revision}"`);
     res.set('Cache-Control', 'private, no-cache');
     return snapshot;
@@ -20,7 +21,7 @@ export function attachRoomSceneRoutes(app: Express, suppliedStore?: RoomSceneSto
       res.status(428).json({ ok: false, error: 'Load the current room before replacing it (If-Match required).' });
       return false;
     }
-    if (!matches(req.headers['if-match'], current().snapshot().revision)) {
+    if (!matches(req.headers['if-match'], current().peek().revision)) {
       res.status(412).json({ ok: false, error: 'The room changed in another session. Reload it before replacing it.' });
       return false;
     }
@@ -44,12 +45,12 @@ export function attachRoomSceneRoutes(app: Express, suppliedStore?: RoomSceneSto
     if (!precondition(req, res)) return;
     const parsed = roomSceneSchema.safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ ok: false, error: 'Invalid room scene', issues: parsed.error.issues });
-    current().replace(parsed.data);
+    current().save(parsed.data);
     res.json({ ok: true, ...response(res) });
   });
   app.delete('/api/stage/room', (req, res) => {
     if (!precondition(req, res)) return;
-    current().replace(null);
+    current().save(null);
     res.json({ ok: true, ...response(res) });
   });
 }
