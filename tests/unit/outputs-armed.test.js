@@ -159,7 +159,7 @@ test('Hue streams close on disarm and reopen on arm', async () => {
     lit[getProfile(state.fixtures[0]).channelMap.red] = 200;
     output.sendUniverse(lampUniverse, lit);
     const applied = output.endFrame();
-    await new Promise((r) => setImmediate(r));           // the status report follows on the next turn
+    await Promise.resolve();      // the wire's status report is a microtask queued by the frame: read before any I/O
     return applied;
   };
   const status = () => output.getHueStatus().find((s) => s.id === 'b1').status;
