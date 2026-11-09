@@ -115,11 +115,6 @@ def verify(path: Path, expected_size: int, algo: str, expected_digest: str):
     return True, f'{algo} verified'
 
 
-def file_ok(path: Path, expected_size: int, algo: str, expected_digest: str) -> bool:
-    ok, _ = verify(path, expected_size, algo, expected_digest)
-    return ok
-
-
 def download(url: str, target: Path, label: str,
              expected_size: int, algo: str, expected_digest: str) -> bool:
     target.parent.mkdir(parents=True, exist_ok=True)

@@ -12,6 +12,7 @@ import type { AreaLamp, EntertainmentArea } from '../hue.ts';
 import type { HueBridgeSettings } from '../settings.ts';
 import { ddpConflict } from '../ddp-routes.ts';
 import { showStore, snapshotShow } from '../show-store.ts';
+import { addFixtures } from '../fixture-add.ts';
 import { barProfile } from '../bar-profile.ts';
 import { parseOfl } from '../ofl.ts';
 import { DEFAULT_WLED_MODE, ledmapUnused, wledProfile, wledSeat, wledSpan } from '../wled.ts';
@@ -141,22 +142,10 @@ export function attachFixtureRoutes(app: Express, ctx: RouteContext): void {
         id: -1, label: (label || info.name).slice(0, 64), address: 1, universe: INTERNAL_UNIVERSE, profileId: profile.id, maxBrightness: 255,
         override: null, position: null, group: null, geometry: null, output: { protocol: 'ddp', host, ...wledSpan(info, null, look, ledmap) },
       };
-      const profileOf = (f: Pick<Fixture, 'profileId'>) => (f.profileId === profile.id ? profile : getProfile(f));
-      const next = [...state.fixtures.map((f) => ({ ...f })), fixture];
-      placeAddresslessFixtures(next, profileOf);
-      const tooMany = unitCapOverflow(next, profileOf);
-      if (tooMany) return res.status(400).json({ ok: false, error: tooMany });
-      if (countUniverses(next, profileOf) > MAX_UNIVERSES) {
-        return res.status(400).json({ ok: false, error: `${info.name} would put the patch on more than the ${MAX_UNIVERSES} universes this server transmits` });
-      }
-      if (!registerProfile(profile)) return res.status(400).json({ ok: false, error: 'Invalid profile' });
-      fixture.id = allocateFixtureId();
-      state.fixtures.push(fixture);
-      placeAddresslessFixtures();
-      resizeFixtureBuffers();
-      showStore.scheduleSave();
-      integrations.broadcast();
-      res.json({ ok: true, fixture, profile, info, ledmap: ledmapAnswer(ledmap, info) });
+      const added = addFixtures([fixture], [profile], `${info.name} would put the patch on more than the ${MAX_UNIVERSES} universes this server transmits`,
+        () => integrations.broadcast());
+      if ('error' in added) return res.status(400).json({ ok: false, error: added.error });
+      res.json({ ok: true, fixture: added.fixtures[0], profile, info, ledmap: ledmapAnswer(ledmap, info) });
     } catch (err) {
       res.status(statusOf(err) || 400).json({ ok: false, error: messageOf(err) });
     }
@@ -190,26 +179,10 @@ export function attachFixtureRoutes(app: Express, ctx: RouteContext): void {
         },
       });
     }
-    const byId = new Map(fresh.map(({ profile }) => [profile.id, profile as Profile]));
-    const profileOf = (f: Pick<Fixture, 'profileId'>) => byId.get(f.profileId) || getProfile(f);
-    const next = [...state.fixtures.map((f) => ({ ...f })), ...draft];
-    placeAddresslessFixtures(next, profileOf);
-    const problem = unitCapOverflow(next, profileOf) || ddpConflict(next, profileOf)
-      || (countUniverses(next, profileOf) > MAX_UNIVERSES
-        ? `${info.name}'s segments would put the patch on more than the ${MAX_UNIVERSES} universes this server transmits` : null);
-    if (problem) return res.status(400).json({ ok: false, error: problem });
-    for (const { profile } of fresh) {
-      if (!registerProfile(profile)) return res.status(400).json({ ok: false, error: 'Invalid profile' });
-    }
-    for (const fixture of draft) {
-      fixture.id = allocateFixtureId();
-      state.fixtures.push(fixture);
-    }
-    placeAddresslessFixtures();
-    resizeFixtureBuffers();
-    showStore.scheduleSave();
-    integrations.broadcast();
-    return res.json({ ok: true, fixtures: draft, profiles: fresh.map(({ profile }) => profile), info, segments: fresh.length, ledmap: ledmapAnswer(ledmap, info) });
+    const added = addFixtures(draft, fresh.map(({ profile }) => profile as Profile),
+      `${info.name}'s segments would put the patch on more than the ${MAX_UNIVERSES} universes this server transmits`, () => integrations.broadcast());
+    if ('error' in added) return res.status(400).json({ ok: false, error: added.error });
+    return res.json({ ok: true, fixtures: added.fixtures, profiles: fresh.map(({ profile }) => profile), info, segments: fresh.length, ledmap: ledmapAnswer(ledmap, info) });
   }
 
   /**
@@ -321,21 +294,10 @@ export function attachFixtureRoutes(app: Express, ctx: RouteContext): void {
         override: null, position: position ? { ...position } : null, group: null, geometry: null,
         output: { protocol: 'ddp', host, device: 'generic' },
       };
-      const profileOf = (f: Pick<Fixture, 'profileId'>) => (f.profileId === profile.id ? profile : getProfile(f));
-      const next = [...state.fixtures.map((f) => ({ ...f })), fixture];
-      placeAddresslessFixtures(next, profileOf);
-      const problem = unitCapOverflow(next, profileOf) || ddpConflict(next, profileOf)
-        || (countUniverses(next, profileOf) > MAX_UNIVERSES
-          ? `${name} would put the patch on more than the ${MAX_UNIVERSES} universes this server transmits` : null);
-      if (problem) return res.status(400).json({ ok: false, error: problem });
-      if (!registerProfile(profile)) return res.status(400).json({ ok: false, error: 'Invalid profile' });
-      fixture.id = allocateFixtureId();
-      state.fixtures.push(fixture);
-      placeAddresslessFixtures();
-      resizeFixtureBuffers();
-      showStore.scheduleSave();
-      integrations.broadcast();
-      res.json({ ok: true, fixture, profile });
+      const added = addFixtures([fixture], [profile], `${name} would put the patch on more than the ${MAX_UNIVERSES} universes this server transmits`,
+        () => integrations.broadcast());
+      if ('error' in added) return res.status(400).json({ ok: false, error: added.error });
+      res.json({ ok: true, fixture: added.fixtures[0], profile });
     } catch (err) {
       res.status(statusOf(err) || 400).json({ ok: false, error: messageOf(err) });
     }
@@ -587,32 +549,16 @@ export function attachFixtureRoutes(app: Express, ctx: RouteContext): void {
       return res.status(400).json({ ok: false, error: `${fresh.length} lamps would take the patch past ${MAX_FIXTURES} fixtures` });
     }
 
-    const byId = new Map(built.map(({ profile }) => [(profile as Profile).id, profile as Profile]));
-    const profileOf = (f: Pick<Fixture, 'profileId'>) => byId.get(f.profileId) || getProfile(f);
+    const profiles = [...new Map(built.map(({ profile }) => [(profile as Profile).id, profile as Profile])).values()];
     const draft: Fixture[] = built.map(({ lamp, profile }, k) => ({
       id: -1 - k, label: (lamp.name || `Hue ${lamp.channels[0]}`).slice(0, 64), address: 1, universe: INTERNAL_UNIVERSE,
       profileId: (profile as Profile).id, maxBrightness: 255, override: null,
       output: { protocol: 'hue', bridge: bridge.id, channels: [...lamp.channels] },
     }));
-    const next = [...state.fixtures.map((f) => ({ ...f })), ...draft];
-    placeAddresslessFixtures(next, profileOf);
-    const problem = unitCapOverflow(next, profileOf) || (countUniverses(next, profileOf) > MAX_UNIVERSES
-      ? `These lamps would put the patch on more than the ${MAX_UNIVERSES} universes this server renders` : null);
-    if (problem) return res.status(400).json({ ok: false, error: problem });
-
-    for (const profile of byId.values()) {
-      if (!registerProfile(profile)) return res.status(400).json({ ok: false, error: 'Invalid profile' });
-    }
-    const fixtures = draft.map((fix) => {
-      const added = { ...fix, id: allocateFixtureId() };
-      state.fixtures.push(added);
-      return added;
-    });
-    placeAddresslessFixtures();
-    resizeFixtureBuffers();
-    showStore.scheduleSave();
-    integrations.broadcast();
-    res.json({ ok: true, fixtures, profiles: [...byId.values()], bridge: { id: bridge.id, label: bridge.label }, area: { id: area.id, name: area.name } });
+    const added = addFixtures(draft, profiles, `These lamps would put the patch on more than the ${MAX_UNIVERSES} universes this server renders`,
+      () => integrations.broadcast());
+    if ('error' in added) return res.status(400).json({ ok: false, error: added.error });
+    res.json({ ok: true, fixtures: added.fixtures, profiles, bridge: { id: bridge.id, label: bridge.label }, area: { id: area.id, name: area.name } });
   }));
 
   app.post(['/api/hue/refresh', '/api/hue/:bridge/refresh'], asyncHandler(async (req, res) => {

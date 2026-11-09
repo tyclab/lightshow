@@ -22,8 +22,11 @@ test('a non-loopback bind without a token is refused at startup', () => {
   assert.ok(err, 'must refuse');
   // Reaching this means the file was hand-edited: the settings page refuses to
   // save it. With the server down there is no UI to fix it from, so the message
-  // has to name the file and both ways out.
-  assert.ok(err);
+  // has to name the address, the file and both ways out.
+  assert.match(err, /bind address is "0\.0\.0\.0" \(not loopback\) with no access token/);
+  assert.match(err, /Edit \/etc\/lightshow\/settings\.json and either:/);
+  assert.match(err, /"host": "127\.0\.0\.1"/, 'loopback only');
+  assert.match(err, /"token": "[A-Za-z0-9_-]{20,}"/, 'or a token, generated for it');
 });
 
 // Cross-site requests are rejected whether or not a token is set,
