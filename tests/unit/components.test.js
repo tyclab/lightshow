@@ -684,17 +684,20 @@ const deckOf = (html) => {
 };
 
 test('the deck marks the base among saved and party presets', () => {
-  givenLibrary({ pattern: 'position-chase' });
+  // The first party look the server lists: the classic ones lead while they are classic.
+  const first = PATTERN_ROWS.find((r) => r.party).id;
+  givenLibrary({ pattern: first });
   const html = ui.html(ui.h(ui.Effects, {}));
   assert.ok(html.indexOf('class="effects-deck"') < html.indexOf('class="effects-catalogue"'), 'the deck is above the catalogue');
   const deck = deckOf(html);
-  assert.deepStrictEqual(deck.slice(0, 2), ['u1', 'position-chase'], 'the saved preset, then the party looks in catalogue order');
+  assert.deepStrictEqual(deck.slice(0, 2), ['u1', first], 'the saved preset, then the party looks in catalogue order');
   assert.ok(deck.includes('swirl') && !deck.includes('hd.neonDomino') && !deck.includes('chase'), 'party looks only, no built-in or upstream row');
   // A pad carries its tags; a preset saved here says it is yours. Its ⚡ stays in the corner.
   assert.match(html, /data-id="u1">(?:(?!<\/div>).)*class="effect-tags">(?:(?!<\/div>).)*>Beat only<(?:(?!<\/div>).)*class="effect-tag effect-pad-yours">Yours</s);
-  assert.match(html, /data-id="position-chase"[^>]*>(?:(?!<\/div>).)*data-tag="beat"[^>]*>Beat only</s);
+  const tag = ui.TAGS[PATTERN_ROWS.find((r) => r.id === first).tags[0]];
+  assert.match(html, new RegExp(`data-id="${first}"[^>]*>(?:(?!<\\/div>).)*data-tag="[a-z]+"[^>]*>${tag.name}<`, 's'));
   assert.doesNotMatch(html, /effect-pad-app/);
-  assert.match(html, /<div class="effect-pad active" data-id="position-chase" data-layer="base">/);
+  assert.match(html, new RegExp(`<div class="effect-pad active" data-id="${first}" data-layer="base">`));
   assert.strictEqual(count(html, 'class="effect-pad-now"'), 1);
   assert.match(html, /class="effect-pad-now">Main effect</, 'the pad on stage is the main effect, not "Base"');
   assert.match(html, /data-layer="base"> · Main effect</);
@@ -789,7 +792,7 @@ test('a favourite is pinned first on the deck, whatever it is', () => {
   globalThis.localStorage = { getItem: (key) => (key === 'lightshow.effects.favourites' ? JSON.stringify(['ldj.Swirl', 'u1']) : null), setItem() {}, removeItem() {} };
   try {
     const html = ui.html(ui.h(ui.Effects, {}));
-    assert.deepStrictEqual(deckOf(html).slice(0, 3), ['ldj.Swirl', 'u1', 'position-chase']);
+    assert.deepStrictEqual(deckOf(html).slice(0, 3), ['ldj.Swirl', 'u1', PATTERN_ROWS.find((r) => r.party).id]);
     assert.match(html, /class="effect-star on" aria-pressed="true" aria-label="Favourite Swirl"/);
     assert.match(html, /class="effect-star " aria-pressed="false" aria-label="Favourite Neon Domino"/);
   } finally {
