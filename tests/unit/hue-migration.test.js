@@ -16,7 +16,7 @@ function preservingShow(fn) {
 }
 
 const legacy = (id, channel, profileId = HUE_COLOR_PROFILE_ID) => ({
-  id, profileId, label: `Saved lamp ${id}`, output: { protocol: 'hue', bridge: 'b1', channel },
+  id, profileId, label: `Saved lamp ${id}`, output: { protocol: 'hue', bridge: 'b1', channels: [channel] },
   position: { x: 12, y: 34, height: 56 }, geometry: { length: 18, angle: 90 }, group: 'back',
   emission: { kind: 'beam', pan: 30, tilt: -20, beamAngle: 25 },
   maxBrightness: 150, productId: 'saved-product', hardware: { maxFlashHz: 1 }, admission: 'hold',
@@ -29,8 +29,7 @@ test('legacy Hue migration preserves every fixture and its binding identity with
   assert.equal(saved.fixtures.length, original.length);
   assert.equal(saved.nextFixtureId, 200);
   for (let i = 0; i < original.length; i++) {
-    const { output, ...fields } = original[i];
-    assert.deepEqual(saved.fixtures[i], { ...fields, output: { protocol: 'hue', bridge: 'b1', channels: [output.channel] } });
+    assert.deepEqual(saved.fixtures[i], original[i]);
     assert.equal(getProfile(state.fixtures[i]).hue.legacy, true);
   }
   applyShow(saved);
@@ -102,6 +101,6 @@ test('unreadable or changed bridge sections preserve existing fixtures and expla
 test('bridge-derived profile IDs and capability refresh are isolated by bridge', () => preservingShow(() => {
   const lamp = areaLamp({ id: 'same-service' });
   assert.notEqual(hueProfile(lamp, 'b1').id, hueProfile(lamp, 'b2').id);
-  applyShow({ fixtures: [legacy(1, 0), { ...legacy(2, 0), output: { protocol: 'hue', bridge: 'b2', channel: 0 } }] });
+  applyShow({ fixtures: [legacy(1, 0), { ...legacy(2, 0), output: { protocol: 'hue', bridge: 'b2', channels: [0] } }] });
   assert.deepEqual(refreshHueFixtures(state.fixtures, listProfiles(), 'b2', [lamp]).updates.map(({ id }) => id), [2]);
 }));

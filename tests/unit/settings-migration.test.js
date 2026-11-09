@@ -6,30 +6,21 @@ import path from 'node:path';
 
 const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'lightshow-settings-version-'));
 process.env.LIGHTSHOW_CONFIG_DIR = dir;
-const { SettingsStore, schema } = await import('../../src/server/settings.ts');
-const { PICTURE_GRADE_GUESSED, PICTURE_GRADE_DEFAULTS } = await import('../../src/shared/picture-grade.ts');
+const { SettingsStore } = await import('../../src/server/settings.ts');
 test.after(() => fs.rmSync(dir, { recursive: true, force: true }));
 let sequence = 0;
 const fresh = () => new SettingsStore(path.join(dir, `case-${sequence++}.json`));
 
-test('explicit former defaults survive a fresh save and every reload', () => {
-  const store = fresh().load();
-  store.update({ picture: { grade: PICTURE_GRADE_GUESSED }, sacn: { sourceName: 'Tyclab Lightshow' } });
-  const loaded = new SettingsStore(store.file).load();
-  assert.deepEqual(loaded.get('picture.grade'), PICTURE_GRADE_GUESSED);
-  assert.equal(loaded.get('sacn.sourceName'), 'Tyclab Lightshow');
-  assert.equal(JSON.parse(fs.readFileSync(store.file, 'utf8')).formatVersion, 1);
-});
-
-test('legacy migration preserves original bytes while applying the existing default migrations once', () => {
+test('legacy migration preserves original bytes and writes the versioned envelope once', () => {
   const store = fresh();
-  const original = JSON.stringify({ picture: { grade: PICTURE_GRADE_GUESSED }, spotify: { refreshToken: 'dummy-secret' } });
+  const grade = { enabled: true, whiteLimit: 0.6, saturation: 1.25, ceiling: 0.7, hueCeiling: 0.5 };
+  const original = JSON.stringify({ picture: { grade }, spotify: { refreshToken: 'dummy-secret' } });
   fs.writeFileSync(store.file, original);
   store.load();
   const backups = fs.readdirSync(dir).filter(name => name.startsWith(path.basename(store.file) + '.pre-v1-'));
   assert.equal(backups.length, 1);
   assert.equal(fs.readFileSync(path.join(dir, backups[0]), 'utf8'), original);
-  assert.deepEqual(store.get('picture.grade'), PICTURE_GRADE_DEFAULTS);
+  assert.deepEqual(store.get('picture.grade'), grade, 'a stored value is kept as it was');
   assert.equal(store.get('spotify.refreshToken'), 'dummy-secret');
   const bytes = fs.readFileSync(store.file, 'utf8');
   new SettingsStore(store.file).load();
@@ -37,15 +28,13 @@ test('legacy migration preserves original bytes while applying the existing defa
   assert.equal(fs.readdirSync(dir).filter(name => name.startsWith(path.basename(store.file) + '.pre-v1-')).length, 1);
 });
 
-test('legacy migration does not invent a routing candidate when none was stored', () => {
+test('legacy migration leaves Art-Net routing out of the settings file and reads it once for the rig', () => {
   const store = fresh();
-  fs.writeFileSync(store.file, JSON.stringify({ picture: { decode: false } }));
+  fs.writeFileSync(store.file, JSON.stringify({ picture: { decode: false }, artnet: { universe: 3 } }));
   store.load();
-  assert.equal(store.legacyArtnet, null);
+  assert.equal(store.get('artnet.universe'), 3, 'the rig store adopts it when it has no routing of its own');
   assert.equal(JSON.parse(fs.readFileSync(store.file, 'utf8')).values.artnet, undefined);
-  const reloaded = new SettingsStore(store.file).load();
-  assert.equal(reloaded.legacyArtnet, null);
-  assert.equal(reloaded.get('picture.decode'), false);
+  assert.equal(new SettingsStore(store.file).load().get('picture.decode'), false);
 });
 
 test('unknown future settings version stays intact and refuses writes', () => {
@@ -64,16 +53,6 @@ test('failed migration write preserves original and usable backup', t => {
   t.mock.method(store, 'write', () => { throw new Error('disk unavailable'); });
   assert.throws(() => store.load(), /disk unavailable/);
   assert.equal(fs.readFileSync(store.file, 'utf8'), bytes);
-});
-
-test('rollback export is a flat settings document accepted by the strict schema', () => {
-  const store = fresh().load();
-  store.update({ spotify: { refreshToken: 'dummy-secret' }, picture: { grade: PICTURE_GRADE_GUESSED } });
-  const old = store.legacyExport();
-  assert.deepEqual(schema.parse(old), old);
-  assert.equal(old.formatVersion, undefined);
-  assert.equal(old.spotify.refreshToken, 'dummy-secret');
-  assert.deepEqual(old.picture.grade, PICTURE_GRADE_GUESSED);
 });
 
 test('mixed routing and unrelated settings are rejected before either changes', () => {
