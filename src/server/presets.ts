@@ -4,6 +4,7 @@ import { requiresAcknowledgement } from '../shared/effects/registry.ts';
 import { mappingOf } from '../shared/effects/mapping.ts';
 import { cardOf } from '../shared/effects/cards.ts';
 import { legacyTags, specTags, tagFields } from '../shared/effects/tags.ts';
+import { RAPID_PATTERNS } from '../shared/strobe-fx.ts';
 
 interface StrobeFunction {
   id: string;
@@ -102,7 +103,7 @@ const PATTERNS = [
   { id: 'flash-burst',     name: 'Flash Burst',     desc: 'A burst of flashes every four steps, odd and even zones in turn, then a break', pixel: true },
   { id: 'core',            name: 'Strobe Core',     desc: 'A colour wash with a white core striking on every kick', pixel: true },
   ...CATALOGUE.filter((p) => p.legacy).map(({ id, name, desc, party, preset }) => ({ id, name, desc, party, ...(preset ? { preset } : {}) })),
-].filter((row) => !Object.hasOwn(CLASSIC_REDIRECTS, row.id)).map((row) => ({ ...row, legacy: true as const, card: row.id, ...tagFields(legacyTags(row.id)) }));
+].filter((row) => !Object.hasOwn(CLASSIC_REDIRECTS, row.id)).map((row) => ({ ...row, legacy: true as const, card: row.id, ...(RAPID_PATTERNS.has(row.id) ? { rapidFlash: true } : {}), ...tagFields(legacyTags(row.id)) }));
 
 const PATTERN_IDS = PATTERNS.map((p) => p.id);
 

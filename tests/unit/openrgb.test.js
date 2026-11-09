@@ -250,7 +250,7 @@ test('OpenRGB output settings preserve device identity and default the port', ()
     { protocol: 'openrgb', host: '10.0.0.80', device: 3, leds: 8, name: '' },
     { protocol: 'openrgb', host: '10.0.0.80', device: 3, leds: 8, model: 'x' },
     { protocol: 'openrgb', host: 'http://x', device: 3, leds: 8 },
-    { protocol: 'hue', bridge: 'b1', channel: 0 },
+    { protocol: 'hue', bridge: 'b1', channels: [0] },
   ]) assert.throws(() => ok(bad), `${JSON.stringify(bad)} is refused`);
   const show = validate(showSchema, { fixtures: [{ label: 'RAM', profileId: 'p', output: { protocol: 'openrgb', host: '10.0.0.80', device: 0, leds: 8 } }] }, 'show');
   assert.strictEqual(show.fixtures[0].output.protocol, 'openrgb');
