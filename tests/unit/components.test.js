@@ -301,10 +301,11 @@ const PRESET_ROWS = ui.CATALOGUE.filter((p) => !p.legacy).map((p) => ({
 }));
 const LEGACY_ROWS = ui.CATALOGUE.filter((p) => p.legacy)
   .map(({ id, name, desc, party, preset }) => ({ id, name, desc, party, ...(preset ? { preset } : {}), legacy: true, ...ui.tagFields(ui.legacyTags(id)) }));
+// Two of the server's classic rows, while they are classic: a redirected one is among the presets.
 const UPSTREAM_ROWS = [
   { id: 'chase', name: 'Chase →', desc: 'One fixture at a time, forward', legacy: true, ...ui.tagFields(ui.legacyTags('chase')) },
   { id: 'gradient', name: 'Gradient', desc: 'The look\'s colours as a gradient scrolling across the rig', pixel: true, legacy: true, ...ui.tagFields(ui.legacyTags('gradient')) },
-];
+].filter((row) => !Object.hasOwn(CLASSIC_REDIRECTS, row.id));
 const PATTERN_ROWS = [...UPSTREAM_ROWS, ...LEGACY_ROWS, ...PRESET_ROWS];
 const domino = ui.CATALOGUE.find((p) => p.id === 'hd.neonDomino');
 const USER_PRESET = {
