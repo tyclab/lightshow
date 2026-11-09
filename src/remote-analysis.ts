@@ -345,7 +345,9 @@ export class RemoteAnalysisPool implements RemotePool {
       if (models !== undefined) w.models = models;
       if (device !== undefined) w.device = device;
       if (available !== undefined) {
-        if (available !== w.available || (reason ?? null) !== w.reason) {
+        // A reason may carry a reading that moves on every poll (the GPU's used MiB): only its wording is news.
+        const wording = (text: string | null | undefined) => text?.replace(/\d+/g, '#') ?? null;
+        if (available !== w.available || wording(reason) !== wording(w.reason)) {
           console.log(`[analyzer] remote ${w.name} ${available ? 'is ready for jobs' : `is not taking jobs: ${reason || 'busy'}`}`);
         }
         w.available = available;

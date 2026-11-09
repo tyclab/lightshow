@@ -198,6 +198,34 @@ test('an error the worker reports fails the job over to this machine', async (t)
   assert.notEqual(h.pool.idleWorker(), null);
 });
 
+// The GPU check reports a byte count that moves on every poll; only a new kind of reason is news.
+test('a worker\'s status is logged when it flips or its reason changes beyond its numbers', async (t) => {
+  const h = await harness(t);
+  const socket = await h.worker();
+  await h.hello(socket);
+  const logged = t.mock.method(console, 'log', () => {});
+  const lines = () => logged.mock.calls.map((c) => c.arguments.join(' ')).filter((l) => /remote gamertyc (is ready|is not taking)/.test(l));
+  const report = async (status) => {
+    socket.emit('status', status);
+    await until(() => {
+      const w = h.pool.status().workers[0];
+      return w.available === status.available && w.reason === (status.available ? null : status.reason);
+    });
+  };
+  const vram = (mib) => `other programs use ${mib} MiB of the GPU's memory`;
+  await report({ available: false, reason: vram(4113) });
+  await report({ available: false, reason: vram(4120) });
+  await report({ available: false, reason: vram(5002) });
+  assert.equal(h.pool.status().workers[0].reason, vram(5002), 'the worker state keeps the exact reason');
+  assert.deepEqual(lines(), [`[analyzer] remote gamertyc is not taking jobs: ${vram(4113)}`], 'only the numbers moved: logged once');
+  await report({ available: false, reason: 'a fullscreen program is in front (game.exe)' });
+  await report({ available: true });
+  assert.deepEqual(lines().slice(1), [
+    '[analyzer] remote gamertyc is not taking jobs: a fullscreen program is in front (game.exe)',
+    '[analyzer] remote gamertyc is ready for jobs',
+  ], 'another reason, then ready again');
+});
+
 test('a worker that drops mid-job fails it over', async (t) => {
   const h = await harness(t);
   const socket = await h.worker();
