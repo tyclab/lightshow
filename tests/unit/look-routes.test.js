@@ -33,7 +33,7 @@ const integrations = () => setupIntegrations({
   },
 });
 
-test('GET /api/state/live answers every live key and no catalogue; /api/state keeps them', async () => {
+test('GET /api/state/live answers every live key, no catalogue and no rig data; /api/state keeps them', async () => {
   const app = express();
   attachLookRoutes(app, { integrations: integrations() });
   const server = await new Promise((resolve) => { const running = app.listen(0, '127.0.0.1', () => resolve(running)); });
@@ -46,10 +46,20 @@ test('GET /api/state/live answers every live key and no catalogue; /api/state ke
     const [live, full] = await Promise.all([get('/api/state/live'), get('/api/state')]);
     const keys = Object.keys(DOMAIN_OF);
     const catalogues = keys.filter((key) => DOMAIN_OF[key] === 'catalogs');
-    assert.deepEqual(keys.filter((key) => DOMAIN_OF[key] !== 'catalogs' && !(key in live)), [], 'every live key');
+    const rig = ['fixtures', 'profiles'];
+    assert.deepEqual(keys.filter((key) => DOMAIN_OF[key] !== 'catalogs' && !rig.includes(key) && !(key in live)), [], 'every live key');
     assert.deepEqual(catalogues.filter((key) => key in live), [], 'no catalogue');
     assert.equal('dmxSnapshot' in live, false, 'no DMX snapshot');
-    assert.deepEqual(Object.keys(full).sort(), [...Object.keys(live), ...catalogues, 'dmxSnapshot'].sort(), '/api/state as it was');
+    assert.deepEqual(rig.filter((key) => key in live), [], 'no rig data: HA reads none of it');
+    // What HA's sensor.lightshow and its attribute sensors read.
+    const ha = ['armed', 'bpm', 'pattern', 'palette', 'masterDimmer', 'masterBlackout', 'running', 'energyOverride', 'tempoMode',
+      'voices', 'pads', 'paletteOverride', 'safety', 'clock', 'audio', 'sequence'];
+    assert.deepEqual(ha.filter((key) => !(key in live)), [], 'every key HA reads');
+    assert.ok(['source', 'bpm'].every((key) => key in live.clock) && ['mode', 'listening'].every((key) => key in live.audio));
+    assert.ok(Number.isFinite(live.rigRevision), 'but the revision that moves with it');
+    assert.ok(Array.isArray(full.fixtures) && full.profiles && typeof full.profiles === 'object', '/api/state keeps the rig');
+    assert.equal(full.rigRevision, live.rigRevision);
+    assert.deepEqual(Object.keys(full).sort(), [...Object.keys(live), ...rig, ...catalogues, 'dmxSnapshot'].sort(), '/api/state as it was');
   } finally {
     await new Promise((resolve) => server.close(resolve));
   }

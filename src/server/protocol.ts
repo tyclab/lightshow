@@ -24,7 +24,7 @@ export const DOMAIN_OF: Readonly<Record<string, Domain>> = {
   liveAutomation: 'look',
   matrix: 'look',
 
-  artnet: 'rig', universes: 'rig', fixtures: 'rig', profiles: 'rig', identify: 'rig', hueBridges: 'rig', hueStrobe: 'rig', hardware: 'rig', armed: 'rig', picture: 'rig', wled: 'rig', hue: 'rig',
+  artnet: 'rig', universes: 'rig', fixtures: 'rig', profiles: 'rig', rigRevision: 'rig', identify: 'rig', hueBridges: 'rig', hueStrobe: 'rig', hardware: 'rig', armed: 'rig', picture: 'rig', wled: 'rig', hue: 'rig',
 
   autoIntensity: 'show', autoSyncOffsetMs: 'show', autoSource: 'show', autoPrefetchDepth: 'show',
   autoShow: 'show', activeSource: 'show', showOn: 'show', cues: 'show', warm: 'show',
@@ -82,6 +82,16 @@ export interface Patch {
   del?: string[];
 }
 
+/**
+ * Keys too large to stringify on every broadcast (the rig's fixtures and profiles), kept out of the live
+ * state, whose `rigRevision` moves whenever one of them changes. Each has a signature that moves with its
+ * contents, so a patch still carries exactly the keys whose contents changed.
+ */
+export interface RigSource {
+  signatures(): Record<string, unknown>;
+  values(): Record<string, unknown>;
+}
+
 export interface Snapshot {
   protocol: typeof PROTOCOL;
   versions: Record<Domain, number>;
@@ -91,11 +101,15 @@ export interface Snapshot {
 export class StateDiffer {
   declare _sent: Map<string, string>;
   declare _sentClock: unknown;
+  declare _sentRig: Map<string, unknown>;
+  declare _rigRevision: unknown;
   declare _versions: Record<Domain, number>;
 
   constructor() {
     this._sent = new Map();
     this._sentClock = undefined;
+    this._sentRig = new Map();
+    this._rigRevision = undefined;
     this._versions = Object.fromEntries(DOMAINS.map((d) => [d, 0])) as Record<Domain, number>;
   }
 
@@ -104,7 +118,7 @@ export class StateDiffer {
     return { ...live, clock: this._sentClock };
   }
 
-  diff(fresh: Record<string, unknown>): Patch[] {
+  diff(fresh: Record<string, unknown>, rig?: RigSource): Patch[] {
     const live = this.settle(fresh);
     this._sentClock = live.clock;
     const groups = new Map<Domain, { set: Record<string, unknown>; del: string[] }>();
@@ -124,6 +138,15 @@ export class StateDiffer {
       if (live[key] !== undefined) continue;
       this._sent.delete(key);
       group(domainOf(key)).del.push(key);
+    }
+    if (rig && (live.rigRevision === undefined || live.rigRevision !== this._rigRevision)) {
+      this._rigRevision = live.rigRevision;
+      const moved = Object.entries(rig.signatures()).filter(([key, signature]) => this._sentRig.get(key) !== signature);
+      const values = moved.length ? rig.values() : {};
+      for (const [key, signature] of moved) {
+        this._sentRig.set(key, signature);
+        group(domainOf(key)).set[key] = values[key];
+      }
     }
     return [...groups].map(([d, g]) => ({
       d, v: ++this._versions[d], set: g.set, ...(g.del.length ? { del: g.del } : {}),
@@ -146,13 +169,17 @@ export function createPublisher(io: Io) {
 
   const room = (name: string) => (typeof io.to === 'function' ? io.to(name) : io);
   const size = (name: string): number => io.sockets?.adapter?.rooms?.get(name)?.size ?? 0;
+  // Socket.IO encodes a room's packet before it looks for members: only a server without rooms sends blind.
+  const heard = (name: string): boolean => (io.sockets?.adapter?.rooms ? size(name) > 0 : true);
 
   return {
     // The per-key diff is the change check: live values are edited in place, so contents decide, never references.
-    publishState(live: Record<string, unknown>): void {
-      const patches = differ.diff(live);
+    // The rig keys are compared by their signatures instead (RigSource).
+    publishState(live: Record<string, unknown>, rig?: RigSource): void {
+      const patches = differ.diff(live, rig);
       if (!patches.length) return;
-      room(ROOM.v1).emit('state', live);
+      // Protocol 1 takes the whole state, rig data included, on every change.
+      if (heard(ROOM.v1)) room(ROOM.v1).emit('state', rig ? { ...live, ...rig.values() } : live);
       for (const patch of patches) room(ROOM.v2).emit('patch', patch);
     },
 

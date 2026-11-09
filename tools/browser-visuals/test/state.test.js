@@ -69,3 +69,31 @@ test('Colour + motion allows the room feed while panels pause and still requires
   value.state.armed = true; value.state.safety.photosensitivityAcknowledged = false; mirror.snapshot(value);
   assert.equal(mirror.base().ok, false);
 });
+test('a live sync keeps the rig held for the same revision, drops it for another, and replaces it when sent', () => {
+  const mirror = new StateMirror(() => 0);
+  const at = (revision, withRig = true) => {
+    const value = snapshot();
+    value.state.rigRevision = revision;
+    if (!withRig) { delete value.state.fixtures; delete value.state.profiles; }
+    return value;
+  };
+  assert.equal(mirror.rigRevision(), undefined, 'nothing held: ask for the rig');
+  assert.equal(mirror.live(at(7)), true);
+  assert.equal(mirror.rigRevision(), 7);
+  assert.equal(mirror.live(at(7, false)), true);
+  assert.equal(mirror.target(options).ok, true, 'the same revision: the rig held is current');
+  assert.equal(mirror.rigRevision(), 7);
+  const moved = at(8); moved.state.fixtures[0].output.host = 'moved.invalid';
+  mirror.live(moved);
+  assert.equal(mirror.rigRevision(), 8);
+  assert.equal(JSON.parse(JSON.stringify(mirror.state.fixtures))[0].output.host, 'moved.invalid', 'a moved revision brings its rig');
+  mirror.live(at(9, false));
+  assert.equal(mirror.target(options).ok, false, 'another revision without its rig: none held');
+  assert.equal(mirror.rigRevision(), undefined, 'so the next sync asks for it');
+  const older = snapshot();
+  mirror.live(older);
+  assert.equal(mirror.target(options).ok, true, 'an older server: no revision, the rig every time');
+  assert.equal(mirror.rigRevision(), undefined);
+  mirror.snapshot(at(10, false));
+  assert.equal(mirror.target(options).ok, false, 'a snapshot is the whole state: nothing carried over');
+});

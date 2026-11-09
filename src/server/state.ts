@@ -27,7 +27,7 @@ import { Strobe, STROBE_VOICE_ID } from './strobe.ts';
 import { MatrixBoard } from './matrix.ts';
 import type { Settings } from './settings.ts';
 import type { ClockSource, TempoMode } from './conductor.ts';
-import type { Colour, Fixture, PixelMap, Profile, ShowDynamics } from '../types/rig.ts';
+import type { Colour, Fixture, PixelMap, Point, Profile, ShowDynamics } from '../types/rig.ts';
 
 /** Where a running pattern counts its steps from, in the clock epoch it belongs to (patch.ts). */
 export interface PatternAnchor {
@@ -370,7 +370,77 @@ function getCatalogs() {
   };
 }
 
-// The catalogues go once on connect and dmxSnapshot on its own channel, so neither is here.
+// Copies, not references: these leave the module.
+function wireFixture(f: Fixture) {
+  return { ...f, universe: universeOf(f), maxBrightness: maxBrightnessOf(f), position: f.position ? { ...f.position } : null };
+}
+
+// The rig's data, every profile's cells and every mapped point: 98 % of the state's bytes, changed by an edit,
+// not by the show. The live state carries only rigRevision; this goes in the full state and to whoever asks.
+function getRigState() {
+  return { fixtures: state.fixtures.map(wireFixture), profiles: { ...listProfiles() } };
+}
+
+type PointCopy = { x: number; y: number; height: number | undefined };
+const fixturesSeen = { key: '', revision: 0, points: [] as (PointCopy[] | null)[] };
+
+function samePoints(seen: PointCopy[] | null | undefined, points: readonly Point[] | undefined): boolean {
+  if (!points) return seen === null;
+  if (!seen || seen.length !== points.length) return false;
+  for (let i = 0; i < points.length; i++) {
+    const a = points[i], b = seen[i];
+    if (a.x !== b.x || a.y !== b.y || a.height !== b.height) return false;
+  }
+  return true;
+}
+
+// Moves whenever the wire fixtures' JSON would: every field but the points stringified, the points (strict
+// { x, y, height }) compared by coordinate against a copy, so thousands of them are not stringified per broadcast.
+function fixturesRevision(): number {
+  const fixtures = state.fixtures, seen = fixturesSeen.points;
+  let changed = seen.length !== fixtures.length;
+  let key = '';
+  for (let i = 0; i < fixtures.length; i++) {
+    const f = fixtures[i], points = f.geometry?.points;
+    const wire = wireFixture(f);
+    if (points) wire.geometry = { ...f.geometry!, points: undefined };
+    key += `${JSON.stringify(wire)}\n`;
+    if (!samePoints(seen[i], points)) {
+      seen[i] = points ? points.map(({ x, y, height }) => ({ x, y, height })) : null;
+      changed = true;
+    }
+  }
+  seen.length = fixtures.length;
+  if (changed || key !== fixturesSeen.key) {
+    fixturesSeen.key = key;
+    fixturesSeen.revision++;
+  }
+  return fixturesSeen.revision;
+}
+
+/** Per rig key, a number that moves whenever its contents do. */
+function rigSignatures(): { fixtures: number; profiles: number } {
+  return { fixtures: fixturesRevision(), profiles: profilesRevision() };
+}
+
+// From the clock, so a restarted server does not reuse a revision a client still holds.
+const rigSeen = { fixtures: -1, profiles: -1, revision: Date.now() };
+
+/** Moves whenever the fixtures or the profiles change. */
+function rigRevision(): number {
+  const { fixtures, profiles } = rigSignatures();
+  if (fixtures !== rigSeen.fixtures || profiles !== rigSeen.profiles) {
+    rigSeen.fixtures = fixtures;
+    rigSeen.profiles = profiles;
+    rigSeen.revision++;
+  }
+  return rigSeen.revision;
+}
+
+/** The rig keys as the publisher reads them: cheap signatures, and the values only when one moved. */
+const rigSource = { signatures: rigSignatures, values: getRigState };
+
+// The catalogues go once on connect, dmxSnapshot on its own channel and the rig's data with getRigState: none is here.
 function getLiveState() {
   return {
     control: control.snapshot(),
@@ -416,13 +486,7 @@ function getLiveState() {
     // Companion lights its arm button by this.
     armed: isArmed(),
     picture: { ...settings.group('picture'), input: pictureInput.status() },
-    fixtures: state.fixtures.map((f) => ({
-      ...f,
-      universe: universeOf(f),
-      maxBrightness: maxBrightnessOf(f),
-      position: f.position ? { ...f.position } : null,
-    })),
-    profiles: { ...listProfiles() },
+    rigRevision: rigRevision(),
     // Labels for the patch table and inspector; never the keys.
     hueStrobe: settings.group('hue').strobe ?? 'flash',
     hardware: settings.group('hardware'),
@@ -454,6 +518,7 @@ function getDmxUniverses(): [number, Uint8Array][] {
 function getClientState() {
   return {
     ...getLiveState(),
+    ...getRigState(),
     ...getCatalogs(),
     dmxSnapshot: getDmxSnapshot(),
   };
@@ -482,6 +547,9 @@ export {
   getDmxSnapshotSize,
   getClientState,
   getLiveState,
+  getRigState,
+  rigRevision,
+  rigSource,
   clockState,
   getCatalogs,
   getDmxSnapshot,

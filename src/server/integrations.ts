@@ -1,7 +1,7 @@
 import { control } from './control.ts';
 import { transitionFor } from '../show/transition.ts';
 import { presetById } from '../shared/effects/catalogue.ts';
-import { state, getLiveState, getCatalogs, getDmxSnapshot, getDmxUniverses, setExtrasProvider, setSequenceProvider, setSequenceRuns, reconcileFreeClock, voices, strobe } from './state.ts';
+import { state, getLiveState, getCatalogs, getDmxSnapshot, getDmxUniverses, rigSource, setExtrasProvider, setSequenceProvider, setSequenceRuns, reconcileFreeClock, voices, strobe } from './state.ts';
 import { HOLD_STROBE_MAX_HZ } from '../shared/look-math.ts';
 import { createPublisher, ROOM } from './protocol.ts';
 import { encodeDmxFrame } from '../shared/dmx-frame.ts';
@@ -299,7 +299,7 @@ function setupIntegrations({ io, midi, spotify, nowPlaying, deezerSource, prolin
       autoShow.setRig({ hasPixels: rig.hasPixels, hasPanels: rig.hasPanels, lamps: rig.fixtures.length,
         particlePatterns: particleCoverage.forRig(rig, currentSpace()) });
     }
-    publisher.publishState(getLiveState());
+    publisher.publishState(getLiveState(), rigSource);
     midi.sendFeedback();
   }
 

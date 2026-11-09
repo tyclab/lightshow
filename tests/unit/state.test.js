@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert';
-import { getClientState, getLiveState, getCatalogs, getDmxSnapshot, universeOf, state } from '../../src/server/state.ts';
+import { getClientState, getLiveState, getRigState, getCatalogs, getDmxSnapshot, universeOf, state } from '../../src/server/state.ts';
 import { conductor } from '../../src/server/conductor.ts';
 import { applyPatch } from '../../src/server/patch.ts';
 import { registerProfile, unregisterProfile } from '../../src/server/profiles.ts';
@@ -17,12 +17,25 @@ test('the live payload carries no static catalogues and no DMX snapshot', () => 
     assert.strictEqual(live[key], undefined, `${key} must not ride the live payload`);
   }
   // But everything the other socket clients read must still be there.
-  for (const key of ['bpm', 'energyOverride', 'fixtures', 'masterBlackout', 'pattern', 'running']) {
+  for (const key of ['bpm', 'energyOverride', 'masterBlackout', 'pattern', 'running']) {
     assert.ok(key in live, `Companion reads ${key}`);
   }
-  for (const key of ['artnet', 'profiles', 'fixtures', 'universes']) {
+  for (const key of ['artnet', 'universes']) {
     assert.ok(key in live, `the settings page reads ${key}`);
   }
+});
+
+// The fixtures and profiles were 98 % of the live state; the pages, Companion and the helper
+// get them from the full state and the rig patches, which rigRevision tells them to expect.
+test('the rig rides the full state and its own getter; the live state carries its revision', () => {
+  const live = getLiveState(), rig = getRigState(), full = getClientState();
+  assert.ok(!('fixtures' in live) && !('profiles' in live));
+  assert.ok(Number.isFinite(live.rigRevision));
+  assert.deepStrictEqual(Object.keys(rig).sort(), ['fixtures', 'profiles']);
+  assert.deepStrictEqual(full.fixtures, rig.fixtures, 'Companion reads fixtures from the full state');
+  assert.deepStrictEqual(Object.keys(full.profiles), Object.keys(rig.profiles), 'the settings page reads profiles');
+  assert.strictEqual(full.rigRevision, live.rigRevision);
+  assert.strictEqual(getLiveState().rigRevision, live.rigRevision, 'nothing moved, nor does the revision');
 });
 
 test('the full snapshot still carries everything, for REST and first connect', () => {
@@ -111,7 +124,7 @@ test('a fixture with no universe falls back to the default', () => {
   try {
     delete fix.universe;
     assert.strictEqual(universeOf(fix), state.artnet.universe);
-    assert.strictEqual(getLiveState().fixtures[0].universe, state.artnet.universe);
+    assert.strictEqual(getRigState().fixtures[0].universe, state.artnet.universe);
   } finally {
     fix.universe = original;
   }
