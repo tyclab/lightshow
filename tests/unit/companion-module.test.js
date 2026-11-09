@@ -46,7 +46,7 @@ test('its built-in lists are the server\'s, for before it has connected', () => 
 
   const fromServer = { patterns: [{ id: 'new-one', name: 'New One', pixel: true }], palettes: [{ id: 'sunset', name: 'Sunset', colors: { 2: [0, 1] } }] };
   assert.deepStrictEqual(catalog.choices(catalog.patternsOf(fromServer)), [{ id: 'new-one', label: 'New One' }], 'the server\'s own, once it has sent them');
-  assert.strictEqual(catalog.patternName({}, 'fire'), 'Fire');
+  assert.strictEqual(catalog.patternName({}, 'strobe'), 'Strobe');
   assert.deepStrictEqual(catalog.paletteSwatch(fromServer, fromServer.palettes[0]).map((c) => c.name), ['Red', 'Amber']);
 });
 
