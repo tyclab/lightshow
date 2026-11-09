@@ -149,85 +149,22 @@ test('saved but unapplied is explicit and does not roll back a committed file', 
   assert.equal(store.status().pending, true);
 });
 
-test('legacy routing conflict stays intact until explicit choice and preserves fixture universes', async () => {
-  const store = fresh();
-  const legacy = draft('192.0.2.60', 14);
-  fs.writeFileSync(store.file, JSON.stringify(legacy));
-  const previous = settings.legacyArtnet;
-  settings.legacyArtnet = { ...state.artnet, host: '192.0.2.61', universe: 15 };
-  try {
-    store.restore();
-    assert.ok(store.routingConflict);
-    assert.equal(JSON.parse(fs.readFileSync(store.file)).formatVersion, undefined);
-    assert.equal(store.save(), false);
-    store.setPublisher(async () => {});
-    await store.resolveRouting('settings');
-    assert.equal(state.artnet.host, '192.0.2.61');
-    assert.equal(state.artnet.universe, 15);
+test('a legacy show with routing of its own keeps it over the settings route, and is versioned on first load', () => {
+  const { directory, legacyShow } = legacyConfig();
+  for (let boot = 0; boot < 2; boot++) restartProcess(directory, `
+    showStore.restore();
+    assert.deepEqual(state.artnet, ${JSON.stringify(legacyShow.artnet)});
     assert.equal(state.fixtures[0].universe, 42);
-    assert.equal(store.routingConflict, null);
-  } finally { settings.legacyArtnet = previous; }
-});
-
-test('unresolved routing candidates survive unrelated saves and the boot disarm save across restarts', async t => {
-  for (const bootDisarm of [false, true]) await t.test(bootDisarm ? 'boot disarm' : 'unrelated setting', () => {
-    const { directory, settingsRoute, legacyShow } = legacyConfig({ armed: bootDisarm });
-    const conflict = { settings: settingsRoute, show: legacyShow.artnet };
-    const showPath = path.join(directory, 'show.json');
-    const originalBytes = fs.readFileSync(showPath, 'utf8');
-    restartProcess(directory, `
-      showStore.restore();
-      assert.deepEqual(showStore.routingConflict, ${JSON.stringify(conflict)});
-      ${bootDisarm ? 'settings.update({ outputs: { armed: false } });' : 'settings.update({ picture: { decode: false } });'}
-      assert.deepEqual(JSON.parse(fs.readFileSync(settings.file, 'utf8')).values.artnet, ${JSON.stringify(settingsRoute)});
-      assert.deepEqual(showStore.routingConflict, ${JSON.stringify(conflict)});
-      assert.equal(showStore.save(), false);
-    `);
-    assert.equal(fs.readFileSync(showPath, 'utf8'), originalBytes);
-    restartProcess(directory, `
-      showStore.restore();
-      assert.deepEqual(showStore.routingConflict, ${JSON.stringify(conflict)});
-      assert.equal(settings.get('outputs.armed'), false);
-      assert.equal(state.fixtures[0].universe, 42);
-      settings.save();
-      assert.deepEqual(JSON.parse(fs.readFileSync(settings.file, 'utf8')).values.artnet, ${JSON.stringify(settingsRoute)});
-    `);
-    assert.equal(fs.readFileSync(showPath, 'utf8'), originalBytes);
-  });
-});
-
-test('explicit routing choices persist one canonical route through settings saves and restart', async t => {
-  for (const source of ['settings', 'show']) await t.test(source, () => {
-    const { directory, settingsRoute, legacyShow } = legacyConfig();
-    const chosen = source === 'settings' ? settingsRoute : legacyShow.artnet;
-    restartProcess(directory, `
-      showStore.restore();
-      assert.ok(showStore.routingConflict);
-      settings.update({ picture: { decode: false } });
-      showStore.setPublisher(async () => {});
-      assert.equal((await showStore.resolveRouting(${JSON.stringify(source)})).applied, true);
-      assert.equal(showStore.routingConflict, null);
-      assert.deepEqual(state.artnet, ${JSON.stringify(chosen)});
-      assert.equal(state.fixtures[0].universe, 42);
-    `);
-    restartProcess(directory, `
-      showStore.restore();
-      assert.equal(showStore.routingConflict, null);
-      assert.deepEqual(state.artnet, ${JSON.stringify(chosen)});
-      assert.deepEqual(settings.group('artnet'), ${JSON.stringify(chosen)});
-      assert.equal(state.fixtures[0].universe, 42);
-      assert.equal(JSON.parse(fs.readFileSync(showStore.file, 'utf8')).formatVersion, 1);
-      settings.save();
-      assert.equal(JSON.parse(fs.readFileSync(settings.file, 'utf8')).values.artnet, undefined);
-    `);
-  });
+    assert.equal(JSON.parse(fs.readFileSync(showStore.file, 'utf8')).formatVersion, 1);
+    settings.save();
+    assert.equal(JSON.parse(fs.readFileSync(settings.file, 'utf8')).values.artnet, undefined);
+  `);
 });
 
 test('a legacy show without routing inherits settings before defaulting fixture universes', () => {
   const { directory, settingsRoute } = legacyConfig({ omitShowRoute: true });
   for (let boot = 0; boot < 2; boot++) restartProcess(directory, `
     showStore.restore();
-    assert.equal(showStore.routingConflict, null);
     assert.deepEqual(state.artnet, ${JSON.stringify(settingsRoute)});
     assert.deepEqual(state.fixtures.map(fixture => fixture.universe), [42, 31]);
     settings.save();
