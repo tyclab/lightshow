@@ -1,6 +1,7 @@
 // Vary looks (auto.varyLooks), off by default. Off, every automatic choice is the one main made before the
 // setting existed: the director's plans over the fixture tracks with the whole catalogue, the live director's
-// looks and MIDI random's picks hash to the digests below, taken from main at 840a1fd. On, they vary.
+// looks and MIDI random's picks hash to the digests below, taken from main (MIDI at b7623db, after #139 kept the seven
+// classic flash programs out of random until the acknowledgement; the rest unchanged since 840a1fd). On, they vary.
 
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -22,7 +23,7 @@ import { SPATIAL_AUTO_PATTERNS } from '../../src/show/look.ts';
 const MAIN = {
   director: '0caf7e6de0c2d33a17164769a57f8a62af12b4ec33f94f78a0e1e4632be66f7a',
   live: '6990e2b9b1b30f6341562fdf3da688eb3b809148219f6541e35e8e5673928376',
-  midi: 'bd930cdc3bb0d5d28540e6524b91aae21c333e105e24c8212dfc1a27760d95b3',
+  midi: 'ffc7e84ec504d7fff50dc19ed666f3ff0eb836df50f14629e22272d3419eb703',
 };
 
 const ROWS = [...PATTERNS, ...PRESET_ROWS.filter((row) => !row.retired)];
