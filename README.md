@@ -1123,7 +1123,8 @@ the picture where its cells are: each bound cell at the fixture's plot centre pl
 its room offset from the cells' centre across and along the floor, so the ball's
 front and back take different parts of the picture. A flat panel or a curtain keeps
 its flat place on the plot. The unit list's signature then carries the room's
-revision, so a sender fetches the positions again after a room import. Update the browser
+revision: after a room import the server answers the helper's next claim `STALE`,
+and the helper fetches the positions again at once and claims anew. Update the browser
 helper with the server so it samples grid cells too. Voices, pads, Identify, overrides and
 blackouts stay above it, the master and trims still apply, and two seconds
 without a frame shows the effects again. With **Effects** selected the server
