@@ -93,11 +93,6 @@ export function asyncHandler(fn: (req: Request, res: Response, next: NextFunctio
 export function resolveHueBridge(req: Request, res: Response): HueBridgeSettings | null {
   const bridges = output.getHueConfig().bridges;
   const id = (req.params as Record<string, string | undefined>).bridge;
-  if (id === undefined) {
-    if (bridges.length) return bridges[0];
-    res.status(409).json({ ok: false, error: 'Pair with a bridge first.' });
-    return null;
-  }
   const bridge = bridges.find((b) => b.id === id);
   if (bridge) return bridge;
   res.status(404).json({ ok: false, error: `No Hue bridge "${id}" — GET /api/hue/status lists them.` });

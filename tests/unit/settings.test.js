@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 
-import { SettingsStore, DEFAULTS, retireOldSourceName, LEGACY_HUE_BRIDGE_ID, migrateLegacyHue, warnAboutLegacyEnv } from '../../src/server/settings.ts';
+import { SettingsStore, DEFAULTS } from '../../src/server/settings.ts';
 import { schema, patchSchema } from '../../src/server/settings.ts';
 
 let counter = 0;
@@ -87,54 +87,9 @@ test('bridge updates preserve blank keys and drop removed bridges', () => {
   assert.throws(() => s.update({ hue: { bridges: [BRIDGE, { ...BRIDGE, label: 'Twin' }] } }), (err) => Array.isArray(err.issues));
 });
 
-// The settings file of a rig set up when there could be only one bridge
-// holds it as scalars under hue. It loads as the first of hue.bridges, keys
-// and all, so nothing has to be paired again.
-test('a settings file with one bridge in the old form loads it as bridge-1', () => {
-  const s = store();
-  fs.writeFileSync(s.file, JSON.stringify({
-    hue: {
-      enabled: true, host: '10.0.0.9', username: 'app-key', clientKey: 'abcdef01',
-      applicationId: 'a966c4cc-018d-4422-aad8-414843fc4fad', entertainmentId: '0123abcd-1234-5678-9abc-def012345678',
-      latencyMs: 60, channels: { 0: 1 },
-    },
-  }));
-  s.load();
-  assert.deepStrictEqual(s.group('hue'), {
-    bridges: [{
-      id: 'bridge-1', label: '10.0.0.9', enabled: true, host: '10.0.0.9', username: 'app-key', clientKey: 'abcdef01',
-      applicationId: 'a966c4cc-018d-4422-aad8-414843fc4fad', entertainmentId: '0123abcd-1234-5678-9abc-def012345678',
-    }],
-    latencyMs: 60,
-    // Older than the setting: the default.
-    strobe: 'flash',
-  });
-  s.update({ hue: { latencyMs: 70 } });
-  const written = JSON.parse(fs.readFileSync(s.file, 'utf8'));
-  assert.strictEqual(written.values.hue.host, undefined, 'the next save writes the new form');
-  assert.strictEqual(written.values.hue.bridges[0].clientKey, 'abcdef01');
-  assert.deepStrictEqual(new SettingsStore(s.file).load().group('hue').bridges.map((b) => b.id), ['bridge-1']);
-});
-
-test('an old-form file whose bridge was never paired loads with no bridge at all', () => {
-  const s = store();
-  fs.writeFileSync(s.file, JSON.stringify({ hue: { enabled: false, host: '', username: '', clientKey: '', applicationId: '', entertainmentId: '', latencyMs: 0 } }));
-  assert.deepStrictEqual(s.load().group('hue'), { bridges: [], latencyMs: 0, strobe: 'flash' });
-});
-
-test('migrating the old form is a pure step on the parsed file', () => {
-  const parsed = { hue: { enabled: true, host: '10.0.0.9', username: 'k', clientKey: 'aabb', latencyMs: 5 }, artnet: { port: 6454 } };
-  assert.strictEqual(migrateLegacyHue(parsed), true);
-  assert.deepStrictEqual(Object.keys(parsed.hue).sort(), ['bridges', 'latencyMs']);
-  assert.strictEqual(parsed.hue.bridges[0].id, LEGACY_HUE_BRIDGE_ID);
-  assert.strictEqual(migrateLegacyHue({ hue: { bridges: [], latencyMs: 0 } }), false, 'the new form is left alone');
-  assert.strictEqual(migrateLegacyHue({ hue: { latencyMs: 0 } }), false);
-  assert.strictEqual(migrateLegacyHue(null), false);
-});
-
-test('legacy Hue updates are rejected without changing settings', () => {
+test('a single-bridge Hue update is refused without changing settings', () => {
   const s = store().load();
-  assert.throws(() => s.update({ hue: { host: '10.0.0.9', enabled: true } }), (err) => err.status === 400);
+  assert.throws(() => s.update({ hue: { host: '10.0.0.9', enabled: true } }));
   assert.deepStrictEqual(s.group('hue'), DEFAULTS.hue, 'nothing was saved');
 });
 
@@ -209,17 +164,6 @@ test('pendingRestart reports only bootstrap keys that drifted', () => {
   assert.deepStrictEqual(s.pendingRestart(boot), ['server.port', 'engine.thread']);
 });
 
-// A leftover .env would otherwise go quiet: the rig comes up on defaults with
-// no clue why.
-test('legacy env vars are named as ignored, not silently dropped', () => {
-  const lines = [];
-  const found = warnAboutLegacyEnv({ ARTNET_HOST: '1.2.3.4', DEEZER_ARL: 'x', PATH: '/usr/bin' },
-    (m) => lines.push(m));
-  assert.deepStrictEqual(found, ['ARTNET_HOST', 'DEEZER_ARL'], 'unrelated vars ignored');
-  assert.ok(lines.length > 0);
-  assert.deepStrictEqual(warnAboutLegacyEnv({}, () => {}), [], 'silent when there is no .env');
-});
-
 // The application id is the DTLS identity and is stored alongside the keys.
 // Unlike them it is not a secret, so it stays readable by the settings page.
 test('the Hue application id round-trips and is not redacted', () => {
@@ -282,20 +226,6 @@ test('pythonPath only accepts a Python interpreter', () => {
     '/tmp/auto-analyze-1.exe', 'C:\\Temp\\python.exe.bat']) {
     assert.strictEqual(ok(v), false, v);
   }
-});
-
-// A rule added later must not quarantine the whole file — credentials and all
-// — over one field an older build accepted.
-test('a stored pythonPath the new rule refuses is cleared, and the rest loads', () => {
-  const s = store();
-  fs.writeFileSync(s.file, JSON.stringify({
-    analysis: { pythonPath: 'C:\\tools\\run-analyser.bat' },
-    spotify: { clientId: 'keep-me' },
-  }));
-  s.load();
-  assert.strictEqual(s.get('analysis.pythonPath'), '');
-  assert.strictEqual(s.get('spotify.clientId'), 'keep-me');
-  assert.ok(fs.existsSync(s.file), 'not moved aside');
 });
 
 test('live input settings: off by default, a source it knows, a latency in range', () => {
@@ -413,19 +343,4 @@ test('hardware products persist and can be removed without stale entries', () =>
   s.update({ hardware: { products: {} } });
   assert.deepEqual(new SettingsStore(s.file).load().group('hardware').products, {});
   assert.throws(() => s.update({ hardware: { technologies: { hue: { maxFlashHz: -1 } } } }));
-});
-
-test('a stored sACN source name at the former default loads as the current one; a chosen name is kept', () => {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'lightshow-sacn-name-'));
-  const load = (sourceName, name) => {
-    const file = path.join(dir, `${name}.json`);
-    fs.writeFileSync(file, JSON.stringify({ sacn: { sourceName } }));
-    return new SettingsStore(file).load().get('sacn.sourceName');
-  };
-  assert.strictEqual(load('Tyclab Lightshow', 'former'), DEFAULTS.sacn.sourceName);
-  assert.strictEqual(DEFAULTS.sacn.sourceName, 'TycStation Lightshow');
-  assert.strictEqual(load('Bar rig', 'chosen'), 'Bar rig');
-  assert.strictEqual(load('tyclab lightshow', 'other-case'), 'tyclab lightshow');
-  assert.strictEqual(retireOldSourceName({ artnet: {} }), false);
-  assert.strictEqual(retireOldSourceName(null), false);
 });

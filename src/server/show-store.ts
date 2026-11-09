@@ -171,7 +171,6 @@ class ShowStore extends JsonStore {
   private unsupported: Error | null = null;
   private versioned = false;
   private onRigPublished: ((revision: number) => Promise<void>) | null = null;
-  routingConflict: { settings: typeof state.artnet; show: typeof state.artnet } | null = null;
 
   constructor(file: string, { debounceMs = SAVE_DEBOUNCE_MS } = {}) {
     super(file, { tag: 'show', fallback: 'starting on the default patch' });
@@ -199,7 +198,7 @@ class ShowStore extends JsonStore {
   restore(): boolean {
     const show = this.load();
     if (!show) {
-      const rig = prepareShow({ artnet: settings.legacyArtnet ?? state.artnet });
+      const rig = prepareShow({ artnet: state.artnet });
       this.revision = 1;
       this.write(this.serialise(snapshotRig(rig.artnet, rig.fixtures, rig.nextFixtureId, rig.profiles)));
       publishRig(rig);
@@ -213,21 +212,14 @@ class ShowStore extends JsonStore {
       this.quarantine(`does not fit this rig (${messageOf(err)})`);
       return false;
     }
-    const oldRoute = settings.legacyArtnet;
-    // A versioned rig is authoritative. Legacy conflicts need an explicit choice.
-    if (!this.versioned && oldRoute && (show as ShowFile).artnet
-      && Object.keys(oldRoute).some(key => oldRoute[key as keyof typeof oldRoute] !== rig.artnet[key as keyof typeof oldRoute])) {
-      this.routingConflict = { settings: { ...oldRoute }, show: { ...rig.artnet } };
-    }
-    if (!(show as ShowFile).artnet && oldRoute) rig.artnet = { ...oldRoute };
-    if (!this.versioned && !this.routingConflict) {
+    if (!this.versioned) {
       this.backupBefore(1);
       this.revision = 1;
       this.write(this.serialise(snapshotRig(rig.artnet, rig.fixtures, rig.nextFixtureId, rig.profiles)));
       this.versioned = true;
     }
     publishRig(rig);
-    settings.setArtnetSource(() => ({ ...state.artnet }), { preserveLegacyArtnet: !!this.routingConflict });
+    settings.setArtnetSource(() => ({ ...state.artnet }));
     this._saved = this._serialise();
     return true;
   }
@@ -236,7 +228,7 @@ class ShowStore extends JsonStore {
 
   status() {
     return { revision: this.revision, appliedRevision: this.appliedRevision,
-      pending: this.appliedRevision !== this.revision, error: this.applyError, routingConflict: this.routingConflict };
+      pending: this.appliedRevision !== this.revision, error: this.applyError };
   }
 
   commit(raw: unknown): Promise<RigCommitResult> {
@@ -252,7 +244,6 @@ class ShowStore extends JsonStore {
     this.revision = revision;
     this._saved = body;
     this.applyError = null;
-    this.routingConflict = null;
     settings.setArtnetSource(() => ({ ...state.artnet }));
     return this.applyCurrent();
   }
@@ -289,13 +280,6 @@ class ShowStore extends JsonStore {
 
   commitArtnet(patch: unknown): Promise<RigCommitResult> { return this.commit({ artnet: patch }); }
 
-  resolveRouting(source: 'settings' | 'show'): Promise<RigCommitResult> {
-    if (!this.routingConflict) throw new HttpError(409, 'No routing conflict remains');
-    // Conflict resolution chooses the default for new fixtures; imported fixture
-    // universe assignments remain explicit and do not move with that default.
-    return this.commit({ ...snapshotShow(), artnet: this.routingConflict[source] });
-  }
-
   private serialise(show: ReturnType<typeof snapshotShow>, revision = this.revision): string {
     return `${JSON.stringify({ formatVersion: 1, revision, show }, null, 2)}\n`;
   }
@@ -323,7 +307,6 @@ class ShowStore extends JsonStore {
       this._timer = null;
     }
     if (this.unsupported) throw this.unsupported;
-    if (this.routingConflict) return false;
     const body = this._serialise();
     if (body === this._saved) return false;
     try {

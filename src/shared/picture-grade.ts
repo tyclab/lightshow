@@ -50,11 +50,6 @@ export const PICTURE_GRADE_DEFAULTS: Readonly<PictureGrade> = Object.freeze({
   enabled: false, whiteLimit: 0, saturation: 1, ceiling: 1, hueCeiling: 1,
 });
 
-/** The first defaults, guesses that made up for the missing decode; a stored copy of them was never tuned. */
-export const PICTURE_GRADE_GUESSED: Readonly<PictureGrade> = Object.freeze({
-  enabled: true, whiteLimit: 0.6, saturation: 1.25, ceiling: 0.7, hueCeiling: 0.5,
-});
-
 const ceiling = z.number().min(0.1).max(1);
 export const pictureGradeSchema = z.object({
   enabled: z.boolean(),

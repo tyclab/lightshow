@@ -80,11 +80,6 @@ export class LightshowConnection {
 			}
 			this.onChange(keys)
 		})
-		// A server from before protocol 2 sends the whole state instead.
-		this.socket.on('state', (state) => {
-			this.#controlFresh = validControl(state?.control)
-			this.onChange(this.store.merge({ ...state, control: state?.control }))
-		})
 	}
 
 	#invalidateControl() {
