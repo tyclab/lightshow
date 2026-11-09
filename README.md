@@ -131,9 +131,9 @@ arrive every second; the timeout is 15 seconds, or 60 during startup. Restart
 backoff is 0.5, 1, 2, 5 and 10 seconds; three failures before startup complete
 stop retries. Configuration failures exit 78; requested restarts exit 75.
 
-On a supervised restart, `config/look.json` restores the saved look and a
-cached auto-show track. Active energy effects are not restored. A normal
-start ignores that recovery file, and every start remains disarmed.
+Every start, supervised or not, restores the saved look from `config/look.json`
+(written when the look changes). Active energy effects are not restored, the
+programme comes back stopped, and every start remains disarmed.
 
 For an external service manager that owns restarts, run:
 
@@ -1717,7 +1717,9 @@ sequenceDiagram
   anything a worker fails, drops or times out on run here.
 - **Standby.** With `analysis.localWorker: 'standby'` (the default) this
   machine's analyser process ends, freeing about 0.9 GB, when a compatible
-  worker becomes ready (after the track running here, if there is one). The
+  worker becomes ready (after the track running here, if there is one, and
+  while the outputs are armed only at the next disarm, so a worker going busy
+  and ready again mid-show does not make each fallback track load it). The
   next track that runs here starts it and loads the models from disk inside
   its own time limit; it then stays until a worker becomes ready again. A
   connected worker that takes no jobs for the moment (stopping a cancelled
@@ -2334,7 +2336,11 @@ gives the main thread's delay in milliseconds over the last 30 s window: the
 excess over the 10 ms sampling timer, so an idle loop reads 0.
 
 Logs appear in the terminal, the app's Log drawer and `logs/lightshow.log`.
-Files are JSON lines, rotated at 10 MB with three retained rotations.
+Files are JSON lines, rotated at 10 MB with three retained rotations. The file
+is written off the event loop, so a disk that stalls delays the file, not the
+show; lines still waiting at exit are written before the process ends, and a
+disk that does not answer keeps at most 10 MB waiting, then logs how many
+older lines it dropped.
 `LOG_LEVEL` changes verbosity; `LOG_FORMAT=pretty|json` controls terminal
 format. `/api/logs` supports sequence, level and limit filters.
 

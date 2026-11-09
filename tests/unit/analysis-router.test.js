@@ -303,6 +303,22 @@ test('standby: a worker that becomes ready ends the idle analyser here until a t
   assert.deepEqual(logged, []);
 });
 
+// A worker flapping between busy and ready mid-show would otherwise cold-start the analyser here for every fallback track.
+test('standby: a worker ready while the outputs are armed leaves the analyser loaded until the disarm', async () => {
+  const pool = fakePool({ compatible: false });
+  const { r, local, ctl } = router(pool, { remote: false });
+  r.prewarm();
+  ctl.remote = true;
+  ctl.armed = true;
+  pool.ready(true);
+  assert.equal(local.restarts.length, 0, 'not while armed');
+  ctl.armed = false;
+  r.settleLocal();
+  await tick();
+  assert.equal(local.restarts.length, 1, 'standby once disarmed');
+  assert.match(local.restarts[0].reason, /^standby while a GPU worker is ready/);
+});
+
 test('standby: a worker ready while a track runs here ends the analyser once that run is over', async () => {
   const pool = fakePool({ compatible: false, idle: false });
   const { r, local } = router(pool);
