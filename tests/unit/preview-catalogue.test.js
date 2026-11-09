@@ -22,7 +22,7 @@ const fixture = (id, address, profileId = BUILTIN_PROFILE_ID, extra = {}) => ({
   position: null, group: null, geometry: null, hue: false, ...extra,
 });
 const PARS = [fixture(10, 1), fixture(11, 13), fixture(12, 25), fixture(13, 37)];
-const LAMP = fixture(14, 60, HUE_COLOR_PROFILE_ID, { hue: true, output: { protocol: 'hue', channel: 1 } });
+const LAMP = fixture(14, 60, HUE_COLOR_PROFILE_ID, { hue: true, output: { protocol: 'hue', channels: [1] } });
 const RIG = [...PARS, LAMP];
 const LOOK = { colorA: 0, colorB: 5, colorC: 3, colorD: 8, bpm: 120, beatDivision: 1 };
 const BEATS = Array.from({ length: 41 }, (_, i) => i * 0.5);

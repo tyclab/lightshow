@@ -16,11 +16,12 @@ const fixture = (id, address, profileId = BUILTIN_PROFILE_ID, extra = {}) => ({
 });
 
 const LEFT = fixture(0, 1);
-const LAMP = fixture(1, 20, HUE_COLOR_PROFILE_ID, { hue: true, output: { protocol: 'hue', channel: 1 } });
+const LAMP = fixture(1, 20, HUE_COLOR_PROFILE_ID, { hue: true, output: { protocol: 'hue', channels: [1] } });
 const RIGHT = fixture(2, 40);
 const HUE_RIG = [LEFT, LAMP, RIGHT];
 const PAR_RIG = [LEFT, fixture(1, 20), RIGHT];
 
+// The Rapid flash looks and the classic programs that strike flashes play only once acknowledged.
 const SAFETY = { safety: { hdFlashIntervalMs: 350, acknowledged: true } };
 
 const input = (fixtures, patch) => ({
@@ -76,15 +77,15 @@ const FLASHING = [
   ['Palette Strobe', { energy: HOLD_STROBE, ...SAFETY }],
   ['ldj.TrueStrobe base', { pattern: 'look', effect: spec({ kind: 'ldj.TrueStrobe', palette: ['#FFFFFF'] }), ...SAFETY }],
   ['ldj.PaletteTrueStrobe voice', { voices: [voice('pad', spec({ kind: 'ldj.PaletteTrueStrobe', palette: ['#FF0000', '#00FFFF'] }))], ...SAFETY }],
-  ['Ring Strobe', { pattern: 'ring-strobe' }],
-  ['Ring Backlit', { pattern: 'ring-backlit' }],
+  ['Ring Strobe', { pattern: 'ring-strobe', ...SAFETY }],
+  ['Ring Backlit', { pattern: 'ring-backlit', ...SAFETY }],
   ['Flashes', { pattern: 'flashes', beatDivision: 4 }],
-  ['Flash Chase', { pattern: 'flash-chase' }],
-  ['Flash Scatter', { pattern: 'flash-scatter' }],
+  ['Flash Chase', { pattern: 'flash-chase', ...SAFETY }],
+  ['Flash Scatter', { pattern: 'flash-scatter', ...SAFETY }],
   ['Flash Fill', { pattern: 'flash-fill' }],
-  ['Flash Alternate', { pattern: 'flash-alternate' }],
+  ['Flash Alternate', { pattern: 'flash-alternate', ...SAFETY }],
   ['Ramp', { pattern: 'ramp' }],
-  ['Strobe Core', { pattern: 'core' }],
+  ['Strobe Core', { pattern: 'core', ...SAFETY }],
 ];
 
 for (const [name, patch] of FLASHING) {
