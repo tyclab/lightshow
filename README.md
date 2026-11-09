@@ -1062,14 +1062,14 @@ connects to the Lightshow, so it never holds the displays.
 cd tools/browser-visuals
 npm.cmd ci --omit=dev
 $profile = "$env:LOCALAPPDATA\PartyVisuals\browser-profile"
-$url = 'http://10.27.2.42:8095/#/now-playing?player=02%3A01%3Abb%3A12%3A81%3A49&frameless=1'
+$url = 'http://<music-assistant>:8095/#/now-playing?player=<player-id>&frameless=1'
 node cli.js --browser-profile $profile --visualizer-url $url
 node cli.js --browser-profile $profile --visualizer-url $url --preview --output curtain-preview.ppm
 node cli.js --browser-profile $profile --visualizer-url $url --curtain --fixture 53 --width 68 --height 42
 ```
 
-These defaults describe GamerTyc's curtain and SHD player. Supply the intended
-player URL, fixture and grid for another installation. Preview writes a local PPM
+Fill in your Music Assistant host and player id; the fixture and grid describe one
+installation's curtain. Supply the intended player URL, fixture and grid for yours. Preview writes a local PPM
 image and never connects to the Lightshow. `--fit contain` adds black margins;
 `--help` lists all options. The local browser helper uses the existing NodeCG
 `wash.on` control for visibility; intensity still applies to the legacy graphics.
@@ -1697,8 +1697,8 @@ A PC with an NVIDIA card can analyse tracks for the server. Its worker
 (`tools/remote-analyzer`) connects out to the server, so the PC listens on no
 port; the server sends it the job, the worker fetches the audio from the server,
 runs the same NDJSON worker as the server does in a container on its GPU, and
-posts the document back. The server stays the cache owner. On GamerTyc's RTX
-2080 SUPER a 210 s track took 40 s (49 s from a cold container) instead of
+posts the document back. The server stays the cache owner. On an RTX 2080
+SUPER a 210 s track took 40 s (49 s from a cold container) instead of
 275 s on its CPU, a 561 s track 170 s instead of 738 s, and the documents are
 the CPU's to within rounding. Setup, provisioning and troubleshooting are in
 [Remote analysis](docs/remote-analysis.md).

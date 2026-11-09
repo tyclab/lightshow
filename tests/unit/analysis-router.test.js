@@ -162,7 +162,7 @@ test('a job a worker fails or drops comes back to this machine', async () => {
   const pool = fakePool();
   const { r, local } = router(pool);
   const done = r.analyze('/music/a.wav', null, { priority: 'normal', tag: 'a' });
-  pool.runs[0].reject(remoteError('failed', 'gamertyc disconnected'));
+  pool.runs[0].reject(remoteError('failed', 'stage-pc disconnected'));
   await tick();
   assert.equal(local.jobs.length, 1, 'requeued here, without waiting for the worker again');
   pool.free();
