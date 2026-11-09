@@ -506,6 +506,27 @@ test("a Spatial preset opens in the inspector", () => {
   assert.match(html, /Save as…/);
 });
 
+test("the inspector draws a kind's labelled controls: the shape's own above Advanced, the rest under it, none it does not read", () => {
+  givenLibrary({});
+  const sections = (id) => {
+    const html = ui.html(ui.h(ui.Inspector, { id }));
+    const at = html.indexOf('<details class="insp-advanced">');
+    const labels = (part) => [...part.matchAll(/<label for="spatial-(?!space")[^"]+">([^<]+)<\/label>|<input id="spatial-[^"]+" type="checkbox"[^>]*\/>([^<]+)</g)].map((m) => m[1] || m[2]);
+    return { primary: labels(html.slice(0, at)), advanced: labels(html.slice(at)) };
+  };
+  const wave = sections('v2.grooveWave');
+  assert.deepStrictEqual(wave.primary, ['Shape', 'Heading', 'Tilt', 'Width', 'Speed', 'Motion', 'Turn per lap', 'Colours', 'React']);
+  assert.ok(wave.advanced.includes('Start anchor') && wave.advanced.includes('Floor colour'));
+  for (const wall of ['Driven by', 'Length']) assert.ok(!wave.primary.includes(wall) && !wave.advanced.includes(wall), wall);
+  const wall = sections('v2.risingWall');
+  assert.deepStrictEqual(wall.primary, ['Shape', 'Heading', 'Tilt', 'Width', 'Driven by', 'Length', 'Direction', 'Colours', 'React']);
+  assert.ok(wall.advanced.includes('Speed'), 'a wall only turns with the speed, so it waits under Advanced');
+  const strobe = sections('overlay.scatter');
+  assert.deepStrictEqual(strobe.primary, ['Lamps', 'Colour', 'Rate', 'Over the look', 'Density', 'Function']);
+  assert.ok(!strobe.primary.includes('Zone axis') && !strobe.advanced.includes('Function speed'));
+  assert.doesNotMatch(ui.html(ui.h(ui.Inspector, { id: 'v2.grooveWave' })), /Elevation Deg|Turn Per Lap|Azimuth/, 'no label is a parameter name');
+});
+
 test("Position Chase inspector exposes ordered envelope controls", () => {
   givenLibrary({});
   const html = ui.html(ui.h(ui.Inspector, { id: 'hd.neonDomino' }));
