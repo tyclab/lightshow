@@ -301,10 +301,11 @@ const PRESET_ROWS = ui.CATALOGUE.filter((p) => !p.legacy).map((p) => ({
 }));
 const LEGACY_ROWS = ui.CATALOGUE.filter((p) => p.legacy)
   .map(({ id, name, desc, party, preset }) => ({ id, name, desc, party, ...(preset ? { preset } : {}), legacy: true, ...ui.tagFields(ui.legacyTags(id)) }));
+// Two of the server's classic rows, while they are classic: a redirected one is among the presets.
 const UPSTREAM_ROWS = [
   { id: 'chase', name: 'Chase →', desc: 'One fixture at a time, forward', legacy: true, ...ui.tagFields(ui.legacyTags('chase')) },
   { id: 'gradient', name: 'Gradient', desc: 'The look\'s colours as a gradient scrolling across the rig', pixel: true, legacy: true, ...ui.tagFields(ui.legacyTags('gradient')) },
-];
+].filter((row) => !Object.hasOwn(CLASSIC_REDIRECTS, row.id));
 const PATTERN_ROWS = [...UPSTREAM_ROWS, ...LEGACY_ROWS, ...PRESET_ROWS];
 const domino = ui.CATALOGUE.find((p) => p.id === 'hd.neonDomino');
 const USER_PRESET = {
@@ -356,13 +357,13 @@ test('Effects lists every look once, A to Z, each with the tags its code states'
   // The badges: what a look reacts to and from where, its surface, colours and use.
   assert.deepStrictEqual(badgesOf(rowOf(html, 'v2.impact')), ['Bands & drums · live', 'Room-placed']);
   assert.deepStrictEqual(badgesOf(rowOf(html, 'v2.stemsSpace')), ['Bands & drums · track + live', 'Room-placed']);
-  assert.deepStrictEqual(badgesOf(rowOf(html, 'volume-gate')), ['Audio level · track']);
+  assert.deepStrictEqual(badgesOf(rowOf(html, 'v2.volumeGateWash')), ['Audio level · live', 'Room-placed']);
   assert.deepStrictEqual(badgesOf(rowOf(html, 'gradient')), ['Beat only', 'Bars & panels']);
   assert.deepStrictEqual(badgesOf(rowOf(html, 'v2.visualizerFlow')), ['Screen · screen', 'Room-placed']);
   assert.deepStrictEqual(badgesOf(rowOf(html, 'chase')), ['Beat only']);
   assert.deepStrictEqual(badgesOf(rowOf(html, 'energy.whiteStrobe')), ['Beat only', 'Whole rig', 'Own colours', 'Energy', 'Rapid ⚡']);
   assert.match(rowOf(html, 'v2.impact'), /title="Follows stems, drum hits or frequency bands\. Reacts in the reactive audio mode with live input"/);
-  assert.match(rowOf(html, 'radial-pulse'), /title="[^"]*Reacts only while the auto show plays an analysed track; picked by hand it runs on its clock"/);
+  assert.match(rowOf(html, 'v2.risingWall'), /title="[^"]*Reacts only while the auto show plays an analysed track; picked by hand it runs on its clock"/);
   // A rapid flash carries its warning, its ⚡ hidden from screen readers; a slow one does not.
   assert.match(rowOf(html, 'hd.voltageConfetti'), /class="effect-tag badge-rapid" data-tag="rapid"[^>]*>Rapid <span aria-hidden="true">⚡<\/span>/);
   assert.match(rowOf(html, 'ldj.TrueStrobe'), /badge-rapid/);
@@ -480,9 +481,9 @@ test('the search finds a look by name, description, id and family as before, and
   const tagged = (tag) => rows.filter((r) => r.tags.includes(tag)).map((r) => r.id);
   assert.deepStrictEqual(find('song sections'), tagged('sections'));
   assert.deepStrictEqual(find('room-placed'), tagged('room'));
-  assert.ok(find('reactive').includes('v2.neural') && find('reactive').includes('volume-gate') && !find('reactive').includes('chase'));
+  assert.ok(find('reactive').includes('v2.neural') && find('reactive').includes('v2.volumeGateWash') && !find('reactive').includes('chase'));
   assert.ok(tagged('rapid').every((id) => find('rapid').includes(id)));
-  assert.ok(find('live').includes('v2.impact') && find('track').includes('radial-pulse'));
+  assert.ok(find('live').includes('v2.impact') && find('track').includes('v2.risingWall'));
   assert.ok(find('chase').includes('chase') && find('v2.neural').includes('v2.neural'), 'by name and id');
   assert.ok(find('spatial').includes('v2.grooveWave'), 'by family name');
   assert.deepStrictEqual(find(''), rows.map((r) => r.id));

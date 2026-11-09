@@ -45,8 +45,8 @@ test("legacy patterns remain known without an effect spec", (t) => {
   const legacy = CATALOGUE.find((p) => p.legacy);
   assert.equal(library.resolve(legacy.id), null, 'the renderer keeps drawing a legacy row with its pattern function');
   assert.equal(library.isKnownPattern(legacy.id), true);
-  assert.equal(library.resolve('solid'), null, 'a pattern with no catalogue row');
-  assert.equal(library.isKnownPattern('solid'), true);
+  assert.equal(library.resolve('strobe'), null, 'a pattern with no catalogue row');
+  assert.equal(library.isKnownPattern('strobe'), true);
 });
 
 test("unknown effects resolve to no preset", (t) => {

@@ -8,7 +8,7 @@ import assert from 'node:assert';
 
 import { pulseTrack, DECAY_MS } from '../../src/show/pulse.ts';
 import { PATTERN_FUNCS, CELL_PATTERNS } from '../../src/shared/patterns.ts';
-import { COLOR_PRESETS, PATTERNS } from '../../src/server/presets.ts';
+import { COLOR_PRESETS, CLASSIC_LOOKS } from '../../src/server/presets.ts';
 import { availableFor, pickPattern, PULSE_PATTERNS } from '../../src/show/look.ts';
 import { renderInput, setPulseSource, setModulationSource } from '../../src/server/engine.ts';
 import AutoShow from '../../src/auto-show.ts';
@@ -78,7 +78,7 @@ const quiet = { mix: 0.5, kick: 0, snare: 0, hats: 0 };
 test('drums and stems are pixel patterns the picker lists', () => {
   for (const id of ['drums', 'stems']) {
     assert.ok(CELL_PATTERNS.has(id), id);
-    assert.strictEqual(PATTERNS.find((p) => p.id === id).pixel, true, id);
+    assert.strictEqual(CLASSIC_LOOKS.find((p) => p.id === id).pixel, true, id);
     assert.ok(PULSE_PATTERNS.has(id));
   }
 });
@@ -135,8 +135,8 @@ test('the meter reads the bass stem and the kick when it has them', () => {
 // ── The show ─────────────────────────────────────────────────────────────────
 
 test('the show reaches for them only for a track that has a pulse', () => {
-  const all = availableFor(PATTERNS, { pulse: block() });
-  const none = availableFor(PATTERNS, {});
+  const all = availableFor(CLASSIC_LOOKS, { pulse: block() });
+  const none = availableFor(CLASSIC_LOOKS, {});
   assert.ok(all.has('drums') && all.has('stems'));
   assert.ok(!none.has('drums') && !none.has('stems'));
   assert.ok(none.has('comet'), 'the other pixel patterns stay');
