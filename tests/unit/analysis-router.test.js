@@ -162,7 +162,7 @@ test('a job a worker fails or drops comes back to this machine', async () => {
   const pool = fakePool();
   const { r, local } = router(pool);
   const done = r.analyze('/music/a.wav', null, { priority: 'normal', tag: 'a' });
-  pool.runs[0].reject(remoteError('failed', 'gamertyc disconnected'));
+  pool.runs[0].reject(remoteError('failed', 'stage-pc disconnected'));
   await tick();
   assert.equal(local.jobs.length, 1, 'requeued here, without waiting for the worker again');
   pool.free();
@@ -301,6 +301,22 @@ test('standby: a worker that becomes ready ends the idle analyser here until a t
   assert.equal(local.jobs.length, 1, 'a track that falls back runs here, and starts it');
   assert.equal(local.prewarms, 1);
   assert.deepEqual(logged, []);
+});
+
+// A worker flapping between busy and ready mid-show would otherwise cold-start the analyser here for every fallback track.
+test('standby: a worker ready while the outputs are armed leaves the analyser loaded until the disarm', async () => {
+  const pool = fakePool({ compatible: false });
+  const { r, local, ctl } = router(pool, { remote: false });
+  r.prewarm();
+  ctl.remote = true;
+  ctl.armed = true;
+  pool.ready(true);
+  assert.equal(local.restarts.length, 0, 'not while armed');
+  ctl.armed = false;
+  r.settleLocal();
+  await tick();
+  assert.equal(local.restarts.length, 1, 'standby once disarmed');
+  assert.match(local.restarts[0].reason, /^standby while a GPU worker is ready/);
 });
 
 test('standby: a worker ready while a track runs here ends the analyser once that run is over', async () => {

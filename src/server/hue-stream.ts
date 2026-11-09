@@ -436,8 +436,6 @@ class HueStreamer {
   }
 }
 
-export const STATES = { IDLE, CONNECTING, STREAMING, FAILED };
-
 export {
   STREAM_PORT,
   CIPHER_SUITE,

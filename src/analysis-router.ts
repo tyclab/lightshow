@@ -371,7 +371,7 @@ class AnalysisRouter {
   }
 
   /**
-   * Standby once a worker takes jobs and nothing runs here; loaded again, while
+   * Standby once a worker takes jobs, nothing runs here and the outputs are disarmed; loaded again, while
    * disarmed, once the last worker has disconnected or the mode is resident. A
    * connected worker between jobs (a cancelled one stopping, a decline) is neither.
    */
@@ -389,7 +389,7 @@ class AnalysisRouter {
     this._standby = standby;
     this._covered = covered;
     this._attended = attended;
-    if (this._standbyDue && !this._localEntries().length) {
+    if (this._standbyDue && !this._localEntries().length && !this._armed()) {
       this._local.restart('standby while a GPU worker is ready; a track analysed here starts it again', { whenIdle: true });
       this._standbyDue = false;
     }

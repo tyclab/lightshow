@@ -38,14 +38,6 @@ function find({ inEnvironment = () => envTool('yt-dlp') }: { inEnvironment?: () 
   return found$;
 }
 
-async function version(): Promise<string | null> {
-  return (await find())?.version ?? null;
-}
-
-async function command(options: Parameters<typeof find>[0] = {}): Promise<string> {
-  return (await find(options))?.command ?? 'yt-dlp';
-}
-
 function dateOf(v: unknown): number {
   const m = /^(\d{4})\.(\d{1,2})\.(\d{1,2})/.exec(String(v || ''));
   return m ? Number(m[1]) * 10000 + Number(m[2]) * 100 + Number(m[3]) : 0;
@@ -80,8 +72,6 @@ function _reset(): void { found$ = null; }
 
 export {
   find,
-  version,
-  command,
   needsJsRuntime,
   runtimeArgs,
   runtimeName,
