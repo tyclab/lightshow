@@ -95,6 +95,15 @@ function protocolOf(socket: Socket): number {
   return auth && auth.protocol === PROTOCOL ? PROTOCOL : 1;
 }
 
+/** The connect log line: protocol, where the client came from and what it calls itself, so a protocol 1 client that keeps the engine awake can be found. */
+export function describeClient(socket: Pick<Socket, 'id' | 'handshake'>): string {
+  const headers = socket.handshake.headers ?? {};
+  const forwarded = headers['x-forwarded-for'];
+  const from = (Array.isArray(forwarded) ? forwarded[0] : forwarded)?.split(',')[0].trim() || socket.handshake.address || 'unknown address';
+  const agent = headers['user-agent'];
+  return `Client connected: ${socket.id} (protocol ${protocolOf(socket as Socket)}, ${from}${agent ? `, ${agent}` : ''})`;
+}
+
 /** The feeds named in a subscribe message that exist, as their rooms. */
 function topicRooms(payload: unknown): string[] {
   const names = Array.isArray(payload) ? payload : [payload];
@@ -126,7 +135,7 @@ function attachSockets(io: Server, { midi, integrations }: {
   midiMap.onChange(() => io.emit('midi-map', midiMap.snapshot()));
 
   io.on('connection', (socket) => {
-    console.log('Client connected:', socket.id);
+    console.log(describeClient(socket));
     let pixelWindow = 0, pixelMessages = 0;
     for (const operation of ['claim', 'frame', 'release'] as const) socket.on(`pixel-input:${operation}`, (payload: unknown, ack?: (answer: unknown) => void) => {
       const now = performance.now();

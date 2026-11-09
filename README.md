@@ -2258,7 +2258,11 @@ for the current ticker, while `intervalSkipped` covers `intervalMs`.
 sampling interval. These are engine timings, not confirmation that a device
 displayed every frame. `liveQuiet` is true while the live input hears digital
 silence and reports four states a second, false while it hears sound, and null
-while it is not listening.
+while it is not listening. `awake` lists what keeps the engine from idling:
+`armed`, `dmx` (a page on the DMX feed), `v1` (a client on the original
+protocol) or `identify`; an empty list with `idle` false means a frame is still
+owed (a barrier wait, an effect command or an Art-Net route). Each client's
+connect line names its protocol, address and user agent.
 
 The existing Docker log collector can query these records without another
 endpoint or credential. For example, in Loki:

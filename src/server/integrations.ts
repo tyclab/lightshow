@@ -43,7 +43,7 @@ import { SequenceStore } from './sequence-store.ts';
 import { LiveAutomation } from './live-automation.ts';
 import { isArmed } from './armed.ts';
 import { pictureInput } from './picture-live.ts';
-import { setLiveProvider } from './health.ts';
+import { setAwakeProvider, setLiveProvider } from './health.ts';
 import { toHex } from '../shared/effects/palette.ts';
 import { configFile } from './config-dir.ts';
 import type { Server } from 'socket.io';
@@ -283,7 +283,14 @@ function setupIntegrations({ io, midi, spotify, nowPlaying, deezerSource, prolin
 
   const publisher = createPublisher(io);
   // A stop request outlives identify until the next start, so only fixtures still being identified count.
-  setIdleSource(() => !isArmed() && !publisher.wants(ROOM.dmx) && !publisher.wants(ROOM.v1) && !identify.request()?.ids.length);
+  const awake = (): string[] => [
+    isArmed() && 'armed',
+    publisher.wants(ROOM.dmx) && 'dmx',
+    publisher.wants(ROOM.v1) && 'v1',
+    identify.request()?.ids.length && 'identify',
+  ].filter((reason): reason is string => typeof reason === 'string');
+  setIdleSource(() => awake().length === 0);
+  setAwakeProvider(awake);
 
   const particleCoverage = new ParticleCoverage(() => broadcast());
   function broadcast(): void {
