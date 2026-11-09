@@ -70,8 +70,6 @@ const PATTERNS = [
   { id: 'wave',         name: 'Wave',          desc: 'Sine brightness sweep across the rig' },
   { id: 'stack-up',     name: 'Stack Up',      desc: 'Fill fixtures one by one, then reset' },
 
-  { id: 'split',        name: 'Split',         desc: 'Palette colours alternating per fixture' },
-  { id: 'sections',     name: 'Sections',      desc: 'Rig splits into one block per palette colour, blocks swap each beat' },
 
   { id: 'twinkle',      name: 'Twinkle',       desc: 'Soft random levels, nothing goes fully dark' },
   { id: 'sparkle',      name: 'Sparkle',       desc: 'Hard random on/off, instant' },
@@ -85,7 +83,6 @@ const PATTERNS = [
   { id: 'plasma',   name: 'Plasma',   desc: 'Slow interfering waves in the look\'s colours', pixel: true },
   { id: 'meter',    name: 'Meter',    desc: 'A level meter filled by the low end, kicked on every step', pixel: true },
   { id: 'drums',    name: 'Drums',    desc: 'The kit as it is hit: kick from the middle, snare at the ends, hats scattered', pixel: true },
-  { id: 'stems',    name: 'Stems',    desc: 'Voice, band, drums and bass in zones out from the centre, each as loud as it plays', pixel: true },
   { id: 'rise',     name: 'Rise',     desc: 'The rig filling up through a build-up, full on the drop', pixel: true },
   { id: 'impact',   name: 'Impact',   desc: 'A ring thrown out from the centre on every step, with sparks on every kick', pixel: true },
   { id: 'bars',     name: 'Bars',     desc: 'A spectrum analyser: kick, bass, drums, snare, band, voice and hats as columns, as high as each plays', pixel: true },
@@ -94,7 +91,6 @@ const PATTERNS = [
   { id: 'flash-chase',     name: 'Flash Chase',     desc: 'One flash stepping zone to zone, a lap a step', pixel: true },
   { id: 'flash-scatter',   name: 'Flash Scatter',   desc: 'Random zones strobing, more of them halfway between steps', pixel: true },
   { id: 'flash-fill',      name: 'Flash Fill',      desc: 'Every step fills from the middle out, holds, and cuts to black', pixel: true },
-  { id: 'flash-alternate', name: 'Flash Alternate', desc: 'Odd zones flash on the step, even ones between', pixel: true },
   { id: 'ramp',            name: 'Ramp',            desc: 'Every step swells from black to full from the middle, cut on the beat', pixel: true },
   { id: 'ramp-scatter',    name: 'Random Ramps',    desc: 'Every zone swells up and cuts at its own random moment', pixel: true },
   { id: 'decay-scatter',   name: 'Random Hits',     desc: 'Every zone hits full at its own random moment and dies away', pixel: true },

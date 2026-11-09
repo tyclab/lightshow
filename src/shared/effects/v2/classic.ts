@@ -1,6 +1,14 @@
 // Classic and party pattern ids that play a v2 preset instead of their pattern function, each with the
 // reason it moved. The operator decides each move by A/B test on the rig; every other classic id keeps its function.
-export const CLASSIC_REDIRECTS: Readonly<Record<string, string>> = Object.freeze({});
+export const CLASSIC_REDIRECTS: Readonly<Record<string, string>> = Object.freeze({
+  split: 'Zones on the v2 engine (option C), merged only once the operator chose B in A/B migration.split',
+  sections: 'Zones on the v2 engine (option C), merged only once the operator chose B in A/B migration.sections',
+  'flash-alternate': 'Zones on the v2 engine (option C), merged only once the operator chose B in A/B migration.flash-alternate',
+  stems: 'Zones on the v2 engine (option C), merged only once the operator chose B in A/B migration.stems',
+  halves: 'Zones on the v2 engine (option C), merged only once the operator chose B in A/B migration.halves',
+  flip: 'Zones on the v2 engine (option C), merged only once the operator chose B in A/B migration.flip',
+  'anchor-fill': 'Zones on the v2 engine (option C), merged only once the operator chose B in A/B migration.anchor-fill',
+});
 
 // The classic and party looks on the v2 engine: for each id, the v2 spec closest to its own pattern on the
 // diff rig (scripts/effects-v2-alias-diff.js --classic) and that diff as [largest channel, mean absolute
@@ -122,19 +130,19 @@ export const CLASSIC_V2: Readonly<Record<string, ClassicLook>> = {
   'ring-backlit': { family: 'Chase', name: 'Ring Backlit', diff: [255, 50.548, 129],
     spec: { kind: 'v2.step', params: { space: 'plan', trail: 0, envelope: { curve: 'linear', attack: 0, hold: 0.06, release: 0.02 }, steps: 10, stepBeats: 1 } } },
   // Zones
-  split: { family: 'Zones', name: 'Split', diff: [0, 0, 0],
+  split: { family: 'Zones', name: 'Split', desc: 'Each lamp in a palette colour of its own in patch order, all moving one colour on every beat', diff: [0, 0, 0],
     spec: { kind: 'v2.zones', params: { space: 'plan', envelope: { curve: 'linear', attack: 0, hold: 1, release: 0 }, partition: 'patch', mode: 'swap' } } },
-  sections: { family: 'Zones', name: 'Sections', diff: [0, 0, 0],
+  sections: { family: 'Zones', name: 'Sections', desc: 'The lamps in one block per palette colour, the blocks moving one colour on every beat', diff: [0, 0, 0],
     spec: { kind: 'v2.zones', params: { space: 'plan', envelope: { curve: 'linear', attack: 0, hold: 1, release: 0 }, partition: 'blocks', mode: 'swap' } } },
-  'flash-alternate': { family: 'Zones', name: 'Flash Alternate', pixel: true, diff: [255, 47.544, 129],
+  'flash-alternate': { family: 'Zones', name: 'Flash Alternate', desc: 'Front and back flashing in turn, twice a beat', pixel: true, diff: [255, 47.544, 129],
     spec: { kind: 'v2.zones', params: { space: 'plan', stepBeats: 0.5, envelope: { curve: 'linear', attack: 0, hold: 0.06, release: 0 }, partition: 'frontBack' } } },
-  stems: { family: 'Zones', name: 'Stems', pixel: true, diff: [255, 25.382, 129],
+  stems: { family: 'Zones', name: 'Stems', desc: 'Bass at the floor and speakers, drums in shockwaves, vocals in front and hats near the ceiling', pixel: true, diff: [255, 25.382, 129],
     spec: { kind: 'v2.zones', params: { space: 'plan', partition: 'stems' } } },
-  halves: { family: 'Zones', name: 'Halves', diff: [0, 0, 0],
+  halves: { family: 'Zones', name: 'Halves', desc: 'Front against back, then left against right, in two colours that swap once both have played', diff: [0, 0, 0],
     spec: { kind: 'v2.zones', params: { space: 'plan', envelope: { curve: 'linear', attack: 0, hold: 1, release: 0 }, partition: 'halves', mode: 'swap' } } },
-  flip: { family: 'Zones', name: 'Flip', diff: [0, 0, 0],
+  flip: { family: 'Zones', name: 'Flip', desc: 'The plot\'s diagonals in two colours, swapping on every beat', diff: [0, 0, 0],
     spec: { kind: 'v2.zones', params: { space: 'plan', envelope: { curve: 'linear', attack: 0, hold: 1, release: 0 }, partition: 'diagonals', mode: 'swap' } } },
-  'anchor-fill': { family: 'Zones', name: 'Anchor Fill', diff: [0, 0, 0],
+  'anchor-fill': { family: 'Zones', name: 'Anchor Fill', desc: 'The plot filled corner by corner on every beat, the next colour over the last', diff: [0, 0, 0],
     spec: { kind: 'v2.zones', params: { space: 'plan', envelope: { curve: 'linear', attack: 0, hold: 1, release: 0 }, partition: 'corners', mode: 'cover' } } },
   // Strobe
   'flash-burst': { family: 'Strobe', name: 'Flash Burst', pixel: true, diff: [255, 27.098, 81],
