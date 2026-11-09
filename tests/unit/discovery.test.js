@@ -120,7 +120,9 @@ async function withRoutes(fn, { fixtures = [], hue = null } = {}) {
     sendPixels: (target, data) => calls.pixels.push({ ...target, bytes: data.length }),
     locate: async (opts) => { calls.locate.push(opts); return { ok: true, error: null }; },
     hueIdentify: async (_host, _key, devices) => { calls.hue.push(devices); return devices.length; },
-    hueAreas: async () => [{ id: 'a1', name: 'Room', status: 'inactive', channels: [{ id: 0, name: 'Lamp', position: null, devices: ['d1'] }, { id: 1, name: 'Strip', position: null, devices: ['d2', 'd3'] }] }],
+    hueAreas: async () => [{ id: 'a1', name: 'Room', status: 'inactive',
+      channels: [{ id: 0, name: 'Lamp', position: null, devices: ['d1'] }, { id: 1, name: 'Strip', position: null, devices: ['d2', 'd3'] }],
+      lamps: [{ id: 'lamp', channels: [0], devices: ['d1'] }, { id: 'strip', channels: [1], devices: ['d2', 'd3'] }] }],
   });
   const server = await new Promise((r) => { const s = app.listen(0, '127.0.0.1', () => r(s)); });
   const base = `http://127.0.0.1:${server.address().port}`;
@@ -203,32 +205,28 @@ const BRIDGE = { id: 'b1', label: 'Lounge', enabled: true, host: '10.0.0.60', us
 test('Hue identification routes through the patch or the bridge', async () => {
   const hue = [BRIDGE, { ...BRIDGE, id: 'b2', label: 'Party', host: '10.0.0.61' }];
   await withRoutes(async ({ call, calls }) => {
-    const bound = await call('POST', '/api/hue/b1/identify', { channel: 0 });
+    const bound = await call('POST', '/api/hue/b1/identify', { lamp: 'lamp' });
     assert.deepStrictEqual([bound.body.via, bound.body.ids], ['fixture', [1]]);
-    const loose = await call('POST', '/api/hue/b1/identify', { channel: 1 });
+    const loose = await call('POST', '/api/hue/b1/identify', { lamp: 'strip' });
     assert.deepStrictEqual([loose.body.via, loose.body.lamps], ['bridge', 2]);
     assert.deepStrictEqual(calls.hue, [['d2', 'd3']]);
-    const missing = await call('POST', '/api/hue/b1/identify', { channel: 7 });
+    const missing = await call('POST', '/api/hue/b1/identify', { lamp: 'gone' });
     assert.strictEqual(missing.status, 404);
+    assert.strictEqual((await call('POST', '/api/hue/b1/identify', { channel: 0 })).status, 400, 'a lamp, not a channel');
     // Channel 0 of the other bridge is not the lamp in the patch: it is the
     // other bridge's, which identifies it itself.
-    const other = await call('POST', '/api/hue/b2/identify', { channel: 0 });
+    const other = await call('POST', '/api/hue/b2/identify', { lamp: 'lamp' });
     assert.deepStrictEqual([other.body.via, other.body.lamps], ['bridge', 1]);
-    // The route from before several bridges means the first one.
-    const legacy = await call('POST', '/api/hue/identify', { channel: 0 });
-    assert.deepStrictEqual([legacy.body.via, legacy.body.ids], ['fixture', [1]]);
-    assert.strictEqual((await call('POST', '/api/hue/zz/identify', { channel: 0 })).status, 404);
-  }, { fixtures: [par(3, 1), { ...par(1, 1), profileId: HUE_COLOR_PROFILE_ID, output: { protocol: 'hue', bridge: 'b1', channel: 0 } }], hue });
+    assert.strictEqual((await call('POST', '/api/hue/zz/identify', { lamp: 'lamp' })).status, 404);
+  }, { fixtures: [par(3, 1), { ...par(1, 1), profileId: HUE_COLOR_PROFILE_ID, output: { protocol: 'hue', bridge: 'b1', channels: [0] } }], hue });
 });
 
 test('Hue identify before pairing says to pair', async () => {
   await withRoutes(async ({ call }) => {
-    const res = await call('POST', '/api/hue/identify', { channel: 0 });
-    assert.strictEqual(res.status, 409);
-    const unknown = await call('POST', '/api/hue/b1/identify', { channel: 0 });
+    const unknown = await call('POST', '/api/hue/b1/identify', { lamp: 'lamp' });
     assert.strictEqual(unknown.status, 404, 'no such bridge');
   }, { hue: [] });
   await withRoutes(async ({ call }) => {
-    assert.strictEqual((await call('POST', '/api/hue/b1/identify', { channel: 0 })).status, 409);
+    assert.strictEqual((await call('POST', '/api/hue/b1/identify', { lamp: 'lamp' })).status, 409);
   }, { hue: [{ ...BRIDGE, host: '', username: '' }] });
 });

@@ -33,7 +33,8 @@ export const v2CommonSchema = z.object({
   space: z.enum(['room', 'plan']).default('room'),
   trigger: triggerSchema.default({ ...TRIGGER_DEFAULT }),
   envelope: envelopeSchema.default({ ...ENVELOPE_DEFAULT }),
-  colour: z.enum(['along', 'time', 'solid']).default('along'),
+  // 'step' takes the next palette colour every trigger interval, as the classic looks did on every step.
+  colour: z.enum(['along', 'time', 'solid', 'step']).default('along'),
   background: unit.default(0),
   backgroundColour: z.string().regex(/^#[0-9a-fA-F]{6}$/).default('#FFFFFF'),
 });
@@ -155,15 +156,30 @@ function backgroundColour(common: V2Common): Colour {
 export const gapsWithoutFloor = (p: { background: number; idle?: number }, spec: EffectSpec): boolean =>
   !(Math.max(p.background, p.idle ?? 0) > 0) && !strobeRests(spec);
 
+/** The palette position of the trigger interval now: entry k of n for the k-th interval. */
+export function stepColour(common: V2Common, frame: Pick<EffectFrame, 'beatPos' | 'anchorBeat' | 'palette'>): number {
+  const n = Math.max(1, frame.palette.length), t = frame.beatPos - frame.anchorBeat;
+  const k = Math.floor((Number.isFinite(t) ? t : 0) / common.trigger.beatInterval);
+  return (((k % n) + n) % n) / n;
+}
+
+// Whether a spec's rests are strobe rests, worked out once per spec rather than per slot.
+const restsOf = new WeakMap<EffectSpec, boolean>();
+function restsDark(spec: EffectSpec): boolean {
+  let dark = restsOf.get(spec);
+  if (dark === undefined) { dark = strobeRests(spec); restsOf.set(spec, dark); }
+  return dark;
+}
+
 /** Write a slot: colour from the palette by colour mode, level over the background floor. */
 export function paint(common: V2Common, frame: EffectFrame, position01: number, level: number, out: EffectSlot): void {
-  const pos = common.colour === 'solid' ? 0
+  const pos = common.colour === 'solid' ? 0 : common.colour === 'step' ? stepColour(common, frame)
     : common.colour === 'time' ? frac((frame.beatPos - frame.anchorBeat) / TIME_CYCLE_BEATS) : position01;
   const foreground = clamp(level);
   const background = common.background * (1 - foreground);
   const lit = foreground + background;
-  // Without an authored floor the uncovered share is a gap, published only when the effect reveals it.
-  out.background = common.background > 0 || frame.revealGaps !== false ? { colour: backgroundColour(common), level: background,
+  // Without an authored floor the uncovered share is a gap, published only when the effect reveals it; strobe rests stay dark.
+  out.background = common.background > 0 || (frame.revealGaps !== false && !restsDark(frame.spec)) ? { colour: backgroundColour(common), level: background,
     fullLevel: common.background, coverage: 1 - foreground, dark: foreground === 0 && requiresAcknowledgement(frame.spec) } : undefined;
   if (!(lit > 0)) {
     out.colour = { r: 0, g: 0, b: 0, w: 0, a: 0, uv: 0 };

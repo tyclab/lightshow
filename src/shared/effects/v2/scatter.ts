@@ -32,7 +32,7 @@ export function scatterRapidFlash(p: Pick<ScatterParams, 'stepBeats' | 'envelope
 interface ScatterState { fired: Map<number, boolean> }
 
 // Fast seeded stream for the picks of one step; the step's seed comes from the shared hash.
-function stream(word: number): () => number {
+export function stream(word: number): () => number {
   let a = word >>> 0;
   return () => {
     a = (a + 0x6d2b79f5) >>> 0;

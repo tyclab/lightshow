@@ -4,7 +4,8 @@
 import './index.ts';
 import { HOLD_STROBE } from '../look-math.ts';
 import { PATTERN_FUNCS } from '../patterns.ts';
-import { KINDS, kindOf, validateSpec } from './registry.ts';
+import { RAPID_PATTERNS } from '../strobe-fx.ts';
+import { KINDS, kindOf, requiresAcknowledgement, validateSpec } from './registry.ts';
 import { DISCO_PRESETS } from './disco.ts';
 import { ENERGY_KIND_BY_ID } from './energy.ts';
 import { HD_DEFAULTS } from './hd.ts';
@@ -159,6 +160,10 @@ export function presetIndex(rows: readonly CataloguePreset[], redirects: Readonl
     for (const key of keys) {
       if (!row.legacy && Object.hasOwn(PATTERN_FUNCS, key) && !Object.hasOwn(redirects, key)) {
         throw new Error(`catalogue id ${key} is a legacy pattern's id that CLASSIC_REDIRECTS does not list`);
+      }
+      // A classic program that strikes flashes keeps the photosensitivity acknowledgement when it moves onto a preset.
+      if (!row.legacy && RAPID_PATTERNS.has(key) && !requiresAcknowledgement(row.spec)) {
+        throw new Error(`redirected classic id ${key} strikes flashes: its preset must wait for the photosensitivity acknowledgement`);
       }
       if (index.has(key)) throw new Error(`catalogue id ${key} is claimed twice`);
       index.set(key, row);

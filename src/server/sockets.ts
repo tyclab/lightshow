@@ -16,7 +16,7 @@ import { padIndex, STROBE_ID } from './pads.ts';
 import { presetLookup } from './routes/voices.ts';
 import { ddpConflict } from './ddp-routes.ts';
 import { HttpError, messageOf } from '../errors.ts';
-import { PROTOCOL, ROOM, TOPICS } from './protocol.ts';
+import { ROOM, TOPICS } from './protocol.ts';
 import { pixelInputs } from './pixel-input-live.ts';
 import { PixelInputError } from './pixel-input.ts';
 import { pictureInput, pictureUnits } from './picture-live.ts';
@@ -89,19 +89,19 @@ function releaseVoice(owner: string, token: string, payload: VoiceHoldMessage, p
   voices.release(owner, token);
 }
 
-/** What a page asked for when it connected: protocol 2, or the original. */
-function protocolOf(socket: Socket): number {
-  const auth = socket.handshake.auth as { protocol?: unknown } | undefined;
-  return auth && auth.protocol === PROTOCOL ? PROTOCOL : 1;
+/** The protocol a page asked for when it connected; every page is answered in protocol 2. */
+function askedProtocol(socket: Pick<Socket, 'handshake'>): number | 'none' {
+  const asked = (socket.handshake.auth as { protocol?: unknown } | undefined)?.protocol;
+  return typeof asked === 'number' ? asked : 'none';
 }
 
-/** The connect log line: protocol, where the client came from and what it calls itself, so a protocol 1 client that keeps the engine awake can be found. */
+/** The connect log line: the protocol asked for, where the client came from and what it calls itself, so a client too old to ask for protocol 2 can be found. */
 export function describeClient(socket: Pick<Socket, 'id' | 'handshake'>): string {
   const headers = socket.handshake.headers ?? {};
   const forwarded = headers['x-forwarded-for'];
   const from = (Array.isArray(forwarded) ? forwarded[0] : forwarded)?.split(',')[0].trim() || socket.handshake.address || 'unknown address';
   const agent = headers['user-agent'];
-  return `Client connected: ${socket.id} (protocol ${protocolOf(socket as Socket)}, ${from}${agent ? `, ${agent}` : ''})`;
+  return `Client connected: ${socket.id} (protocol ${askedProtocol(socket)}, ${from}${agent ? `, ${agent}` : ''})`;
 }
 
 /** The feeds named in a subscribe message that exist, as their rooms. */
@@ -167,46 +167,41 @@ function attachSockets(io: Server, { midi, integrations }: {
         if (typeof ack === 'function') ack({ ok: false, code: err instanceof PictureInputError ? err.code : 'INVALID', error: messageOf(err) });
       }
     });
-    if (protocolOf(socket) === PROTOCOL) {
-      socket.join(ROOM.v2);
-      socket.emit('snapshot', publisher.snapshot(getClientState()));
-      // A page that finds a gap in a domain's versions asks for the whole
-      // state again rather than drifting. The browser helper polls with
-      // `{ live: true }` and reads no catalogue, so it is sent none; with the
-      // `rigRevision` it holds, the rig's data only when that has moved. One
-      // that names no revision (an older helper) gets the rig's data always.
-      socket.on('sync', (options?: unknown, ack?: unknown) => {
-        if (typeof options === 'function') [ack, options] = [options, undefined];
-        const asked = (options && typeof options === 'object' ? options : {}) as { live?: unknown; rigRevision?: unknown };
-        let full: Record<string, unknown>;
-        if (asked.live !== true) full = getClientState();
-        else {
-          const live = getLiveState();
-          full = asked.rigRevision !== undefined && asked.rigRevision === live.rigRevision ? live : { ...live, ...getRigState() };
-        }
-        const snapshot = publisher.snapshot(full);
-        if (typeof ack === 'function') ack(snapshot);
-        else socket.emit('snapshot', snapshot);
-      });
-      socket.on('subscribe', (payload) => {
-        for (const room of topicRooms(payload)) {
-          socket.join(room);
-          // What the others already have: the feeds only send a change.
-          const frame = room === ROOM.dmx ? publisher.lastDmxFrame() : null;
-          if (frame) socket.emit('dmx-frame', frame);
-          const image = room === ROOM.picture ? pictureInput.image() : null;
-          if (image) socket.emit('picture-image', image);
-          const audio = room === ROOM.audio ? publisher.lastAudio() : undefined;
-          if (audio !== undefined) socket.emit('audio', audio);
-        }
-      });
-      socket.on('unsubscribe', (payload) => {
-        for (const room of topicRooms(payload)) socket.leave(room);
-      });
-    } else {
-      socket.join(ROOM.v1);
-      socket.emit('state', getClientState());
-    }
+    socket.join(ROOM.v2);
+    socket.emit('snapshot', publisher.snapshot(getClientState()));
+    // A page that finds a gap in a domain's versions asks for the whole
+    // state again rather than drifting. The browser helper polls with
+    // `{ live: true }` and reads no catalogue, so it is sent none; with the
+    // `rigRevision` it holds, the rig's data only when that has moved. One
+    // that names no revision (an older helper) gets the rig's data always.
+    socket.on('sync', (options?: unknown, ack?: unknown) => {
+      if (typeof options === 'function') [ack, options] = [options, undefined];
+      const asked = (options && typeof options === 'object' ? options : {}) as { live?: unknown; rigRevision?: unknown };
+      let full: Record<string, unknown>;
+      if (asked.live !== true) full = getClientState();
+      else {
+        const live = getLiveState();
+        full = asked.rigRevision !== undefined && asked.rigRevision === live.rigRevision ? live : { ...live, ...getRigState() };
+      }
+      const snapshot = publisher.snapshot(full);
+      if (typeof ack === 'function') ack(snapshot);
+      else socket.emit('snapshot', snapshot);
+    });
+    socket.on('subscribe', (payload) => {
+      for (const room of topicRooms(payload)) {
+        socket.join(room);
+        // What the others already have: the feeds only send a change.
+        const frame = room === ROOM.dmx ? publisher.lastDmxFrame() : null;
+        if (frame) socket.emit('dmx-frame', frame);
+        const image = room === ROOM.picture ? pictureInput.image() : null;
+        if (image) socket.emit('picture-image', image);
+        const audio = room === ROOM.audio ? publisher.lastAudio() : undefined;
+        if (audio !== undefined) socket.emit('audio', audio);
+      }
+    });
+    socket.on('unsubscribe', (payload) => {
+      for (const room of topicRooms(payload)) socket.leave(room);
+    });
 
     socket.on('set', async (payload) => {
       try {

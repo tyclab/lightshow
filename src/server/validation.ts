@@ -64,9 +64,8 @@ const HOSTNAME_RE = /^(?=.{1,253}$)[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?
 const hueOutput = z.object({
   protocol: z.literal('hue'),
   bridge: z.string().regex(HUE_BRIDGE_ID_RE, 'is not a bridge id').optional(),
-  channel: z.number().int().min(0).max(255).optional(),
   channels: z.array(z.number().int().min(0).max(255)).min(1).max(20)
-    .refine((channels) => new Set(channels).size === channels.length, { message: 'names a channel twice' }).optional(),
+    .refine((channels) => new Set(channels).size === channels.length, { message: 'names a channel twice' }),
 }).strict();
 const ddpOutput = z.object({
     protocol: z.literal('ddp'),
@@ -94,11 +93,7 @@ const openrgbOutput = z.object({
   leds: z.number().int().min(1).max(MAX_CELLS_PER_FIXTURE),
 }).strict();
 const deviceOutput = z.discriminatedUnion('protocol', [ddpOutput, openrgbOutput]);
-const fixtureOutput = z.discriminatedUnion('protocol', [ddpOutput, openrgbOutput, hueOutput]).superRefine((output, ctx) => {
-  if (output.protocol === 'hue' && (output.channel === undefined) === (output.channels === undefined)) {
-    ctx.addIssue({ code: 'custom', message: 'Hue output needs either channels or a legacy channel' });
-  }
-});
+const fixtureOutput = z.discriminatedUnion('protocol', [ddpOutput, openrgbOutput, hueOutput]);
 
 // Apply IPv4 rules to dotted numeric input so malformed addresses cannot pass as hostnames.
 const DOTTED_NUMERIC_RE = /^[0-9]+(\.[0-9]+)*$/;
