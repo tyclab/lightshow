@@ -28,6 +28,8 @@ export interface RoomSpace {
   y: Float32Array;
   z: Float32Array;
   size: Float32Array;
+  // 1 where a room binding places the entry (for a lamp, any of its cells), 0 for the plot fallback.
+  bound?: Uint8Array;
   bounds: UnitSpace['bounds'];
   listener: Listener;
   anchors: Readonly<Record<string, Vec3>>;
@@ -182,10 +184,10 @@ export function roomSpaceOf(list: readonly number[], space: UnitSpace, listenerI
   slots: readonly (readonly number[])[] | null = null): RoomSpace {
   const groups = slots ?? list.map((_, k) => [k]);
   const n = groups.length;
-  const x = new Float32Array(n), y = new Float32Array(n), z = new Float32Array(n), size = new Float32Array(n);
+  const x = new Float32Array(n), y = new Float32Array(n), z = new Float32Array(n), size = new Float32Array(n), bound = new Uint8Array(n);
   groups.forEach((group, k) => {
     let sx = 0, sy = 0, sz = 0;
-    for (const g of group) { const u = list[g]; sx += space.x[u]; sy += space.y[u]; sz += space.z[u]; }
+    for (const g of group) { const u = list[g]; sx += space.x[u]; sy += space.y[u]; sz += space.z[u]; bound[k] |= space.bound[u]; }
     const m = Math.max(1, group.length);
     x[k] = sx / m; y[k] = sy / m; z[k] = sz / m;
     let r = 0;
@@ -194,7 +196,7 @@ export function roomSpaceOf(list: readonly number[], space: UnitSpace, listenerI
   });
   const named = listenerId !== null ? space.listeners[listenerId] : undefined;
   const listener = named ?? Object.values(space.listeners)[0] ?? { x: 0, y: SEATED, z: 0, facingDeg: 0 };
-  return { x, y, z, size, bounds: space.bounds, listener: { ...listener }, anchors: space.anchors };
+  return { x, y, z, size, bound, bounds: space.bounds, listener: { ...listener }, anchors: space.anchors };
 }
 
 /** Standard deviations of points along their principal axes, widest first (eigenvalues of the covariance, closed form). */

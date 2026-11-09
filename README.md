@@ -449,12 +449,13 @@ flowchart LR
 | Globe | each light's own sphere: rings carry the spectrum (bass at the equator, highs at the poles) or the beat leaving the equator, lobes turn a quarter-beat step on every beat, and a white spot marks where they face | Globe Spectrum, Globe Pulse |
 
 Globe reads each light as a sphere. Through the room, a light the Stage room places
-as a solid (see [Room picture](#room-picture)) takes each cell's latitude from its
-height over the cells' centre and its longitude round the vertical axis, longitude 0
-facing the listener; across the layout, and for any other light, its panel rows are
-the rings (the top row at the top pole) and its columns go once round. A lamp of one
-cell sits on the equator without lobes or a spot. Three bands fill six rings: bass
-the two by the equator, mids the next two, highs the two by the poles. Live audio
+as a solid (see [Room picture](#room-picture)) takes each bound cell's latitude from
+its height over the bound cells' centre and its longitude round the vertical axis,
+longitude 0 facing the listener; a cell of it no binding places takes its panel
+latitude and its panel longitude turned as the bound cells are. Across the layout,
+and for any other light, its panel rows are the rings (the top row at the top pole)
+and its columns go once round. A lamp of one cell sits on the equator without lobes
+or a spot. Three bands fill six rings: bass the two by the equator, mids the next two, highs the two by the poles. Live audio
 sets them; without it the beat clock plays bass on every beat, mids on two and four
 and highs on the off-beats. A pulse leaves the equator's rings on each beat, passes
 the poles three quarters of a beat later and is as strong as the live level (full

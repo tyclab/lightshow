@@ -41,9 +41,10 @@ const memo = new WeakMap<Room, Partial<Record<V2Space, GlobeMap>>>();
 
 /**
  * Where each slot sits on its light's globe. A light the room places as a solid (a WLED ball) is read
- * from its cells' room positions round their centre, longitude 0 facing the listener; any other
- * light from its panel: rows are latitudes, top row at the top pole, and columns go once round.
- * A lamp of one cell sits on the equator, without lobes or a spot to turn.
+ * from its bound cells' room positions round their centre, longitude 0 facing the listener; a cell of
+ * it no binding places takes its panel latitude and its panel longitude turned as the bound cells are.
+ * Any other light is read from its panel: rows are latitudes, top row at the top pole, and columns go
+ * once round. A lamp of one cell sits on the equator, without lobes or a spot to turn.
  */
 export function globeOf(room: Room, space: V2Space): GlobeMap {
   let byRoom = memo.get(room);
@@ -54,34 +55,46 @@ export function globeOf(room: Room, space: V2Space): GlobeMap {
   const groups = lamps?.slots ?? Array.from({ length: n }, (_, i) => [i]);
   for (const group of groups) {
     if (group.length < 2) { for (const i of group) solo[i] = 1; continue; }
-    if (s) {
-      const points = group.map((i) => ({ x: s.x[i], y: s.y[i], z: s.z[i] }));
-      if (isSolid(points)) {
-        const c = points.reduce((sum, p) => ({ x: sum.x + p.x / points.length, y: sum.y + p.y / points.length, z: sum.z + p.z / points.length }), { x: 0, y: 0, z: 0 });
-        const facing = Math.hypot(s.listener.x - c.x, s.listener.z - c.z) > 1e-6 ? Math.atan2(s.listener.z - c.z, s.listener.x - c.x) : 0;
-        group.forEach((i, k) => {
-          const d = { x: points[k].x - c.x, y: points[k].y - c.y, z: points[k].z - c.z }, r = Math.hypot(d.x, d.y, d.z);
-          lat[i] = r > 1e-9 ? Math.asin(clamp(d.y / r, -1, 1)) / (Math.PI / 2) : 0;
-          lon[i] = frac((Math.atan2(d.z, d.x) - facing) / (2 * Math.PI));
-        });
-        continue;
-      }
-    }
-    const along = group.map((i) => lamps?.cellAlong[i] ?? 0), across = group.map((i) => lamps?.cellAcross?.[i] ?? 0.5);
-    const ranks = (values: number[]) => {
-      const distinct = [...new Set(values.map((v) => Math.round(v * 1e6)))].sort((a, b) => a - b);
-      return { count: distinct.length, of: (v: number) => distinct.indexOf(Math.round(v * 1e6)) };
-    };
-    const columns = ranks(along), rows = ranks(across);
-    group.forEach((i, k) => {
-      lat[i] = rows.count > 1 ? 1 - (2 * (rows.of(across[k]) + 0.5)) / rows.count : 0;
-      lon[i] = (columns.of(along[k]) + 0.5) / columns.count;
+    const panel = panelSphere(group, lamps);
+    group.forEach((i, k) => { lat[i] = panel.lat[k]; lon[i] = panel.lon[k]; });
+    if (!s) continue;
+    // Only cells a binding places say where the light is: one at its plot fallback could be metres away.
+    const placed = s.bound ? group.filter((i) => s.bound![i]) : group;
+    const points = placed.map((i) => ({ x: s.x[i], y: s.y[i], z: s.z[i] }));
+    if (!isSolid(points)) continue;
+    const c = points.reduce((sum, p) => ({ x: sum.x + p.x / points.length, y: sum.y + p.y / points.length, z: sum.z + p.z / points.length }), { x: 0, y: 0, z: 0 });
+    const facing = Math.hypot(s.listener.x - c.x, s.listener.z - c.z) > 1e-6 ? Math.atan2(s.listener.z - c.z, s.listener.x - c.x) : 0;
+    // How far the bound cells' room longitudes are turned from their panel ones: the unbound cells turn with them.
+    let ts = 0, tc = 0;
+    placed.forEach((i, k) => {
+      const d = { x: points[k].x - c.x, y: points[k].y - c.y, z: points[k].z - c.z }, r = Math.hypot(d.x, d.y, d.z);
+      const turned = frac((Math.atan2(d.z, d.x) - facing) / (2 * Math.PI));
+      ts += Math.sin(2 * Math.PI * (turned - lon[i])); tc += Math.cos(2 * Math.PI * (turned - lon[i]));
+      lat[i] = r > 1e-9 ? Math.asin(clamp(d.y / r, -1, 1)) / (Math.PI / 2) : 0;
+      lon[i] = turned;
     });
+    if (placed.length === group.length) continue;
+    const turn = Math.atan2(ts, tc) / (2 * Math.PI);
+    for (const i of group) if (!s.bound![i]) lon[i] = frac(lon[i] + turn);
   }
   const map = { lat, lon, solo };
   if (!byRoom) { byRoom = {}; memo.set(room, byRoom); }
   byRoom[space] = map;
   return map;
+}
+
+// A lamp's cells on its panel: rows are latitudes, top row at the top pole, and columns go once round.
+function panelSphere(group: readonly number[], lamps: Room['lamps']): { lat: number[]; lon: number[] } {
+  const along = group.map((i) => lamps?.cellAlong[i] ?? 0), across = group.map((i) => lamps?.cellAcross?.[i] ?? 0.5);
+  const ranks = (values: number[]) => {
+    const distinct = [...new Set(values.map((v) => Math.round(v * 1e6)))].sort((a, b) => a - b);
+    return { count: distinct.length, of: (v: number) => distinct.indexOf(Math.round(v * 1e6)) };
+  };
+  const columns = ranks(along), rows = ranks(across);
+  return {
+    lat: group.map((_, k) => (rows.count > 1 ? 1 - (2 * (rows.of(across[k]) + 0.5)) / rows.count : 0)),
+    lon: group.map((_, k) => (columns.of(along[k]) + 0.5) / columns.count),
+  };
 }
 
 function heard(p: GlobeParams, s: GlobeState, f: EffectFrame): { bands: Bands; level: number } | null {

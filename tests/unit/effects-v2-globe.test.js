@@ -136,3 +136,40 @@ test('no light reads NaN: two or three cells, one ring in the room, a cell at th
     }
   }
 });
+
+test('through the room a ball is read from its bound cells only; a cell without a binding takes its grid latitude and longitude', () => {
+  const profile = glorbProfile();
+  // The ball's plot place is far from where the room puts it, so a cell left at its plot fallback would pull the centre away.
+  const build = (bindings) => {
+    const rig = buildRig([{ id: 1, label: 'Par', profileId: 'par', position: { x: 20, y: 20 } },
+      { id: 38, label: 'GLORB', profileId: profile.id, position: { x: 5, y: 95, height: 90 }, geometry: { length: 3, angle: 0 } }],
+    (f) => (f.profileId === 'par' ? PAR : profile));
+    const layout = voiceLayout(rig), start = rig.ranges[1].start;
+    const slotOf = new Map(layout.units.list.map((u, k) => [u, k]));
+    const room = effectRoom(layout, buildUnitSpace(rig, roomSceneSchema.parse(sphereRoom(bindings))));
+    return { globe: globeOf(room, 'room'), slot: (c) => slotOf.get(start + c) };
+  };
+  const all = sphereBindings(38, profile, CENTRE);
+  const loose = profile.cells.findIndex((cell) => cell.at.x === 7 && cell.at.y === 2);
+  const whole = build(all), partly = build(all.filter((_, c) => c !== loose));
+  const turns = (a, b) => { const d = Math.abs(a - b) % 1; return Math.min(d, 1 - d); };
+  assert.ok(Math.abs(partly.globe.lat[partly.slot(loose)] - (1 - (2 * 2.5) / 6)) < 1e-6, `its grid latitude: ${partly.globe.lat[partly.slot(loose)]}`);
+  assert.ok(turns(partly.globe.lon[partly.slot(loose)], whole.globe.lon[whole.slot(loose)]) < 0.01, 'its grid longitude, turned to where the bound cells face');
+  for (let c = 0; c < 80; c++) {
+    if (c === loose) continue;
+    assert.ok(Math.abs(partly.globe.lat[partly.slot(c)] - whole.globe.lat[whole.slot(c)]) < 0.02, `cell ${c} keeps its latitude`);
+    assert.ok(turns(partly.globe.lon[partly.slot(c)], whole.globe.lon[whole.slot(c)]) < 0.02, `cell ${c} keeps its longitude`);
+  }
+});
+
+test('bands smoothed from live audio start afresh when the audio drops out and comes back', () => {
+  const { room, profile, cell } = ball();
+  const spec = { kind: 'v2.globe', params: { rings: 'spectrum', depth: 0, spot: false, smoothing: 0.9 } };
+  const level = (value) => audioOf({ full: value, bass: value, mid: value, high: value });
+  let { state } = renderKind(spec, room, frameAt(1, { audio: level(0.9) }));
+  for (let k = 1; k < 20; k++) state = renderKind(spec, room, frameAt(1 + k / 40, { audio: level(0.9) }), state).state;
+  state = renderKind(spec, room, frameAt(2), state).state;
+  const { out } = renderKind(spec, room, frameAt(3, { audio: level(0.1) }), state);
+  const equator = rowsOf(profile, (c) => out[cell(c)].level)[2];
+  assert.ok(equator.every((value) => Math.abs(value - 0.1) < 0.01), `the first frame back follows the new level, not the old one: ${equator[0]}`);
+});
