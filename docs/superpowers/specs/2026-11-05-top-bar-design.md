@@ -1,6 +1,7 @@
 # Top bar redesign: design brief
 
-Status: approved, 2026-11-07, with the operator's answers below. Drafted 2026-11-05.
+Status: approved, 2026-11-07, with the operator's answers below. Drafted 2026-11-05. Revised 2026-11-09
+(see the revision at the end).
 
 ## Why
 
@@ -103,6 +104,26 @@ The operator answered the three open questions on 2026-11-07.
 3. **Status visible without a tap:** BPM and Online, in the one status chip. Armed is shown by the Arm
    button itself (the operator asked "armed we see on the button itself right?"), so the Arm button's
    armed state must be unmistakable, not a status pill.
+
+## Revision 2026-11-09
+
+Three unrelated things carried the name Visualizer: the picture source (the screen picture the browser
+helper streams, one colour per lamp), the audio-reactive effect family `ldj.visualizer.*` (Firework,
+Flash, Splotch, Pulse, Solid, Swirl, Wave) and the picture-driven spatial effects Visualizer Flow and
+Visualizer Drift. The header read "Visualizer: Splotch" as if Splotch were a look of the picture, while
+an arriving picture showed only that effect's fallback. On 2026-11-09 the operator decided to separate
+them. This overrides goal 2, the Visualizer half of "Source first" and "Visualizer: Splotch" in the
+desktop sketch above; the rest of the brief stands.
+
+- The effect family is called **Audio-reactive** ("Audio-reactive Splotch"). Its ids stay
+  `ldj.visualizer.*`, because saved shows, cues and Home Assistant scripts name them. Visualizer names
+  the picture source; Visualizer Flow and Visualizer Drift keep their names.
+- The picker offers the Active and Mellow looks and their colour card only while an Audio-reactive look
+  is on stage, under any source. Choosing the Visualizer source no longer brings them.
+- With Visualizer chosen, the segment reads "Visualizer: picture" while the picture arrives, because the
+  picture paints the room then and the effects return 2 s after it stops; until it arrives it reads
+  "Visualizer: <effect>". Its ▾ still opens the effect picker, where the fallback effect is chosen. No
+  effect name is shortened to read as the picture's own.
 
 ## Left to the builder
 

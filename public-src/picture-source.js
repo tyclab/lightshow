@@ -18,6 +18,13 @@ export function pictureHint(source, input, armed) {
   return input?.receiving ? `Visualizer picture on ${input.units} lamp cells` : 'No picture arriving — effects show meanwhile';
 }
 
+/** The chosen segment's text and hint: an arriving Visualizer picture paints the room (until 2 s, PICTURE_TTL_MS, after its last frame) over a fallback effect. */
+export function pictureSegment(source, receiving, effectName, hint) {
+  if (source !== 'visualizer') return { effect: effectName, title: `${hint}. Choose the main effect (E).` };
+  return receiving ? { effect: 'picture', title: 'The picture paints the room; effects return 2 s after it stops. Choose the fallback effect (E).' }
+    : { effect: effectName, title: `${hint}. Until the picture arrives: choose the effect (E).` };
+}
+
 /** Whether the picture sets the colours: the visualizer picture arriving, or Colour + motion under a spatial Visualizer. */
 export function pictureColours(picture, spec) {
   if (!picture?.input?.receiving) return false;

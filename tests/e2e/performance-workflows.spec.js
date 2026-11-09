@@ -39,21 +39,23 @@ test('live tempo automation applies from Perform and a manual edit ends the sele
   expect((await request.put('/api/performance/automation', { data: { axis: 'tempo', settings: { ...settings, max: 500 } } })).status()).toBe(400);
 });
 
-test('visualizer colour wells in the header\'s effect picker apply immediately and retain white, amber and UV', async ({ page, request }) => {
+test('Audio-reactive looks and colour wells in the header\'s effect picker apply immediately and retain white, amber and UV', async ({ page, request }) => {
   const before = await state(request);
   const { settings } = await (await request.get('/api/settings')).json();
   const acknowledge = (value) => request.put('/api/settings', { data: { safety: { photosensitivityAcknowledged: value } } });
   try {
-    // Every Visualizer preset flashes on hits, so it needs the acknowledgement.
+    // Every Audio-reactive look flashes on hits, so it needs the acknowledgement.
     expect((await acknowledge(true)).ok()).toBe(true);
     await set(request, { pattern: 'ldj.visualizer.solid', overridePalette: { colours: ['#010203040506', '#AABBCC112233'] } });
     await open(page, 'perform');
-    await expect(page.getByRole('region', { name: 'Lighting visualizer colours' })).toHaveCount(0);
+    await expect(page.getByRole('region', { name: 'Audio-reactive colours' })).toHaveCount(0);
     await page.getByRole('group', { name: 'Picture source' }).getByRole('button', { name: /^Effects: / }).click();
-    const wells = page.getByRole('dialog', { name: 'Main effect' }).getByRole('region', { name: 'Lighting visualizer colours' });
+    const picker = page.getByRole('dialog', { name: 'Main effect' });
+    await expect(picker.getByRole('group', { name: 'Audio-reactive Mellow' }).getByRole('button', { name: 'Audio-reactive Solid' })).toHaveAttribute('aria-pressed', 'true');
+    const wells = picker.getByRole('region', { name: 'Audio-reactive colours' });
     await wells.getByLabel('Hit colour', { exact: true }).fill('#ff0000');
     await until(request, (s) => s.paletteOverride?.[1] === '#FF0000112233');
-    await wells.getByRole('button', { name: 'Shuffle visualizer colours' }).click();
+    await wells.getByRole('button', { name: 'Shuffle Audio-reactive colours' }).click();
     const colours = (await state(request)).paletteOverride;
     expect([...colours].sort()).toEqual(['#010203040506', '#FF0000112233'].sort());
   } finally {

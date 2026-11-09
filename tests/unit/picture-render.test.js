@@ -1,10 +1,35 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createRenderer } from '../../src/server/renderer.ts';
+import { z } from 'zod';
+import { baseIntentOf, createRenderer } from '../../src/server/renderer.ts';
 import { allocateShared, createUniverseStore } from '../../src/server/universes.ts';
 import { channelReader } from '../../src/shared/placement.ts';
 import { SRGB_DECODE } from '../../src/shared/color.ts';
 import { blackPointGain } from '../../src/shared/picture-grade.ts';
+import { registerKind, validateSpec } from '../../src/shared/effects/registry.ts';
+
+// A base effect that counts its renders and fresh states. Its colour follows the time since its launch,
+// so an instance that resumed after a picture and one that played on underneath draw the same.
+const probe = { renders: 0, inits: 0 };
+registerKind({
+  kind: 'test.pictureProbe', app: 'own', schema: z.object({}).strict(), defaults: { params: {} }, stateful: true,
+  init: () => { probe.inits++; return { renders: 0 }; },
+  render(_params, s, room, frame, out) {
+    probe.renders++;
+    s.renders++;
+    const t = Math.floor((frame.nowMs - frame.startedAtMs) / 10) % 256;
+    for (let i = 0; i < room.n; i++) out[i] = { colour: { r: t, g: (t + 40 * i) % 256, b: 200, w: 0, a: 0, uv: 0 }, level: 1, strength: 1 };
+  },
+  command() {},
+});
+registerKind({
+  kind: 'test.picturePaint', app: 'own', schema: z.object({}).strict(), defaults: { params: {}, palette: ['#00FF00'] },
+  init: () => null,
+  render(_params, _state, room, frame, out) {
+    for (let i = 0; i < room.n; i++) out[i] = { colour: { ...frame.palette[0] }, level: 1, strength: 1 };
+  },
+});
+const effect = validateSpec({ kind: 'test.pictureProbe' });
 
 // Two RGB pars and one 2 x 1 matrix: the room picture paints every unit without a pixel stream.
 const par = { id: 'picture-par', name: 'Par', channelCount: 3, channelMap: { red: 0, green: 1, blue: 2 } };
@@ -38,7 +63,7 @@ function rig() {
     const r = channelReader(universe, 1, profile, (u) => store.getBuffer(u));
     return (profile.cells ?? [{ channelMap: profile.channelMap }]).flatMap((c) => ['red', 'green', 'blue'].map((k) => r(c.channelMap[k])));
   };
-  return { draw(now, patch = {}) {
+  return { renderer, draw(now, patch = {}) {
     renderer.frame(base(patch), { beatPos: now / 500, bpm: 120, epoch: 0 }, now, store, 0);
     return { par: read(1, par), bar: read(2, bar), grid: read(3, grid) };
   } };
@@ -103,4 +128,43 @@ test('a live grid stream wins, then an expired or incompatible stream falls back
   assert.deepEqual(draw(200, [stream]).grid, colours.slice(9));
   assert.deepEqual(draw(100, [{ ...stream, width: 1, height: 2 }]).grid, colours.slice(9));
   assert.deepEqual(draw(100, [stream]).bar, colours.slice(3, 9));
+});
+
+// Under a picture on every unit the base layer is never seen, so it is not drawn; voices and overrides still are.
+test('a picture over every unit leaves the base effect undrawn and paints as before', () => {
+  const r = rig(), fx = fixtures();
+  fx[0].override = { enabled: true, blackout: false, r: 0, g: 0, b: 255, w: 0, a: 0, uv: 0, dim: 255, strobe: 0 };
+  const voice = { id: 'paint', spec: validateSpec({ kind: 'test.picturePaint' }), targets: [2], tier: 'voice', launchSeq: 1,
+    startedAtMs: 0, untilMs: null, anchorBeat: 0, seed: [1, 2, 3, 4] };
+  r.draw(100, { effect });
+  const before = probe.renders;
+  assert.ok(before > 0, 'the effect plays without a picture');
+  for (const now of [125, 150, 175]) {
+    const out = r.draw(now, { effect, picture: picture(colours), fixtures: fx, voices: [voice] });
+    assert.deepEqual(out.par, [0, 0, 255], 'the override stays above the picture');
+    assert.deepEqual(out.bar, [0, 255, 0, 0, 255, 0], 'so does the voice');
+    assert.deepEqual(out.grid, colours.slice(9));
+  }
+  assert.equal(probe.renders, before, 'nothing drew the base effect under the picture');
+  // A command due under the picture still reaches the effect's state: that frame draws it.
+  r.renderer.command(1, 'toggleDirection', undefined, baseIntentOf({ pattern: 'solid', effect }));
+  assert.deepEqual(r.draw(200, { effect, picture: picture(colours) }).bar, colours.slice(3, 9));
+  assert.deepEqual(r.renderer.takeCommandResults(), [{ seq: 1, status: 'applied' }]);
+  assert.equal(probe.renders, before + 1);
+});
+
+// Four seconds under the picture: the stepper drops an instance unseen for two, so only a kept one resumes.
+test('after the picture the base effect resumes as if it had played on underneath', () => {
+  const frames = Array.from({ length: 121 }, (_, k) => 100 + k * 50);
+  const run = (painted) => {
+    const r = rig(), inits = probe.inits;
+    const out = frames.map((now) => r.draw(now, { effect, ...(painted && now >= 600 ? { picture: picture(colours, 4600) } : {}) }));
+    return { out, inits: probe.inits - inits };
+  };
+  const shown = run(true), played = run(false);
+  frames.forEach((now, k) => {
+    if (now >= 600 && now < 4600) assert.deepEqual(shown.out[k].bar, colours.slice(3, 9), `the picture at ${now} ms`);
+    else assert.deepEqual(shown.out[k], played.out[k], `the effect at ${now} ms`);
+  });
+  assert.deepEqual([shown.inits, played.inits], [1, 1], 'one state each: the instance outlived the picture');
 });

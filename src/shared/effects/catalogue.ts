@@ -82,7 +82,7 @@ const FAMILY: Record<LdjEngine | 'macro', { name: string; desc: string }> = {
   wave: { name: 'Wave', desc: 'Colour travelling across the room' },
   matrix: { name: 'Matrix', desc: 'Random lamps flashing on a clock of their own' },
   studio: { name: 'Studio', desc: 'Studio: notes and backgrounds over a dim baseline' },
-  visualizer: { name: 'Visualizer', desc: 'Visualizer: spikes on loud beats over a calm background' },
+  visualizer: { name: 'Audio-reactive', desc: 'Audio-reactive: hits on loud beats over a calm bed' },
   bitmap: { name: 'Bitmap', desc: 'A picture scrolling across the room at tempo' },
   macro: { name: 'Scene Maker', desc: 'Scene Maker: a looping score of rows' },
 };

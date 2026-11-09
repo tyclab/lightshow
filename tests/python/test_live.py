@@ -11,6 +11,7 @@ library says so instead of hanging.
 
 import io
 import json
+import math
 import os
 import tempfile
 import unittest
@@ -211,6 +212,145 @@ class Sources(unittest.TestCase):
             self.assertEqual(live.main(['--source', 'loopback']), 1)
         [line] = lines_of(out.getvalue())
         self.assertEqual(line, {'type': 'error', 'fatal': False, 'message': 'AssertionError'})
+
+
+def after_silence(seconds, sound):
+    """Hop-aligned zeros for about `seconds`, then `sound`: the sound's first hop is all sound."""
+    import numpy as np
+    from analysis.live import HOP
+    zeros = np.zeros(round(seconds * synth.SR / HOP) * HOP, dtype=np.float32)
+    return synth.Track(np.concatenate([zeros, sound]).astype(np.float32), synth.SR, 0.0, [], [], []), zeros.size
+
+
+def serve(track, bands=None):
+    """`track` through a service a hop at a time: its lines and the service."""
+    from analysis.live import LiveService, Emitter
+    out = io.StringIO()
+    service = LiveService(Emitter(out), sample_rate=track.sr, bands=bands)
+    push_track(service, track)
+    return lines_of(out.getvalue()), service
+
+
+@needs_numpy
+class Quiet(unittest.TestCase):
+    """Digital silence is read as often as ever, but said four times a second: the server needs no more."""
+
+    def test_after_three_seconds_of_silence_four_states_a_second(self):
+        from analysis.live import HOP, QUIET_AFTER_SEC, QUIET_STATE_SEC
+        track = synth.silence(seconds=8.0)
+        lines, service = serve(track, bands=[(0, 160)])
+        states = [s for s in lines if s['type'] == 'state']
+        loud = [s for s in states if 'quiet' not in s]
+        quiet = [s for s in states if 'quiet' in s]
+        hop_sec = HOP / float(track.sr)
+        self.assertTrue(all(s['captured'] < QUIET_AFTER_SEC for s in loud))
+        self.assertTrue(all(abs(b['captured'] - a['captured'] - hop_sec) < 1e-3 for a, b in zip(loud, loud[1:])),
+                        'every hop until then')
+        self.assertLess(quiet[0]['captured'] - QUIET_AFTER_SEC, hop_sec, 'said as soon as it is so')
+        gaps = [b['captured'] - a['captured'] for a, b in zip(quiet, quiet[1:])]
+        self.assertTrue(all(abs(g - QUIET_STATE_SEC) <= hop_sec for g in gaps), gaps)
+        self.assertAlmostEqual(len(quiet) / (track.duration - QUIET_AFTER_SEC), 4.0, delta=0.25)
+        for s in quiet:
+            self.assertIs(s['quiet'], True)
+            self.assertEqual(s['spectrum']['bands'], [0.0], 'the server drops a reading without one')
+        self.assertTrue(service.quiet)
+        self.assertEqual(service.analyzer._frame_index, (len(track.samples) - 1024) // HOP + 1,
+                         'the analyser still hears every hop')
+
+    def test_sound_after_silence_is_said_from_its_first_hop_on(self):
+        from analysis.live import HOP
+        track, silent = after_silence(5.0, synth.tone(440.0, 1.0))
+        lines, service = serve(track, bands=[(0, 160)])
+        states = [s for s in lines if s['type'] == 'state']
+        first = next(i for i, s in enumerate(states) if s['captured'] > silent / float(track.sr))
+        self.assertIs(states[first - 1].get('quiet'), True, 'quiet up to the sound')
+        heard = states[first:]
+        hops = range(silent // HOP + 1, len(track.samples) // HOP + 1)
+        self.assertEqual([s['captured'] for s in heard], [round(k * HOP / float(track.sr), 4) for k in hops])
+        self.assertFalse(any('quiet' in s for s in heard))
+        self.assertFalse(service.quiet)
+
+    def test_a_quiet_track_is_not_silence(self):
+        track = synth.quiet_track(bars=4, level_db=-45.0)
+        lines, service = serve(track)
+        states = [s for s in lines if s['type'] == 'state']
+        self.assertFalse(any('quiet' in s for s in states))
+        self.assertAlmostEqual(len(states) / track.duration, 86.1, delta=1.0)
+        self.assertFalse(service.quiet)
+
+    def test_the_floor_is_eighty_decibels_under_full_scale(self):
+        import numpy as np
+        tone = synth.tone(440.0, 5.0)
+        edge = synth.SR // 10
+        steady = float(np.sqrt(np.mean(tone[edge:-edge] ** 2)))
+        for db, silent in ((-78.0, False), (-82.0, True)):
+            with self.subTest(db=db):
+                samples = (tone * (10 ** (db / 20.0) / steady)).astype(np.float32)
+                lines, service = serve(synth.Track(samples, synth.SR, 0.0, [], [], []))
+                self.assertEqual(any('quiet' in s for s in lines if s['type'] == 'state'), silent)
+                self.assertEqual(service.quiet, silent)
+
+    def test_a_quiet_sound_card_is_read_eight_hops_at_a_time(self):
+        import itertools
+        from analysis import live
+        track, silent = after_silence(5.0, synth.tone(440.0, 1.0))
+        service = live.LiveService(live.Emitter(io.StringIO()), sample_rate=track.sr)
+        self.assertEqual(service.block_frames(), live.HOP)
+        push_track(service, synth.silence(seconds=live.QUIET_AFTER_SEC + 0.1))
+        self.assertEqual(service.block_frames(), live.HOP * 8)
+        service.push(synth.tone(440.0, 0.5)[5000:5000 + live.HOP])
+        self.assertEqual(service.block_frames(), live.HOP, 'back to a hop with the first sound')
+
+        asked = []
+
+        class Recorder:
+            at = 0
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *exc):
+                return False
+
+            def record(self, numframes):
+                asked.append(numframes)
+                block = track.samples[self.at:self.at + numframes].reshape(-1, 1).repeat(2, axis=1)
+                self.at += numframes
+                return block
+
+        recorder = Recorder()
+
+        class Mic:
+            name = 'Speakers (loopback)'
+
+            def recorder(self, samplerate, blocksize):
+                return recorder
+
+        class FakeSoundcard:
+            @staticmethod
+            def default_speaker():
+                return Mic()
+
+            @staticmethod
+            def get_microphone(id, include_loopback=False):
+                return Mic()
+
+        out = io.StringIO()
+        service = live.LiveService(live.Emitter(out), sample_rate=track.sr)
+        live.capture_soundcard(FakeSoundcard, 'loopback', '', service, live.Emitter(out),
+                               lambda: recorder.at >= len(track.samples))
+        runs = [(size, len(list(group))) for size, group in itertools.groupby(asked)]
+        self.assertEqual([size for size, _ in runs], [live.HOP, live.HOP * 8, live.HOP])
+        self.assertEqual(runs[0][1], math.ceil(live.QUIET_AFTER_SEC * track.sr / live.HOP),
+                         'a hop at a time for the first 3 s of silence')
+        before_sound = sum(size * n for size, n in runs[:2]) - live.HOP * 8
+        self.assertTrue(before_sound <= silent < before_sound + live.HOP * 8,
+                        'the block the sound began in was the last big one')
+        quiet = [s for s in lines_of(out.getvalue()) if s['type'] == 'state' and s.get('quiet')]
+        gaps = [b['captured'] - a['captured'] for a, b in zip(quiet, quiet[1:])]
+        block_sec = live.HOP * 8 / float(track.sr)
+        self.assertTrue(gaps and all(abs(g - live.QUIET_STATE_SEC) < block_sec for g in gaps),
+                        'four states a second whatever the block size')
 
 
 def expected_spectrum(frame, bins, without_dc=True):

@@ -59,7 +59,7 @@ export function AudioMaster({ audio }) {
             <input type="number" min="0" max="100" step="1" required
               value={draft.ldjTrigger === '' ? '' : Math.round(Number(draft.ldjTrigger ?? audio.ldjTrigger ?? 0.3) * 100)}
               onInput={(event) => change('ldjTrigger', event.currentTarget.value === '' ? '' : Number(event.currentTarget.value) / 100)} />
-            <small>Fallback beat threshold. An active Visualizer uses the trigger in its effect settings.</small>
+            <small>Fallback beat threshold. An active Audio-reactive look uses the trigger in its effect settings.</small>
           </label>
         </fieldset>
         <div class="audio-master-actions">

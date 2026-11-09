@@ -27,13 +27,32 @@ test('a stalled handshake reopens its owned Entertainment session before retryin
   assert.ok(sockets[0].closed, 'the stalled handshake is closed');
   assert.deepStrictEqual(actions(calls), ['start', 'stop', 'start'], 'release the stalled session before the next handshake');
   assert.ok(lines.some((l) => /timed out.*try 2 of 5/.test(l)), 'the lost try is logged');
+  // Each try says how long after its start it settled and what the area was before it.
+  assert.deepStrictEqual(lines.filter((l) => / handshake try /.test(l)), [
+    '[hue] PartyLounge: handshake try 1 timed out after 1000 ms (ownership before: owned)',
+    '[hue] PartyLounge: handshake try 2 connected after 80 ms (ownership before: owned)',
+  ]);
   assert.strictEqual(session.sendFrame(RED), true, 'frames flow');
+  await session.stop();
+});
+
+test('a handshake try on an area that was free logs that, and its time', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout', 'Date'], now: 0 });
+  const lines = quiet(t);
+  let reads = 0;
+  fakeBridge(t, { area: () => ({ status: 200, body: ++reads === 1 ? { data: [{ id: AREA, status: 'inactive' }] } : OURS }) });
+  fakeDtls(t, [30]);
+  const session = new HueStreamer(PAIRED);
+  session.sendFrame(RED);
+  await until(t, () => session.getStatus().status === 'streaming', 1000);
+  assert.deepStrictEqual(lines.filter((l) => / handshake try /.test(l)),
+    ['[hue] PartyLounge: handshake try 1 connected after 30 ms (ownership before: available)']);
   await session.stop();
 });
 
 test('a bridge that answers no handshake falls back to the backoff after five tries', async (t) => {
   t.mock.timers.enable({ apis: ['setTimeout', 'Date'], now: 0 });
-  quiet(t);
+  const lines = quiet(t);
   const calls = fakeBridge(t);
   const sockets = fakeDtls(t);
   const session = new HueStreamer(PAIRED);
@@ -46,6 +65,8 @@ test('a bridge that answers no handshake falls back to the backoff after five tr
   assert.ok(took >= 5000 && took <= 5200, `failed after ${took} ms`);
   assert.strictEqual(sockets.length, 5);
   assert.deepStrictEqual(actions(calls), Array.from({ length: 5 }, () => ['start', 'stop']).flat());
+  assert.deepStrictEqual(lines.filter((l) => / handshake try /.test(l)),
+    [1, 2, 3, 4, 5].map((n) => `[hue] PartyLounge: handshake try ${n} timed out after 1000 ms (ownership before: owned)`), 'the last try too');
   assert.strictEqual(session.sendFrame(RED), false);
   await settle();
   assert.strictEqual(sockets.length, 5, 'backing off: the next frame starts nothing');

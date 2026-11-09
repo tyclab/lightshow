@@ -148,9 +148,13 @@ test('another picture source is one tap, changes no latch, and the chosen one na
   await expect(source(page).getByRole('button', { name: 'Effects', exact: true })).toHaveAttribute('aria-pressed', 'false');
   const after = (await state(request)).control;
   for (const key of ['frozen', 'blackout', 'armed', 'playing']) expect(after[key], key).toBe(before[key]);
-  await source(page).getByRole('button', { name: /^Visualizer: / }).click();
-  await expect(page.getByRole('group', { name: 'Visualizer Active' })).toBeVisible();
-  await expect(page.getByRole('group', { name: 'Visualizer Mellow' })).toBeVisible();
+  const segment = source(page).getByRole('button', { name: /^Visualizer: / });
+  await expect(segment).toHaveAttribute('title', /Until the picture arrives: choose the effect \(E\)\.$/);
+  await segment.click();
+  // The picture brings no looks of its own; the Audio-reactive rows come with an Audio-reactive look on stage.
+  const picker = page.getByRole('dialog', { name: 'Main effect' });
+  await expect(picker.getByRole('group', { name: 'Every effect' })).toBeVisible();
+  await expect(picker.getByRole('group', { name: 'Audio-reactive looks' })).toHaveCount(0);
 });
 
 test('the play button names its programme, its menu chooses one only while stopped and always keeps Stop in reach', async ({ page, request }) => {

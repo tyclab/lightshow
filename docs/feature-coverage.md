@@ -35,7 +35,7 @@ The show workflows map onto these controls:
 | Immediate command rows | Sequence → Edit: Run now on each command row |
 | Random initial palette | Sequence options: a random palette on each start |
 | Standalone tempo/brightness automation | Perform: live automation on the running look, ended by a fader, stop, blackout, disarm or a sequence |
-| Live Visualizer colours | Perform: colour controls shown while a Visualizer is the base |
+| Live Audio-reactive colours | Header effect picker: colour controls shown while an Audio-reactive look is the base |
 
 Fire and Ice are the fork's gentle Party looks: slow, strobe-free Spatial Wash
 and Breathing Fade presets with full-channel palettes.
