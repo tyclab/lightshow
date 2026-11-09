@@ -91,7 +91,6 @@ export const PATTERNS = [
 	{ id: 'ring-backlit', name: 'Ring Backlit' },
 	{ id: 'fireworks', name: 'Fireworks' },
 	{ id: 'flashes', name: 'Flashes' },
-	{ id: 'swirl', name: 'Swirl' },
 ]
 
 export const ENERGY_EFFECTS = [

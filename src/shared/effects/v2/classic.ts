@@ -1,6 +1,8 @@
 // Classic and party pattern ids that play a v2 preset instead of their pattern function, each with the
 // reason it moved. The operator decides each move by A/B test on the rig; every other classic id keeps its function.
-export const CLASSIC_REDIRECTS: Readonly<Record<string, string>> = Object.freeze({});
+export const CLASSIC_REDIRECTS: Readonly<Record<string, string>> = Object.freeze({
+  swirl: 'Orbit on the v2 engine (option C), merged only once the operator chose B in A/B migration.swirl',
+});
 
 // The classic and party looks on the v2 engine: for each id, the v2 spec closest to its own pattern on the
 // diff rig (scripts/effects-v2-alias-diff.js --classic) and that diff as [largest channel, mean absolute
@@ -29,7 +31,7 @@ export const CLASSIC_V2: Readonly<Record<string, ClassicLook>> = {
   rain: { family: 'Particles', name: 'Rain', pixel: true, diff: [255, 14.881, 129],
     spec: { kind: 'v2.particles', params: { space: 'plan', mode: 'rain', count: 8, radiusM: 0.3, speed: 3, gravity: 0.3, trail: 1 } } },
   // Orbit
-  swirl: { family: 'Orbit', name: 'Swirl', diff: [210, 47.287, 129],
+  swirl: { family: 'Orbit', name: 'Swirl', desc: 'The look\'s colours in two soft halves turning round the middle of the plot, a turn every two bars', diff: [210, 47.287, 129],
     spec: { kind: 'v2.orbit', params: { space: 'plan', profile: 'sectors', turnsPerBar: 0.5, axis: 'centre', sectors: 2, sectorSoftnessDeg: 180 } } },
   // Wall
   rise: { family: 'Wall', name: 'Rise', pixel: true, diff: [245, 16.326, 129],

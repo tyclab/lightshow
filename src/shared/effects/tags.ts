@@ -113,7 +113,6 @@ const LEGACY: Readonly<Record<string, LookTags>> = Object.freeze({
   'ring-backlit': tagged(['beat']),
   fireworks: tagged(['beat']),
   flashes: tagged(['beat']),
-  swirl: tagged(['beat']),
 });
 
 export const LEGACY_TAGGED: readonly string[] = Object.freeze(Object.keys(LEGACY));
