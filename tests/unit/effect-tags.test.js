@@ -51,7 +51,7 @@ const PINNED = {
   bars: 'bands bars / track',
   fire: 'bands bars / track',
   rain: 'bands bars / track',
-  'flash-chase': 'beat bars',
+  'flash-chase': 'beat bars rapid',
   'flash-scatter': 'beat bars',
   'flash-fill': 'beat bars',
   'flash-alternate': 'beat bars',
@@ -73,7 +73,7 @@ const PINNED = {
   halves: 'beat',
   flip: 'beat',
   'room-wave': 'beat',
-  'ring-strobe': 'beat',
+  'ring-strobe': 'beat rapid',
   'ring-backlit': 'beat',
   fireworks: 'beat',
   flashes: 'beat',
@@ -167,7 +167,7 @@ test('the twelve tags and their counts over the 113 looks', () => {
   const counts = Object.fromEntries(Object.keys(TAGS).map((tag) => [tag, count(VISIBLE, tag)]));
   assert.deepEqual(counts, {
     beat: 79, static: 7, bands: 19, level: 4, sections: 3, screen: 2,
-    rig: 17, room: 41, bars: 21, ownColours: 8, energy: 11, rapid: 9,
+    rig: 17, room: 41, bars: 21, ownColours: 8, energy: 11, rapid: 11,
   });
   const reactive = VISIBLE.filter((row) => row.tags.some((tag) => REACTIVE_TAGS.has(tag)));
   assert.equal(reactive.length, 27);
@@ -288,6 +288,6 @@ test('one rule sorts a row into the MIDI and Companion browse lists', () => {
   const rows = [...PATTERNS, ...PRESET_ROWS];
   const lists = (rapid) => rows.filter((r) => !r.retired && (rapid || !r.rapidFlash)).reduce((acc, r) => { acc[browseListOf(r)]++; return acc; }, { pattern: 0, effect: 0, bars: 0 });
   assert.deepEqual(lists(true), { pattern: 81, effect: 11, bars: 21 });
-  assert.deepEqual(lists(false), { pattern: 79, effect: 4, bars: 21 });
+  assert.deepEqual(lists(false), { pattern: 78, effect: 4, bars: 20 });
   assert.deepEqual([{}, { pixel: true }, { tags: ['beat', 'energy'] }].map(browseListOf), ['pattern', 'bars', 'effect']);
 });

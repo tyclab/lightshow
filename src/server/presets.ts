@@ -62,13 +62,7 @@ const PATTERNS = [
   { id: 'color-cycle',  name: 'Colour Cycle',  desc: 'Whole rig steps to the next palette colour' },
   { id: 'rainbow',      name: 'Rainbow',       desc: 'Full spectrum spread across the rig — ignores the palette' },
 
-  { id: 'chase',        name: 'Chase →',       desc: 'One fixture at a time, forward' },
-  { id: 'chase-rev',    name: 'Chase ←',       desc: 'One fixture at a time, reverse' },
-  { id: 'ping-pong',    name: 'Ping Pong',     desc: 'One fixture at a time, forward then back' },
-  { id: 'runner',       name: 'Runner',        desc: 'Chase with a fading trail' },
-  { id: 'pairs',        name: 'Pairs',         desc: 'Two adjacent fixtures travel together' },
   { id: 'wave',         name: 'Wave',          desc: 'Sine brightness sweep across the rig' },
-  { id: 'stack-up',     name: 'Stack Up',      desc: 'Fill fixtures one by one, then reset' },
 
   { id: 'split',        name: 'Split',         desc: 'Palette colours alternating per fixture' },
   { id: 'sections',     name: 'Sections',      desc: 'Rig splits into one block per palette colour, blocks swap each beat' },
@@ -91,7 +85,6 @@ const PATTERNS = [
   { id: 'bars',     name: 'Bars',     desc: 'A spectrum analyser: kick, bass, drums, snare, band, voice and hats as columns, as high as each plays', pixel: true },
   { id: 'fire',     name: 'Fire',     desc: 'Flames licking up a panel, taller with the bass, flaring on the kick', pixel: true },
   { id: 'rain',     name: 'Rain',     desc: 'Drops falling down every column in time, the hats shaking loose more', pixel: true },
-  { id: 'flash-chase',     name: 'Flash Chase',     desc: 'One flash stepping zone to zone, a lap a step', pixel: true },
   { id: 'flash-scatter',   name: 'Flash Scatter',   desc: 'Random zones strobing, more of them halfway between steps', pixel: true },
   { id: 'flash-fill',      name: 'Flash Fill',      desc: 'Every step fills from the middle out, holds, and cuts to black', pixel: true },
   { id: 'flash-alternate', name: 'Flash Alternate', desc: 'Odd zones flash on the step, even ones between', pixel: true },
