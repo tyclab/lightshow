@@ -695,7 +695,7 @@ test('the deck marks the base among saved and party presets', () => {
   // A pad carries its tags; a preset saved here says it is yours. Its ⚡ stays in the corner.
   assert.match(html, /data-id="u1">(?:(?!<\/div>).)*class="effect-tags">(?:(?!<\/div>).)*>Beat only<(?:(?!<\/div>).)*class="effect-tag effect-pad-yours">Yours</s);
   const tag = ui.TAGS[PATTERN_ROWS.find((r) => r.id === first).tags[0]];
-  assert.match(html, new RegExp(`data-id="${first}"[^>]*>(?:(?!<\\/div>).)*data-tag="[a-z]+"[^>]*>${tag.name}<`, 's'));
+  assert.match(html, new RegExp(`data-id="${first}"[^>]*>(?:(?!<\\/div>).)*data-tag="[a-z]+"[^>]*>${tag.name.replace('&', '&amp;')}`, 's'));
   assert.doesNotMatch(html, /effect-pad-app/);
   assert.match(html, new RegExp(`<div class="effect-pad active" data-id="${first}" data-layer="base">`));
   assert.strictEqual(count(html, 'class="effect-pad-now"'), 1);
