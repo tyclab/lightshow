@@ -13,7 +13,12 @@ const LOST_ECHO_MS = 5000;
 const CHANNELS = ['r', 'g', 'b', 'w', 'a', 'uv'];
 const picked = (value) => (value.selected ?? []).join(',');
 const same = (a, b) => a.mode === b.mode && a.level === b.level && CHANNELS.every((c) => a.colour[c] === b.colour[c])
-  && (a.fixtures ?? 'rig') === (b.fixtures ?? 'rig') && picked(a) === picked(b);
+  && (a.fixtures ?? 'rig') === (b.fixtures ?? 'rig') && picked(a) === picked(b) && (a.followFill ?? 'off') === (b.followFill ?? 'off');
+const FILL_HINTS = {
+  off: 'Uses the effect’s authored ambient colours and movement. Effects without an ambient layer stay dark between notes.',
+  glow: 'Keeps the effect’s authored ambient light and lights its gaps in its own colour at a faint glow (a tenth of the level), so it never goes fully dark between notes.',
+  full: 'Keeps the effect’s authored ambient light and fills its gaps in its own colour at the background level, as Fixed colour fills them with yours.',
+};
 
 /** Which patched fixtures the setting reaches, in the words of the card; as backgroundScope decides it. */
 function scopeHint(value, fixtures, wash) {
@@ -64,6 +69,11 @@ export function Background() {
       <input aria-label="Background level" type="range" min="0" max="100" value={Math.round(value.level * 100)} disabled={value.mode === 'off'}
         onInput={(e) => update({ level: Number(e.target.value) / 100 })} />
     </label>
+    {value.mode === 'follow' && <label>Between notes
+      <select aria-label="Follow between notes" value={value.followFill ?? 'off'} onChange={(e) => update({ followFill: e.target.value })}>
+        {Object.entries(BACKGROUND_LABELS.followFill).map(([id, label]) => <option value={id}>{label}</option>)}
+      </select>
+    </label>}
     {value.mode === 'fixed' && <>
       <label>Colour <input type="color" value={toHex(value.colour).slice(0, 7)}
         onInput={(e) => { const { w, a, uv } = base().colour; setColour({ ...parseHex(e.target.value), w, a, uv }); }} /></label>
@@ -86,7 +96,7 @@ export function Background() {
       </label>) : <p class="setting-help">The patch has no fixtures yet.</p>}
     </fieldset>}
     {hint && <p class="setting-help">{hint}</p>}
-    <p class="hint">{value.mode === 'follow' ? 'Uses the effect’s authored ambient colours and movement. Effects without an ambient layer stay dark between notes.'
+    <p class="hint">{value.mode === 'follow' ? FILL_HINTS[value.followFill ?? 'off'] ?? FILL_HINTS.off
       : value.mode === 'fixed' ? 'This colour lies under every effect, pad and the visualizer picture, and shows wherever they leave a lamp dark or dim. Strobe rests, Kill, blackouts and effects set to Keep dark stay dark.'
         : 'Removes ambient light; the effect and its trails still play.'}</p>
   </section>;

@@ -56,9 +56,9 @@ test('Fixed fills every lamp an Entertainment chase, a continuous field, a Disco
   }
 });
 
-test('wherever an effect offers the choice, Reveal fills lamps Keep dark leaves dark, under Fixed and under Follow; Off cannot tell them apart', () => {
+test('wherever an effect offers the choice, Reveal fills lamps Keep dark leaves dark, and Follow and Off cannot tell them apart', () => {
   const times = [0, 250, 900, 2000];
-  let offered = 0, followed = 0;
+  let offered = 0;
   for (const preset of CATALOGUE) {
     if (preset.legacy || !preset.spec || !gapsApply(preset.spec)) continue;
     offered++;
@@ -66,15 +66,11 @@ test('wherever an effect offers the choice, Reveal fills lamps Keep dark leaves 
     const keptDark = darkLamps(run({ effect: kept, background: fixed }, times)), shownDark = darkLamps(run({ effect: preset.spec, background: fixed }, times));
     assert.ok(shownDark <= keptDark, `${preset.id}: Reveal never darkens a lamp`);
     if (keptDark) assert.ok(shownDark < keptDark, `${preset.id}: Reveal fills some of the ${keptDark} lamps Keep dark leaves dark`);
-    for (const background of [DEFAULT_BACKGROUND, follow]) {
-      const keptFollow = darkLamps(run({ effect: kept, background }, times)), shownFollow = darkLamps(run({ effect: preset.spec, background }, times));
-      assert.ok(shownFollow <= keptFollow, `${preset.id}: Follow ${background.level} never darkens a lamp`);
-      if (background === follow && shownFollow < keptFollow) followed++;
+    for (const background of [DEFAULT_BACKGROUND, follow, off]) {
+      assert.deepEqual(run({ effect: preset.spec, background }, times), run({ effect: kept, background }, times), `${preset.id} under ${background.mode} ${background.level}`);
     }
-    assert.deepEqual(run({ effect: preset.spec, background: off }, times), run({ effect: kept, background: off }, times), `${preset.id} under Off`);
   }
   assert.ok(offered > 20, `negative control: ${offered} catalogue effects offer the choice`);
-  assert.ok(followed > 20, `Follow fills the gaps of ${followed} of them with the effect's colour`);
 });
 
 test('explicit dark cues stay dark over the Fixed colour: strobe rests, Kill, the Blackout scene, the ring strobe', () => {
@@ -94,12 +90,9 @@ test('classic patterns show the Fixed colour between their pops', () => {
   let filled = 0;
   unlit.forEach((frame, k) => lamps(frame).forEach((lamp, i) => { if (dark(lamp)) { assert.ok(washed(lamps(shown[k])[i])); filled++; } }));
   assert.ok(filled > 0, 'negative control: confetti leaves lamps dark');
-  // Follow lights each lamp Off leaves dark with confetti's colour at the floor (25 of 255 at 100 %), and no more.
-  for (const background of [DEFAULT_BACKGROUND, follow]) {
-    const ceiling = Math.ceil(25 * background.level * 1.8);
-    run({ pattern: 'confetti', background }, TIMES).forEach((frame, k) => lamps(frame).forEach((lamp, i) => {
-      if (dark(lamps(unlit[k])[i])) assert.ok(!dark(lamp) && lamp.every((byte) => byte <= ceiling), `${background.level}: lamp ${i} at ${TIMES[k]}: ${lamp}`);
-    }));
+  for (const background of [DEFAULT_BACKGROUND, follow, off]) {
+    assert.deepEqual(run({ pattern: 'confetti', background }, TIMES).map((frame) => lamps(frame).map(dark)), unlit.map((frame) => lamps(frame).map(dark)),
+      `${background.mode} ${background.level}: no lamp lights or darkens`);
   }
 });
 

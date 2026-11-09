@@ -1,4 +1,4 @@
-import { ambient, backgroundScope, composeBackground, followColourOf, withFollow } from './background.ts';
+import { ambient, backgroundScope, composeBackground, followColourOf, followFilling, withFollow } from './background.ts';
 import type { BackgroundSettings, BackgroundUse } from './background.ts';
 import { drawnByTheShow, strobeLevel } from './strobe-fx.ts';
 import { outputEmitters } from './emitter-capability.ts';
@@ -457,11 +457,11 @@ function createPreviewSampler(events: readonly PreviewEvent[] = [], grid: GridSo
     return slots;
   };
 
-  /** The Background setting each unit takes: the look's inside its fixture scope, none (as authored) outside it; with `follow`, Follow fills
-   * the main effect's gaps with that colour. */
+  /** The Background setting each unit takes: the look's inside its fixture scope, none (as authored) outside it; with `follow` and the
+   * fill on, Follow fills the main effect's gaps with that colour. */
   function backgroundOf(s: PreviewLook, rig: Rig, follow: Colour | null): (u: number) => BackgroundUse | undefined {
     const scope = backgroundScope(s.background, rig.cellMaps, (i) => (rig.fixtures[i] as PreviewFixture | undefined)?.id);
-    const scoped = follow && s.background ? withFollow(s.background, follow) : s.background;
+    const scoped = follow && followFilling(s.background) ? withFollow(s.background!, follow) : s.background;
     return (u) => (!scope || scope[rig.units[u].fixture] ? scoped : undefined);
   }
 

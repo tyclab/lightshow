@@ -1,6 +1,6 @@
 import { PictureHold } from './picture-hold.ts';
 import type { CellOwnership } from './picture-hold.ts';
-import { ambient, backgroundScope, blendBackground, composeBackground, followColourOf, followFills, underPicture, withFollow } from '../shared/background.ts';
+import { ambient, backgroundScope, blendBackground, composeBackground, followColourOf, followFilling, followFills, underPicture, withFollow } from '../shared/background.ts';
 import type { BackgroundField, BackgroundSettings, BackgroundUse } from '../shared/background.ts';
 import { fixedColours, colourSlots, resolveGradient } from '../shared/palette-model.ts';
 import type { UnitSpace } from '../shared/space.ts';
@@ -1082,9 +1082,9 @@ function createRenderer({ profileOf, profilesRevision = () => 0, now = performan
     const { levels, gains } = liftFor(input);
     const watch = !!voiceTop || baseKinds || seqUnits;
     const scope = backgroundScope(input.background, rigNow.cellMaps, (i) => fixtures[i].id);
-    // Follow fills the main effect's gaps with its colour; fixtures outside the scope, or a frame without a setting, play as authored.
-    const scoped = input.background ? withFollow(input.background, followColourOf(input.effect, input.paletteOverride,
-      fixedColours(input.basePalette, [input.colorA, input.colorB, input.colorC, input.colorD].map((i) => COLOR_PRESETS[i]))[0])) : undefined;
+    // With its fill on, Follow fills the main effect's gaps with its colour; outside the scope the effect plays as authored.
+    const scoped = followFilling(input.background) ? withFollow(input.background, followColourOf(input.effect, input.paletteOverride,
+      fixedColours(input.basePalette, [input.colorA, input.colorB, input.colorC, input.colorD].map((i) => COLOR_PRESETS[i]))[0])) : input.background;
     const ownership: CellOwnership[] = [];
     const logical: LightValue[] = [];
     for (let i = 0; i < fixtures.length; i++) {

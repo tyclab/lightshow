@@ -75,13 +75,9 @@ test('an Entertainment chase reveals the Fixed colour in its gaps by default and
     else assert.ok(lamp.every((byte, c) => byte >= before[c]), 'a lit lamp only gains the uncovered share');
   }));
   assert.ok(filled >= 10, `negative control: the chase leaves unlit lamps (${filled})`);
-  assert.deepEqual(run({ effect: spec, background: off }, TIMES), run({ effect: with_(spec, 'dark'), background: off }, TIMES), 'Off: Reveal changes nothing');
-  // Follow fills the same gaps with the effect's own first colour (red) at the floor, 25 of 255 at 100 %.
-  for (const background of [follow, DEFAULT_BACKGROUND]) {
-    const keptFollow = run({ effect: with_(spec, 'dark'), background }, TIMES);
-    run({ effect: spec, background }, TIMES).forEach((frame, k) => lamps(frame).forEach((lamp, i) => {
-      if (dark(lamps(keptFollow[k])[i])) assert.deepEqual(lamp, [Math.round(25 * background.level), 0, 0, 0, 0, 0], `Follow ${background.level}: lamp ${i} at ${TIMES[k]} ms`);
-    }));
+  for (const background of [follow, off, DEFAULT_BACKGROUND]) {
+    assert.deepEqual(run({ effect: spec, background }, TIMES), run({ effect: with_(spec, 'dark'), background }, TIMES),
+      `${background.mode}: Reveal changes nothing where there is no Fixed colour`);
   }
 });
 
@@ -145,9 +141,9 @@ test('a bitmap’s black background is a gap: filled by default, dark when kept 
     if (dark(lamps(kept[k])[i])) { assert.deepEqual(lamp, WASH); filled++; }
   }));
   assert.ok(filled > 0, 'negative control: the raster has black background lamps');
-  assert.deepEqual(run({ effect: spec, background: off }, [0, 500]), run({ effect: with_(spec, 'dark'), background: off }, [0, 500]), 'off');
-  const followed = run({ effect: spec, background: follow }, [0, 500]), keptFollow = run({ effect: with_(spec, 'dark'), background: follow }, [0, 500]);
-  assert.ok(followed.some((frame, k) => lamps(frame).some((lamp, i) => dark(lamps(keptFollow[k])[i]) && !dark(lamp))), 'Follow fills the black background');
+  for (const background of [follow, off]) {
+    assert.deepEqual(run({ effect: spec, background }, [0, 500]), run({ effect: with_(spec, 'dark'), background }, [0, 500]), background.mode);
+  }
   const rapid = with_(validateSpec({ kind: 'ldj.bitmap', params: { pattern: 'SolidBlackBGSineWave', speed: 3 } }), 'reveal');
   assert.deepEqual(run({ effect: rapid, background: fixed }, [0, 500]),
     run({ effect: with_(rapid, 'dark'), background: fixed }, [0, 500]), 'a rapid raster’s black is a strobe rest');
@@ -237,7 +233,7 @@ test('a Disco whose automatic strobe can flash keeps its strobe rests dark under
   assert.deepEqual(play('reveal'), kept, 'the rests between automatic flashes are strobe rests');
 });
 
-test('a revealed bitmap black background emits nothing under Off, and at most the floor under Follow, on dimmer-only and colour lamps', () => {
+test('a revealed bitmap black background emits nothing under Follow and Off on dimmer-only and colour lamps', () => {
   const dimmerOnly = { id: 'gaps-dimmer', channelCount: 1, channelMap: { dimmer: 0 } };
   const rgbd = { id: 'gaps-rgbd', channelCount: 4, channelMap: { red: 0, green: 1, blue: 2, dimmer: 3 } };
   const profiles = { [dimmerOnly.id]: dimmerOnly, [rgbd.id]: rgbd };
@@ -260,9 +256,8 @@ test('a revealed bitmap black background emits nothing under Off, and at most th
     'negative control and README known limitation: Keep dark at Follow 100 % keeps main’s full dimmer on black pixels');
   for (const background of [DEFAULT_BACKGROUND, follow, off]) {
     const after = draw(mixed, revealed, background), before = draw(mixed, spec, background);
-    const floor = background.mode === 'off' ? 0 : Math.ceil(25 * background.level);
     after.forEach((frame, k) => mixed.forEach((_, id) => {
-      if (black[k][id]) assert.ok(lamp(mixed, frame, id).every((b) => b <= floor), `${background.mode} ${background.level}: black lamp ${id} at most the floor`);
+      if (black[k][id]) assert.ok(lamp(mixed, frame, id).every((b) => b === 0), `${background.mode} ${background.level}: black lamp ${id} stays dark`);
       else assert.deepEqual(lamp(mixed, frame, id), lamp(mixed, before[k], id), `${background.mode} ${background.level}: lamp ${id} unchanged`);
     }));
   }

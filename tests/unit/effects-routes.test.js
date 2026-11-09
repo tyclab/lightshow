@@ -759,8 +759,7 @@ test("live palette edits preserve effect state", async (t) => {
   assert.ok(red.some(([r]) => r > 0), 'and lit');
   await s.call('PUT', `/api/effects/${fade.id}`, { spec: { ...FADE, palette: ['#FF0000'], brightness: 0 } });
   assert.equal(renderInput().effectRevision, revision);
-  // Its own light is gone from the next frame; Follow keeps its colour at the floor (25 of 255) in the gaps that leaves.
-  assert.ok(play(20).flat().every(([r, g, b]) => r <= 25 && g === 0 && b === 0), 'at brightness 0 it shows nothing of its own from the next frame');
+  assert.ok(play(20).flat().every((lamp) => lamp.every((v) => v === 0)), 'at brightness 0 it shows nothing from the next frame');
 
   // A command meant for the effect before its colours changed still reaches it; one meant for it before it became another does not.
   const studio = s.effectLibrary.create({ name: 'Swirl', spec: { kind: 'ldj.StudioSwirl', params: {}, palette: ['#00FF00'] } });
