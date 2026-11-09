@@ -2338,7 +2338,11 @@ gives the main thread's delay in milliseconds over the last 30 s window: the
 excess over the 10 ms sampling timer, so an idle loop reads 0.
 
 Logs appear in the terminal, the app's Log drawer and `logs/lightshow.log`.
-Files are JSON lines, rotated at 10 MB with three retained rotations.
+Files are JSON lines, rotated at 10 MB with three retained rotations. The file
+is written off the event loop, so a disk that stalls delays the file, not the
+show; lines still waiting at exit are written before the process ends, and a
+disk that does not answer keeps at most 10 MB waiting, then logs how many
+older lines it dropped.
 `LOG_LEVEL` changes verbosity; `LOG_FORMAT=pretty|json` controls terminal
 format. `/api/logs` supports sequence, level and limit filters.
 
