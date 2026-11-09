@@ -76,9 +76,10 @@ test('a built-in mapping can be played without saving and stays on its single ca
   const sheet = page.getByRole('dialog', { name: 'Edit effect' });
   await expect(sheet.getByLabel('Mapping', { exact: true })).toHaveValue('room');
   await expect(sheet.getByLabel('Speed', { exact: true })).toBeVisible();
-  await expect(sheet.getByLabel('Elevation (degrees)')).toBeHidden();
+  await expect(sheet.getByLabel('Tilt', { exact: true })).toBeVisible();
+  await expect(sheet.getByLabel('Start anchor', { exact: true })).toBeHidden();
   await sheet.getByText('Advanced', { exact: true }).click();
-  await expect(sheet.getByLabel('Elevation (degrees)')).toBeVisible();
+  await expect(sheet.getByLabel('Start anchor', { exact: true })).toBeVisible();
   await sheet.getByLabel('Mapping', { exact: true }).selectOption('plan');
   await expect(sheet.locator('.effect-inspector-head strong')).toHaveText('Groove Wave');
   await expect(sheet.locator('.insp-dirty')).toHaveCount(0);

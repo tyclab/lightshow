@@ -238,13 +238,52 @@ export function isSolid(points: readonly Vec3[]): boolean {
   return wide > 1e-6 && thin >= SOLID_RATIO * wide;
 }
 
+// A ball's LEDs lie on its sphere (the house model's exporter places them there): within 8 % of the fitted radius,
+// RMS. A box, a cylinder or a panel round a corner is a solid too, but spreads 11 % or more.
+const BALL_SPREAD = 0.08;
+
+/** The sphere that fits the points best (least squares on |p|² = 2c·p + d), or null when none does. */
+function sphereFit(points: readonly Vec3[]): { centre: Vec3; radius: number; rms: number } | null {
+  const m = Array.from({ length: 4 }, () => [0, 0, 0, 0, 0]);
+  for (const p of points) {
+    const row = [2 * p.x, 2 * p.y, 2 * p.z, 1], f = p.x * p.x + p.y * p.y + p.z * p.z;
+    for (let i = 0; i < 4; i++) { m[i][4] += row[i] * f; for (let j = 0; j < 4; j++) m[i][j] += row[i] * row[j]; }
+  }
+  for (let c = 0; c < 4; c++) {
+    let pivot = c;
+    for (let r = c + 1; r < 4; r++) if (Math.abs(m[r][c]) > Math.abs(m[pivot][c])) pivot = r;
+    if (Math.abs(m[pivot][c]) < 1e-12) return null;
+    [m[c], m[pivot]] = [m[pivot], m[c]];
+    for (let r = 0; r < 4; r++) {
+      if (r === c) continue;
+      const k = m[r][c] / m[c][c];
+      for (let j = c; j < 5; j++) m[r][j] -= k * m[c][j];
+    }
+  }
+  const [x, y, z, d] = m.map((row, i) => row[4] / row[i]);
+  const squared = d + x * x + y * y + z * z;
+  if (!(squared > 0)) return null;
+  const radius = Math.sqrt(squared);
+  const rms = Math.sqrt(points.reduce((sum, p) => sum + (Math.hypot(p.x - x, p.y - y, p.z - z) - radius) ** 2, 0) / points.length);
+  return { centre: { x, y, z }, radius, rms };
+}
+
+/** Whether room positions form a ball: a solid whose points lie on one sphere, a hemisphere's worth included. */
+function isBall(points: readonly Vec3[]): boolean {
+  if (!isSolid(points)) return false;
+  const fit = sphereFit(points);
+  return !!fit && fit.rms <= BALL_SPREAD * fit.radius;
+}
+
 const solidMemo = new WeakMap<UnitSpace, { rig: Rig; points: (Point | null)[] | null }>();
 
 /**
- * The plot points the room picture samples for the cells of a panel the room places as a solid (a
+ * The plot points the room picture samples for the cells of a panel the room places on a sphere (a
  * WLED ball): each bound cell sits at the fixture's plot centre plus its room offset from the
  * cells' centre, across and along the floor, so the ball shows the picture where it stands, front
- * and back apart, instead of a flat panel. Null entries keep the Rig plot; null when no panel is a solid.
+ * and back apart, instead of a flat panel. Any other body (a box, a panel round a corner) keeps its
+ * flat plot, where a wall's columns would fold onto one point of the floor. Null entries keep the
+ * Rig plot; null when no panel is a ball.
  */
 export function solidPlotPoints(rig: Rig, space: UnitSpace | null): (Point | null)[] | null {
   if (!space || space.n !== rig.units.length) return null;
@@ -257,7 +296,7 @@ export function solidPlotPoints(rig: Rig, space: UnitSpace | null): (Point | nul
     const bound: number[] = [];
     for (let u = start; u < start + count; u++) if (space.bound[u]) bound.push(u);
     const at = bound.map((u) => ({ x: space.x[u], y: space.y[u], z: space.z[u] }));
-    if (!isSolid(at)) return;
+    if (!isBall(at)) return;
     const centre = at.reduce((sum, p) => ({ x: sum.x + p.x / at.length, z: sum.z + p.z / at.length }), { x: 0, z: 0 });
     let px = 0, py = 0;
     for (let u = start; u < start + count; u++) { px += rig.points[u].x / count; py += rig.points[u].y / count; }
