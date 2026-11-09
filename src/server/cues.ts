@@ -112,7 +112,7 @@ function captureLook() {
     fixtureIds: state.fixtures.map((f) => f.id),
     overrides: state.fixtures.map((f) => (f.override ? { ...f.override } : null)),
     effectColours: state.effectColours ? structuredClone(state.effectColours) : null,
-    effectParams: state.effectParams ? structuredClone(state.effectParams) : null,
+    ...(state.effectParams ? { effectParams: structuredClone(state.effectParams) } : {}),
     basePalette: state.basePalette ? structuredClone(state.basePalette) : null,
     overridePalette: state.overridePalette ? structuredClone(state.overridePalette) : null,
     paletteOverride: state.paletteOverride ? state.paletteOverride.map(toHex) : null,
