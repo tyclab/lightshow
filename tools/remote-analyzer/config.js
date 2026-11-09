@@ -35,7 +35,7 @@ export function loadConfig(file, { env = process.env, hostname = os.hostname(), 
   const dir = path.dirname(path.resolve(file));
 
   let url;
-  try { url = new URL(raw.server); } catch { throw new Error('server must be the lightshow URL, e.g. http://10.27.2.42:3000'); }
+  try { url = new URL(raw.server); } catch { throw new Error('server must be the lightshow URL, e.g. http://192.0.2.10:3000'); }
   if (!['http:', 'https:'].includes(url.protocol) || url.username || url.password || url.search || url.hash) {
     throw new Error('The server URL must not carry credentials or a query');
   }
@@ -67,7 +67,7 @@ export function loadConfig(file, { env = process.env, hostname = os.hostname(), 
     source: absolute(raw.source, 'source', dir) ?? null,
     image: raw.image ?? null,
     memory, gpuMemory,
-    // GamerTyc's desktop with the party visuals idles at 2.4-3.3 GB of 8; a job peaks at ~3.1 GB more.
+    // A desktop showing the party visuals idled at 2.4-3.3 GB of 8; a job peaks at ~3.1 GB more.
     maxOtherVramMiB: integer(raw.maxOtherVramMiB, 'maxOtherVramMiB', 0, 1 << 20, 4096),
     allowFullscreen: allow.map((app) => app.toLowerCase().replace(/\.exe$/, '')),
     idleStopMin: integer(raw.idleStopMin, 'idleStopMin', 0, 1440, 15),

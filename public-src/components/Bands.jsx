@@ -205,13 +205,9 @@ function BandChannels({ colour, palettes, masked, audio }) {
     const bands = server.map((_, i) => (i === index ? fields({ ...channels[i], ...patch }) : edited[i] ?? null));
     sent.current = send({ effectColours: { pattern, bands } }) ? { pattern, bands, at: Date.now() } : null;
   };
-  const assign = Object.keys(spec.params?.assign || {}).length ? 'Manual' : 'Auto';
   return <>
     <div class="card-title band-title">
       <span>Bands</span>
-      <span class="band-mode" title={`${assign === 'Auto' ? 'Lamps are shared out among the enabled bands' : 'Some lamps keep a band of their own'} · the main effect`}>
-        <span class="band-mode-dot" aria-hidden="true" />{assign}<span class="band-mode-sep"> · </span><span class="band-mode-name">{colour.name}</span>
-      </span>
       {colour.s.effectColours && <button type="button" class="btn sm band-reset" onClick={() => send({ effectColours: null })}>Reset</button>}
     </div>
     {masked && <p class="muted" role="status">{masked}</p>}
@@ -252,7 +248,6 @@ function EffectPalette({ colour, palettes, masked, classic }) {
   return <>
     <div class="card-title band-title">
       <span>Colours</span>
-      <span class="band-mode"><span class="band-mode-dot" aria-hidden="true" />{colour.name}</span>
       {s.effectColours && <button type="button" class="btn sm band-reset" onClick={() => send({ effectColours: null })}>Reset</button>}
     </div>
     {masked && <p class="muted" role="status">{masked}</p>}

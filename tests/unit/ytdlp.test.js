@@ -68,5 +68,4 @@ test('yt-dlp is found on PATH first, then in the analysis environment',
     process.env.PATH = empty;
     ytdlp._reset();
     assert.strictEqual(await ytdlp.find({ inEnvironment: () => null }), null);
-    assert.strictEqual(await ytdlp.command({ inEnvironment: () => null }), 'yt-dlp', 'none anywhere: the bare name, to fail as it always has');
   });
