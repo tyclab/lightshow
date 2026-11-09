@@ -1,5 +1,6 @@
 import type { Rig } from './rig.ts';
 import type { RoomScene } from './room-scene.ts';
+import type { Point } from '../types/rig.ts';
 
 // Room metres: origin at the floor centre, x = width, y = height above the floor, z = depth.
 export interface Vec3 { x: number; y: number; z: number }
@@ -195,3 +196,76 @@ export function roomSpaceOf(list: readonly number[], space: UnitSpace, listenerI
   const listener = named ?? Object.values(space.listeners)[0] ?? { x: 0, y: SEATED, z: 0, facingDeg: 0 };
   return { x, y, z, size, bounds: space.bounds, listener: { ...listener }, anchors: space.anchors };
 }
+
+/** Standard deviations of points along their principal axes, widest first (eigenvalues of the covariance, closed form). */
+export function principalSpreads(points: readonly Vec3[]): [number, number, number] {
+  const n = points.length;
+  if (n < 2) return [0, 0, 0];
+  let mx = 0, my = 0, mz = 0;
+  for (const p of points) { mx += p.x; my += p.y; mz += p.z; }
+  mx /= n; my /= n; mz /= n;
+  let xx = 0, yy = 0, zz = 0, xy = 0, xz = 0, yz = 0;
+  for (const p of points) {
+    const dx = p.x - mx, dy = p.y - my, dz = p.z - mz;
+    xx += dx * dx; yy += dy * dy; zz += dz * dz; xy += dx * dy; xz += dx * dz; yz += dy * dz;
+  }
+  [xx, yy, zz, xy, xz, yz] = [xx, yy, zz, xy, xz, yz].map((v) => v / n);
+  const off = xy * xy + xz * xz + yz * yz, q = (xx + yy + zz) / 3;
+  let values: number[];
+  if (off < 1e-18) values = [xx, yy, zz];
+  else {
+    const p = Math.sqrt(((xx - q) ** 2 + (yy - q) ** 2 + (zz - q) ** 2 + 2 * off) / 6);
+    const [a, b, c] = [(xx - q) / p, (yy - q) / p, (zz - q) / p], [d, e, f] = [xy / p, xz / p, yz / p];
+    const r = Math.max(-1, Math.min(1, (a * (b * c - f * f) - d * (d * c - f * e) + e * (d * f - b * e)) / 2));
+    const phi = Math.acos(r) / 3;
+    const one = q + 2 * p * Math.cos(phi), three = q + 2 * p * Math.cos(phi + (2 * Math.PI) / 3);
+    values = [one, 3 * q - one - three, three];
+  }
+  const [a, b, c] = values.map((v) => Math.sqrt(Math.max(0, v))).sort((u, v) => v - u);
+  return [a, b, c];
+}
+
+// A body at least a quarter as thick as it is wide cannot show a flat picture: a ball does, a panel or a curtain does not.
+const SOLID_RATIO = 0.25;
+const SOLID_CELLS = 4;
+
+/** Whether room positions form a solid (a ball, a lantern) rather than a flat or nearly flat surface. */
+export function isSolid(points: readonly Vec3[]): boolean {
+  if (points.length < SOLID_CELLS) return false;
+  const [wide, , thin] = principalSpreads(points);
+  return wide > 1e-6 && thin >= SOLID_RATIO * wide;
+}
+
+const solidMemo = new WeakMap<UnitSpace, { rig: Rig; points: (Point | null)[] | null }>();
+
+/**
+ * The plot points the room picture samples for the cells of a panel the room places as a solid (a
+ * WLED ball): each bound cell sits at the fixture's plot centre plus its room offset from the
+ * cells' centre, across and along the floor, so the ball shows the picture where it stands, front
+ * and back apart, instead of a flat panel. Null entries keep the Rig plot; null when no panel is a solid.
+ */
+export function solidPlotPoints(rig: Rig, space: UnitSpace | null): (Point | null)[] | null {
+  if (!space || space.n !== rig.units.length) return null;
+  const memo = solidMemo.get(space);
+  if (memo && memo.rig === rig) return memo.points;
+  let points: (Point | null)[] | null = null;
+  rig.fixtures.forEach((_, i) => {
+    if (!rig.grids[i]) return;
+    const { start, count } = rig.ranges[i];
+    const bound: number[] = [];
+    for (let u = start; u < start + count; u++) if (space.bound[u]) bound.push(u);
+    const at = bound.map((u) => ({ x: space.x[u], y: space.y[u], z: space.z[u] }));
+    if (!isSolid(at)) return;
+    const centre = at.reduce((sum, p) => ({ x: sum.x + p.x / at.length, z: sum.z + p.z / at.length }), { x: 0, z: 0 });
+    let px = 0, py = 0;
+    for (let u = start; u < start + count; u++) { px += rig.points[u].x / count; py += rig.points[u].y / count; }
+    const clamp = (v: number) => Math.min(100, Math.max(0, v));
+    points ??= new Array(rig.units.length).fill(null);
+    for (const u of bound) {
+      points[u] = { x: clamp(px + (100 * (space.x[u] - centre.x)) / space.bounds.width), y: clamp(py + (100 * (space.z[u] - centre.z)) / space.bounds.depth) };
+    }
+  });
+  solidMemo.set(space, { rig, points });
+  return points;
+}
+
