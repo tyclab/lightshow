@@ -484,7 +484,7 @@ test("voice requests name exactly one effect or preset", () => {
   assert.throws(() => launchOf({}, builtinPresets), (err) => err.status === 400);
   assert.throws(() => launchOf({ effect: FADE, preset: 'blinder' }, builtinPresets), (err) => err.status === 400);
   assert.throws(() => launchOf({ preset: 'no-such' }, builtinPresets), (err) => err.status === 400);
-  assert.throws(() => launchOf({ preset: 'chase' }, builtinPresets), (err) => err.status === 400, 'a legacy pattern is no effect');
+  assert.throws(() => launchOf({ preset: 'strobe' }, builtinPresets), (err) => err.status === 400, 'a legacy pattern is no effect');
   assert.throws(() => launchOf({ effect: { kind: 'ldj.FadeCycle', params: { cadence: 'fast' } } }, builtinPresets),
     (err) => err.status === 400);
   const blinder = launchOf({ preset: 'blinder' }, builtinPresets);

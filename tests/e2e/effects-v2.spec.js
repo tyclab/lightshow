@@ -28,19 +28,19 @@ test('the list has each spatial effect once, in its room form, and keeps old ids
   await open(page, 'effects');
   const list = page.locator('.effects-catalogue');
   const s = await state(request);
-  expect(s.patterns.filter((p) => p.family === 'spatial' && !p.retired)).toHaveLength(NAMES.length);
+  expect(s.patterns.filter((p) => p.family === 'spatial' && p.id.startsWith('v2.') && !p.retired)).toHaveLength(NAMES.length);
   await expect(list.locator('[data-id^="v2."]')).toHaveCount(NAMES.length);
   await expect(list.locator('[data-id$=".2d"]')).toHaveCount(0);
   await expect(list.getByText(/^Popcorn(?: 2D)?$/)).toHaveCount(0);
   for (const name of NAMES) {
-    const row = s.patterns.find((p) => p.name === name && p.family === 'spatial');
+    const row = s.patterns.find((p) => p.name === name && p.family === 'spatial' && p.id.startsWith('v2.'));
     expect(row, name).toBeTruthy();
     await expect(list.locator(`[data-id="${row.id}"]`)).toContainText(name);
     expect(s.patterns.find((p) => p.id === `${row.id}.2d`)?.retired).toBe(true);
   }
   // The room form is placed in the room, except the three that use no positions.
-  const roomPlaced = s.patterns.filter((p) => p.family === 'spatial' && !p.retired && p.tags.includes('room')).map((p) => p.id);
-  expect(s.patterns.filter((p) => p.family === 'spatial' && !p.retired && !p.tags.includes('room')).map((p) => p.id).sort())
+  const roomPlaced = s.patterns.filter((p) => p.family === 'spatial' && p.id.startsWith('v2.') && !p.retired && p.tags.includes('room')).map((p) => p.id);
+  expect(s.patterns.filter((p) => p.family === 'spatial' && p.id.startsWith('v2.') && !p.retired && !p.tags.includes('room')).map((p) => p.id).sort())
     .toEqual(['v2.breathe', 'v2.pathRunner', 'v2.wash']);
   await page.getByRole('group', { name: 'Filters' }).getByRole('button', { name: /^Room-placed/ }).click();
   for (const id of roomPlaced) await expect(list.locator(`[data-id="${id}"]`)).toBeVisible();

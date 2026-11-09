@@ -25,7 +25,8 @@ for (const id of ['party.fire', 'party.ice']) {
     const seed = seedFrom(id), stepper = new EffectStepper();
     const instance = { id, spec, seed, anchorBeat: 0, startedAtMs: 0, targets: null };
     let previous = null, peak = 0, largestStep = 0;
-    for (let nowMs = 0; nowMs <= spec.params.loopLength * 300; nowMs += 20) {
+    // A complete loop of the hd form, or 48 beats of a v2 form with no loop of its own.
+    for (let nowMs = 0; nowMs <= (spec.params.loopLength ?? 48) * 300; nowMs += 20) {
       const frame = { beatPos: nowMs / 150, bpm: 400, nowMs, dtMs: 20, anchorBeat: 0, lookPalette: [{ r: 255 }], paletteOverride: null,
         audio: null, audioMode: 'reactive', master: HD_MASTER_DEFAULTS, seed, acknowledged: false, hueStrobe: 'flash' };
       const out = Array.from({ length: room.n }, () => ({ colour: {}, level: 0, strength: 0 }));
