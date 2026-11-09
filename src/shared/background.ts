@@ -1,17 +1,23 @@
 import { z } from 'zod';
 import { colourMixer } from './color.ts';
+import { FADE_FLOOR } from './look-math.ts';
+import { parseHex } from './palette-model.ts';
 import type { Colour } from '../types/rig.ts';
 
 const channel = z.number().int().min(0).max(255);
 export const BACKGROUND_FIXTURES = ['rig', 'wash', 'selected'] as const;
 export type BackgroundFixtures = typeof BACKGROUND_FIXTURES[number];
 const fixtureId = z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER - 1);
-// `fixtures` absent is the whole rig; storedBackground keeps the scope fields only while they are in use.
+// What Follow puts in the main effect's gaps: nothing (as authored), a glow at the Fade floor, or its colour as Fixed fills.
+export const FOLLOW_FILLS = ['off', 'glow', 'full'] as const;
+export type FollowFill = typeof FOLLOW_FILLS[number];
+// `fixtures` absent is the whole rig and `followFill` absent is off: storedBackground keeps them only while in use.
 export const backgroundSchema = z.object({
   version: z.literal(1), mode: z.enum(['follow', 'fixed', 'off']), level: z.number().min(0).max(1),
   colour: z.object({ r: channel, g: channel, b: channel, w: channel, a: channel, uv: channel }).strict(),
   fixtures: z.enum(BACKGROUND_FIXTURES).optional(),
   selected: z.array(fixtureId).max(1024).refine((ids) => new Set(ids).size === ids.length, 'a fixture is selected twice').optional(),
+  followFill: z.enum(FOLLOW_FILLS).optional(),
 }).strict();
 export type BackgroundSettings = z.infer<typeof backgroundSchema>;
 export const DEFAULT_BACKGROUND: BackgroundSettings = {
@@ -28,6 +34,10 @@ export const DEFAULT_BACKGROUND: BackgroundSettings = {
  * strobe rests, Kill): owned, never the look beneath (bundle.ts).
  */
 export interface BackgroundField { colour: Colour; level: number; fullLevel?: number; coverage: number; dark?: boolean }
+/** The setting as the renderer applies it: Follow also carries the main effect's palette colour for the gaps. */
+export type BackgroundUse = BackgroundSettings & { followColour?: Colour };
+// Glow fills a gap with the effect's colour at the floor a classic Fade rests on, times the Follow level.
+export const FOLLOW_FLOOR = FADE_FLOOR / 255;
 export interface BackgroundLight { colour: Colour; level: number }
 export const DARK_BACKGROUND: Colour = Object.freeze({ r: 0, g: 0, b: 0, w: 0, a: 0, uv: 0 });
 export const ambient = (colour: Colour, level: number, coverage = 1, fullLevel = coverage > 0 ? level / coverage : 0): BackgroundField => ({ colour, level, fullLevel, coverage });
@@ -50,9 +60,10 @@ export function baseGap(level: number, whole = false): BackgroundField | undefin
   return step < 255 || whole ? BASE_GAPS[step] : undefined;
 }
 
-/** The setting as stored and sent: no whole-rig scope and no unused pick, so a build without scopes still reads it. */
+/** The setting as stored and sent: no whole-rig scope, no unused pick and no fill that is off, so a build without them still reads it. */
 export function storedBackground(settings: BackgroundSettings): BackgroundSettings {
-  const { fixtures, selected, ...rest } = settings;
+  const { fixtures, selected, followFill, ...used } = settings;
+  const rest = followFill && followFill !== 'off' ? { ...used, followFill } : used;
   return fixtures === 'wash' ? { ...rest, fixtures } : fixtures === 'selected' ? { ...rest, fixtures, selected: [...selected ?? []] } : rest;
 }
 
@@ -69,16 +80,43 @@ export function backgroundScope(settings: BackgroundSettings | undefined, cellMa
 // A colour with no emitter lit: as a Fixed colour it adds no light, or a lamp without colour channels would show its level.
 const unlit = (colour: Colour): boolean => !(Math.max(colour.r, colour.g, colour.b, colour.w ?? 0, colour.a ?? 0, colour.uv ?? 0) > 0);
 
-export function backgroundLight(field: BackgroundField | undefined, settings = DEFAULT_BACKGROUND, stopped = false): BackgroundLight {
+/** The colour Follow fills gaps with: the palette override's first while it plays, else the main effect's own first, else the look's. */
+export function followColourOf(spec: { palette?: readonly unknown[] | null } | null | undefined, override: readonly Colour[] | null | undefined,
+  look: Colour): Colour {
+  if (override?.length) return override[0];
+  const own = spec?.palette?.find((entry): entry is string => typeof entry === 'string');
+  return own ? parseHex(own) : look;
+}
+
+export function withFollow(settings: BackgroundSettings | undefined, followColour: Colour): BackgroundUse {
+  return { ...(settings ?? DEFAULT_BACKGROUND), followColour };
+}
+
+/** Whether the setting fills the main effect's gaps at all: Follow with its fill on. */
+export function followFilling(settings: BackgroundSettings | undefined): boolean {
+  return settings?.mode === 'follow' && !!settings.followFill && settings.followFill !== 'off';
+}
+
+/** A gap Follow fills: a field that authors no bed (no level now or at full) and is no dark cue, with some of the slot uncovered. */
+export function followFills(field: BackgroundField | undefined, settings: BackgroundUse | undefined): boolean {
+  return !!settings?.followColour && followFilling(settings) && !!field && !field.dark && field.coverage > 0
+    && !(field.level > 0) && !((field.fullLevel ?? 0) > 0);
+}
+
+export function backgroundLight(field: BackgroundField | undefined, settings: BackgroundUse = DEFAULT_BACKGROUND, stopped = false): BackgroundLight {
   if (settings.mode === 'off' || (field?.dark && !stopped)) return { colour: DARK_BACKGROUND, level: 0 };
   if (settings.mode === 'fixed') return { colour: settings.colour, level: unlit(settings.colour) ? 0 : settings.level * (stopped ? 1 : field?.coverage ?? 0) };
+  if (followFills(field, settings)) {
+    const share = settings.followFill === 'glow' ? FOLLOW_FLOOR : 1;
+    return { colour: settings.followColour!, level: share * settings.level * (stopped ? 1 : field!.coverage) };
+  }
   return { colour: field?.colour ?? DARK_BACKGROUND, level: (stopped ? field?.fullLevel ?? field?.level ?? 0 : field?.level ?? 0) * settings.level };
 }
 
 export function composeBackground(colour: Colour, level: number, field?: BackgroundField,
-  settings = DEFAULT_BACKGROUND, stopped = false): BackgroundLight {
+  settings: BackgroundUse = DEFAULT_BACKGROUND, stopped = false): BackgroundLight {
   if (stopped) return backgroundLight(field, settings, true);
-  if (!field || (settings.mode === 'follow' && settings.level === 1)) return { colour, level };
+  if (!field || (settings.mode === 'follow' && settings.level === 1 && !followFills(field, settings))) return { colour, level };
   const below = backgroundLight(field, settings);
   const combined = Math.max(0, level - field.level) + below.level;
   if (!(combined > 0)) return { colour: DARK_BACKGROUND, level: 0 };
