@@ -364,6 +364,37 @@ test('the engine plays the loaded sequence from the sequencer the server registe
   assert.equal((await sendControl(s.call, 'start', 'sequence')).status, 409);
 });
 
+test('switching from the sequence to the look while it plays shows the look at once; pads, Freeze and Blackout stay', async (t) => {
+  const s = await serve(t);
+  const artnet = state.artnet.enabled;
+  state.artnet.enabled = false;   // nothing leaves this machine
+  t.after(async () => { voices.stopAll(); await stopEngine(); state.artnet.enabled = artnet; });
+  applyPatch({ pattern: 'solid', colorA: 0, masterDimmer: 255, masterBlackout: false });
+  const first = state.fixtures[0];
+  const lit = (channel) => () => {
+    const ch = getProfile(first).channelMap;
+    const dmx = universes.getBuffer(first.universe ?? state.artnet.universe);
+    return dmx[first.address - 1 + ch[channel]] === 255 && dmx[first.address - 1 + ch[channel === 'red' ? 'green' : 'red']] === 0;
+  };
+  await s.call('PUT', '/api/sequence', { ...SET, clips: [clip('G', 0, 1e6, { kind: 'ldj.MatrixSolid', params: { cadence: 1, beats: 32 }, palette: ['#00FF00'] })] });
+  startEngine({ thread: 'main' });
+  await sendControl(s.call, 'start', 'sequence');
+  assert.ok(await until(lit('green'), 1000), 'the sequence plays');
+  // A pad over the programme: Stop would clear it, a switch leaves it.
+  const pad = voices.start({ spec: { kind: 'energy.glow', params: {} }, targets: [999_999], mode: 'latched', tier: 'voice', source: 'api' });
+  let res = await sendControl(s.call, 'select', 'look');
+  assert.deepEqual([res.status, res.body.control.programme, res.body.control.playing], [200, 'look', true]);
+  assert.ok(await until(lit('red'), 1000), 'the look shows at once: the sequence lets its picture go');
+  assert.equal(renderInput().sequenceTransport, null);
+  assert.ok(voices.list().some((v) => v.id === pad.id), 'the pad plays on');
+  assert.deepEqual([res.body.control.frozen, res.body.control.blackout], [false, false]);
+  res = await sendControl(s.call, 'start', 'sequence');
+  assert.deepEqual([res.status, res.body.control.programme], [200, 'sequence']);
+  assert.ok(await until(lit('green'), 1000), 'and back to the sequence, from the top');
+  assert.equal(getLiveState().sequence.playing, true);
+  await sendControl(s.call, 'stop');
+});
+
 test('explicit sequence Start and Stop own the free clock', async (t) => {
   const s = await serve(t);
   t.after(() => applyPatch({ running: true }));

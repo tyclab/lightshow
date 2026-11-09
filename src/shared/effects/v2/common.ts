@@ -36,7 +36,8 @@ export const v2CommonSchema = z.object({
   // 'step' takes the next palette colour every trigger interval, as the classic looks did on every step.
   colour: z.enum(['along', 'time', 'solid', 'step']).default('along'),
   background: unit.default(0),
-  backgroundColour: z.string().regex(/^#[0-9a-fA-F]{6}$/).default('#FFFFFF'),
+  // 'palette' floors in the look's last colour, as the classic looks' beds did; a hex fixes it.
+  backgroundColour: z.union([z.string().regex(/^#[0-9a-fA-F]{6}$/), z.literal('palette')]).default('palette'),
 });
 export type V2Common = z.output<typeof v2CommonSchema>;
 
@@ -143,7 +144,9 @@ export function soft(distance: number, width: number, size: number): number {
 }
 
 const backgroundColours = new WeakMap<V2Common, { hex: string; colour: Colour }>();
-function backgroundColour(common: V2Common): Colour {
+const WHITE: Colour = Object.freeze({ r: 255, g: 255, b: 255, w: 0, a: 0, uv: 0 });
+function backgroundColour(common: V2Common, frame: EffectFrame): Colour {
+  if (common.backgroundColour === 'palette') return frame.palette.at(-1) ?? WHITE;
   let cached = backgroundColours.get(common);
   if (!cached || cached.hex !== common.backgroundColour) {
     cached = { hex: common.backgroundColour, colour: parseHex(common.backgroundColour) };
@@ -179,7 +182,7 @@ export function paint(common: V2Common, frame: EffectFrame, position01: number, 
   const background = common.background * (1 - foreground);
   const lit = foreground + background;
   // Without an authored floor the uncovered share is a gap, published only when the effect reveals it; strobe rests stay dark.
-  out.background = common.background > 0 || (frame.revealGaps !== false && !restsDark(frame.spec)) ? { colour: backgroundColour(common), level: background,
+  out.background = common.background > 0 || (frame.revealGaps !== false && !restsDark(frame.spec)) ? { colour: backgroundColour(common, frame), level: background,
     fullLevel: common.background, coverage: 1 - foreground, dark: foreground === 0 && requiresAcknowledgement(frame.spec) } : undefined;
   if (!(lit > 0)) {
     out.colour = { r: 0, g: 0, b: 0, w: 0, a: 0, uv: 0 };
@@ -190,7 +193,7 @@ export function paint(common: V2Common, frame: EffectFrame, position01: number, 
   }
   const colour = frame.gradient?.sample(pos) ?? samplePalette(frame.palette, pos);
   if (background > 0) {
-    const base = backgroundColour(common);
+    const base = backgroundColour(common, frame);
     const mix = (a = 0, b = 0) => (a * foreground + b * background) / lit;
     out.colour = { r: mix(colour.r, base.r), g: mix(colour.g, base.g), b: mix(colour.b, base.b),
       w: mix(colour.w, base.w), a: mix(colour.a, base.a), uv: mix(colour.uv, base.uv) };
