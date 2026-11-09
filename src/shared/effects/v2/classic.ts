@@ -1,6 +1,9 @@
 // Classic and party pattern ids that play a v2 preset instead of their pattern function, each with the
 // reason it moved. The operator decides each move by A/B test on the rig; every other classic id keeps its function.
-export const CLASSIC_REDIRECTS: Readonly<Record<string, string>> = Object.freeze({});
+export const CLASSIC_REDIRECTS: Readonly<Record<string, string>> = Object.freeze({
+  plasma: 'Clouds on the v2 engine (option C), merged only once the operator chose B in A/B migration.plasma',
+  fire: 'Clouds on the v2 engine (option C), merged only once the operator chose B in A/B migration.fire',
+});
 
 // The classic and party looks on the v2 engine: for each id, the v2 spec closest to its own pattern on the
 // diff rig (scripts/effects-v2-alias-diff.js --classic) and that diff as [largest channel, mean absolute
@@ -19,9 +22,9 @@ export interface ClassicLook {
 
 export const CLASSIC_V2: Readonly<Record<string, ClassicLook>> = {
   // Clouds
-  plasma: { family: 'Clouds', name: 'Plasma', pixel: true, diff: [237, 34.49, 129],
+  plasma: { family: 'Clouds', name: 'Plasma', desc: 'Slow clouds in the look\'s colours drifting through the plot', pixel: true, diff: [237, 34.49, 129],
     spec: { kind: 'v2.noise', params: { space: 'plan', scaleM: 0.5, speed: 0.05, cutoff: 0 } } },
-  fire: { family: 'Clouds', name: 'Fire', pixel: true, diff: [255, 10.24, 129],
+  fire: { family: 'Clouds', name: 'Fire', desc: 'Flames in the look\'s colours rising and drifting through the plot', pixel: true, diff: [255, 10.24, 129],
     spec: { kind: 'v2.noise', params: { space: 'plan', shape: 'fire', scaleM: 2, speed: 0.2, contrast: 1.6, cutoff: 0.2 } } },
   // Particles
   fireworks: { family: 'Particles', name: 'Fireworks', diff: [255, 58.485, 129],
