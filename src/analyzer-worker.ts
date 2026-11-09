@@ -36,7 +36,7 @@ interface WorkerReply {
 // A worker started for this request loads its models inside the request's limit.
 const WARM_UP_MS = 60000;
 
-// Analysis time grows with the audio: tychome's CPU took 1034 s for a 900 s track.
+// Analysis time grows with the audio: a 16 GB CPU server took 1034 s for a 900 s track.
 export function analysisTimeoutMs(floorMs: number, msPerAudioSec: number, durationSec: number | null | undefined): number {
   if (!(msPerAudioSec > 0) || typeof durationSec !== 'number' || !Number.isFinite(durationSec) || durationSec <= 0) {
     return floorMs;

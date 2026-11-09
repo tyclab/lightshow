@@ -21,6 +21,8 @@ export interface ControlHooks {
   validateStart: (programme: Programme) => void;
   paused?: () => boolean;
   start: (programme: Programme) => void;
+  /** Ends the programme playing and starts `programme` in its place; pads, Freeze and Blackout stay. */
+  switchTo: (programme: Programme) => void;
   stop: () => void;
   changed: () => void;
   frame: () => Promise<void>;
@@ -74,17 +76,18 @@ export class GlobalControl {
     }
     const programme = request.programme === undefined ? this.programme : request.programme as Programme;
     if (!PROGRAMMES.has(programme)) throw new HttpError(400, 'Unknown programme');
-    if ((action === 'select' || action === 'start') && this.playing && programme !== this.programme) {
-      throw refusal('Stop the current programme before choosing another one.', 'programme_running');
-    }
-    if (action === 'start') hooks.validateStart(programme);
+    const switching = (action === 'select' || action === 'start') && this.playing && programme !== this.programme;
+    if (action === 'start' || switching) hooks.validateStart(programme);
     const revision = ++this.revision;
     this.fault = null;
     try {
       switch (action) {
-        case 'select': this.programme = programme; break;
+        case 'select':
+          if (switching) hooks.switchTo(programme);
+          this.programme = programme; break;
         case 'start':
-          if (!this.playing || hooks.paused?.()) hooks.start(programme);
+          if (switching) hooks.switchTo(programme);
+          else if (!this.playing || hooks.paused?.()) hooks.start(programme);
           this.programme = programme; this.playing = true; break;
         case 'stop': this.playing = false; hooks.stop(); break;
         case 'freeze': this.frozen = true; break;

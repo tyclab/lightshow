@@ -1,6 +1,5 @@
 // The look kept for a restart (src/server/look-store.ts): what is saved and
-// when, what is put back — never an energy effect — and where a show on its
-// own clock has got to.
+// when, and what is put back — never an energy effect.
 
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -8,7 +7,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 
-import { LookStore, currentLook, putBack, resumeAt } from '../../src/server/look-store.ts';
+import { LookStore, currentLook, putBack } from '../../src/server/look-store.ts';
 import { state } from '../../src/server/state.ts';
 import { applyPatch, applyOverride } from '../../src/server/patch.ts';
 import { setEffectSource, stopEngine } from '../../src/server/engine.ts';
@@ -25,34 +24,31 @@ function place(t) {
   return path.join(dir, 'look.json');
 }
 
-const show = (over = {}) => ({
-  running: true, analysisKey: 'file:/music/a.wav:1:2', track: { name: 'A', artist: 'B' }, getPositionMs: () => 61_234.6, ...over,
-});
-
-test('the look now: what a cue captures, and the auto show when it is running', () => {
+test('the look now: what a cue captures, and nothing of the auto show', () => {
   applyPatch({ pattern: 'solid', colorA: 3, masterDimmer: 200 });
-  const idle = currentLook(null);
-  assert.equal(idle.look.pattern, 'solid');
-  assert.equal(idle.look.colorA, 3);
-  assert.equal(idle.auto, null);
-  assert.equal(currentLook(show({ running: false })).auto, null, 'a stopped show is not resumed');
-
-  const timer = currentLook(show(), 'timer').auto;
-  assert.deepEqual(timer, { running: true, key: 'file:/music/a.wav:1:2', track: { name: 'A', artist: 'B' }, source: 'timer', positionMs: 61_235 });
-  assert.equal(currentLook(show(), 'spotify').auto.positionMs, null, 'a player-driven show follows the player');
+  const now = currentLook();
+  assert.equal(now.look.pattern, 'solid');
+  assert.equal(now.look.colorA, 3);
+  assert.deepEqual(Object.keys(now), ['look'], 'no auto show position that changes on every save');
 });
 
 test('saved when it changes, read back, and a file that is not a look is moved aside', (t) => {
   const file = place(t);
   const store = new LookStore(file);
   assert.equal(store.load(), undefined, 'nothing saved yet');
-  const look = currentLook(show(), 'spotify');
+  const look = currentLook();
   assert.equal(store.save(look), true);
-  assert.equal(store.save(look), false, 'unchanged, not written again');
+  assert.equal(store.save(currentLook()), false, 'unchanged, not written again');
   const saved = new LookStore(file).load();
   assert.deepEqual(saved.look, look.look);
-  assert.deepEqual(saved.auto, look.auto);
+  assert.equal('auto' in saved, false);
   assert.ok(Date.parse(saved.savedAt) <= Date.now());
+  applyPatch({ colorA: (state.colorA + 1) % 4 });
+  assert.equal(store.save(currentLook()), true, 'a changed look is written');
+
+  // A file from a build that still wrote the auto show's block loads as before.
+  fs.writeFileSync(file, JSON.stringify({ ...saved, auto: { running: true, key: 'k', track: null, source: 'timer', positionMs: 5 } }));
+  assert.deepEqual(new LookStore(file).load().look, saved.look);
 
   t.mock.method(console, 'warn', () => {});
   fs.writeFileSync(file, JSON.stringify({ look: { pattern: 7 } }));
@@ -66,7 +62,7 @@ test('put back: the look and its overrides, but never an energy effect', (t) => 
   const id = state.fixtures[0].id;
   applyPatch({ pattern: 'chase', colorB: 5, masterBlackout: false, energyOverride: 'white-strobe', paletteOverride: ['#FF0000'] });
   applyOverride(id, { enabled: true, r: 255, g: 0, b: 0, w: 0, a: 0, uv: 0, dim: 255, strobe: 0, blackout: false });
-  const saved = { savedAt: new Date().toISOString(), ...currentLook(null) };
+  const saved = { savedAt: new Date().toISOString(), ...currentLook() };
   assert.equal(saved.look.energyOverride, 'white-strobe');
 
   applyPatch({ pattern: 'solid', colorB: 1, energyOverride: null, paletteOverride: null });
@@ -84,7 +80,7 @@ test('put back: the look and its overrides, but never an energy effect', (t) => 
 // A cue recall leaves the transport alone; the restart record is the stage as it was.
 test('put back: a show frozen at save time comes back frozen', () => {
   applyPatch({ pattern: 'chase', running: false });
-  const saved = { savedAt: new Date().toISOString(), ...currentLook(null) };
+  const saved = { savedAt: new Date().toISOString(), ...currentLook() };
   assert.equal(saved.look.running, false);
 
   applyPatch({ pattern: 'solid', running: true });
@@ -99,7 +95,7 @@ test('put back: a show frozen at save time comes back frozen', () => {
 test('put back leaves the audio mode and the strobe\'s settings as they are saved', (t) => {
   const values = settings._values;
   t.after(() => { settings._values = values; });
-  const saved = { savedAt: new Date().toISOString(), ...currentLook(null) };
+  const saved = { savedAt: new Date().toISOString(), ...currentLook() };
   saved.look = { ...saved.look, audioMode: values.audio.mode === 'off' ? 'reactive' : 'off', strobe: { ...values.strobe, flashesPerSecond: 5 } };
   settings.save = () => assert.fail('nothing is written');
   try {
@@ -109,15 +105,6 @@ test('put back leaves the audio mode and the strobe\'s settings as they are save
   }
   assert.equal(settings.get('audio.mode'), values.audio.mode);
   assert.deepEqual(settings.group('strobe'), values.strobe);
-});
-
-test('a show on its own clock resumes where the music has got to', () => {
-  const savedAt = new Date(10_000).toISOString();
-  const saved = (auto) => ({ savedAt, look: {}, auto });
-  assert.equal(resumeAt(saved({ positionMs: 60_000 }), 13_500), 63_500, 'saved, plus the time since');
-  assert.equal(resumeAt(saved({ positionMs: null })), null);
-  assert.equal(resumeAt(saved(null)), null);
-  assert.equal(resumeAt(saved({ positionMs: 5000 }), 9000), 5000, 'a clock that went backwards adds nothing');
 });
 
 // A restart must come up whatever it finds. An effect that waits for the
@@ -138,7 +125,7 @@ test('restoring a look leaves guarded effects off', (t) => {
   const warn = t.mock.method(console, 'warn', () => {});
   applyPatch({ pattern: 'chase', colorB: 2, masterBlackout: false });
   applyOverride(id, null);
-  const saved = { savedAt: new Date().toISOString(), ...currentLook(null) };
+  const saved = { savedAt: new Date().toISOString(), ...currentLook() };
   const blackedOut = { enabled: true, r: 0, g: 0, b: 0, w: 0, a: 0, uv: 0, dim: 0, strobe: 0, blackout: true };
   saved.look = {
     ...saved.look, pattern: 'ldj.visualizer.flash', colorB: 6, masterBlackout: true,
@@ -173,7 +160,7 @@ test('a guarded saved effect drops its colour edit while restoring Blackout and 
   const background = { version: 1, mode: 'fixed', level: .4,
     colour: { r: 12, g: 34, b: 56, w: 78, a: 90, uv: 11 } };
   applyPatch({ pattern: 'chase', masterBlackout: false, background: { ...background, mode: 'off' } });
-  const saved = { savedAt: new Date().toISOString(), ...currentLook(null) };
+  const saved = { savedAt: new Date().toISOString(), ...currentLook() };
   saved.look = { ...saved.look, pattern: 'v2.scatterStrobe', masterBlackout: true, background,
     effectColours: { pattern: 'v2.scatterStrobe', palette: { colours: ['#FF0000', '#00BFFF'] }, mode: 'along' } };
 
