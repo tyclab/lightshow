@@ -414,8 +414,12 @@ generators. Open an effect's editor to choose its
 Wash, Breathe, strip-path/random stepping, technology/group zones, independent
 random pixels and all-lamp strobing have no mapping switch: moving their positions
 does not change the effect. The switch appears if edited settings make positions
-matter. Colour, timing and shape controls come first; **Advanced** holds geometry,
-modulation and output settings. Switching a built-in's mapping makes that variant
+matter. Every setting of the twelve generators and the strobe has a label, a range
+and a place (`src/shared/effects/controls.ts`): each effect's own variables come
+first (a wave's Shape, Heading, Width and Speed; a wall's Driven by, Length and
+Direction), **Advanced** holds geometry, modulation and output settings, and a
+setting the chosen shape does not read is hidden (a crossing wave shows no wall
+length; a steady wash no depth). Switching a built-in's mapping makes that variant
 ready to Play without saving a copy. Other draft edits are preserved and can be
 auditioned or saved as usual.
 
