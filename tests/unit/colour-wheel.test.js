@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { insertStop, moveStop, onWheel, ordinal, rangePath, readableOn, removeStop, stopAt, stopPlace, stopsPath, unitsOf, wheelPick, wheelPlace }
+import { insertStop, moveStop, onWheel, ordinal, rangePath, readableOn, removeStop, stopAt, stopsPath, unitsOf, wheelPick, wheelPlace }
   from '../../src/shared/colour-wheel.ts';
 import { colourHsv } from '../../src/shared/colour-sliders.ts';
 import { MAX_BAND_STOPS, toDegrees } from '../../src/shared/effects/band-colour.ts';
@@ -39,7 +39,6 @@ test('dragging a colour sets its hue and saturation and keeps its brightness and
   const { hue, saturation } = colourHsv(stopAt('#FFFFFF', 300, 0.25));
   near(Math.round(hue), 300, 'hue');
   near(Math.round(saturation), 25, 'saturation');
-  assert.deepEqual(stopPlace('#80FFFF'), wheelPlace(180, colourHsv('#80FFFF').saturation / 100));
 });
 
 test('adding appends the next colour, up to eight; removing keeps one; reordering moves only the one', () => {
@@ -58,7 +57,7 @@ test('adding appends the next colour, up to eight; removing keeps one; reorderin
 });
 
 test('the sequence path joins the colours in order', () => {
-  const places = ['#FF0000', '#00FFFF', '#80FFFF'].map(stopPlace);
+  const places = ['#FF0000', '#00FFFF', '#80FFFF'].map((hex) => wheelPlace(colourHsv(hex).hue, colourHsv(hex).saturation / 100));
   // #80FFFF is cyan at 127/255 saturation: just inside the half-way ring.
   assert.equal(stopsPath(places), 'M 0 50 L 100 50 L 74.902 50');
   assert.equal(stopsPath(places.slice().reverse()), 'M 74.902 50 L 100 50 L 0 50', 'another order is another path');

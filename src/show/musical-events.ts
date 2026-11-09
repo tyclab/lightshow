@@ -178,27 +178,10 @@ function byType(events: readonly ShowEvent[]): Map<string, ShowEvent[]> {
   return map;
 }
 
-function inSpan(spans: readonly ShowEvent[], t: number, marginBefore = 0, marginAfter = 0): boolean {
-  for (const span of spans) {
-    const end = span.data && span.data.end != null ? span.data.end as number : span.t + span.duration;
-    if (t >= span.t - marginBefore && t <= end + marginAfter) return true;
-  }
-  return false;
-}
-
-function nearAny(events: readonly ShowEvent[], t: number, window: number): boolean {
-  for (const event of events) {
-    if (Math.abs(event.t - t) <= window) return true;
-  }
-  return false;
-}
-
 export {
   EVENT,
   deriveEvents,
   synthesise,
   normalise,
   byType,
-  inSpan,
-  nearAny,
 };

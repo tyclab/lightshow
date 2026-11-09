@@ -58,7 +58,7 @@ async function harness(t, { answer = (job) => ({ result: { schemaVersion: '2.2',
   };
   const hold = { held: 0, acquire() { this.held++; state.holds.push('on'); }, release() { if (this.held) { this.held--; state.holds.push('off'); } } };
   const config = {
-    server: { origin, base: origin, socketPath: '/socket.io' }, token: TOKEN, name: 'gamertyc', dataDir,
+    server: { origin, base: origin, socketPath: '/socket.io' }, token: TOKEN, name: 'stage-pc', dataDir,
     gpuMemory: 'auto', maxOtherVramMiB: 3072, allowFullscreen: ['chrome'], idleStopMin: 15,
   };
   const logs = [];
@@ -82,7 +82,7 @@ test('the agent prepares the server\'s analysis, then analyses a job end to end'
   const h = await harness(t);
   await until(() => h.pool.idleWorker());
   const worker = h.pool.status().workers[0];
-  assert.deepEqual([worker.name, worker.version, worker.compatible, worker.device.kind], ['gamertyc', VERSION, true, 'cuda']);
+  assert.deepEqual([worker.name, worker.version, worker.compatible, worker.device.kind], ['stage-pc', VERSION, true, 'cuda']);
   const handle = h.pool.run(h.pool.idleWorker(), h.request);
   const document = await handle.result;
   assert.equal(document.bytes, 3000, 'the audio arrived whole');
