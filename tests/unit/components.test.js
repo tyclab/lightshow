@@ -356,13 +356,13 @@ test('Effects lists every look once, A to Z, each with the tags its code states'
   // The badges: what a look reacts to and from where, its surface, colours and use.
   assert.deepStrictEqual(badgesOf(rowOf(html, 'v2.impact')), ['Bands & drums · live', 'Room-placed']);
   assert.deepStrictEqual(badgesOf(rowOf(html, 'v2.stemsSpace')), ['Bands & drums · track + live', 'Room-placed']);
-  assert.deepStrictEqual(badgesOf(rowOf(html, 'volume-gate')), ['Audio level · track']);
+  assert.deepStrictEqual(badgesOf(rowOf(html, 'v2.volumeGateWash')), ['Audio level · live', 'Room-placed']);
   assert.deepStrictEqual(badgesOf(rowOf(html, 'gradient')), ['Beat only', 'Bars & panels']);
   assert.deepStrictEqual(badgesOf(rowOf(html, 'v2.visualizerFlow')), ['Screen · screen', 'Room-placed']);
   assert.deepStrictEqual(badgesOf(rowOf(html, 'chase')), ['Beat only']);
   assert.deepStrictEqual(badgesOf(rowOf(html, 'energy.whiteStrobe')), ['Beat only', 'Whole rig', 'Own colours', 'Energy', 'Rapid ⚡']);
   assert.match(rowOf(html, 'v2.impact'), /title="Follows stems, drum hits or frequency bands\. Reacts in the reactive audio mode with live input"/);
-  assert.match(rowOf(html, 'radial-pulse'), /title="[^"]*Reacts only while the auto show plays an analysed track; picked by hand it runs on its clock"/);
+  assert.match(rowOf(html, 'v2.risingWall'), /title="[^"]*Reacts only while the auto show plays an analysed track; picked by hand it runs on its clock"/);
   // A rapid flash carries its warning, its ⚡ hidden from screen readers; a slow one does not.
   assert.match(rowOf(html, 'hd.voltageConfetti'), /class="effect-tag badge-rapid" data-tag="rapid"[^>]*>Rapid <span aria-hidden="true">⚡<\/span>/);
   assert.match(rowOf(html, 'ldj.TrueStrobe'), /badge-rapid/);
@@ -480,9 +480,9 @@ test('the search finds a look by name, description, id and family as before, and
   const tagged = (tag) => rows.filter((r) => r.tags.includes(tag)).map((r) => r.id);
   assert.deepStrictEqual(find('song sections'), tagged('sections'));
   assert.deepStrictEqual(find('room-placed'), tagged('room'));
-  assert.ok(find('reactive').includes('v2.neural') && find('reactive').includes('volume-gate') && !find('reactive').includes('chase'));
+  assert.ok(find('reactive').includes('v2.neural') && find('reactive').includes('v2.volumeGateWash') && !find('reactive').includes('chase'));
   assert.ok(tagged('rapid').every((id) => find('rapid').includes(id)));
-  assert.ok(find('live').includes('v2.impact') && find('track').includes('radial-pulse'));
+  assert.ok(find('live').includes('v2.impact') && find('track').includes('v2.risingWall'));
   assert.ok(find('chase').includes('chase') && find('v2.neural').includes('v2.neural'), 'by name and id');
   assert.ok(find('spatial').includes('v2.grooveWave'), 'by family name');
   assert.deepStrictEqual(find(''), rows.map((r) => r.id));
@@ -938,13 +938,15 @@ test('pad editor offers playable presets and migrated legacy looks', () => {
   const values = presets.map((c) => c.value);
   // Every saved and built-in preset once, by its own id, whatever the id looks like.
   assert.deepStrictEqual([...values].sort(), ['preset:u1', ...PRESET_ROWS.map((r) => `preset:${r.id}`)].sort());
-  // The favourites lead: chase is no preset and offers none; confetti offers Voltage Confetti, under its own name.
-  assert.deepStrictEqual(presets.slice(0, 2), [
-    { value: 'preset:hd.voltageConfetti', name: 'Voltage Confetti' }, { value: 'preset:u1', name: 'My Domino' },
-  ]);
+  // The favourites lead: a legacy chase is no preset and offers none; a legacy confetti offers Voltage Confetti, under its
+  // own name; a redirected one is a preset of its own.
+  const favourite = (id, link) => (Object.hasOwn(CLASSIC_REDIRECTS, id) ? [{ value: `preset:${id}`, name: PRESET_ROWS.find((r) => r.id === id).name }]
+    : link ? [{ value: `preset:${link.id}`, name: link.name }] : []);
+  const led = [...favourite('chase'), ...favourite('confetti', { id: 'hd.voltageConfetti', name: 'Voltage Confetti' })];
+  assert.deepStrictEqual(presets.slice(0, led.length + 1), [...led, { value: 'preset:u1', name: 'My Domino' }]);
   // Then the other looks' presets in the looks' order, before the rest of the catalogue.
   const linked = LEGACY_ROWS.filter((r) => r.preset && r.id !== 'confetti').map((r) => `preset:${r.preset}`);
-  assert.deepStrictEqual(values.slice(2, 2 + linked.length), linked);
+  assert.deepStrictEqual(values.slice(led.length + 1, led.length + 1 + linked.length), linked);
   assert.deepStrictEqual(patterns, [{ value: 'pattern:groove', name: 'Groove' }, { value: 'pattern:p2', name: 'p2' }]);
   assert.deepStrictEqual(drops, [{ value: 'sequencePattern:groove', name: 'Groove' }, { value: 'sequencePattern:p2', name: 'p2' }]);
   assert.deepStrictEqual(ui.padBody({ label: '', accent: '#123456', content: 'sequencePattern:groove', launch: 'once', quantise: 4, targets: [] }).content,

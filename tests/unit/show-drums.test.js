@@ -9,7 +9,7 @@ import assert from 'node:assert';
 
 import { ShowDirector } from '../../src/show/director.ts';
 import { INTENT } from '../../src/show/intents.ts';
-import { COLOR_PRESETS, PATTERNS } from '../../src/server/presets.ts';
+import { COLOR_PRESETS, CLASSIC_LOOKS } from '../../src/server/presets.ts';
 
 const BPM = 128;
 const BEAT = 60 / BPM;
@@ -71,7 +71,7 @@ function analysis({ lanes = true, detector = 2, source = 'stems', silentBars = [
 }
 
 function accents(doc, intensity = 75) {
-  const director = new ShowDirector({ patterns: PATTERNS, colorPresets: COLOR_PRESETS, paletteSize: 4, intensity });
+  const director = new ShowDirector({ patterns: CLASSIC_LOOKS, colorPresets: COLOR_PRESETS, paletteSize: 4, intensity });
   return director.plan(doc).intents.filter((i) => i.kind === INTENT.ACCENT);
 }
 
