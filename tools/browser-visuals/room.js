@@ -69,11 +69,15 @@ export async function connectRoom(settings, capture, source, report) {
   const fresh = async () => {
     if (syncing || !socket.connected || stopped) return;
     syncing = true;
-    const connectionId = socket.id;
+    const connectionId = socket.id, before = mirror.receivedAt;
     try {
-      const snapshot = await request('sync');
+      // Live keys only: the mirror reads no catalogue (about 117 KB of every full answer).
+      const snapshot = await request('sync', { live: true });
       if (socket.id === connectionId && socket.connected && !stopped) mirror.snapshot(snapshot);
-    } catch { mirror.reset(); await pump.invalidate(); }
+    } catch {
+      // An older server takes the option for its ack and answers with a snapshot event instead.
+      if (mirror.receivedAt === before) { mirror.reset(); await pump.invalidate(); }
+    }
     finally { syncing = false; }
   };
   socket.on('connect', () => { mirror.reset(); units = null; pump.units = null; void pump.invalidate(); void fresh(); void refreshUnits(); });

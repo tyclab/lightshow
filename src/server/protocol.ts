@@ -5,14 +5,14 @@ import type { PictureImage } from '../types/picture.ts';
 
 export const PROTOCOL = 2;
 
-export const ROOM = { v1: 'protocol:1', v2: 'protocol:2', dmx: 'feed:dmx', audio: 'feed:audio' } as const;
+export const ROOM = { v1: 'protocol:1', v2: 'protocol:2', dmx: 'feed:dmx', audio: 'feed:audio', picture: 'feed:picture' } as const;
 
-export const TOPICS = { dmx: ROOM.dmx, audio: ROOM.audio } as const;
+export const TOPICS = { dmx: ROOM.dmx, audio: ROOM.audio, picture: ROOM.picture } as const;
 
 export type Domain = 'look' | 'rig' | 'show' | 'sources' | 'audio' | 'sequence' | 'catalogs' | 'library' | 'voices' | 'pads' | 'system';
 export const DOMAINS: readonly Domain[] = ['look', 'rig', 'show', 'sources', 'audio', 'sequence', 'catalogs', 'library', 'voices', 'pads', 'system'];
 
-const DOMAIN_OF: Readonly<Record<string, Domain>> = {
+export const DOMAIN_OF: Readonly<Record<string, Domain>> = {
   control: 'system',
   bpm: 'look', clock: 'look', tempoMode: 'look', beatDivision: 'look', running: 'look', pattern: 'look',
   colorA: 'look', colorB: 'look', colorC: 'look', colorD: 'look', palette: 'look',
@@ -167,7 +167,7 @@ export function createPublisher(io: Io) {
 
     sendDmxFrame(frame: Uint8Array): boolean {
       if (typeof io.to !== 'function') return false;
-      if (lastFrame && lastFrame.length === frame.length && lastFrame.every((b, i) => b === frame[i])) return false;
+      if (lastFrame && Buffer.compare(lastFrame, frame) === 0) return false;
       lastFrame = frame;
       io.to(ROOM.dmx).volatile.emit('dmx-frame', frame);
       return true;
@@ -177,12 +177,14 @@ export function createPublisher(io: Io) {
       return lastFrame;
     },
 
-    /** The room picture for the Stage's screens, to the DMX feed's subscribers; null when the sender is gone. */
+    /** The room picture for the Stage's screens, to the picture topic's subscribers; null when the sender is gone. */
     sendPictureImage(image: PictureImage | null): boolean {
       if (typeof io.to !== 'function') return false;
       if (image === lastImage) return false;
       lastImage = image;
-      io.to(ROOM.dmx).volatile.emit('picture-image', image);
+      // The lease's end must arrive: a volatile packet is dropped while the socket is mid-write.
+      if (image) io.to(ROOM.picture).volatile.emit('picture-image', image);
+      else io.to(ROOM.picture).emit('picture-image', null);
       return true;
     },
 

@@ -3,6 +3,8 @@ import assert from 'node:assert';
 import { getClientState, getLiveState, getCatalogs, getDmxSnapshot, universeOf, state } from '../../src/server/state.ts';
 import { conductor } from '../../src/server/conductor.ts';
 import { applyPatch } from '../../src/server/patch.ts';
+import { registerProfile, unregisterProfile } from '../../src/server/profiles.ts';
+import { barProfile } from '../../src/server/bar-profile.ts';
 
 const STATIC = ['colorPresets', 'patterns', 'energyEffects', 'strobeFunctions', 'palettes',
   'syncOffsetLimitMs', 'builtinProfileIds', 'hueProfileIds', 'families', 'builtinPalettes'];
@@ -64,6 +66,40 @@ test('the snapshot carries one entry per universe the patch spans', () => {
     assert.ok(String(state.artnet.universe + 7) in snap, 'and shows up in the DMX snapshot');
   } finally {
     state.fixtures.forEach((f, i) => { f.universe = original[i]; });
+  }
+});
+
+// Each universe's channel count is memoised on what decides it (state.ts), and
+// the patch is edited in place: every edit that moves a last channel must show.
+test('the snapshot\'s channel counts follow every patch edit, in place or not', () => {
+  const fixtures = state.fixtures, home = state.artnet.universe;
+  const bar = (cells) => barProfile({ id: 'snapshot-size-bar', name: 'Size bar', cells, firstChannel: 1, order: 'RGB' });
+  const counts = () => Object.fromEntries(Object.entries(getDmxSnapshot()).map(([u, values]) => [u, values.length]));
+  try {
+    state.artnet.universe = 0;
+    state.fixtures = [{ id: 900, label: 'Par', profileId: 'cameo-root-par-6-12ch', universe: 0, address: 1, position: null, maxBrightness: 255, override: null }];
+    assert.deepStrictEqual(counts(), { 0: 12 });
+    state.fixtures[0].address = 101;
+    assert.deepStrictEqual(counts(), { 0: 112 }, 'a new address');
+    state.fixtures[0].universe = 3;
+    assert.deepStrictEqual(counts(), { 0: 0, 3: 112 }, 'a new universe');
+    delete state.fixtures[0].universe;
+    state.artnet.universe = 2;
+    assert.deepStrictEqual(counts(), { 2: 112 }, 'no universe of its own: the default one');
+    state.artnet.universe = 4;
+    assert.deepStrictEqual(counts(), { 4: 112 }, 'the default universe moved');
+    registerProfile(bar(5));
+    counts();
+    state.fixtures[0].profileId = 'snapshot-size-bar';
+    assert.deepStrictEqual(counts(), { 4: 115 }, 'another profile');
+    registerProfile(bar(6));
+    assert.deepStrictEqual(counts(), { 4: 118 }, 'the profile edited');
+    state.fixtures = [...state.fixtures, { ...state.fixtures[0], id: 901, address: 201 }];
+    assert.deepStrictEqual(counts(), { 4: 218 }, 'a fixture added');
+  } finally {
+    state.fixtures = fixtures;
+    state.artnet.universe = home;
+    unregisterProfile('snapshot-size-bar');
   }
 });
 

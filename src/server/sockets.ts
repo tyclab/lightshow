@@ -1,5 +1,5 @@
 import { checkLegacyControlPatch, control } from './control.ts';
-import { state, getClientState, getFixture, countUniverses, universeOf, placeAddresslessFixtures, voices, legacyEnergy, onVoicesChange } from './state.ts';
+import { state, getClientState, getLiveState, getFixture, countUniverses, universeOf, placeAddresslessFixtures, voices, legacyEnergy, onVoicesChange } from './state.ts';
 import { applyPatch, applyOverride, processTap } from './patch.ts';
 import { overrideMessageSchema, fixtureMessageSchema, validate } from './validation.ts';
 import { listProfiles, getProfile, universeOverflow, unitCapOverflow, HUE_BY_HAND, DEVICE_BY_HAND } from './profiles.ts';
@@ -24,7 +24,7 @@ import { PictureInputError } from './picture.ts';
 import { VISUAL_INPUT_MESSAGE_BUDGET } from './visual-input-rate.ts';
 import type { Server, Socket } from 'socket.io';
 import type { MidiPorts } from './midi-connect.ts';
-import type { Publisher, Snapshot } from './protocol.ts';
+import type { Publisher } from './protocol.ts';
 import type { Pads } from './pads.ts';
 
 /** A browser holding an energy effect down. */
@@ -163,8 +163,6 @@ function attachSockets(io: Server, { midi, integrations }: {
       try {
         const answer = pictureInput[operation](socket.id, payload);
         if (typeof ack === 'function') ack(answer);
-        // The Stage's screens show the sender's picture while it paints.
-        if (operation !== 'claim') publisher.sendPictureImage(pictureInput.image());
       } catch (err) {
         if (typeof ack === 'function') ack({ ok: false, code: err instanceof PictureInputError ? err.code : 'INVALID', error: messageOf(err) });
       }
@@ -173,9 +171,12 @@ function attachSockets(io: Server, { midi, integrations }: {
       socket.join(ROOM.v2);
       socket.emit('snapshot', publisher.snapshot(getClientState()));
       // A page that finds a gap in a domain's versions asks for the whole
-      // state again rather than drifting.
-      socket.on('sync', (ack?: (snapshot: Snapshot) => void) => {
-        const snapshot = publisher.snapshot(getClientState());
+      // state again rather than drifting. The browser helper polls with
+      // `{ live: true }` and reads no catalogue, so it is sent none.
+      socket.on('sync', (options?: unknown, ack?: unknown) => {
+        if (typeof options === 'function') [ack, options] = [options, undefined];
+        const live = !!options && typeof options === 'object' && (options as { live?: unknown }).live === true;
+        const snapshot = publisher.snapshot(live ? getLiveState() : getClientState());
         if (typeof ack === 'function') ack(snapshot);
         else socket.emit('snapshot', snapshot);
       });
@@ -185,7 +186,7 @@ function attachSockets(io: Server, { midi, integrations }: {
           // What the others already have: the feeds only send a change.
           const frame = room === ROOM.dmx ? publisher.lastDmxFrame() : null;
           if (frame) socket.emit('dmx-frame', frame);
-          const image = room === ROOM.dmx ? pictureInput.image() : null;
+          const image = room === ROOM.picture ? pictureInput.image() : null;
           if (image) socket.emit('picture-image', image);
           const audio = room === ROOM.audio ? publisher.lastAudio() : undefined;
           if (audio !== undefined) socket.emit('audio', audio);

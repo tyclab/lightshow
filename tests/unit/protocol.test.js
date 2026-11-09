@@ -15,6 +15,10 @@ import { attachSockets } from '../../src/server/sockets.ts';
 import { state, getLiveState, getDmxUniverses } from '../../src/server/state.ts';
 import { applyPatch } from '../../src/server/patch.ts';
 import { conductor } from '../../src/server/conductor.ts';
+import { pictureInput, pictureUnits } from '../../src/server/picture-live.ts';
+import { isArmed } from '../../src/server/armed.ts';
+import { setArmed } from '../../src/server/output.ts';
+import { acknowledgeFlashes } from '../helpers/acknowledged.js';
 
 test('deltas version changed keys independently by domain', () => {
   const differ = new StateDiffer();
@@ -133,6 +137,11 @@ async function serve() {
 }
 
 const next = (socket, event) => new Promise((resolve) => socket.once(event, resolve));
+// One that never comes fails the test, so its server still closes.
+const arrives = (socket, event) => new Promise((resolve, reject) => {
+  const timer = setTimeout(() => reject(new Error(`no ${event}`)), 5000);
+  socket.once(event, (payload) => { clearTimeout(timer); resolve(payload); });
+});
 
 test('protocol 2 subscribers receive snapshots followed by deltas', async () => {
   const s = await serve();
@@ -167,6 +176,31 @@ test('protocol 2 subscribers receive snapshots followed by deltas', async () => 
   }
 });
 
+// The browser helper refreshes its state every 750 ms on each of its sockets
+// and reads no catalogue: about 117 KB of each full answer it never used.
+test('a sync asked for live leaves out the catalogues and keeps the versions', async () => {
+  const s = await serve();
+  try {
+    const v2 = s.client({ protocol: 2 });
+    await next(v2, 'snapshot');
+    const full = await v2.emitWithAck('sync');
+    const live = await v2.timeout(5000).emitWithAck('sync', { live: true });
+    const catalogues = Object.keys(full.state).filter((key) => domainOf(key) === 'catalogs');
+    assert.ok(catalogues.includes('patterns') && catalogues.includes('families'), 'a plain sync still carries them');
+    assert.strictEqual(live.protocol, 2);
+    assert.deepStrictEqual(live.versions, full.versions);
+    assert.deepStrictEqual(Object.keys(live.state).sort(), Object.keys(full.state).filter((key) => !catalogues.includes(key)).sort(),
+      'every live key, no catalogue');
+    assert.strictEqual(live.state.dmxSnapshot, undefined);
+
+    const unasked = arrives(v2, 'snapshot');
+    v2.emit('sync', { live: true });
+    assert.deepStrictEqual(Object.keys((await unasked).state).sort(), Object.keys(live.state).sort(), 'without an ack, as a snapshot event');
+  } finally {
+    await s.close();
+  }
+});
+
 test('DMX goes out as bytes only to the pages that subscribed to it', async () => {
   const s = await serve();
   try {
@@ -191,22 +225,71 @@ test('DMX goes out as bytes only to the pages that subscribed to it', async () =
     other.emit('subscribe', 'dmx');
     assert.deepStrictEqual([...decodeDmxFrame(await late)[0]], [10, 20, 30]);
 
-    // The room sender's picture rides the same feed, for the Stage's screens, and clears with it.
-    const picture = next(watching, 'picture-image');
-    assert.ok(s.publisher.sendPictureImage({ width: 2, height: 1, data: Uint8Array.from([1, 2, 3, 4, 5, 6]) }));
-    const shown = await picture;
-    assert.deepStrictEqual([shown.width, shown.height, [...new Uint8Array(shown.data)]], [2, 1, [1, 2, 3, 4, 5, 6]]);
-    const cleared = next(watching, 'picture-image');
-    assert.ok(s.publisher.sendPictureImage(null));
-    assert.strictEqual(await cleared, null);
-    assert.strictEqual(s.publisher.sendPictureImage(null), false, 'nothing new to say');
-
     watching.emit('unsubscribe', ['dmx']);
     other.emit('unsubscribe', ['dmx']);
     await new Promise((r) => setTimeout(r, 50));
     assert.strictEqual(s.publisher.wants(ROOM.dmx), false);
+    assert.ok(s.publisher.sendDmxFrame(Uint8Array.from([1, 1, 0, 0, 3, 0, 10, 20, 31])), 'one byte changed: a new frame');
     assert.strictEqual(otherFrames, 1, 'only the frame it subscribed for');
   } finally {
+    await s.close();
+  }
+});
+
+// The room picture is 7 KB a relay: only the 3D Stage's screens show it, so
+// A volatile packet is dropped while the socket is mid-write; the lease's end must not be.
+test('pictures go out volatile, the end of the lease reliably', () => {
+  const sent = [];
+  const io = { to: (name) => ({
+    emit: (event, payload) => sent.push([name, event, payload, 'reliable']),
+    volatile: { emit: (event, payload) => sent.push([name, event, payload, 'volatile']) },
+  }) };
+  const publisher = createPublisher(io);
+  const image = { width: 1, height: 1, data: Uint8Array.from([1, 2, 3]) };
+  assert.ok(publisher.sendPictureImage(image));
+  assert.ok(publisher.sendPictureImage(null));
+  assert.deepStrictEqual(sent, [[ROOM.picture, 'picture-image', image, 'volatile'], [ROOM.picture, 'picture-image', null, 'reliable']]);
+});
+
+// it has a topic of its own rather than riding every DMX view's feed.
+test('the room picture goes only to the pages subscribed to it, the current one at once', async () => {
+  const s = await serve();
+  const armed = isArmed(), restoreSafety = acknowledgeFlashes();
+  try {
+    setArmed(true);
+    const rig = pictureUnits();
+    const { leaseId } = pictureInput.claim('protocol-picture', { signature: rig.signature });
+    pictureInput.frame('protocol-picture', { leaseId, data: new Uint8Array(rig.units * 3), image: { width: 1, height: 1, data: Uint8Array.from([9, 8, 7]) } });
+
+    const stage = s.client({ protocol: 2 });
+    const monitor = s.client({ protocol: 2 });
+    await Promise.all([next(stage, 'snapshot'), next(monitor, 'snapshot')]);
+    let leaked = 0;
+    monitor.on('picture-image', () => leaked++);
+    const replay = arrives(stage, 'picture-image');
+    monitor.emit('subscribe', ['dmx']);
+    stage.emit('subscribe', ['picture']);
+    assert.deepStrictEqual([...new Uint8Array((await replay).data)], [9, 8, 7], 'the sender\'s picture on joining');
+    assert.strictEqual(s.publisher.wants(ROOM.picture), true);
+
+    const picture = arrives(stage, 'picture-image');
+    assert.ok(s.publisher.sendPictureImage({ width: 2, height: 1, data: Uint8Array.from([1, 2, 3, 4, 5, 6]) }));
+    const shown = await picture;
+    assert.deepStrictEqual([shown.width, shown.height, [...new Uint8Array(shown.data)]], [2, 1, [1, 2, 3, 4, 5, 6]]);
+    const cleared = arrives(stage, 'picture-image');
+    assert.ok(s.publisher.sendPictureImage(null));
+    assert.strictEqual(await cleared, null);
+    assert.strictEqual(s.publisher.sendPictureImage(null), false, 'nothing new to say');
+    await new Promise((r) => setTimeout(r, 50));
+    assert.strictEqual(leaked, 0, 'a DMX view gets no picture, on joining or after');
+
+    stage.emit('unsubscribe', ['picture']);
+    await new Promise((r) => setTimeout(r, 50));
+    assert.strictEqual(s.publisher.wants(ROOM.picture), false);
+  } finally {
+    pictureInput.clear();
+    setArmed(armed);
+    restoreSafety();
     await s.close();
   }
 });

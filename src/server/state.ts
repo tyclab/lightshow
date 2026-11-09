@@ -3,7 +3,7 @@ import { DEFAULT_BACKGROUND } from '../shared/background.ts';
 import type { BackgroundSettings } from '../shared/background.ts';
 import { control } from './control.ts';
 import { isHueProfile } from '../shared/hue-lamp.ts';
-import { BUILTIN_PROFILE_ID, BUILTIN_PROFILE_IDS, getProfile, listProfiles } from './profiles.ts';
+import { BUILTIN_PROFILE_ID, BUILTIN_PROFILE_IDS, getProfile, listProfiles, profilesRevision } from './profiles.ts';
 import { settings } from './settings.ts';
 import * as universes from './universes.ts';
 import { COLOR_PRESETS, PATTERNS, PRESET_ROWS, STROBE_FUNCTIONS, ENERGY_EFFECTS, SYNC_OFFSET_LIMIT_MS } from './presets.ts';
@@ -298,15 +298,32 @@ function allocateFixtureId(): number {
   return id;
 }
 
-/** How many channels of `universe` are worth showing in the monitor. */
-function getDmxSnapshotSize(universe: number): number {
-  let maxEnd = 0;
-  for (const fix of state.fixtures) {
+// Read per universe every feed frame, so kept until an input changes. The patch is edited in place, so the
+// key is the values: each fixture's universe, address and profile id, the default universe, the profiles' revision.
+let sizeKey: unknown[] = [];
+let sizes = new Map<number, number>();
+
+function snapshotSizes(): Map<number, number> {
+  const fixtures = state.fixtures;
+  let same = sizeKey.length === 2 + fixtures.length * 3 && sizeKey[0] === profilesRevision() && sizeKey[1] === state.artnet.universe;
+  for (let i = 0; same && i < fixtures.length; i++) {
+    const f = fixtures[i], at = 2 + i * 3;
+    same = sizeKey[at] === f.universe && sizeKey[at + 1] === f.address && sizeKey[at + 2] === f.profileId;
+  }
+  if (same) return sizes;
+  sizeKey = [profilesRevision(), state.artnet.universe, ...fixtures.flatMap((f) => [f.universe, f.address, f.profileId])];
+  sizes = new Map();
+  for (const fix of fixtures) {
     for (const part of footprintOf(universeOf(fix), fix.address, getProfile(fix))) {
-      if (part.universe === universe && part.last > maxEnd) maxEnd = part.last;
+      if (part.last > (sizes.get(part.universe) ?? 0)) sizes.set(part.universe, part.last);
     }
   }
-  return Math.min(universes.UNIVERSE_SIZE, maxEnd);
+  return sizes;
+}
+
+/** How many channels of `universe` are worth showing in the monitor. */
+function getDmxSnapshotSize(universe: number): number {
+  return Math.min(universes.UNIVERSE_SIZE, snapshotSizes().get(universe) ?? 0);
 }
 
 // Screens keeping their own beat carry it on as beatPos + (now − at) / 60000 × bpm.

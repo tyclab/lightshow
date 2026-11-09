@@ -1135,8 +1135,9 @@ aside and start from defaults: take the keys out before rolling back.
 One sender holds the picture at a time; `GET /api/picture` reports the selected
 source, the black point, the decode, the grade and the live lease without pixel
 data. The picture a frame carries goes
-to the pages subscribed to the DMX feed (`picture-image`, null once the sender
-is gone), and the Stage paints it on the room's screens: the objects a room
+to the pages subscribed to the picture topic (`picture-image`, the newest up to
+24 times a second, null once the sender is gone), and the 3D Stage, the one
+subscriber, paints it on the room's screens: the objects a room
 export marks `role: screen` (the TV and the monitors in a house-model export).
 
 ### OpenRGB
@@ -1185,7 +1186,7 @@ reads **Hue busy**, and its **Hue** pill reads **busy** and leads to Rig → Out
 and the app id holding it, and preflight warns. The live state's `hue` list
 carries one entry per enabled, set-up bridge, `{ id, label, status, occupiedBy,
 problem }`, with `occupiedBy` `{ areaId, area, streamer }` or null and `problem`
-the sentence to show, so a Home Assistant sensor polling `/api/state` sees it as
+the sentence to show, so a Home Assistant sensor polling `/api/state/live` sees it as
 well. The lightshow never stops another app's stream; it is logged once when it
 starts and once when it ends. An enabled, configured bridge whose stream fails degrades health
 while outputs are armed. Starts require a verified application identity and a readable
@@ -1855,7 +1856,8 @@ and leaves background settings and the other global controls unchanged.
 
 ## Home Assistant integration surface
 
-Use authenticated REST commands and a sensor polling `/api/state`; the server
+Use authenticated REST commands and a sensor polling `/api/state/live` (every
+live key of `/api/state`, without its catalogues); the server
 requires no Home Assistant-specific transport. Supply `X-Lightshow-Token` and
 `Content-Type: application/json` for JSON bodies. Keep GET polling separate
 from POST/PUT/DELETE actions.
@@ -1903,6 +1905,7 @@ All endpoints return JSON. When a token is configured, send it as an
 | Method | Path | Description |
 |--------|------|-------------|
 | GET | `/api/state` | Full current state (`armed` says whether anything leaves the machine; `wled`, while armed, whether each WLED takes the stream — see [WLED](#wled); `hue`, which Hue bridge another app's area holds — see [Philips Hue](#philips-hue)) |
+| GET | `/api/state/live` | The live state alone: `/api/state` without the built-in catalogues (the `catalogs` keys, about 117 KB) or `dmxSnapshot`, for a poller such as a Home Assistant sensor |
 | GET · PUT · DELETE | `/api/stage/room` | Private Stage room model; writes require the current `If-Match` revision. See [room format](docs/stage-room.md) |
 | GET | `/api/stage/room/report` | Read-only: `{ ok, revision, units, unbound, shared, far }`, where the [Spatial effects](#spatial-effects) place each unit against the room bindings and the Rig plot |
 | POST | `/api/set` | Patch state fields (JSON body) |
@@ -2172,15 +2175,22 @@ the state in one of two forms, chosen when the client connects:
   `rig`, `show`, `sources`, `audio`, `sequence`, `catalogs`, `library`,
   `voices`, `pads`, `system`) and numbered per domain:
   `{ d, v, set, del? }`. A client that sees a gap in a domain's numbers sends
-  `sync` (with an ack) for a new snapshot. DMX goes out as `dmx-frame`, binary
-  (`src/shared/dmx-frame.ts`: per universe its number, its length and its
-  bytes), at the engine's frame rate while it changes — volatile, and only
-  to clients that sent `subscribe: ['dmx']` (and until `unsubscribe`). The
-  `audio` topic works the same way: after `subscribe: ['audio']` the client
+  `sync` (with an ack) for a new snapshot; `sync` with `{ live: true }` leaves
+  out the `catalogs` keys, as the browser helper's state poll does. DMX goes
+  out as `dmx-frame`, binary (`src/shared/dmx-frame.ts`: per universe its
+  number, its length and its bytes), at the engine's frame rate while it
+  changes — volatile, and only to clients that sent `subscribe: ['dmx']` (and
+  until `unsubscribe`). The `audio` topic works the same way: after
+  `subscribe: ['audio']` the client
   gets `audio` events, volatile, up to thirty a second and only when they
   change — `{ t, party: { full, bass, mid, high }, disco: { gate, level, hit }, spl: { db, level, beat, section, eventT? } }`
-  — and `audio` with `null` when the input has gone. Both topics send their
-  latest at once on subscribing.
+  — and `audio` with `null` when the input has gone. After
+  `subscribe: ['picture']` the client gets `picture-image` (`{ width, height, data }`,
+  RGB bytes), volatile, the room sender's newest picture up to 24 times a
+  second, and `null` once when its lease ends. Every topic sends its latest at
+  once on subscribing. The live page holds the DMX and picture topics only
+  while its tab is visible: hidden, it unsubscribes, and shown again it
+  subscribes.
 - **Protocol 1** — anything that does not ask, such as the Companion module
   before 2.1: `state` (the full snapshot on connect, the
   whole live state again whenever any of it changes) and `dmx` (channel values
