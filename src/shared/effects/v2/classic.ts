@@ -1,6 +1,17 @@
 // Classic and party pattern ids that play a v2 preset instead of their pattern function, each with the
 // reason it moved. The operator decides each move by A/B test on the rig; every other classic id keeps its function.
-export const CLASSIC_REDIRECTS: Readonly<Record<string, string>> = Object.freeze({});
+export const CLASSIC_REDIRECTS: Readonly<Record<string, string>> = Object.freeze({
+  chase: 'Chase on the v2 engine (option C), merged only once the operator chose B in A/B migration.chase',
+  'chase-rev': 'Chase on the v2 engine (option C), merged only once the operator chose B in A/B migration.chase-rev',
+  'ping-pong': 'Chase on the v2 engine (option C), merged only once the operator chose B in A/B migration.ping-pong',
+  runner: 'Chase on the v2 engine (option C), merged only once the operator chose B in A/B migration.runner',
+  pairs: 'Chase on the v2 engine (option C), merged only once the operator chose B in A/B migration.pairs',
+  'stack-up': 'Chase on the v2 engine (option C), merged only once the operator chose B in A/B migration.stack-up',
+  'flash-chase': 'Chase on the v2 engine (option C), merged only once the operator chose B in A/B migration.flash-chase',
+  'position-chase': 'Chase on the v2 engine (option C), merged only once the operator chose B in A/B migration.position-chase',
+  'ring-strobe': 'Chase on the v2 engine (option C), merged only once the operator chose B in A/B migration.ring-strobe',
+  'ring-backlit': 'Chase on the v2 engine (option C), merged only once the operator chose B in A/B migration.ring-backlit',
+});
 
 // The classic and party looks on the v2 engine: for each id, the v2 spec closest to its own pattern on the
 // diff rig (scripts/effects-v2-alias-diff.js --classic) and that diff as [largest channel, mean absolute
@@ -101,25 +112,25 @@ export const CLASSIC_V2: Readonly<Record<string, ClassicLook>> = {
   'party.ice': { family: 'Wash', name: 'Ice', diff: [17, 1.483, 29],
     spec: { kind: 'v2.wash', palette: ['#164A9B100000', '#3FAEC7300000', '#9EDDEA500000'], gradients: [{ name: 'Glacier', space: 'rgb', wrap: true, stops: [{ at: 0, slot: 0 }, { at: 0.3333333333333333, slot: 1 }, { at: 0.6666666666666666, slot: 2 }] }], gradient: 'Glacier', brightness: 0.35, background: { version: 1, level: 0.35 }, params: { space: 'plan', envelope: { curve: 'easeInOut', attack: 16, hold: 16, release: 16 }, shape: 'envelope', cycleBeats: 48 } } },
   // Chase
-  chase: { family: 'Chase', name: 'Chase →', diff: [25, 0.827, 129],
+  chase: { family: 'Chase', name: 'Chase →', desc: 'One lamp at a time in patch order, forward, the next colour on every beat, over a dim floor in the look\'s last colour', diff: [25, 0.827, 129],
     spec: { kind: 'v2.step', params: { space: 'plan', steps: 10, stepBeats: 1, envelope: { curve: 'linear', attack: 0, hold: 1, release: 0 }, order: 'patch', trail: 0, colour: 'step', background: 0.18 } } },
-  'chase-rev': { family: 'Chase', name: 'Chase ←', diff: [25, 0.828, 129],
+  'chase-rev': { family: 'Chase', name: 'Chase ←', desc: 'One lamp at a time in patch order, backward, the next colour on every beat, over a dim floor in the look\'s last colour', diff: [25, 0.828, 129],
     spec: { kind: 'v2.step', params: { space: 'plan', steps: 10, stepBeats: 1, direction: 'reverse', envelope: { curve: 'linear', attack: 0, hold: 1, release: 0 }, order: 'patch', trail: 0, colour: 'step', background: 0.18 } } },
-  'ping-pong': { family: 'Chase', name: 'Ping Pong', diff: [25, 0.819, 129],
+  'ping-pong': { family: 'Chase', name: 'Ping Pong', desc: 'One lamp at a time in patch order, forward then back, the next colour on every beat, over a dim floor in the look\'s last colour', diff: [25, 0.819, 129],
     spec: { kind: 'v2.step', params: { space: 'plan', steps: 10, stepBeats: 1, direction: 'bounce', envelope: { curve: 'linear', attack: 0, hold: 1, release: 0 }, order: 'patch', trail: 0, colour: 'step', background: 0.18 } } },
-  runner: { family: 'Chase', name: 'Runner', diff: [129, 12.49, 129],
+  runner: { family: 'Chase', name: 'Runner', desc: 'One lamp at a time in patch order with a short fading trail, the next colour on every beat, over a dim floor in the look\'s last colour', diff: [129, 12.49, 129],
     spec: { kind: 'v2.step', params: { space: 'plan', steps: 10, stepBeats: 1, envelope: { curve: 'linear', attack: 0, hold: 1, release: 0 }, order: 'patch', trail: 1, colour: 'step', background: 0.18 } } },
-  pairs: { family: 'Chase', name: 'Pairs', diff: [235, 19.123, 129],
+  pairs: { family: 'Chase', name: 'Pairs', desc: 'Two lamps at a time in patch order, the next colour on every beat, over a dim floor in the look\'s last colour', diff: [235, 19.123, 129],
     spec: { kind: 'v2.step', params: { space: 'plan', steps: 10, stepBeats: 1, window: 2, envelope: { curve: 'linear', attack: 0, hold: 1, release: 0 }, order: 'patch', trail: 0, colour: 'step', background: 0.18 } } },
-  'stack-up': { family: 'Chase', name: 'Stack Up', diff: [255, 21.021, 129],
+  'stack-up': { family: 'Chase', name: 'Stack Up', desc: 'The lamps filling up one by one in patch order in the first colour, then again, over a dim floor in the look\'s last colour', diff: [255, 21.021, 129],
     spec: { kind: 'v2.step', params: { space: 'plan', steps: 10, stepBeats: 1, fill: true, envelope: { curve: 'linear', attack: 0, hold: 1, release: 0 }, order: 'patch', colour: 'solid', background: 0.18 } } },
-  'flash-chase': { family: 'Chase', name: 'Flash Chase', pixel: true, diff: [255, 6.801, 129],
+  'flash-chase': { family: 'Chase', name: 'Flash Chase', desc: 'A flash stepping across the plot every quarter beat in the first colour', pixel: true, diff: [255, 6.801, 129],
     spec: { kind: 'v2.step', params: { space: 'plan', trail: 0, envelope: { curve: 'linear', attack: 0, hold: 0.06, release: 0.02 }, order: 'axis', steps: 16, stepBeats: 0.25, colour: 'solid' } } },
-  'position-chase': { family: 'Chase', name: 'Position Chase', diff: [60, 3.491, 129],
+  'position-chase': { family: 'Chase', name: 'Position Chase', desc: 'A soft pulse stepping across the plot with a fading trail, over a dim floor in the look\'s last colour', diff: [60, 3.491, 129],
     spec: { kind: 'v2.step', params: { space: 'plan', envelope: { curve: 'easeOut', attack: 0.125, hold: 0.125, release: 0.375 }, order: 'axis', trail: 1, background: 0.18 } } },
-  'ring-strobe': { family: 'Chase', name: 'Ring Strobe', diff: [255, 13.029, 129],
+  'ring-strobe': { family: 'Chase', name: 'Ring Strobe', desc: 'One flash at a time round the middle of the plot, a step every quarter beat', diff: [255, 13.029, 129],
     spec: { kind: 'v2.step', params: { space: 'plan', trail: 0, envelope: { curve: 'linear', attack: 0, hold: 0.06, release: 0.02 }, steps: 10, stepBeats: 0.25, colour: 'solid' } } },
-  'ring-backlit': { family: 'Chase', name: 'Ring Backlit', diff: [225, 38.425, 129],
+  'ring-backlit': { family: 'Chase', name: 'Ring Backlit', desc: 'One flash at a time round the middle of the plot, a step every beat, over a floor in the look\'s last colour', diff: [225, 38.425, 129],
     spec: { kind: 'v2.step', params: { space: 'plan', trail: 0, envelope: { curve: 'linear', attack: 0, hold: 0.06, release: 0.02 }, steps: 10, stepBeats: 1, background: 0.3 } } },
   // Zones
   split: { family: 'Zones', name: 'Split', diff: [0, 0, 0],
