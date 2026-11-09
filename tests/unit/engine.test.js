@@ -1,9 +1,15 @@
 import test from 'node:test';
 import assert from 'node:assert';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 
 import { state, universeOf } from '../../src/server/state.ts';
 import * as universes from '../../src/server/universes.ts';
-import { startEngine, stopEngine, resizeFixtureBuffers, startSyncTest } from '../../src/server/engine.ts';
+import { startEngine, stopEngine, resizeFixtureBuffers, startSyncTest, setIdleSource, engineStatus, effectCommand,
+  awaitFrameApplied, IDLE_EVERY } from '../../src/server/engine.ts';
+import { FRAME_MS as TICK_MS, hrtimeMs } from '../../src/server/frame-clock.ts';
+import * as output from '../../src/server/output.ts';
 import { conductor } from '../../src/server/conductor.ts';
 import { applyPatch, applyOverride, setFixtureMaxBrightness } from '../../src/server/patch.ts';
 import { PATTERN_FUNCS } from '../../src/shared/patterns.ts';
@@ -461,4 +467,165 @@ test('a split with only one group in use leaves the look whole', async () => {
     delete a.group;
     applyPatch({ split: null });
   }
+});
+
+// ── Idle: nothing can see the frames ─────────────────────────────────────────
+// While its idle source says nothing can see a frame and nothing waits on one,
+// the engine renders a ninth of its ticks; whatever waits makes it render at once.
+
+/** Wait, a few milliseconds at a time, until `done()`. */
+async function until(done, what, limitMs = 5000) {
+  const end = Date.now() + limitMs;
+  while (!done()) {
+    assert.ok(Date.now() < end, `still waiting for ${what} after ${limitMs} ms`);
+    await new Promise((r) => setTimeout(r, 5));
+  }
+}
+
+const counts = () => { const s = engineStatus(); return { ticks: s.totalFrames, rendered: s.renderedTotal }; };
+
+test('idle on the main thread: a ninth of the ticks render, and a command does not wait for one', async () => {
+  setIdleSource(() => true);
+  try {
+    assert.strictEqual(engineStatus().idle, true);
+    const from = counts();
+    await until(() => counts().ticks >= from.ticks + 4 * IDLE_EVERY, 'four idle cycles');
+    const to = counts();
+    const ticks = to.ticks - from.ticks;
+    const rendered = to.rendered - from.rendered;
+    assert.ok(Math.abs(rendered - ticks / IDLE_EVERY) <= 1, `${rendered} of ${ticks} ticks rendered`);
+    // Sent just after an idle render, a command is decided on the next tick, not at the next render due.
+    const last = counts().rendered;
+    await until(() => counts().rendered > last, 'an idle render');
+    const sent = counts();
+    await effectCommand('toggleDirection');
+    const decided = counts();
+    assert.ok(decided.ticks - sent.ticks <= 2, `decided ${decided.ticks - sent.ticks} ticks after it was sent`);
+    assert.ok(decided.rendered > sent.rendered, 'by a frame rendered for it');
+  } finally {
+    setIdleSource(null);
+  }
+  assert.strictEqual(engineStatus().idle, false);
+  const from = counts();
+  await until(() => counts().ticks >= from.ticks + IDLE_EVERY, 'a cycle');
+  const to = counts();
+  assert.strictEqual(to.rendered - from.rendered, to.ticks - from.ticks, 'not idle: every tick renders');
+});
+
+// A stand-in engine worker that logs every snapshot and command it is sent and reports the log in its
+// stats. It acknowledges as the real one does when it applies a frame, except: a new barrier revision and
+// a command only after HOLD_MS, and Art-Net routes only from a snapshot whose outputs are disarmed.
+const HOLD_MS = 300;
+const RECORDING_WORKER = `
+import { parentPort } from 'node:worker_threads';
+const log = [];
+let acked = null;
+let holding = false;
+parentPort.on('message', (msg) => {
+  if (msg.type === 'snapshot') {
+    log.push({ at: msg.at, idle: msg.idle === true, revision: msg.barrierRevision });
+    const outputSeq = msg.outputs.armed === false ? msg.outputSeq : undefined;
+    if (acked === null) acked = msg.barrierRevision;
+    if (msg.barrierRevision === acked) parentPort.postMessage({ type: 'frame', barrierRevision: acked, outputSeq });
+    else if (!holding) {
+      holding = true;
+      setTimeout(() => {
+        holding = false;
+        acked = msg.barrierRevision;
+        parentPort.postMessage({ type: 'frame', barrierRevision: acked, outputSeq });
+      }, ${HOLD_MS});
+    }
+  }
+  if (msg.type === 'command') {
+    log.push({ command: msg.seq });
+    setTimeout(() => parentPort.postMessage({ type: 'commands', results: [{ seq: msg.seq, status: 'applied' }], processed: msg.seq, applied: msg.seq }), ${HOLD_MS});
+  }
+  if (msg.type === 'stop') parentPort.postMessage({ type: 'stopped', applied: true });
+  parentPort.postMessage({ type: 'stats', stats: { log } });
+});
+parentPort.postMessage({ type: 'ready' });
+`;
+
+/** The engine on the recording worker, idle by its source, for the length of `fn`; this file's main-thread engine after. */
+async function onRecordingWorker(fn) {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'engine-idle-worker-'));
+  const file = path.join(dir, 'recording-worker.mjs');
+  fs.writeFileSync(file, RECORDING_WORKER);
+  await stopEngine();
+  setIdleSource(() => true);
+  startEngine({ thread: 'worker', file });
+  try {
+    await fn(() => (engineStatus().log ?? []));
+  } finally {
+    await stopEngine();
+    setIdleSource(null);
+    fs.rmSync(dir, { recursive: true, force: true });
+    startEngine();
+  }
+}
+
+const snapshots = (entries) => entries.filter((e) => e.at !== undefined);
+const gapsOf = (entries) => { const s = snapshots(entries); return s.slice(1).map((e, i) => e.at - s[i].at); };
+const shown = (gaps) => gaps.map((g) => Math.round(g)).join(', ');
+const between = (entries, from, to = Infinity) => snapshots(entries).filter((e) => e.at >= from && e.at <= to);
+
+test('idle with a worker: a snapshot every ninth tick, flagged idle; a change awaiting acknowledgement, every tick', async () => {
+  await onRecordingWorker(async (log) => {
+    await until(() => snapshots(log()).length >= 4, 'four idle snapshots');
+    assert.ok(snapshots(log()).every((e) => e.idle), 'each flagged idle');
+    assert.ok(Math.min(...gapsOf(log())) > 6 * TICK_MS, `idle snapshots ${shown(gapsOf(log()))} ms apart`);
+
+    const calledAt = hrtimeMs();
+    await awaitFrameApplied();
+    const ackedAt = hrtimeMs();
+    const held = between(log(), calledAt, ackedAt);
+    assert.ok(held[0].at - calledAt < TICK_MS, 'the change is posted at once, not at the next idle tick');
+    assert.ok(held.length >= 3, `${held.length} snapshots while the change awaited acknowledgement`);
+    assert.ok(held.every((e) => !e.idle), 'none of them idle');
+    assert.ok(Math.min(...gapsOf(held)) < 3 * TICK_MS, `posted ${shown(gapsOf(held))} ms apart`);
+
+    await until(() => between(log(), ackedAt).length >= 3, 'snapshots once acknowledged');
+    const after = between(log(), ackedAt);
+    assert.ok(after.every((e) => e.idle), 'idle again once acknowledged');
+    assert.ok(Math.min(...gapsOf(after)) > 6 * TICK_MS, `idle snapshots ${shown(gapsOf(after))} ms apart`);
+  });
+});
+
+test('idle with a worker: Art-Net routes awaiting acknowledgement keep the snapshots coming every tick', async () => {
+  const enabled = state.artnet.enabled;
+  await onRecordingWorker(async (log) => {
+    await until(() => snapshots(log()).length >= 2, 'idle snapshots');
+    const armedAt = hrtimeMs();
+    state.artnet.enabled = true;
+    output.setArmed(true);
+    let disarmedAt;
+    try {
+      await until(() => between(log(), armedAt).length >= 6, 'snapshots while routes are outstanding');
+    } finally {
+      output.setArmed(false);
+      state.artnet.enabled = enabled;
+      disarmedAt = hrtimeMs();
+    }
+    // The first snapshot armed is still idle: it issues the routes, which then await acknowledgement.
+    const armed = between(log(), armedAt, disarmedAt).slice(1);
+    assert.ok(armed.every((e) => !e.idle), 'an unacknowledged route ends idle');
+    assert.ok(Math.min(...gapsOf(armed)) < 3 * TICK_MS, `posted ${shown(gapsOf(armed))} ms apart`);
+    // Disarmed, the worker acknowledges the routes: idle again.
+    await until(() => between(log(), disarmedAt).filter((e) => e.idle).length >= 3, 'idle once the routes are retired');
+  });
+});
+
+test('idle with a worker: a command goes at once with its snapshot, and every tick follows until it is answered', async () => {
+  await onRecordingWorker(async (log) => {
+    await until(() => snapshots(log()).length >= 2, 'idle snapshots');
+    const result = await effectCommand('toggleDirection');
+    const answeredAt = hrtimeMs();
+    assert.strictEqual(result.status, 'applied');
+    const entries = log();
+    const at = entries.findIndex((e) => e.command === result.seq);
+    assert.ok(at >= 1 && entries[at - 1].at !== undefined && !entries[at - 1].idle, 'its snapshot right before it, not idle');
+    const waiting = between(entries.slice(at), 0, answeredAt);
+    assert.ok(waiting.length >= 2 && waiting.every((e) => !e.idle), `${waiting.length} snapshots, none idle, while it was answered`);
+    assert.ok(Math.min(...gapsOf(waiting)) < 3 * TICK_MS, `posted ${shown(gapsOf(waiting))} ms apart`);
+  });
 });

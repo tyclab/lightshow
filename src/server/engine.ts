@@ -41,6 +41,7 @@ export type EngineStatus = {
   rate: number;
   fellBack: string | null;
   commands: { submitted: number; processed: number; applied: number };
+  idle: boolean;
 } & Partial<FrameSummary>;
 
 // Send control snapshots ahead of the deadline so the worker has them before rendering.
@@ -52,6 +53,9 @@ const CRASH_WINDOW_MS = 60000;
 const RESTART_DELAY_MS = 250;
 
 const STOP_TIMEOUT_MS = 300;
+
+// While idle, a ninth of the render keeps show state advancing, and a change still ends idle within one tick.
+const IDLE_EVERY = 9;
 
 let clock = () => performance.now();
 
@@ -366,6 +370,38 @@ function setAudioSource(fn: (() => AudioFrame | null) | null | undefined): void 
   audioFailed = false;
 }
 
+let idleSource: (() => boolean) | null = null;
+let idleFailed = false;
+function sourceIdle(): boolean {
+  if (!idleSource) return false;
+  try {
+    return idleSource() === true;
+  } catch (err) {
+    if (!idleFailed) console.warn(`[engine] idle source failed: ${messageOf(err)}`);
+    idleFailed = true;
+    return false;
+  }
+}
+
+function setIdleSource(fn: (() => boolean) | null | undefined): void {
+  idleSource = typeof fn === 'function' ? fn : null;
+  idleFailed = false;
+}
+
+// Idle only when nothing can see a frame and nothing waits on one: a change, a command or a route retirement.
+function isIdle(): boolean {
+  return frames.revision === frames.applied && pendingCommands.size === 0 && sourceIdle() && routes.outstanding().length === 0;
+}
+
+let idleTicks = 0;
+function idleSkip(idle: boolean): boolean {
+  if (!idle) {
+    idleTicks = 0;
+    return false;
+  }
+  return idleTicks++ % IDLE_EVERY !== 0;
+}
+
 function resizeFixtureBuffers(): void {
   invalidateRig();
   renderer.invalidateRig();
@@ -402,6 +438,7 @@ function renderDmx(): void {
     mainSequence = revisionOf(sequenceNow);
   }
   renderer.frame(renderInput(), reading, now, universes, mainGridOrigin);
+  ticker?.stats.rendered();
   settleCommands(renderer.takeCommandResults(), renderer.commandStatus());
   const outputSeq = routes.issue(output.transmitConfig());
   if (transmitFrame()) {
@@ -414,6 +451,17 @@ function renderDmx(): void {
 }
 
 const safeRender = guarded('render', renderDmx);
+
+function mainTick(): void {
+  const idle = isIdle();
+  if (ticker) ticker.stats.idle = idle;
+  if (!idleSkip(idle)) {
+    renderDmx();
+    return;
+  }
+  runFrameHook();
+  runSequenceSource(conductor.now());
+}
 
 let ticker: Ticker | null = null;               // this thread's frame loop, or the control tick
 let worker: Worker | null = null;               // the engine thread, while one is running
@@ -496,7 +544,7 @@ function startMainDriver(): void {
   mainGridOrigin = clock();
   mainSequence = undefined;
   mainSpace = undefined;
-  ticker = createTicker({ onTick: safeRender, periodMs: FRAME_MS, epochMs });
+  ticker = createTicker({ onTick: guarded('render', mainTick), periodMs: FRAME_MS, epochMs });
   ticker.start();
 }
 
@@ -523,6 +571,8 @@ function controlTick(): void {
     postedSpace = space;
   }
   postSequence(worker);
+  const idle = isIdle();
+  if (idleSkip(idle)) return;
   post(worker, {
     type: 'snapshot',
     at,
@@ -531,6 +581,7 @@ function controlTick(): void {
     reading: { ...reading, moving: freeClockRuns() },
     ...issueOutputs(),
     barrierRevision: frames.revision,
+    idle,
   });
 }
 
@@ -718,6 +769,7 @@ function engineStatus(): EngineStatus {
     fellBack,
     commands: { submitted: commandSeq, processed: commandsProcessed, applied: commandsApplied },
     ...(stats || {}),
+    idle: isIdle(),
   };
 }
 
@@ -729,6 +781,7 @@ export {
   setPulseSource,
   setModulationSource,
   setAudioSource,
+  setIdleSource,
   setMasterSource,
   setEffectSource,
   resolveEffect,
@@ -742,5 +795,6 @@ export {
   effectCommand,
   renderInput,
   CONTROL_LEAD_MS,
+  IDLE_EVERY,
   renderDmx as renderFrame,
 };

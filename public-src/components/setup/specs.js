@@ -13,8 +13,9 @@ export function engineNote(data) {
   const e = data && data.engine;
   if (!e || !e.thread) return null;
   const where = e.thread === 'worker' ? 'its own thread' : 'the main thread';
+  const pace = e.idle ? 'idle (disarmed, nothing watching), rendering a few frames a second' : `${e.rate} frames a second`;
   const timing = e.frames
-    ? ` — ${e.rate} frames a second, ${e.renderMs.p95} ms to render (p95), `
+    ? ` — ${pace}, ${e.renderMs.p95} ms to render (p95), `
       + `${(e.lateFrames || 0) + (e.skippedFramesLastMinute || 0)} late or dropped in the last minute`
     : '';
   if (e.fellBack) return { ok: false, text: `Currently: ${where}, because ${e.fellBack}${timing}.` };

@@ -27,7 +27,7 @@ import LiveDirector from '../show/live-director.ts';
 import { SPATIAL_AUTO_PATTERNS } from '../show/look.ts';
 import { PATTERNS } from './presets.ts';
 import { settings } from './settings.ts';
-import { baseEffect, effectChanged, identify, setAudioSource, setEffectSource, setSequenceSource, setMasterSource } from './engine.ts';
+import { baseEffect, effectChanged, identify, setAudioSource, setEffectSource, setIdleSource, setSequenceSource, setMasterSource } from './engine.ts';
 import { AudioFeatures, feedOf, resolveDetectors } from './audio-features.ts';
 import { BIN_HZ } from '../shared/spectrum-bands.ts';
 import { safety } from './safety.ts';
@@ -280,6 +280,8 @@ function setupIntegrations({ io, midi, spotify, nowPlaying, deezerSource, prolin
   const prefetchDepth = () => Math.max(1, Math.min(5, state.autoPrefetchDepth || 1));
 
   const publisher = createPublisher(io);
+  // A stop request outlives identify until the next start, so only fixtures still being identified count.
+  setIdleSource(() => !isArmed() && !publisher.wants(ROOM.dmx) && !publisher.wants(ROOM.v1) && !identify.request()?.ids.length);
 
   const particleCoverage = new ParticleCoverage(() => broadcast());
   function broadcast(): void {

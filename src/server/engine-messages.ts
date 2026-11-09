@@ -24,7 +24,9 @@ export type RenderedFrames = Record<number, number[] | null>;
 export type ToWorker =
   | { type: 'profiles'; profiles: Profile[] }
   | { type: 'space'; space: UnitSpace | null }
-  | { type: 'snapshot'; at: number; input: RenderInput; reading: PostedReading; outputs: TransmitConfig; barrierRevision?: number; outputSeq?: number }
+  // `idle`: nothing can see the frames, so the worker renders only for a snapshot or command that reaches it.
+  | { type: 'snapshot'; at: number; input: RenderInput; reading: PostedReading; outputs: TransmitConfig; barrierRevision?: number; outputSeq?: number;
+    idle?: boolean }
   | { type: 'render'; id: number; input: RenderInput; reading: MusicalTime; now: number; gridOriginMs?: number; table?: SequenceTable | null }
   | { type: 'sequence'; table: SequenceTable | null }
   | { type: 'command'; seq: number; cmd: string; arg?: unknown; intent?: BaseIntent | null }

@@ -2212,9 +2212,13 @@ supervisor and effect/voice/sequence counts. Disarmed is informational. In
 `engine`, `skippedFramesLastMinute` counts frames dropped in the last 60 s and
 `skippedFramesTotal` every frame dropped since the engine's ticker started; the
 pre-show engine check and the Settings → Engine note read the last minute only,
-so a stall at start-up stops warning a minute later. `eventLoop` gives the
-main thread's delay in milliseconds over the last 30 s window: the excess over
-the 10 ms sampling timer, so an idle loop reads 0.
+so a stall at start-up stops warning a minute later. `renderedTotal` counts the
+ticks that rendered a frame. `idle` is true while the outputs are disarmed, no
+page watches the DMX feed or protocol 1 and no identify runs: the engine then
+renders every ninth tick (about 5 a second), and every tick again as soon as a
+change, an effect command or an Art-Net retirement waits on a frame. `eventLoop`
+gives the main thread's delay in milliseconds over the last 30 s window: the
+excess over the 10 ms sampling timer, so an idle loop reads 0.
 
 Logs appear in the terminal, the app's Log drawer and `logs/lightshow.log`.
 Files are JSON lines, rotated at 10 MB with three retained rotations.
@@ -2222,14 +2226,15 @@ Files are JSON lines, rotated at 10 MB with three retained rotations.
 format. `/api/logs` supports sequence, level and limit filters.
 
 At info level, the existing health monitor writes one `component=performance`
-JSON record every 30 seconds. It contains measured `actualFps`, configured
-`targetFps`, render/lateness percentiles in milliseconds, event-loop delay,
-memory bytes and whether outputs are armed. Rates use monotonic elapsed time;
-`actualFps`, `intervalMs` and `intervalSkipped` are null on the first sample,
-after a ticker restart or when a worker report has not advanced. Check
-`engineSampleAgeMs` for stale worker reports. `windowFrames` and `lateFrames`
-describe the last 2,640 rendered frames; `skippedFramesTotal` is cumulative for
-the current ticker, while `intervalSkipped` covers `intervalMs`.
+JSON record every 30 seconds. It contains measured `actualFps` (ticks) and
+`renderedFps` (frames rendered, lower while `idle`), configured `targetFps`,
+render/lateness percentiles in milliseconds, event-loop delay, memory bytes,
+whether outputs are armed and whether the engine is `idle`. Rates use monotonic
+elapsed time; `actualFps`, `renderedFps`, `intervalMs` and `intervalSkipped` are
+null on the first sample, after a ticker restart or when a worker report has not
+advanced. Check `engineSampleAgeMs` for stale worker reports. `windowFrames` and
+`lateFrames` describe the last 2,640 ticks; `skippedFramesTotal` is cumulative
+for the current ticker, while `intervalSkipped` covers `intervalMs`.
 `eventLoopP50Ms`, `eventLoopP99Ms` and `eventLoopMaxMs` exclude the 10 ms
 sampling interval. These are engine timings, not confirmation that a device
 displayed every frame.

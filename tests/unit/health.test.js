@@ -118,6 +118,20 @@ test('performance summaries measure elapsed throughput without leaking health de
   assert.ok(Object.values(s).every((value) => value === null || ['boolean', 'number', 'string'].includes(typeof value)));
 });
 
+test('performance summaries count rendered frames apart from ticks, and say whether the engine idles', () => {
+  const before = { ...timing, renderedTotal: 40, idle: false };
+  const next = { ...timing, sampledAtMs: 31_000, totalFrames: 1240, renderedTotal: 190, idle: true };
+  const s = sample(next, before);
+  assert.equal(s.actualFps, 40, 'the ticker kept its rate');
+  assert.equal(s.renderedFps, 5, 'while it rendered a fraction of its ticks');
+  assert.equal(s.idle, true);
+  assert.equal(sample(next).renderedFps, null, 'the first sample has nothing to compare');
+  for (const patch of [{ renderedTotal: undefined }, { renderedTotal: 10 }, { startedAtMs: 2000 }, { thread: 'main' }]) {
+    assert.equal(sample({ ...next, ...patch }, before).renderedFps, null, JSON.stringify(patch));
+  }
+  assert.equal(sample({ ...next, idle: undefined }, before).idle, null, 'a report without it says nothing');
+});
+
 test('performance deltas reject startup, restart, fallback and stale or reset counters', () => {
   const next = { ...timing, sampledAtMs: 31_000, totalFrames: 1240, skippedFramesTotal: 10 };
   assert.equal(sample(next).actualFps, null);
@@ -169,6 +183,7 @@ test('health routes expose liveness and detailed status', async (t) => {
   assert.equal(h.ok, false);
   assert.equal(h.problems[0].level, 'error');
   for (const key of ['version', 'node', 'pid', 'uptimeS', 'engine', 'memory', 'outputs', 'supervisor', 'log']) assert.ok(key in h, key);
+  assert.equal(typeof h.engine.idle, 'boolean');
   assert.deepEqual(h.auto, { status: 'idle', running: false, error: null });
   assert.equal(typeof health().uptimeS, 'number');
   assert.equal(typeof h.counts.effects, 'number');

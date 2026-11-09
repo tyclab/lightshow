@@ -104,6 +104,9 @@ test("engine settings show resolved runtime values", () => {
   };
   const engine = ui.html(ui.h(ui.SettingsSection, ui.ENGINE));
   assert.match(engine, /Currently: its own thread — 44 frames a second, 0.4 ms to render \(p95\), 3 late or dropped in the last minute/);
+  ui.settingsSig.value = { ...ui.settingsSig.value, engine: { ...ui.settingsSig.value.engine, idle: true, renderedTotal: 12 } };
+  assert.match(ui.html(ui.h(ui.SettingsSection, ui.ENGINE)),
+    /Currently: its own thread — idle \(disarmed, nothing watching\), rendering a few frames a second, 0.4 ms to render/);
 });
 
 test('a select keeps a stored value the list no longer has, and says so', () => {

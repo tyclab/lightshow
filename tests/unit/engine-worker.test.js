@@ -484,3 +484,73 @@ test('a worker that will not start leaves the engine rendering on the main threa
   }
   assert.ok(errors.length > 0, 'the fallback is reported');
 });
+
+// ── Idle: nothing can see the frames ─────────────────────────────────────────
+
+/** Wait, a few milliseconds at a time, until `done()`. */
+async function until(done, what, limitMs = 5000) {
+  const end = Date.now() + limitMs;
+  while (!done()) {
+    assert.ok(Date.now() < end, `still waiting for ${what} after ${limitMs} ms`);
+    await wait(5);
+  }
+}
+
+const QUIET = { universes: [0], artnet: { enabled: false, host: '', port: 6454, sync: false }, sacn: { enabled: false }, delayMs: 0, armed: false };
+
+/** A ticking engine worker fed by hand: the frames it applies and the reports it sends, as they arrive. */
+async function liveWorker() {
+  const w = new Worker(WORKER, { workerData: { shared: universes.allocateShared(), epochMs: hrtimeMs(), periodMs: FRAME_MS } });
+  const frames = [];
+  const stats = [];
+  await new Promise((resolve, reject) => {
+    w.on('message', (m) => {
+      if (m.type === 'ready') resolve();
+      if (m.type === 'frame') frames.push(m);
+      if (m.type === 'stats') stats.push(m.stats);
+    });
+    w.once('error', reject);
+  });
+  const [[input]] = effectScenes(RIGS.pars, { pattern: 'solid', frames: 1 });
+  let revision = 0;
+  return {
+    frames,
+    stats,
+    snapshot: (idle) => w.postMessage({ type: 'snapshot', at: hrtimeMs(), input, reading: { beatPos: 0, bpm: 120, source: 'tap', epoch: 0 },
+      outputs: QUIET, barrierRevision: ++revision, outputSeq: revision, idle }),
+    command: (seq) => w.postMessage({ type: 'command', seq, cmd: 'toggleDirection', intent: null }),
+    close: () => w.terminate(),
+  };
+}
+
+test('an idle worker renders only for a snapshot or a command, and keeps reporting', async () => {
+  const worker = await liveWorker();
+  try {
+    // Not idle: one snapshot, and a frame every tick from it.
+    worker.snapshot(false);
+    await until(() => worker.frames.length >= 10, 'ten frames from one snapshot');
+    // Idle: the snapshot that says so renders once, then nothing.
+    worker.snapshot(true);
+    await until(() => worker.frames.at(-1).barrierRevision === 2, 'the idle snapshot rendered');
+    const once = worker.frames.length;
+    const reported = worker.stats.length;
+    await until(() => worker.stats.length >= reported + 2, 'two reports while idle');
+    assert.strictEqual(worker.frames.length, once, 'nothing rendered without a snapshot or a command');
+    const [a, b] = worker.stats.slice(-2);
+    assert.strictEqual(b.idle, true);
+    assert.strictEqual(b.renderedTotal, a.renderedTotal, 'the ticker ran on, rendering nothing');
+    assert.ok(b.totalFrames - a.totalFrames >= 10, `${b.totalFrames - a.totalFrames} ticks between the reports`);
+    // One frame for each snapshot and each command that reaches it.
+    worker.snapshot(true);
+    await until(() => worker.frames.length === once + 1, 'the next idle snapshot rendered');
+    worker.command(1);
+    await until(() => worker.frames.length === once + 2, 'the command rendered');
+    await wait(5 * FRAME_MS);
+    assert.strictEqual(worker.frames.length, once + 2, 'one frame each');
+    // Not idle again: every tick.
+    worker.snapshot(false);
+    await until(() => worker.frames.length >= once + 12, 'a frame every tick again');
+  } finally {
+    await worker.close();
+  }
+});
