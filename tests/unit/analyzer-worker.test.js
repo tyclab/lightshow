@@ -210,7 +210,7 @@ function writeWav(seconds, { list = true } = {}) {
   return file;
 }
 
-// A 900 s track took 1034 s on tychome's CPU, and the fixed 600 s limit killed
+// A 900 s track took 1034 s on a 16 GB CPU server, and the fixed 600 s limit killed
 // it there every time, however healthy the worker was.
 test('a long track is given time in proportion to its length', () => {
   assert.strictEqual(analysisTimeoutMs(600000, 1500, 900), 60000 + 1500 * 900);
@@ -222,7 +222,7 @@ test('a long track is given time in proportion to its length', () => {
   assert.strictEqual(analysisTimeoutMs(600000, 0, 900), 600000, '0 turns the scaling off');
   const { analyzerTimeoutMs, analyzerTimeoutMsPerSec } = DEFAULTS.analysis;
   assert.ok(analysisTimeoutMs(analyzerTimeoutMs, analyzerTimeoutMsPerSec, 900) > 1.3 * 1034000,
-    'the defaults leave tychome\'s 900 s run 30 % to spare');
+    'the defaults leave that 900 s run 30 % to spare');
 });
 
 test('a WAV\'s length is read from its header', () => {

@@ -249,7 +249,6 @@ const OP_ADDRESS = 0x6000;
 const ADDRESS_SIZE = 107;
 const NO_CHANGE = 0x7f;
 const AC_LED_NORMAL = 0x02;
-const AC_LED_MUTE = 0x03;
 const AC_LED_LOCATE = 0x04;
 
 function buildArtAddress(command: number, bindIndex = 1): Buffer {
@@ -319,7 +318,6 @@ export {
   ARTNET_PORT,
   OP_ADDRESS,
   AC_LED_NORMAL,
-  AC_LED_MUTE,
   AC_LED_LOCATE,
   buildArtAddress,
   sendArtAddress,

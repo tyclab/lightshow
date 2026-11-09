@@ -12,6 +12,7 @@ import { PATTERNS, PRESET_ROWS } from '../../src/server/presets.ts';
 import { EffectLibrary } from '../../src/server/effect-library.ts';
 import { presetById } from '../../src/shared/effects/index.ts';
 import { KINDS, validateSpec } from '../../src/shared/effects/registry.ts';
+import { mappingOf, usesSpatialMapping } from '../../src/shared/effects/mapping.ts';
 import { LEGACY_TAGGED, REACTIVE_TAGS, SOURCES, TAG_AXES, TAG_NOTES, TAGS, browseListOf, legacyTags, specTags } from '../../src/shared/effects/tags.ts';
 
 // What every registered kind reacts to with its default params, counted per tag.
@@ -298,6 +299,20 @@ test('every registered kind says what it reacts to, from its code', () => {
   }
   // A new kind changes these counts, so it is placed on purpose.
   assert.deepEqual(counts, KIND_REACTS);
+});
+
+// Version 0 and 1 libraries load their hd/ldj specs as compat.* kinds (migrate.ts); they are the same effect.
+test('a compat kind gets the tags and mapping of its plain twin', () => {
+  let compared = 0;
+  for (const [kind, def] of KINDS) {
+    if (!/^(hd|ldj)\./.test(kind)) continue;
+    const plain = { kind, params: def.defaults.params };
+    const compat = { ...plain, kind: `compat.${kind}` };
+    assert.deepEqual(specTags(compat), specTags(plain), kind);
+    assert.deepEqual([mappingOf(compat), usesSpatialMapping(compat)], [mappingOf(plain), usesSpatialMapping(plain)], kind);
+    compared++;
+  }
+  assert.ok(compared > 100, `${compared} hd and ldj kinds`);
 });
 
 test('kinds without a trigger: live input, their own rate or the beat, as their code reads', () => {

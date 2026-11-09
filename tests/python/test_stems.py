@@ -156,7 +156,7 @@ class StereoInput(unittest.TestCase):
 @needs_audio
 class StreamedDemucs(unittest.TestCase):
     # apply_model on a whole track held it as four stereo stems at 44.1 kHz,
-    # twice: 4 MB a second, more than tychome had for a long track. The
+    # twice: 4 MB a second, more than the 16 GB server had for a long track. The
     # segments are now run one at a time; for the same random shift the stems
     # must be the ones apply_model gives, bit for bit.
     def test_the_stems_are_apply_models(self):
