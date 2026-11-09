@@ -401,7 +401,7 @@ panels looks, patterns every other look; retired ids are in none.
 
 ### Spatial effects
 
-The Effects list has one entry for each of the 39 spatial looks, over eleven
+The Effects list has one entry for each of the 41 spatial looks, over twelve
 generators. Open an effect's editor to choose its
 **Mapping** when its motion or selection uses positions:
 
@@ -446,6 +446,21 @@ flowchart LR
 | Noise | continuous clouds, aurora or flames sampled in space | Drifting Clouds, Aurora, Fire |
 | Particles | soft objects and ballistic sparks, trails, falling drops and floor splashes | Light Orbs, Orb Collision, Fireworks, Rain |
 | Visualizer | the incoming picture's palette and motion speed drive an independent spatial field | Visualizer Flow, Visualizer Drift |
+| Globe | each light's own sphere: rings carry the spectrum (bass at the equator, highs at the poles) or the beat leaving the equator, lobes turn a quarter-beat step on every beat, and a white spot marks where they face | Globe Spectrum, Globe Pulse |
+
+Globe reads each light as a sphere. Through the room, a light the Stage room places
+as a solid (see [Room picture](#room-picture)) takes each bound cell's latitude from
+its height over the bound cells' centre and its longitude round the vertical axis,
+longitude 0 facing the listener; a cell of it no binding places takes its panel
+latitude and its panel longitude turned as the bound cells are. Across the layout,
+and for any other light, its panel rows are the rings (the top row at the top pole)
+and its columns go once round. A lamp of one cell sits on the equator without lobes
+or a spot. Three bands fill six rings: bass the two by the equator, mids the next two, highs the two by the poles. Live audio
+sets them; without it the beat clock plays bass on every beat, mids on two and four
+and highs on the off-beats. A pulse leaves the equator's rings on each beat, passes
+the poles three quarters of a beat later and is as strong as the live level (full
+without one). **Turn beats** is one turn round the axis; 0 holds the lobes and the
+spot still. The live input is mono, so the turn follows the beat, not the stereo image.
 
 Rising Wall fills from the floor with build-section progress. Falling Wall releases
 that fill from ceiling to floor over one bar before a drop detonates into a shockwave,
@@ -849,6 +864,40 @@ overlap. A panel rectangle uses its LED offset and row stride; WLED resolves
 its own wiring order. All segments of one device are delivered as one frame.
 LEDs outside patched segments keep their previous values.
 
+Patched pixel by pixel, a matrix also reads the ledmap WLED has loaded
+(`/json/state`'s `ledmap`, `0` being `/ledmap.json`; a 404 means none). A ledmap
+that routes some grid cells to `-1` (or past the strip) leaves only the cells with
+an LED: each becomes a cell of the fixture at its column and row (the profile's
+`cells[].at`, its grid the matrix or segment), in row-major order, and the output
+carries `leds`, `columns` and one `areas` entry per cell, so DDP still sends the
+whole matrix in WLED's logical order with the cells without an LED black; WLED maps
+the rest as before. A ledmap that keeps every cell changes nothing, and so does one
+that does not fit the matrix (another size, or a map whose entries do not fill
+it): the matrix stays its full grid and the answer says why the ledmap is not used.
+A ball wired as a 20 × 6 matrix whose ledmap keeps rings of 5, 15, 20, 20, 15 and
+5 LEDs is a fixture of 80 cells. Zones, washes and strobe panels ignore the ledmap.
+
+A fixture already in the patch takes a new ledmap when it is read again: **Read
+again** beside it in Rig → Outputs → WLED (`POST /api/wled/refresh` with
+`{ fixtureId }`) asks its WLED for its LEDs, its segment and its ledmap and
+rebuilds its profile under the same id, so shows, sequences and its place keep
+resolving it. A read that would change the fixture's cell count changes nothing at
+first: it answers what would change (`applied: false`: the cells before and after,
+the room bindings that would move, drop or go stale, and whether a full grid stops
+being one, which a pixel feed sized to the grid then no longer reaches), and Read
+again shows that with **Apply** and **Keep as is**. Apply sends the request again
+with `confirm` set to the count it showed; a device that answers another count then
+is refused. `dryRun: true` only ever answers. A read that keeps the cell count is
+applied at once. When the cells change on the same grid, the Stage room's bindings
+follow each cell to its new index by column and row; a binding (or a weighted
+source) whose cell no longer has an LED is dropped, and a furniture object it lit
+loses only the light. When the device is now set up as another grid, the bindings
+cannot be followed: they stay as they are, the answer counts them, and the room
+needs exporting again. A fixture patched as zones, a wash or a strobe panel, or one
+whose explicit cell map no longer matches, is refused, and so is a host answering
+with another device's MAC, or a fixture re-patched or removed while its WLED was
+being read. Nothing is read again on its own.
+
 RGB and RGBW fixtures can share a controller. RGB sections retain their colour
 with a zero white channel; RGBW sections retain the palette's white value.
 WLED's own auto-white and white-balance settings can still alter received colours.
@@ -933,7 +982,9 @@ with centre-cover cropping by default. The helper defaults to 44 frames per
 second; `--fps 1` through `--fps 60` selects a requested rate, capped by the
 server's advertised `maxFps`. Older servers continue to work at their lower cap.
 Include gaps in the supplied grid dimensions; WLED applies its physical map once.
-A sparse curtain displays large shapes and colours rather than fine text.
+A sparse curtain displays large shapes and colours rather than fine text. A WLED
+read with its ledmap is not a full grid, so the helper leaves it out of `--panels`
+and it takes the room picture instead.
 
 The server accepts up to 60 frames per second per input lease and keeps only
 the latest accepted picture. Its lighting engine currently renders and sends
@@ -1062,7 +1113,14 @@ picture at the unit's plan position: the plot's left-to-right is the picture's
 left-to-right and the plot's top (the room's front) is the picture's top, so a
 sweep across the screen sweeps across the room. Grid fixtures, including keyboards,
 take the room picture when they have no live pixel feed. A valid pixel feed has
-priority; when it expires, the grid returns to the room picture. Update the browser
+priority; when it expires, the grid returns to the room picture. A panel the Stage
+room places as a solid rather than a surface (its bound cells at least a quarter as
+thick as they are wide, such as a WLED ball whose cells sit on a sphere) samples
+the picture where its cells are: each bound cell at the fixture's plot centre plus
+its room offset from the cells' centre across and along the floor, so the ball's
+front and back take different parts of the picture. A flat panel or a curtain keeps
+its flat place on the plot. The unit list's signature then carries the room's
+revision, so a sender fetches the positions again after a room import. Update the browser
 helper with the server so it samples grid cells too. Voices, pads, Identify, overrides and
 blackouts stay above it, the master and trims still apply, and two seconds
 without a frame shows the effects again. With **Effects** selected the server

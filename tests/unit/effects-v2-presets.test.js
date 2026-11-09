@@ -12,7 +12,7 @@ const NAMES = ['Scatter Strobe', 'Scatter Fade', 'Scatter Grow', 'Groove Wave', 
   'Impact', 'Vortex', 'Speaker Shockwave', 'Rotation', 'Swirl', 'Beacon', 'Neural', 'Neural Distance',
   'Beat Accent Wash', 'Volume Gate Wash', 'Frequency Burst', 'Wash', 'Breathe', 'Chase', 'Path Runner', 'Surround', 'Zones', 'Surround Answer',
   'Near and Far', 'Drifting Clouds', 'Aurora', 'Fire', 'Rising Wall', 'Falling Wall', 'Light Orbs', 'Orb Collision', 'Fireworks', 'Rain', 'Stems in Space',
-  'Visualizer Flow', 'Visualizer Drift'];
+  'Visualizer Flow', 'Visualizer Drift', 'Globe Spectrum', 'Globe Pulse'];
 const room = V2_PRESETS.filter((p) => !p.id.endsWith('.2d'));
 const twinOf = (p) => V2_PRESETS.find((q) => q.id === `${p.id}.2d`);
 

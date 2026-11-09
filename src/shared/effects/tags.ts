@@ -147,6 +147,8 @@ function reactions(spec: Pick<EffectSpec, 'kind' | 'params'>): LookTags {
   const p = spec.params ?? {};
   if (spec.kind === 'v2.neural') return tagged(['bands'], ['live']);
   if (spec.kind === 'v2.visualizer') return tagged(['screen'], ['screen']);
+  // The globe's rings read the live bands or the live level; without sound the clock plays them.
+  if (spec.kind === 'v2.globe') return tagged([p.rings === 'pulse' ? 'level' : 'bands'], ['live']);
   if (spec.kind === 'hd.disco') return tagged(DISCO_READS[String(p.style)] ?? ['bands'], ['live']);
   // Loud, soft and quiet sections and loud beats from the live sound level (ldj-visualizer.ts).
   if (spec.kind === 'ldj.visualizer') return tagged(['level'], ['live']);

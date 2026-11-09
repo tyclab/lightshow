@@ -4,7 +4,7 @@ import { useDmxFeed, useDmxPaint } from '../../use-dmx.js';
 import { layoutOf, paintLayer, useCellLayer } from '../../cell-layer.js';
 import { frames } from '../../frame-paint.js';
 import { stagePositions } from '../../../src/shared/stage.ts';
-import { buildRig, lineOf } from '../../../src/shared/rig.ts';
+import { buildRig, gridLabel, lineOf } from '../../../src/shared/rig.ts';
 import { fixtureOutputColor, fixtureCellColors, patchedAt } from '../../utils.js';
 import {
   PLAN_SNAP, STAGE_EDGES, autoPlace, clamp, geometryOf, lineFromEnds, placeAt, plotBox, pointIn, pxOf, round1, snapTo, surfaceStyle,
@@ -452,7 +452,7 @@ export function PlanEditor() {
           const point = positions[i];
           const bar = !!rig.cellMaps[i];
           const grid = rig.grids[i];
-          const shape = grid ? `a panel of ${grid.columns} × ${grid.rows} cells` : bar ? `a bar of ${rig.ranges[i].count} cells` : '';
+          const shape = grid ? `a panel of ${gridLabel(grid, rig.ranges[i].count)}` : bar ? `a bar of ${rig.ranges[i].count} cells` : '';
           const isSelected = selected.includes(fix.id);
           const height = fix.position && Number.isFinite(fix.position.height) ? fix.position.height : null;
           const h = height ?? 50;

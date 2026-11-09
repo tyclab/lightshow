@@ -2,7 +2,7 @@ import { emissionOf } from '../../../src/shared/emission.ts';
 import { FixtureHardware } from './Hardware.jsx';
 import { pick, connectedSig, emitFixture, fixtureAckSig, latestSent } from '../../state.js';
 import { stagePositions } from '../../../src/shared/stage.ts';
-import { buildRig, lineOf } from '../../../src/shared/rig.ts';
+import { buildRig, gridLabel, lineOf } from '../../../src/shared/rig.ts';
 import { clamp, geometryOf, round1 } from '../../stage-geometry.js';
 import { rigSelectionSig, identifyFixtures } from '../../rig-ui.js';
 import { FieldInput } from './FieldInput.jsx';
@@ -85,7 +85,7 @@ export function Inspector() {
         <FieldInput id="insp-label" value={fix.label} maxLength={64} onCommit={(label) => send({ label })} />
         <span class="inspector-key">Profile</span>
         <span class="inspector-value">{profile ? `${profile.name}${profile.modeName ? ` — ${profile.modeName}` : ''}` : fix.profileId}
-          {profile && <small> · {profile.channelCount} ch{bar ? `, ${grid ? `${grid.columns} × ${grid.rows}` : rig.ranges[index].count} cells` : ''}</small>}</span>
+          {profile && <small> · {profile.channelCount} ch{bar ? `, ${grid ? gridLabel(grid, rig.ranges[index].count) : `${rig.ranges[index].count} cells`}` : ''}</small>}</span>
         {ddp && <><span class="inspector-key">Resolution</span>
           <span class="inspector-value">{rig.ranges[index].count} effect cells → {fix.output.leds || rig.ranges[index].count} physical LEDs.
             {fix.output.leds > rig.ranges[index].count ? ' Each cell repeats across several LEDs; fine spatial motion needs a pixel profile.' : ' Every LED retains its own animation value.'}</span></>}

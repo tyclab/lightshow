@@ -21,6 +21,7 @@ import type { setupIntegrations } from '../integrations.ts';
 import type { OflLibrary } from '../ofl-library.ts';
 import type { WledClient } from '../wled.ts';
 import type { OpenRgbClient } from '../openrgb.ts';
+import type { RoomSceneStore } from '../room-scene-store.ts';
 
 export interface RouteDeps {
   midi: MidiController;
@@ -38,6 +39,8 @@ export interface RouteDeps {
   hueAreas?: typeof listEntertainmentConfigs;
   huePair?: typeof pair;
   cues?: CueStore;
+  // The Stage room a WLED refresh carries cell bindings through; the shared store when absent.
+  roomScene?: RoomSceneStore;
   restart?: (reason: string) => boolean;
 }
 

@@ -34,10 +34,27 @@ export interface WledSegment {
   rowStride: number | null;
 }
 
+/** A WLED ledmap (`/ledmap.json`): `map[k]` is the physical LED behind logical LED k, -1 for none. */
+export interface WledLedmap {
+  width: number;
+  height: number;
+  map: number[];
+}
+
+/** One logical LED a ledmap routes to a physical LED: its column and row on the device's matrix. */
+export interface LedmapCell {
+  x: number;
+  y: number;
+  /** The logical index DDP addresses (row-major over the matrix); WLED maps it to `physical`. */
+  logical: number;
+  physical: number;
+}
+
 export interface WledClient {
   discover(timeoutMs?: number): Promise<FoundWled[]>;
   info(host: string): Promise<WledInfo>;
   segments?(host: string, info: WledInfo): Promise<WledSegment[]>;
+  ledmap?(host: string, info: WledInfo): Promise<WledLedmap | null>;
 }
 
 const MDNS_GROUP = '224.0.0.251';
@@ -156,17 +173,34 @@ async function segments(host: string, wled: WledInfo,
   return readSegments(await getJson(host, '/json/state', { fetchImpl, port }), wled, host);
 }
 
+// The ledmap WLED has loaded (state.ledmap names it; 0 is /ledmap.json): null when the device has none.
+async function ledmap(host: string, wled: WledInfo,
+  { fetchImpl = fetch, port }: { fetchImpl?: typeof fetch; port?: number } = {}): Promise<WledLedmap | null> {
+  if (!wled.matrix) return null;
+  const live = await getJson(host, '/json/state', { fetchImpl, port });
+  const id = live && typeof live === 'object' && Number.isInteger((live as Record<string, unknown>).ledmap) ? (live as { ledmap: number }).ledmap : 0;
+  if (id < 0) return null;
+  const raw = await getJson(host, `/ledmap${id ? id : ''}.json`, { fetchImpl, port, missing: true });
+  return raw === null ? null : readLedmap(raw, wled, host);
+}
+
 // One request for state and info, so a board streaming the show answers once per poll.
 async function liveState(host: string, { fetchImpl = fetch, port }: { fetchImpl?: typeof fetch; port?: number } = {}): Promise<WledLive> {
   return readLive(await getJson(host, '/json/si', { fetchImpl, port }), host);
 }
 
-async function getJson(host: string, path: string, { fetchImpl = fetch, port }: { fetchImpl?: typeof fetch; port?: number }): Promise<unknown> {
+async function getJson(host: string, path: string,
+  { fetchImpl = fetch, port, missing = false }: { fetchImpl?: typeof fetch; port?: number; missing?: boolean }): Promise<unknown> {
   let raw: unknown;
   try {
     const res = await fetchImpl(`http://${host}${port ? `:${port}` : ''}${path}`, {
       signal: AbortSignal.timeout(INFO_TIMEOUT_MS), redirect: 'error', headers: { accept: 'application/json' },
     });
+    // A file WLED does not have is a 404, which `missing` callers read as none.
+    if (missing && res.status === 404) {
+      await res.body?.cancel().catch(() => {});
+      return null;
+    }
     if (!res.ok) throw new HttpError(502, `${host} answered ${res.status}: is it a WLED?`);
     raw = JSON.parse(await readCapped(res, host));
   } catch (err) {
@@ -218,6 +252,49 @@ function readInfo(raw: unknown, host: string): WledInfo {
     matrix,
     mac: typeof body.mac === 'string' && /^[0-9a-f]{12}$/i.test(body.mac) ? body.mac.toLowerCase() : null,
   };
+}
+
+// A 2D ledmap names its own size; an older one without it covers the configured matrix. One whose
+// entries do not fill that size is read all the same and gives no cells (ledmapUnused says why).
+function readLedmap(raw: unknown, wled: WledInfo, host: string): WledLedmap {
+  const body = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>;
+  const matrix = wled.matrix;
+  const width = Number.isInteger(body.width) ? body.width as number : matrix?.w ?? 0;
+  const height = Number.isInteger(body.height) ? body.height as number : matrix?.h ?? 0;
+  const map = body.map;
+  if (!Array.isArray(map) || width < 1 || height < 1) throw new HttpError(502, `${host}'s ledmap is not a map of LED numbers`);
+  if (!map.every((v) => Number.isInteger(v) && (v as number) >= -1)) throw new HttpError(502, `${host}'s ledmap holds something other than LED numbers`);
+  return { width, height, map: map as number[] };
+}
+
+/** Why a loaded ledmap gives the matrix no cells of its own, so it stays the full grid it was before ledmaps were read; null when it fits. */
+function ledmapUnused(map: WledLedmap | null | undefined, wled: WledInfo): string | null {
+  const matrix = wled.matrix;
+  if (!map || !matrix) return null;
+  if (map.map.length !== map.width * map.height) return `its ledmap lists ${map.map.length} LEDs for ${map.width} × ${map.height} places`;
+  if (map.width !== matrix.w || map.height !== matrix.h) return `its ledmap is ${map.width} × ${map.height} and its matrix ${matrix.w} × ${matrix.h}`;
+  return null;
+}
+
+/**
+ * The LEDs a ledmap keeps on a matrix area (the whole matrix, or a segment's rectangle), in
+ * row-major order: a logical cell routed to -1, or past the device's LEDs, has no LED. Null when
+ * the ledmap does not cover the device's matrix or keeps every cell, so the area stays a full grid.
+ */
+function ledmapCells(map: WledLedmap | null | undefined, wled: WledInfo, segment: WledSegment | null = null): LedmapCell[] | null {
+  const matrix = wled.matrix;
+  if (!map || !matrix || ledmapUnused(map, wled)) return null;
+  const grid = segment ? segment.grid : { columns: matrix.w, rows: matrix.h };
+  if (!grid) return null;
+  const at = segment ? segment.at : 0;
+  const cells: LedmapCell[] = [];
+  for (let y = 0; y < grid.rows; y++) {
+    for (let x = 0; x < grid.columns; x++) {
+      const logical = at + y * matrix.w + x, physical = map.map[logical];
+      if (physical >= 0 && physical < wled.leds) cells.push({ x, y, logical, physical });
+    }
+  }
+  return cells.length >= 2 && cells.length < grid.columns * grid.rows ? cells : null;
 }
 
 function readLive(raw: unknown, host: string): WledLive {
@@ -313,10 +390,14 @@ function cellCount(leds: number, grid: { columns: number; rows: number } | null,
   return n >= 2 ? n : 1;
 }
 
-function wledProfile(wled: WledInfo, host: string, segment: WledSegment | null = null, look: WledLook = {}): ProfileInput {
+function wledProfile(wled: WledInfo, host: string, segment: WledSegment | null = null, look: WledLook = {},
+  map: WledLedmap | null = null): ProfileInput {
   const { leds, grid: area } = areaOf(wled, segment);
   const mode = look.mode || 'pixels';
   if (leds < 1) throw new HttpError(400, `${wled.name} reports no LEDs`);
+  // Only an area whose LEDs fill its grid is addressed by column and row, so only it takes the ledmap's cells.
+  const mapped = mode === 'pixels' && area ? ledmapCells(map, wled, segment) : null;
+  if (mapped && area) return ledmapProfile(wled, host, segment, area, mapped);
   if (mode === 'pixels' && leds > MAX_CELLS_PER_FIXTURE) {
     throw new HttpError(400, `${wled.name}${segment ? ` · ${segment.name}` : ''} has ${leds} LEDs; a fixture takes up to `
       + `${MAX_CELLS_PER_FIXTURE}. Split it into segments of its own in WLED, or add it as a wash or in zones`);
@@ -343,6 +424,27 @@ function wledProfile(wled: WledInfo, host: string, segment: WledSegment | null =
     channelMap: cells === 1 ? mapOf(0) : {},
     ...(cells > 1 ? { cells: Array.from({ length: cells }, (_, c): ProfileCell => ({ channelMap: mapOf(c) })) } : {}),
     ...(grid ? { grid } : {}),
+  };
+  return validate(profileSchema, profile, 'WLED profile');
+}
+
+// Only the LEDs the ledmap keeps are cells, each at its column and row; the output spreads them back over the matrix (wledSpan).
+function ledmapProfile(wled: WledInfo, host: string, segment: WledSegment | null, area: { columns: number; rows: number },
+  mapped: LedmapCell[]): ProfileInput {
+  if (mapped.length > MAX_CELLS_PER_FIXTURE) {
+    throw new HttpError(400, `${wled.name} has ${mapped.length} LEDs in its ledmap; a fixture takes up to ${MAX_CELLS_PER_FIXTURE}`);
+  }
+  const names = wled.rgbw ? ['red', 'green', 'blue', 'white'] : ['red', 'green', 'blue'];
+  const width = names.length;
+  const profile = {
+    id: `wled-${wled.mac || host.toLowerCase().replace(/[^a-z0-9]+/g, '-')}${segment ? `-seg${segment.id}` : ''}`.slice(0, 128),
+    name: (segment ? `${wled.name} · ${segment.name}` : wled.name).slice(0, 128),
+    manufacturer: 'WLED',
+    modeName: `${mapped.length} pixels, ${wled.rgbw ? 'RGBW' : 'RGB'}, ledmap on ${area.columns} × ${area.rows}${segment ? `, from LED ${segment.at + 1}` : ''}`,
+    channelCount: mapped.length * width,
+    channelMap: {},
+    cells: mapped.map((cell, c): ProfileCell => ({ channelMap: Object.fromEntries(names.map((n, k) => [n, c * width + k])), at: { x: cell.x, y: cell.y } })),
+    grid: area,
   };
   return validate(profileSchema, profile, 'WLED profile');
 }
@@ -374,9 +476,11 @@ function strobeProfile(wled: WledInfo, host: string, segment: WledSegment | null
   return validate(profileSchema, profile, 'WLED profile');
 }
 
-function wledSpan(wled: WledInfo, segment: WledSegment | null = null, look: WledLook = {}):
+function wledSpan(wled: WledInfo, segment: WledSegment | null = null, look: WledLook = {}, map: WledLedmap | null = null):
   { leds?: number; columns?: number; areas?: [number, number, number, number][] } {
   const { leds, grid } = areaOf(wled, segment);
+  const mapped = (look.mode ?? 'pixels') === 'pixels' && grid ? ledmapCells(map, wled, segment) : null;
+  if (mapped && grid) return { leds: grid.columns * grid.rows, columns: grid.columns, areas: mapped.map((cell) => [cell.x, cell.y, 1, 1]) };
   if (look.mode === 'strobe' && grid) {
     const panel = strobePanel(grid.columns, grid.rows, look.zones ?? DEFAULT_WLED_ZONES);
     if (panel) return { leds, columns: grid.columns, areas: panel.zones.map((z) => z.area) };
@@ -389,7 +493,9 @@ function wledSeat(profileId: string): string {
   return profileId.replace(/-(?:wash|zones\d+|strobe\d+)$/, '');
 }
 
-const wledClient: WledClient = { discover, info: (host) => info(host), segments: (host, wled) => segments(host, wled) };
+const wledClient: WledClient = {
+  discover, info: (host) => info(host), segments: (host, wled) => segments(host, wled), ledmap: (host, wled) => ledmap(host, wled),
+};
 
 export {
   buildQuery,
@@ -397,10 +503,14 @@ export {
   discover,
   info as wledInfo,
   segments as wledSegments,
+  ledmap as wledLedmap,
   liveState as wledLive,
   readInfo,
   readLive,
   readSegments,
+  readLedmap,
+  ledmapCells,
+  ledmapUnused,
   wledProfile,
   wledSpan,
   wledSeat,

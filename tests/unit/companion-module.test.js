@@ -335,10 +335,10 @@ test('Companion browsing over the server catalogue: every look but the bars\' an
   for (const kind of ['pattern', 'effect']) {
     assert.ok(catalog.lookList(s, kind).every((p) => !p.rapidFlash), 'rapid effects wait for acknowledgement');
   }
-  assert.deepStrictEqual([patterns.length, catalog.lookList(s, 'effect').length], [77, 4]);
+  assert.deepStrictEqual([patterns.length, catalog.lookList(s, 'effect').length], [79, 4]);
   const acknowledged = { ...s, safety: { photosensitivityAcknowledged: true } };
   const [all, effects] = ['pattern', 'effect'].map((kind) => catalog.lookList(acknowledged, kind));
-  assert.deepStrictEqual([all.length, effects.length], [79, 11]);
+  assert.deepStrictEqual([all.length, effects.length], [81, 11]);
   assert.ok([...all, ...effects].every((p) => !p.retired && !p.pixel));
   assert.ok(effects.every((p) => p.tags.includes('energy')));
   // Before it connects, the module's own list has no tags: the patterns without the pixel pictures.
