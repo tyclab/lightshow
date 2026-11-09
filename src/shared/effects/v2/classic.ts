@@ -6,6 +6,7 @@ export const CLASSIC_REDIRECTS: Readonly<Record<string, string>> = Object.freeze
   ramp: 'Ripple on the v2 engine (option C), merged only once the operator chose B in A/B migration.ramp',
   'flash-fill': 'Ripple on the v2 engine (option C), merged only once the operator chose B in A/B migration.flash-fill',
   'radial-pulse': 'Ripple on the v2 engine (option C), merged only once the operator chose B in A/B migration.radial-pulse',
+
 });
 
 // The classic and party looks on the v2 engine: for each id, the v2 spec closest to its own pattern on the

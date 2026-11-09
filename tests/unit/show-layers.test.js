@@ -14,6 +14,7 @@ import { renderLayer } from '../../src/shared/layer.ts';
 import { PATTERN_FUNCS, CELL_PATTERNS } from '../../src/shared/patterns.ts';
 import { wledProfile, readInfo } from '../../src/server/wled.ts';
 import { createPreviewSampler } from '../../src/shared/preview.ts';
+import { acknowledgeFlashes } from '../helpers/acknowledged.js';
 
 const TRACKS = path.join(import.meta.dirname, '..', 'fixtures', 'tracks');
 const files = fs.readdirSync(TRACKS).sort();
@@ -59,7 +60,15 @@ test('the bars draw what the section is doing', () => {
     assert.ok(/^(comet\/mirror|flash-chase\/mirror|(flash-alternate|ramp|core)\/bar|(ramp|decay)-scatter\/stage)$/.test(look), `a chorus is a mirrored chase: ${look}`);
   }
   assert.ok(seen.get('chorus').has('comet/mirror'), 'a chorus that is not driving that hard still chases');
-  assert.deepStrictEqual([...seen.get('drop')], ['impact/stage'], 'a drop is a burst from the centre, sparking on the kick');
+  // Impact's v2 form sparks, a Rapid flash: without the photosensitivity acknowledgement a drop is the plain burst.
+  assert.deepStrictEqual([...seen.get('drop')], ['burst/stage'], 'a drop is a burst from the centre');
+  const restore = acknowledgeFlashes();
+  try {
+    const drops = new Set(files.flatMap((file) => scenes(plan(file)).filter((s) => s.source === 'section:drop').map((s) => `${s.pixelPattern}/${s.pixelMap}`)));
+    assert.deepStrictEqual([...drops], ['impact/stage'], 'acknowledged, a drop is a burst from the centre, sparking on the kick');
+  } finally {
+    restore();
+  }
   for (const role of ['intro', 'outro']) {
     for (const look of seen.get(role) || []) assert.ok(/^(gradient|plasma)\/stage$/.test(look), `${role}: ${look}`);
   }
@@ -70,9 +79,13 @@ test('drops and driving passages lay out strobe bars', () => {
     'flash-fill': 'bar', 'flash-alternate': 'bar', ramp: 'bar', core: 'bar' };
   const dropPrograms = new Set();
   let strobed = 0;
-  for (const file of files) {
+  // Strobe programs and Impact's sparking v2 form are Rapid flashes: they are planned once acknowledged.
+  const restore = acknowledgeFlashes();
+  const planned = files.map((file) => [file, scenes(plan(file))]);
+  restore();
+  for (const [file, shown] of planned) {
     const byDrop = new Map();
-    for (const s of scenes(plan(file))) {
+    for (const s of shown) {
       if (!(s.pixelPattern in MAPS)) continue;
       strobed++;
       assert.strictEqual(s.pixelMap, MAPS[s.pixelPattern], `${file} ${s.source}: ${s.pixelPattern}`);
