@@ -179,6 +179,31 @@ test('a measurement with the same result keeps the published set, so nothing re-
   assert.equal(changes, 1, 'and nobody is told');
 });
 
+// While a show runs, the last set stays out until the next one is measured. A measurement that fails
+// leaves no next one: the set out then is another rig's, so the show loses its particle looks.
+test('a measurement that fails while a show runs takes the previous rig\'s particle looks away', async (t) => {
+  const { fixtures, profileOf } = syntheticRig();
+  const space = syntheticSpace();
+  let changes = 0;
+  const cache = new ParticleCoverage(() => changes++);
+  cache.want(true);
+  cache.forRig(buildRig(fixtures, profileOf), space);
+  await cache.ready;
+  assert.ok(cache.allowed.size > 0);
+  assert.equal(changes, 1);
+  const warn = t.mock.method(console, 'warn', () => {});
+  const render = t.mock.method(kindOf('v2.particles'), 'render', () => { throw new Error('no room for it'); });
+  const moved = buildRig(fixtures.map((f) => ({ ...f, group: 'moved' })), profileOf);
+  try {
+    cache.forRig(moved, space);
+    await cache.ready;
+  } finally { render.mock.restore(); }
+  assert.equal(warn.mock.callCount(), 1, 'the failure is reported');
+  assert.equal(cache.allowed.size, 0, 'no particle looks on a rig nobody could measure');
+  assert.equal(changes, 2, 'and the show is told');
+  assert.equal(cache.forRig(moved, space).size, 0);
+});
+
 /** The probe's slot output over every sample, hashed, with the frame's gaps revealed as the probe did before, or not. */
 async function probeOutput(room, reveal) {
   const def = kindOf('v2.particles'), render = def.render;

@@ -97,7 +97,12 @@ export class ParticleCoverage {
       this.allowed = result.eligible;
       this.changed();
     }).catch(() => {
-      if (!cancelled()) console.warn('[auto-show] particle coverage unavailable; keeping broad spatial effects');
+      if (cancelled()) return;
+      console.warn('[auto-show] particle coverage unavailable; keeping broad spatial effects');
+      // The set still out was measured on another rig: without a result for this one, no particle looks.
+      if (this.allowed.size === 0) return;
+      this.allowed = EMPTY;
+      this.changed();
     });
   }
 }
