@@ -98,9 +98,9 @@ function heard(p: GlobeParams, s: GlobeState, f: EffectFrame): { bands: Bands; l
   return { bands: s.bands, level: s.level };
 }
 
-// Without live sound the clock plays the kit: bass on every beat, mids on two and four, highs on the off-beats.
+// Without live sound the clock plays the kit: bass on every beat, mids on two and four, highs on the off-beats (the "and" halfway between beats).
 function clockBands(b: number): Bands {
-  return [Math.exp(-5 * frac(b)), Math.exp(-5 * frac(b / 2 - 0.5)), 0.6 * Math.exp(-8 * frac(2 * b - 0.5))];
+  return [Math.exp(-5 * frac(b)), Math.exp(-5 * frac(b / 2 - 0.5)), 0.6 * Math.exp(-8 * frac(b - 0.5))];
 }
 
 function ringOf(at: number, [bass, mid, high]: Bands): number {

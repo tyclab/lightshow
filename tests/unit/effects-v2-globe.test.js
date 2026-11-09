@@ -85,7 +85,54 @@ test('without live sound the beat clock plays the rings, and a lamp of one cell 
   const rows = rowsOf(profile, (c) => out[cell(c)].level);
   assert.ok(rows[2].every((level) => level > 0.95), 'bass on the beat');
   assert.ok(rows[0].every((level) => level < 0.05), 'the off-beat highs rest on the beat');
+  // The highs land on the off-beat, halfway between two beats, and rest at its quarters.
+  const poles = (beat) => Math.max(...rowsOf(profile, (c) => renderKind({ kind: 'v2.globe', params: { rings: 'spectrum', depth: 0, spot: false } }, room, frameAt(beat)).out[cell(c)].level)[0]);
+  assert.ok(poles(4.5) > 0.55, `highs on the off-beat: ${poles(4.5)}`);
+  assert.ok(poles(4.25) < 0.1 && poles(4.75) < 0.1, `and not on its quarters: ${poles(4.25)}, ${poles(4.75)}`);
   assert.ok(out[par].level > 0.95, 'the par takes the equator');
   const spot = renderKind({ kind: 'v2.globe', params: { rings: 'spectrum' } }, room, frameAt(0, { audio: audioOf() })).out;
   assert.equal(spot[par].level, 0, 'no spot on a single lamp');
+});
+
+test('the lobes turn the same way round the ball through the room and across the layout: towards higher columns, as the exporter places them', () => {
+  // The exporter puts column x at longitude 2π(x + 0.5)/20 from +x towards +z; a refreshed cell keeps its column in `at`.
+  for (const [placed, space] of [[true, 'room'], [false, 'plan']]) {
+    const { room, profile, cell } = ball({ placed });
+    const globe = globeOf(room, space);
+    const equator = profile.cells.flatMap((c, k) => (c.at.y === 2 ? [k] : []));
+    // The equator ring keeps all 20 columns, in column order.
+    const step = equator.map((c, k) => globe.lon[cell(equator[(k + 1) % 20])] - globe.lon[cell(c)]);
+    assert.ok(step.every((d) => Math.abs(((d % 1) + 1) % 1 - 1 / 20) < 0.003), `${space}: each next column is a twentieth further round: ${step.map((d) => d.toFixed(3))}`);
+    const brightest = (beat) => {
+      const { out } = renderKind({ kind: 'v2.globe', params: { space, rings: 'spectrum' } }, room, frameAt(beat, { audio: audioOf() }));
+      return profile.cells[equator.reduce((best, c) => (out[cell(c)].level > out[cell(best)].level ? c : best), equator[0])].at.x;
+    };
+    const turned = ((brightest(2.5) - brightest(0.5)) % 20 + 20) % 20;
+    assert.equal(turned, 5, `${space}: two beats of an eight-beat turn carry the spot five columns on`);
+  }
+});
+
+test('no light reads NaN: two or three cells, one ring in the room, a cell at the centre of a solid', () => {
+  const PAR = { id: 'par', name: 'Par', channelCount: 3, channelMap: { red: 0, green: 1, blue: 2 } };
+  const bar = (n) => ({ id: `bar${n}`, name: `Bar ${n}`, channelCount: 3 * n, channelMap: {}, cells: Array.from({ length: n }, (_, c) => ({ channelMap: { red: 3 * c, green: 3 * c + 1, blue: 3 * c + 2 } })) });
+  const profiles = { par: PAR, bar2: bar(2), bar3: bar(3), bar20: bar(20), bar5: bar(5) };
+  const fixtures = [{ id: 1, label: 'Par', profileId: 'par', position: { x: 10, y: 10 } }, { id: 2, label: 'Two', profileId: 'bar2', position: { x: 30, y: 10 } },
+    { id: 3, label: 'Three', profileId: 'bar3', position: { x: 50, y: 10 } }, { id: 4, label: 'Ring', profileId: 'bar20', position: { x: 70, y: 10 } },
+    { id: 5, label: 'Lantern', profileId: 'bar5', position: { x: 90, y: 10 } }];
+  const rig = buildRig(fixtures, (f) => profiles[f.profileId]);
+  const ring = Array.from({ length: 20 }, (_, c) => ({ id: `ring-${c}`, fixtureId: 4, unit: c, confidence: 'estimated',
+    position: { x: 1 + 0.2 * Math.cos((2 * Math.PI * c) / 20), y: 1, z: 0.2 * Math.sin((2 * Math.PI * c) / 20) } }));
+  // A lantern: four cells round a tetrahedron and one exactly at its centre (binary fractions, so the centre is exact).
+  const lantern = [[0, 0, 0], [0.125, 0.125, 0.125], [0.125, -0.125, -0.125], [-0.125, 0.125, -0.125], [-0.125, -0.125, 0.125]].map(([x, y, z], c) => ({
+    id: `lantern-${c}`, fixtureId: 5, unit: c, confidence: 'estimated', position: { x: -1 + x, y: 1.25 + y, z: 0.5 + z } }));
+  const scene = roomSceneSchema.parse(sphereRoom([...ring, ...lantern]));
+  const room = effectRoom(voiceLayout(rig), buildUnitSpace(rig, scene));
+  for (const space of ['room', 'plan']) {
+    const globe = globeOf(room, space);
+    assert.ok([...globe.lat, ...globe.lon].every(Number.isFinite), `${space}: every latitude and longitude is a number`);
+    for (const rings of ['spectrum', 'pulse']) for (const beat of [0, 0.3, 1.5, 2.75]) {
+      const { out } = renderKind({ kind: 'v2.globe', params: { space, rings } }, room, frameAt(beat, { audio: SPECTRUM }));
+      assert.ok(out.every((slot) => Number.isFinite(slot.level) && ['r', 'g', 'b'].every((k) => Number.isFinite(slot.colour[k]))), `${space} ${rings} at ${beat}`);
+    }
+  }
 });
