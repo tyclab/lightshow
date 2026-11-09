@@ -67,7 +67,7 @@ const PINNED = {
   streak: 'beat',
   starlight: 'beat',
   breathe: 'beat rig',
-  'volume-gate': 'level / track',
+  'volume-gate': 'level / live',
   confetti: 'bands / track',
   'anchor-fill': 'beat',
   halves: 'beat',
@@ -172,7 +172,7 @@ test('the twelve tags and their counts over the 113 looks', () => {
   const reactive = VISIBLE.filter((row) => row.tags.some((tag) => REACTIVE_TAGS.has(tag)));
   assert.equal(reactive.length, 27);
   assert.deepEqual(Object.fromEntries(Object.keys(SOURCES).map((s) => [s, reactive.filter((r) => r.via.includes(s)).length])),
-    { track: 16, live: 10, screen: 2 });
+    { track: 15, live: 11, screen: 2 });
 });
 
 test('tags restate the fields the server already sends: pixel, room mapping, rapid flash, the energy family', () => {

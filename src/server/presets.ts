@@ -60,14 +60,12 @@ const PATTERNS = [
   { id: 'hit',          name: 'Hit',           desc: 'All fixtures punch on the beat, decay between' },
   { id: 'strobe',       name: 'Strobe',        desc: 'All fixtures on colour A, strobing at the Strobe card\'s speed (0 is none): Standard runs the fixture\'s own rate; the ramps, Random and Burst follow the beat' },
   { id: 'color-cycle',  name: 'Colour Cycle',  desc: 'Whole rig steps to the next palette colour' },
-  { id: 'rainbow',      name: 'Rainbow',       desc: 'Full spectrum spread across the rig — ignores the palette' },
 
   { id: 'chase',        name: 'Chase →',       desc: 'One fixture at a time, forward' },
   { id: 'chase-rev',    name: 'Chase ←',       desc: 'One fixture at a time, reverse' },
   { id: 'ping-pong',    name: 'Ping Pong',     desc: 'One fixture at a time, forward then back' },
   { id: 'runner',       name: 'Runner',        desc: 'Chase with a fading trail' },
   { id: 'pairs',        name: 'Pairs',         desc: 'Two adjacent fixtures travel together' },
-  { id: 'wave',         name: 'Wave',          desc: 'Sine brightness sweep across the rig' },
   { id: 'stack-up',     name: 'Stack Up',      desc: 'Fill fixtures one by one, then reset' },
 
   { id: 'split',        name: 'Split',         desc: 'Palette colours alternating per fixture' },
@@ -79,8 +77,6 @@ const PATTERNS = [
   { id: 'ensemble', name: 'Ensemble', desc: 'Bass at the edges, vocals in the centre, airy moving accents' },
   { id: 'ribbon', name: 'Ribbon', desc: 'Continuous palette ribbons shaped by musical texture and width' },
 
-  { id: 'gradient', name: 'Gradient', desc: 'The look\'s colours as a gradient scrolling across the rig', pixel: true },
-  { id: 'comet',    name: 'Comet',    desc: 'A head crossing the rig every four steps with a fading tail', pixel: true },
   { id: 'burst',    name: 'Burst',    desc: 'A ring thrown out from the centre of the stage on every step', pixel: true },
   { id: 'plasma',   name: 'Plasma',   desc: 'Slow interfering waves in the look\'s colours', pixel: true },
   { id: 'meter',    name: 'Meter',    desc: 'A level meter filled by the low end, kicked on every step', pixel: true },
