@@ -36,7 +36,7 @@ for (const [width, height] of [[1915, 1000], [1024, 768], [390, 844]]) {
       || card.querySelector('.card-title')?.textContent));
     expect(order).toEqual(['Background lighting', 'Effects', 'Bands']);
     const card = page.getByRole('region', { name: 'Bands', exact: true });
-    await expect(card.locator('.band-mode')).toHaveText('Auto · Ambient');
+    await expect(card.locator('.band-for')).toHaveText('for Ambient');
     for (const name of ['Bass', 'Voice', 'Treble']) {
       const channel = card.getByRole('group', { name: `${name} band`, exact: true });
       await expect(channel.getByRole('meter', { name: `${name} level` })).toBeVisible();
