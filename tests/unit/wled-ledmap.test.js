@@ -230,8 +230,11 @@ test('a refresh is refused for a fixture that is not a WLED pixel fixture, anoth
     output: { protocol: 'ddp', host: '10.0.0.60', at: 0 } };
   try {
     await withApp(glorbClient(), rooms, async (call) => {
-      state.fixtures = [{ ...PAR }, glorb, { ...glorb, id: 39, profileId: zones.id, output: { protocol: 'ddp', host: '10.0.0.61', leds: 120, columns: 20 } }];
+      state.fixtures = [{ ...PAR }, glorb, { ...glorb, id: 39, profileId: zones.id, output: { protocol: 'ddp', host: '10.0.0.61', leds: 120, columns: 20 } },
+        { ...glorb, id: 40, label: 'Matrix', output: { protocol: 'ddp', host: '10.0.0.62', device: 'generic' } }];
       assert.equal((await call({ fixtureId: 0 })).status, 404, 'a par');
+      const generic = await call({ fixtureId: 40 });
+      assert.deepEqual([generic.status, generic.body.error], [404, 'Fixture 40 is not a WLED in the patch'], 'a DDP receiver that is not a WLED is never asked');
       assert.equal((await call({ fixtureId: 77 })).status, 404);
       assert.equal((await call({ fixtureId: 39 })).status, 400, 'zones keep their LEDs');
       assert.equal((await call({})).status, 400);
