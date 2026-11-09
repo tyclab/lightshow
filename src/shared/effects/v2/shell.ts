@@ -6,6 +6,7 @@ import { accentPeak, accentStrobes, azimuthAround, centreOf, distanceTo, farthes
 import type { Point, Positions } from './common.ts';
 import type { EffectFrame, EffectSlot } from '../types.ts';
 import type { Room } from '../../room.ts';
+import { stream } from './scatter.ts';
 
 // Rings launched from an origin on every trigger interval, expanding (or closing) at a speed in metres per beat.
 const anchorId = z.string().min(1).max(120);
@@ -19,12 +20,15 @@ export const shellSchema = v2CommonSchema.extend({
   speed: z.number().min(0.01).max(40).default(2),
   // Degrees of spiral per metre: a ring a quarter turn round arrives 90/twistDeg metres later.
   twistDeg: z.number().min(-720).max(720).default(0),
+  // Share of the lights that spark in the last palette colour with each launch, drawn afresh every quarter interval.
+  sparks: z.number().min(0).max(1).default(0),
 });
 export type ShellParams = z.output<typeof shellSchema>;
 
-/** Rings every quarter beat or faster that pass a light in a fifth of a beat (or a flash fill) strobe it. */
+/** Rings every quarter beat or faster that pass a light in a fifth of a beat (or a flash fill), or sparks, strobe it. */
 export function shellStrobes(p: ShellParams): boolean {
-  if (accentStrobes(p)) return true;
+  // Sparks drawn afresh every quarter of an interval of a beat or less flicker as fast as a strobe.
+  if (accentStrobes(p) || (p.sparks > 0 && p.trigger.beatInterval <= 1)) return true;
   if (p.trigger.beatInterval > 0.25) return false;
   if (p.profile === 'fill') return isFlashEnvelope(p.envelope);
   return ((p.profile === 'ramp' ? 1 + RAMP_TAIL : 2) * p.width) / p.speed <= 0.2;
@@ -124,7 +128,19 @@ function renderShell(p: ShellParams, s: ShellState, room: Room, f: EffectFrame, 
       }
     }
   });
+  if (p.sparks > 0 && events.length) sparkle(p, s, f, events[0], levels, along);
   for (let i = 0; i < room.n; i++) paint(p, f, along[i], levels[i], out[i]);
+}
+
+// Sparks follow the newest launch: as many as its strength allows, fading over the interval like a kick.
+function sparkle(p: ShellParams, s: ShellState, f: EffectFrame, event: { index: number; age: number }, levels: Float64Array, along: Float64Array): void {
+  const interval = p.trigger.beatInterval, strength = launchStrength(p, s, f, event.index);
+  const level = strength * Math.exp(-5 * event.age / interval), share = p.sparks * strength;
+  const draw = Math.floor(event.age / (interval / 4)), last = (f.palette.length - 1) / Math.max(1, f.palette.length);
+  const random = stream(Math.floor(hash01(f.seed, 23, event.index * 4 + draw) * 4294967296));
+  for (let i = 0; i < levels.length; i++) {
+    if (random() < share && level > levels[i]) { levels[i] = level; along[i] = last; }
+  }
 }
 
 registerKind<ShellParams, ShellState>({
