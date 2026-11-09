@@ -14,7 +14,7 @@ import test from 'node:test';
 import assert from 'node:assert';
 
 import AutoShow from '../../src/auto-show.ts';
-import { COLOR_PRESETS, PATTERNS } from '../../src/server/presets.ts';
+import { COLOR_PRESETS, CLASSIC_LOOKS } from '../../src/server/presets.ts';
 import { patchSchema } from '../../src/server/validation.ts';
 
 /**
@@ -54,7 +54,7 @@ function analysis(overrides = {}) {
 
 /** A show wired to the real preset and pattern tables, with no live rig. */
 function show() {
-  const s = new AutoShow(() => {}, COLOR_PRESETS, PATTERNS);
+  const s = new AutoShow(() => {}, COLOR_PRESETS, CLASSIC_LOOKS);
   // The constructor prewarms the Python analyzer so the first real analyze does
   // not pay its cold start. Nothing here analyses anything, and that child
   // process would hold the event loop open and hang the run.
@@ -182,7 +182,7 @@ test('rebuilding a timeline publishes a new revision', () => {
 
 test('auto-show patches cannot release the operator blackout', () => {
   const applied = [];
-  const s = new AutoShow((patch) => applied.push(patch), COLOR_PRESETS, PATTERNS);
+  const s = new AutoShow((patch) => applied.push(patch), COLOR_PRESETS, CLASSIC_LOOKS);
   s._worker.shutdown();
   s.timeline = [{ timeMs: 0, action: 'patch', data: {
     pattern: 'chase', masterBlackout: false, masterDimmer: 255,
@@ -199,7 +199,7 @@ test('an event the engine rejects is skipped rather than ending the show', () =>
   const s = new AutoShow((patch) => {
     applied.push(patch);
     if (patch.pattern === 'poison') throw new Error('patch: rejected');
-  }, COLOR_PRESETS, PATTERNS);
+  }, COLOR_PRESETS, CLASSIC_LOOKS);
   s._worker.shutdown();
 
   let position = 0;

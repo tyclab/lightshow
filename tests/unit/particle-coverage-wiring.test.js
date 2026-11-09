@@ -10,7 +10,7 @@ import { state } from '../../src/server/state.ts';
 import { kindOf } from '../../src/shared/effects/registry.ts';
 import { BUILTIN_PROFILE_ID } from '../../src/server/profiles.ts';
 import AutoShow from '../../src/auto-show.ts';
-import { COLOR_PRESETS, PATTERNS } from '../../src/server/presets.ts';
+import { COLOR_PRESETS, CLASSIC_LOOKS } from '../../src/server/presets.ts';
 
 function source(extra = {}) {
   return {
@@ -112,7 +112,7 @@ function analysis() {
 
 test('an automatic show started after a rig edit re-plans and reseeks once the measurement lands', async (t) => {
   withFixtures(t, ring());
-  const show = new AutoShow(() => {}, COLOR_PRESETS, PATTERNS);
+  const show = new AutoShow(() => {}, COLOR_PRESETS, CLASSIC_LOOKS);
   // The constructor prewarms the Python analyzer, which nothing here needs.
   show._worker.shutdown();
   show.analysis = analysis();

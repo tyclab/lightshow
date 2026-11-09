@@ -12,18 +12,18 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 import AutoShow from '../../src/auto-show.ts';
-import { COLOR_PRESETS, PATTERNS } from '../../src/server/presets.ts';
+import { COLOR_PRESETS, CLASSIC_LOOKS } from '../../src/server/presets.ts';
 import { patchSchema } from '../../src/server/validation.ts';
 import { PIXEL_MAPS } from '../../src/shared/rig.ts';
 import { PAR_PICTURES_WITH_DRUMS } from '../../src/show/look.ts';
 
-const PIXEL_IDS = new Set(PATTERNS.filter((p) => p.pixel).map((p) => p.id));
+const PIXEL_IDS = new Set(CLASSIC_LOOKS.filter((p) => p.pixel).map((p) => p.id));
 const RESTING = new Set(['ribbon', 'fade', 'wave', 'solid', 'gradient', 'plasma']);
 const TRACKS = path.join(import.meta.dirname, '..', 'fixtures', 'tracks');
 
 function plan(file, { pixels, intensity = 60 }) {
   const doc = JSON.parse(fs.readFileSync(path.join(TRACKS, file), 'utf8'));
-  const show = new AutoShow(() => {}, COLOR_PRESETS, PATTERNS);
+  const show = new AutoShow(() => {}, COLOR_PRESETS, CLASSIC_LOOKS);
   show._worker.shutdown();
   show.analysis = doc.analysis || doc;
   show.intensity = intensity;

@@ -18,7 +18,7 @@ import { PATTERN_FUNCS } from '../../src/shared/patterns.ts';
 import { hitBrightness } from '../../src/shared/look-math.ts';
 import { applyPatch } from '../../src/server/patch.ts';
 import { state } from '../../src/server/state.ts';
-import { COLOR_PRESETS, PATTERNS } from '../../src/server/presets.ts';
+import { COLOR_PRESETS, CLASSIC_LOOKS } from '../../src/server/presets.ts';
 
 const BPM = 128;
 const BEAT = 60 / BPM;
@@ -59,7 +59,7 @@ function analysis({ pulse = null } = {}) {
 }
 
 function plan(doc = analysis(), { intensity = 60, pixels = false } = {}) {
-  const director = new ShowDirector({ patterns: PATTERNS, colorPresets: COLOR_PRESETS, paletteSize: 4, intensity, pixels });
+  const director = new ShowDirector({ patterns: CLASSIC_LOOKS, colorPresets: COLOR_PRESETS, paletteSize: 4, intensity, pixels });
   return director.plan(doc);
 }
 
@@ -120,7 +120,7 @@ test('a long passage comes back to its own look at the top of every phrase', () 
 test('par shows reserve drum kits for suitable lanes', () => {
   assert.ok(!PAR_PICTURES.has('drums') && PAR_PICTURES_WITH_DRUMS.has('drums'));
   assert.ok(!PAR_PICTURES.has('stems'), 'four zones need more lamps than a row of pars has');
-  const available = new Set(PATTERNS.map((p) => p.id));
+  const available = new Set(CLASSIC_LOOKS.map((p) => p.id));
   const groove = { kick: 0.9, bassline: 0.8, energy: 0.9, pulse: 0.9, vocal: 0.1 };
   const pick = (pictures) => {
     const got = new Set();
@@ -138,7 +138,7 @@ test('par shows reserve drum kits for suitable lanes', () => {
   // measured on real drumming, and a rig with a lamp in the middle for the
   // kick and one at each end for the snare.
   const kit = (detector, lamps) => {
-    const director = new ShowDirector({ patterns: PATTERNS, colorPresets: COLOR_PRESETS, paletteSize: 4, intensity: 60, lamps });
+    const director = new ShowDirector({ patterns: CLASSIC_LOOKS, colorPresets: COLOR_PRESETS, paletteSize: 4, intensity: 60, lamps });
     return director.plan(drummed(detector)).context.pictures;
   };
   assert.strictEqual(kit(2), PAR_PICTURES_WITH_DRUMS);
@@ -156,7 +156,7 @@ function drummed(detector = 2) {
 
 test('par rigs replan only when crossing the three-lamp threshold', async () => {
   const { default: AutoShow } = await import('../../src/auto-show.ts');
-  const show = new AutoShow(() => {}, COLOR_PRESETS, PATTERNS);
+  const show = new AutoShow(() => {}, COLOR_PRESETS, CLASSIC_LOOKS);
   show._worker.shutdown();
   show.analysis = drummed();
   show.setRig({ hasPixels: false, lamps: 6 });
@@ -268,7 +268,7 @@ test('a pattern picked by hand starts from its beginning, not a build-up\'s midd
 test('stopping the show takes its layout with it', async () => {
   const { default: AutoShow } = await import('../../src/auto-show.ts');
   const patches = [];
-  const show = new AutoShow((patch) => patches.push(patch), COLOR_PRESETS, PATTERNS);
+  const show = new AutoShow((patch) => patches.push(patch), COLOR_PRESETS, CLASSIC_LOOKS);
   show._worker.shutdown();
   show.stop();
   assert.strictEqual(patches.at(-1).pixelMap, 'stage', 'a manual look after a mirrored chorus runs across the stage');
@@ -277,7 +277,7 @@ test('stopping the show takes its layout with it', async () => {
 test('a look the operator picks for a chorus is laid out for what it is', () => {
   const doc = analysis();
   const director = new ShowDirector({
-    patterns: PATTERNS, colorPresets: COLOR_PRESETS, paletteSize: 4, intensity: 60,
+    patterns: CLASSIC_LOOKS, colorPresets: COLOR_PRESETS, paletteSize: 4, intensity: 60,
     overlay: { sections: [{ atMs: at(24) * 1000, pattern: 'ensemble' }, { atMs: at(88) * 1000, pattern: 'runner' }] },
   });
   const choruses = director.plan(doc).intents.filter((i) => i.source === 'section:chorus');

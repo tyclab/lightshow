@@ -10,7 +10,7 @@ import path from 'node:path';
 import { SetMemory, camelot, keysMix, arcFor, SET_GAP_MS } from '../../src/show/set-memory.ts';
 import { ShowDirector } from '../../src/show/director.ts';
 import { INTENT, BURST } from '../../src/show/intents.ts';
-import { COLOR_PRESETS, PATTERNS } from '../../src/server/presets.ts';
+import { COLOR_PRESETS, CLASSIC_LOOKS } from '../../src/server/presets.ts';
 import { settings } from '../../src/server/settings.ts';
 import AutoShow from '../../src/auto-show.ts';
 
@@ -21,7 +21,7 @@ const load = (file) => {
   return doc.analysis || doc;
 };
 const director = (history = null, extra = {}) => new ShowDirector({
-  patterns: PATTERNS, colorPresets: COLOR_PRESETS, paletteSize: 4, intensity: 60, history, ...extra,
+  patterns: CLASSIC_LOOKS, colorPresets: COLOR_PRESETS, paletteSize: 4, intensity: 60, history, ...extra,
 });
 const remembered = (plan, over = {}) => ({ key: 'before', at: 0, ...plan.memory, ...over });
 const history = (tracks, setMinutes = 60) => ({ previous: tracks[tracks.length - 1] || null, recent: tracks, setMinutes });
@@ -167,7 +167,7 @@ test('a peak spends more accents than the same track as a breather', () => {
 // ── The auto show ───────────────────────────────────────────────────────────
 
 function show() {
-  const s = new AutoShow(() => {}, COLOR_PRESETS, PATTERNS);
+  const s = new AutoShow(() => {}, COLOR_PRESETS, CLASSIC_LOOKS);
   s._worker.shutdown();
   return s;
 }

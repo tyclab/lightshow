@@ -105,6 +105,12 @@ const PATTERNS = [
 
 const PATTERN_IDS = PATTERNS.map((p) => p.id);
 
+// Every classic look the auto show may pick or lay on bars and panels; a redirected id plays its v2 preset as the look.
+const CLASSIC_LOOKS: readonly { id: string; name: string; desc: string }[] = [...PATTERNS, ...Object.keys(CLASSIC_REDIRECTS).map((id) => {
+  const { name, desc, party, pixel } = presetById(id)!;
+  return { id, name, desc, ...(party ? { party } : {}), ...(pixel ? { pixel } : {}) };
+})];
+
 // Use the effective rapid-flash requirement so pickers match renderer admission.
 const PRESET_ROWS = CATALOGUE.flatMap((p) => p.legacy ? [] : [{
   id: p.id, name: p.name, desc: p.desc, ...(p.party ? { party: true } : {}), ...(p.pixel ? { pixel: true } : {}),
@@ -134,6 +140,7 @@ export {
   COLOR_PRESETS,
   PATTERNS,
   PATTERN_IDS,
+  CLASSIC_LOOKS,
   PRESET_ROWS,
   ENERGY_EFFECTS,
   ENERGY_EFFECT_IDS,

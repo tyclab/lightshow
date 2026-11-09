@@ -25,7 +25,7 @@ import { applyRekordbox } from '../rekordbox-analysis.ts';
 import { AutoSync } from '../auto-sync.ts';
 import LiveDirector from '../show/live-director.ts';
 import { SPATIAL_AUTO_PATTERNS } from '../show/look.ts';
-import { PATTERNS } from './presets.ts';
+import { CLASSIC_LOOKS } from './presets.ts';
 import { settings } from './settings.ts';
 import { baseEffect, effectChanged, identify, setAudioSource, setEffectSource, setIdleSource, setSequenceSource, setMasterSource } from './engine.ts';
 import { AudioFeatures, feedOf, resolveDetectors } from './audio-features.ts';
@@ -440,7 +440,7 @@ function setupIntegrations({ io, midi, spotify, nowPlaying, deezerSource, prolin
   // Suppress live-director patches while a timeline plays so the two cannot fight over the look.
   const liveDirector = liveInput ? new LiveDirector({
     applyPatch: (patch) => { if (!autoShow.running) applyPatch(patch); },
-    patterns: [...PATTERNS, ...SPATIAL_AUTO_PATTERNS],
+    patterns: [...CLASSIC_LOOKS, ...SPATIAL_AUTO_PATTERNS],
     pixels: () => currentRig().hasPixels,
     particlePatterns: () => particleCoverage.allowed,
   }) : null;

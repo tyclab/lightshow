@@ -28,7 +28,7 @@ import { startEngine, stopEngine, setFrameHook, setPulseSource, setModulationSou
 import { artnetDiscovery, startHueAreaWatch } from './server/output.ts';
 import { conductor } from './server/conductor.ts';
 import { applyPatch, applyOverride, setFixtureMaxBrightness, processTap, setPersist, setHooks, flushPendingPersist } from './server/patch.ts';
-import { COLOR_PRESETS, PATTERNS } from './server/presets.ts';
+import { CLASSIC_LOOKS, COLOR_PRESETS } from './server/presets.ts';
 import { setupIntegrations } from './server/integrations.ts';
 import { attachRoutes } from './server/routes.ts';
 import { attachSockets } from './server/sockets.ts';
@@ -132,7 +132,7 @@ const analysisCache = new AnalysisCache(path.join(cacheDir(), 'analysis'));
 const autoShow = new AutoShow((patch) => {
   const { running: _running, masterBlackout: _blackout, ...content } = patch as Record<string, unknown>;
   return applyPatch(content);
-}, COLOR_PRESETS, [...PATTERNS, ...SPATIAL_AUTO_PATTERNS], analysisCache);
+}, COLOR_PRESETS, [...CLASSIC_LOOKS, ...SPATIAL_AUTO_PATTERNS], analysisCache);
 autoShow.useRemoteAnalysis(remoteAnalysis);
 settings.onChange((changed) => {
   if (changed.includes('analysis.workerToken')) remoteAnalysis.disconnectAll('the worker token changed');

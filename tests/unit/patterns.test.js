@@ -1,10 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert';
 import { PATTERN_FUNCS } from '../../src/shared/patterns.ts';
-import { PATTERNS, COLOR_PRESETS } from '../../src/server/presets.ts';
+import { CLASSIC_LOOKS, COLOR_PRESETS } from '../../src/server/presets.ts';
 
 test('every advertised pattern has an implementation, and vice versa', () => {
-  const advertised = PATTERNS.map((p) => p.id).sort();
+  const advertised = CLASSIC_LOOKS.map((p) => p.id).sort();
   const implemented = Object.keys(PATTERN_FUNCS).sort();
   assert.deepStrictEqual(implemented, advertised, 'the UI list and the engine must agree');
 });

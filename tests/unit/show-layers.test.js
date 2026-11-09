@@ -8,7 +8,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 import AutoShow from '../../src/auto-show.ts';
-import { COLOR_PRESETS, PATTERNS } from '../../src/server/presets.ts';
+import { COLOR_PRESETS, CLASSIC_LOOKS } from '../../src/server/presets.ts';
 import { buildRig } from '../../src/shared/rig.ts';
 import { renderLayer } from '../../src/shared/layer.ts';
 import { PATTERN_FUNCS, CELL_PATTERNS } from '../../src/shared/patterns.ts';
@@ -23,7 +23,7 @@ const TRAVELLING = new Set(['chase', 'chase-rev', 'ping-pong', 'runner', 'pairs'
 
 function plan(file, { pixels = true, intensity = 60 } = {}) {
   const doc = JSON.parse(fs.readFileSync(path.join(TRACKS, file), 'utf8'));
-  const show = new AutoShow(() => {}, COLOR_PRESETS, PATTERNS);
+  const show = new AutoShow(() => {}, COLOR_PRESETS, CLASSIC_LOOKS);
   show._worker.shutdown();
   show.analysis = doc.analysis || doc;
   show.intensity = intensity;

@@ -5,7 +5,7 @@
 import test from 'node:test';
 import assert from 'node:assert';
 import { CELL_PATTERNS, gradientAt } from '../../src/shared/patterns.ts';
-import { COLOR_PRESETS, PATTERNS } from '../../src/server/presets.ts';
+import { COLOR_PRESETS, CLASSIC_LOOKS } from '../../src/server/presets.ts';
 import { draw, panel, PULSE } from '../helpers/pixel-patterns.js';
 
 const RED = COLOR_PRESETS[0];
@@ -17,7 +17,7 @@ const brightest = (out) => dims(out).indexOf(Math.max(...dims(out)));
 test('the pixel effects run on every cell, and say so in the picker', () => {
   for (const id of ['gradient', 'comet', 'burst', 'plasma', 'meter']) {
     assert.ok(CELL_PATTERNS.has(id), id);
-    assert.strictEqual(PATTERNS.find((p) => p.id === id).pixel, true, id);
+    assert.strictEqual(CLASSIC_LOOKS.find((p) => p.id === id).pixel, true, id);
   }
 });
 
@@ -146,7 +146,7 @@ const at = (ms, bpm = 128, division = 1) => {
 test('strobe effects advertise zones and render deterministically', () => {
   for (const id of STROBES) {
     assert.ok(CELL_PATTERNS.has(id), id);
-    assert.strictEqual(PATTERNS.find((p) => p.id === id).pixel, true, id);
+    assert.strictEqual(CLASSIC_LOOKS.find((p) => p.id === id).pixel, true, id);
     assert.deepStrictEqual(draw(id, { n: 8, ...at(1234) }), draw(id, { n: 8, ...at(1234) }), id);
   }
 });

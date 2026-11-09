@@ -10,7 +10,7 @@ import path from 'node:path';
 import { ShowDirector } from '../../src/show/director.ts';
 import { INTENT, BURST } from '../../src/show/intents.ts';
 import { applyOverlay } from '../../src/show/overlay.ts';
-import { COLOR_PRESETS, PATTERNS } from '../../src/server/presets.ts';
+import { COLOR_PRESETS, CLASSIC_LOOKS } from '../../src/server/presets.ts';
 import { overlaySchema } from '../../src/server/validation.ts';
 import { AnalysisCache } from '../../src/analysis-cache.ts';
 import AutoShow from '../../src/auto-show.ts';
@@ -19,7 +19,7 @@ const TRACKS = path.join(import.meta.dirname, '..', 'fixtures', 'tracks');
 const FILE = 'p-nk-try.json';
 const load = () => { const d = JSON.parse(fs.readFileSync(path.join(TRACKS, FILE), 'utf8')); return d.analysis || d; };
 const plan = (overlay = null, extra = {}) => new ShowDirector({
-  patterns: PATTERNS, colorPresets: COLOR_PRESETS, paletteSize: 4, intensity: 60, overlay, ...extra,
+  patterns: CLASSIC_LOOKS, colorPresets: COLOR_PRESETS, paletteSize: 4, intensity: 60, overlay, ...extra,
 }).plan(load());
 
 test('a locked palette holds whatever the night would choose', () => {
@@ -73,7 +73,7 @@ test('show edits survive reanalysis and trigger replanning', async () => {
   try {
     const cache = new AnalysisCache(dir);
     cache.set('track', load());
-    const show = new AutoShow(() => {}, COLOR_PRESETS, PATTERNS, cache);
+    const show = new AutoShow(() => {}, COLOR_PRESETS, CLASSIC_LOOKS, cache);
     show._worker.shutdown();
     show.analysis = load();
     show.analysisKey = 'track';
@@ -88,7 +88,7 @@ test('show edits survive reanalysis and trigger replanning', async () => {
     assert.deepStrictEqual(cache.overlay('track'), { palette: other });
     assert.strictEqual(cache.count(), 1, 'an overlay is not an entry');
 
-    const later = new AutoShow(() => {}, COLOR_PRESETS, PATTERNS, cache);
+    const later = new AutoShow(() => {}, COLOR_PRESETS, CLASSIC_LOOKS, cache);
     later._worker.shutdown();
     later.analysis = load();
     later.analysisKey = 'track';

@@ -10,7 +10,7 @@ import test from 'node:test';
 import assert from 'node:assert';
 
 import AutoShow from '../../src/auto-show.ts';
-import { COLOR_PRESETS, PATTERNS } from '../../src/server/presets.ts';
+import { COLOR_PRESETS, CLASSIC_LOOKS } from '../../src/server/presets.ts';
 import { patchSchema } from '../../src/server/validation.ts';
 
 const BUILD = { start: 72, end: 80, strength: 0.8 };
@@ -18,7 +18,7 @@ const DROP_MS = 80000;
 
 /** A show with no rig and no analyzer child process behind it. */
 function show() {
-  const s = new AutoShow(() => {}, COLOR_PRESETS, PATTERNS);
+  const s = new AutoShow(() => {}, COLOR_PRESETS, CLASSIC_LOOKS);
   // The constructor prewarms the Python analyzer; nothing here analyses
   // anything, and that child process would hold the event loop open.
   s._worker.shutdown();

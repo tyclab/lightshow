@@ -29,7 +29,7 @@ if (!fs.existsSync(FIXTURE_DIR)) fs.mkdirSync(FIXTURE_DIR, { recursive: true });
 // clamping palette indices against the wrong length, printing colour names the
 // server had not had for a while, and offering the picker a pattern pool that
 // no longer matched what the engine could render.
-import { COLOR_PRESETS, PATTERNS } from '../src/server/presets.ts';
+import { COLOR_PRESETS, CLASSIC_LOOKS } from '../src/server/presets.ts';
 
 function slugify(q) {
   return q.toLowerCase()
@@ -277,7 +277,7 @@ async function main() {
   console.log(`[analyze] ${audioPath}`);
   const analysis = await runAnalyzer(audioPath);
 
-  const show = new AutoShow(() => {}, COLOR_PRESETS, PATTERNS, null);
+  const show = new AutoShow(() => {}, COLOR_PRESETS, CLASSIC_LOOKS, null);
   show.analysis = analysis;
   show.buildTimeline();
 
