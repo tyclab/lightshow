@@ -37,8 +37,9 @@ import type { WledClient } from '../wled.ts';
  *                                 patch when it is in it, else a WLED
  *                                 streamed its picture directly
  *   POST /api/openrgb/identify    an OpenRGB device: the same, over the SDK
- *   POST /api/hue/identify        a Hue channel: through its lamp in the
- *                                 patch, else the bridge's own identify
+ *   POST /api/hue/:bridge/identify  a lamp of that bridge's area: through
+ *                                 the patch when it is in it, else the
+ *                                 bridge's own identify
  */
 
 export interface IdentifyRouteDeps {
