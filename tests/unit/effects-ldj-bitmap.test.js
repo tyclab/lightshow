@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { BITMAP_PATTERNS, bitmapBlend, bitmapScroll, buildBitmap, sampleBitmap } from '../../src/shared/effects/ldj-bitmap.ts';
+import { BITMAP_PATTERNS, bitmapBlend, bitmapColumn, bitmapRow, bitmapScroll, buildBitmap } from '../../src/shared/effects/ldj-bitmap.ts';
 import { kindOf, requiresAcknowledgement, validateSpec } from '../../src/shared/effects/registry.ts';
 import { LDJ_FRAME_MS } from '../../src/shared/effects/ldj-engine.ts';
 import { parseHex } from '../../src/shared/effects/palette.ts';
@@ -14,14 +14,15 @@ const band = (centre, half, height) => Array.from({ length: Math.min(height - 1,
 const redBlue = { spec: { palette: ['#FF0000', '#0000FF'] } };
 
 test('bitmap solids retain RGB, white, amber and UV from a palette', () => {
-  const colour = parseHex('#102030405060');
-  const image = buildBitmap('SolidTest', [colour]);
-  assert.deepEqual(sampleBitmap(image, 'SolidTest', 0, 0, 0), colour);
+  const h = harness('ldj.bitmap', row(1), { params: { pattern: 'SolidTest' }, spec: { palette: ['#102030405060'] } });
+  assert.deepEqual(h.draw(at(0))[0].colour, parseHex('#102030405060'));
 });
 
 test('native bitmap transitions interpolate white, amber and UV', () => {
-  const image = buildBitmap('SmoothLoop', [parseHex('#FF0000004080'), parseHex('#0000FF804000')]);
-  const colour = sampleBitmap(image, 'SmoothLoop', -1, 0, 100);
+  const h = harness('ldj.bitmap', row(3), { params: { pattern: 'SmoothLoop' }, spec: { palette: ['#FF0000004080', '#0000FF804000'] } });
+  // At frame 34 the scroll is 80, so the centre lamp reads column 100: halfway between the two colours.
+  assert.equal(bitmapScroll(34 * LDJ_FRAME_MS, 0, 120, 1, 'SmoothLoop'), 80);
+  const { colour } = h.draw(at(34))[1];
   assert.deepEqual([colour.w, colour.a, colour.uv], [64, 64, 64]);
 });
 
@@ -191,13 +192,13 @@ test('singletons are copied and padded with black before a black-background pref
   const black = buildBitmap('SolidBlackBGSineWave', palette);
   assert.equal(black.width, 400); assert.equal(black.rows[31][0], pack(RED));
   assert.equal(black.rows[0][0], 0); assert.equal(black.rows[31][200], 0);
-  const whiteDie = buildBitmap('SolidTest', [parseHex('#123456FF')]);
-  assert.deepEqual(sampleBitmap(whiteDie, 'SolidTest', 0, 0, 0), parseHex('#123456FF'));
+  const whiteDie = harness('ldj.bitmap', row(1), { params: { pattern: 'SolidTest' }, spec: { palette: ['#123456FF'] } });
+  assert.deepEqual(whiteDie.draw(at(0))[0].colour, parseHex('#123456FF'));
 });
 
 test("bitmap sampling wraps floored coordinates by height", () => {
   const image = { width: 8, height: 4, rows: Array.from({ length: 4 }, (_, y) => Array.from({ length: 8 }, (_, x) => y * 16 + x)) };
-  const value = (pattern, u, v, scroll = 0) => sampleBitmap(image, pattern, u, v, scroll).b;
+  const value = (pattern, u, v, scroll = 0) => image.rows[bitmapRow(image, pattern, v)][bitmapColumn(image, pattern, u, scroll)];
   assert.deepEqual([-1,0,1].map(u => value('SmoothLoop', u, 0)), [32,34,36]);
   assert.equal(value('SmoothLoop', 0, 1), 2); assert.equal(value('SmoothLoop', 0, -1), 2);
   assert.equal(value('SmoothLoop', .49, .5), 18); assert.equal(value('SmoothLoop', .5, .5), 19);

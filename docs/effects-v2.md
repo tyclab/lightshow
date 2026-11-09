@@ -37,7 +37,8 @@ local Audition and colour sliders. All new-show workflows hide retired rows.
 - **Compatibility:** the old golden files remain unchanged. Version-2 saved specs
   use `compat.*` adapters to preserve authored legacy parameters. Selected old
   preset ids intentionally resolve to modern plan looks; `scripts/effects-v2-alias-diff.js`
-  measures their frame differences. Unmapped ids remain hidden compatibility rows.
+  measures their frame differences, and those of classic and party ids against a v2
+  preset, on the synthetic room under the demo track. Unmapped ids remain hidden compatibility rows.
   **Step 9 is implemented as retirement from the active catalogue, not deletion of
   every legacy renderer or clock:** deleting those would break saved specs whose
   parameter richness has no exact field equivalent. No claim of byte identity is
@@ -158,15 +159,26 @@ photosensitivity acknowledgement, output shutdown and preview/output parity.
 | 9 | Retire the `hd.*`, `ldj.*` and legacy engines and their clocks onto the conductor's beat clock; about forty named presets remain | look change for any id that is not aliased | golden for aliases, preview for the rest |
 | 10 | Palettes: 54 built-ins to a curated set plus a hue-pair generator, in step with the Home Assistant palette selection | depends on the Home Assistant integration | catalogue check against the integration; palette golden |
 
+## Operator decisions
+
+On 2026-11-09 the operator answered the effects consolidation concept: "A investigate
+if B really right call so find deoublicate options and let me decide with a/b testing.
+C yes all on same engine".
+
+- Classic and party ids may redirect to v2 presets: every effect moves onto the same
+  engine. `CLASSIC_REDIRECTS` in `src/shared/effects/v2/classic.ts` lists each
+  redirected id with its reason; any other classic id keeps its pattern function.
+- Ids that fail step 7's tolerance become approximations only by the operator's
+  A/B test on the rig, look by look, with the frame diff of
+  `scripts/effects-v2-alias-diff.js` beside it.
+- The nine Party Looks move onto the same engine as their `hd.*` twins, whose ids
+  already resolve to v2 presets, decided look by look in the same A/B tests.
+
 ## Open operator decisions
 
 - Whether step 8 may change what the auto show and the default pads look like.
-- Which ids that fail step 7's tolerance are kept as approximations and which
-  are dropped at step 9.
 - Whether step 10 may remove palettes, given that Home Assistant selects
   palettes by id.
-- Whether the nine Party Looks merge into their `hd.*` twins. The twins already
-  sweep different planes.
 - Whether Disco folds into Scatter, the fill profiles and the strobe overlay, and whether
   the Entertainment Visualizer and Studio fold into voice pairs and a launch
   mode.
