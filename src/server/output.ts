@@ -1,8 +1,7 @@
 import { state, universeOf, activeUniverses } from './state.ts';
 import { getProfile } from './profiles.ts';
-import { isHueProfile, hueChannels } from '../shared/hue-lamp.ts';
-import { hueSectionColour } from '../shared/hue-colour.ts';
-import { channelReader } from '../shared/placement.ts';
+import { hueChannelColours } from '../shared/hue-frame.ts';
+import { hueRoutes } from './hue-routes.ts';
 import * as universes from './universes.ts';
 import { createTransmitter, sacnUniverseFor as mapSacnUniverse } from './transmit.ts';
 import { createDiscovery, interfaces, isBroadcastTarget } from './artnet-nodes.ts';
@@ -10,7 +9,7 @@ import { isLoopback } from './loopback.ts';
 import * as hue from './hue.ts';
 import { isArmed, setArmedFlag } from './armed.ts';
 import { defaultHueBridgeId } from './settings.ts';
-import type { HueChannelColour } from './hue.ts';
+import type { HueChannelColour } from '../shared/hue-frame.ts';
 import { ddpRoutes } from './ddp-routes.ts';
 import { openrgbRoutes } from './openrgb-routes.ts';
 import type { ArtnetDestination, SacnOutput, SendOptions, TransmitConfig, Wire } from './transmit.ts';
@@ -93,32 +92,9 @@ function sacnUniverseFor(universe: number, offset = sacn.universeOffset): number
   return mapSacnUniverse(universe, offset);
 }
 
-// Read final DMX so Hue output includes masters, trim, overrides and blackout.
 function hueChannelColors(): Map<string, HueChannelColour[]> {
-  const out = new Map<string, HueChannelColour[]>();
-
-  const fallback = defaultHueBridgeId(hue.getConfigs());
-
-  for (const fix of state.fixtures) {
-    const lamp = fix.output;
-    if (!lamp || lamp.protocol !== 'hue') continue;
-    const bridge = lamp.bridge || fallback;
-    let channels = out.get(bridge);
-    if (!channels) {
-      channels = [];
-      out.set(bridge, channels);
-    }
-    const profile = getProfile(fix);
-    const traits = isHueProfile(profile) ? profile.hue : null;
-    const sections = profile.cells ? profile.cells.map((cell) => cell.channelMap) : [profile.channelMap];
-    const at = channelReader(universeOf(fix), fix.address, profile, (u) => universes.getBuffer(u));
-    sections.forEach((ch, c) => {
-      const id = hueChannels(lamp)[c];
-      if (id === undefined || channels.some((sent) => sent.id === id)) return;
-      channels.push({ id, ...hueSectionColour(ch, at, traits) });
-    });
-  }
-  return out;
+  const routes = hueRoutes(state.fixtures, getProfile, universeOf, defaultHueBridgeId(hue.getConfigs()));
+  return hueChannelColours(routes, (u) => universes.getBuffer(u));
 }
 
 // Send Hue once per frame because an area can span several DMX universes.

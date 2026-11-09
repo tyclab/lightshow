@@ -3,6 +3,7 @@ import type { IncomingHttpHeaders } from 'node:http';
 import { dtls } from 'node-dtls-client';
 import { messageOf } from '../errors.ts';
 import type { HueLight } from '../types/rig.ts';
+import type { HueChannelColour } from '../shared/hue-frame.ts';
 
 export interface HueBridgeConfig {
   id: string;
@@ -15,12 +16,7 @@ export interface HueBridgeConfig {
   entertainmentId: string;
 }
 
-export interface HueChannelColour {
-  id: number;
-  r: number;
-  g: number;
-  b: number;
-}
+export type { HueChannelColour };
 
 export type HueState = 'idle' | 'connecting' | 'streaming' | 'failed';
 
