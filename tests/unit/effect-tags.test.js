@@ -59,7 +59,7 @@ const PINNED = {
   ramp: 'beat bars',
   'ramp-scatter': 'beat bars',
   'decay-scatter': 'beat bars',
-  'flash-burst': 'beat bars rapid',
+  'flash-burst': 'beat bars energy rapid',
   core: 'bands bars rapid / track',
   'position-chase': 'beat',
   'radial-pulse': 'bands / track',
@@ -168,7 +168,7 @@ test('the twelve tags and their counts over the 113 looks', () => {
   const counts = Object.fromEntries(Object.keys(TAGS).map((tag) => [tag, count(VISIBLE, tag)]));
   assert.deepEqual(counts, {
     beat: 79, static: 7, bands: 19, level: 4, sections: 3, screen: 2,
-    rig: 17, room: 41, bars: 21, ownColours: 8, energy: 11, rapid: 16,
+    rig: 17, room: 41, bars: 21, ownColours: 8, energy: 12, rapid: 16,
   });
   const reactive = VISIBLE.filter((row) => row.tags.some((tag) => REACTIVE_TAGS.has(tag)));
   assert.equal(reactive.length, 27);
