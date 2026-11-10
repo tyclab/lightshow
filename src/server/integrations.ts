@@ -473,7 +473,7 @@ function setupIntegrations({ io, midi, spotify, nowPlaying, deezerSource, prolin
       base: baseEffect(), clips: sequence.sequencer.playing(fixtureIds), voices: voices.frames(nowMs), nowMs,
       beatPos: sequence.sequencer.lastBeat(),
       fixtureIds, ldjTrigger: settings.get('audio.ldjTrigger'),
-      acknowledged: settings.get('safety.photosensitivityAcknowledged'),
+      acknowledged: safety.acknowledged(),
     });
   }
   const audioFeatures = new AudioFeatures({

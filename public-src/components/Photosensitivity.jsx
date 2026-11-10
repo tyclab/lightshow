@@ -21,23 +21,24 @@ export async function acknowledgeThen(run) {
   return true;
 }
 
-export function Photosensitivity({ name, preset, allow = false, onConfirm, onCancel }) {
+export function Photosensitivity({ name, preset, allow = false, arm = false, onConfirm, onCancel }) {
   const box = useRef(null);
   useFocusTrap(box, true, onCancel);
-  const what = allow ? 'The strobe and every fast-flashing effect' : name || (preset && preset.name) || 'This effect';
+  const all = allow || arm;
+  const what = all ? 'The strobe and every fast-flashing effect' : name || (preset && preset.name) || 'This effect';
   return (
     <div class="confirm-veil" onClick={(e) => { if (e.target === e.currentTarget) onCancel(); }}>
       <div ref={box} class="confirm-panel" role="alertdialog" aria-modal="true" aria-labelledby="photosensitivity-title"
         aria-describedby="photosensitivity-text" tabIndex={-1}>
         <h2 id="photosensitivity-title">Rapid flashing</h2>
         <p id="photosensitivity-text">
-          <strong>{what}</strong> {allow ? 'flash' : 'flashes'} the lamps faster than the show otherwise ever does. Flashing at that rate can
+          <strong>{what}</strong> {all ? 'flash' : 'flashes'} the lamps faster than the show otherwise ever does. Flashing at that rate can
           bring on a seizure in someone with photosensitive epilepsy. Make sure nobody in the room is at risk and that the
-          flashing is announced. {allow ? 'Allowing them' : 'Playing it'} acknowledges this for the whole server, once.
+          flashing is announced. {arm ? 'Arming' : allow ? 'Allowing them' : 'Playing it'} acknowledges this until the outputs are disarmed.
         </p>
         <div class="confirm-actions">
           <button type="button" class="btn" onClick={onCancel}>Cancel</button>
-          <button type="button" class="btn danger" onClick={onConfirm}>{allow ? 'I understand — allow them' : 'I understand — play it'}</button>
+          <button type="button" class="btn danger" onClick={onConfirm}>{arm ? 'I understand — arm' : allow ? 'I understand — allow them' : 'I understand — play it'}</button>
         </div>
       </div>
     </div>

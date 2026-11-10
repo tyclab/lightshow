@@ -1,4 +1,5 @@
 import { settings } from './settings.ts';
+import { isArmed, onDisarm } from './armed.ts';
 import { requiresAcknowledgement } from '../shared/effects/registry.ts';
 import { RAPID_PATTERNS } from '../shared/strobe-fx.ts';
 import { HttpError } from '../errors.ts';
@@ -15,8 +16,14 @@ export interface SafetyStatus {
 }
 
 export const safety = {
+  /** Given at each arm and gone at the disarm; with the outputs disarmed nothing reaches the rig, so nothing waits for it. */
   acknowledged(): boolean {
-    return settings.get('safety.photosensitivityAcknowledged');
+    return !isArmed() || settings.get('safety.photosensitivityAcknowledged');
+  },
+
+  /** The acknowledgement ends with the arm it was given for: at the disarm, and at a start, which is disarmed. */
+  reset(): void {
+    if (settings.get('safety.photosensitivityAcknowledged')) settings.update({ safety: { photosensitivityAcknowledged: false } });
   },
 
   acknowledge(): void {
@@ -34,9 +41,11 @@ export const safety = {
 
   status(): SafetyStatus {
     return {
-      photosensitivityAcknowledged: settings.get('safety.photosensitivityAcknowledged'),
+      photosensitivityAcknowledged: safety.acknowledged(),
       hdFlashIntervalMs: settings.get('safety.hdFlashIntervalMs'),
       strobeMaxLatchSec: settings.get('safety.strobeMaxLatchSec'),
     };
   },
 };
+
+onDisarm(() => safety.reset());
