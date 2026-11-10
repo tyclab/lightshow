@@ -3,12 +3,8 @@ import { pick, api, toast } from '../../state.js';
 import { post, slugify } from '../../setup-state.js';
 
 /**
- * The fixture library: import a GDTF or Open Fixture Library file, find a
- * fixture in the Open Fixture Library online, make an LED bar from the
- * numbers in its manual, and the profiles there are.
- *
- * Every way in answers with the same `{ name, manufacturer, modes }` fixture,
- * so they all end in the same mode picker.
+ * The fixture profiles: make an LED bar from the numbers in its manual, and
+ * the profiles there are.
  */
 
 // The attributes the show writes. A channel is highlighted in the preview only
@@ -23,8 +19,8 @@ function drivenOffsets(mode) {
   return driven;
 }
 
-/** A mode's channels, the ones the show drives highlighted, and what the import had to say. */
-export function ChannelPreview({ mode, warnings = [] }) {
+/** A profile's channels, the ones the show drives highlighted. */
+export function ChannelPreview({ mode }) {
   if (!mode) return null;
   const driven = drivenOffsets(mode);
   const held = new Map((mode.defaults || []).map((d) => [d.offset, d.value]));
@@ -33,7 +29,6 @@ export function ChannelPreview({ mode, warnings = [] }) {
   return (
     <div class="channel-preview">
       <div class="ch-summary">{mode.cells ? `${mode.cells.length} cells${panel}, each driven on its own · ${drives}` : drives}</div>
-      {[...warnings, ...(mode.warnings || [])].map((w, i) => <div key={i} class="ch-warning">{w}</div>)}
       {(mode.channelList || []).map((ch) => (
         <span key={ch.offset} class={`ch-tag ${driven.has(ch.offset) ? 'mapped' : ''}`}
           title={held.has(ch.offset) ? `The show does not drive this channel; it is held at ${held.get(ch.offset)}` : undefined}>
@@ -46,59 +41,7 @@ export function ChannelPreview({ mode, warnings = [] }) {
   );
 }
 
-/** Pick one of an imported fixture's modes and add it as a profile. */
-function ModePicker({ fixture, onDone }) {
-  const [modeIndex, setModeIndex] = useState(0);
-  // An OFL file does not say who makes the fixture, so the maker can be typed in.
-  const [maker, setMaker] = useState(fixture.manufacturer === 'Unknown' ? '' : fixture.manufacturer);
-  const [status, setStatus] = useState(null);
-  const mode = fixture.modes[modeIndex];
-  const add = async () => {
-    const manufacturer = maker.trim() || fixture.manufacturer;
-    const profile = {
-      id: slugify(`${manufacturer}-${fixture.name}-${mode.modeName}`),
-      name: fixture.name,
-      manufacturer,
-      modeName: mode.modeName,
-      channelCount: mode.channelCount,
-      channelMap: mode.channelMap,
-      ...(mode.strobeHz ? { strobeHz: mode.strobeHz } : {}),
-      channelList: mode.channelList.map(({ offset, name, attribute, cell }) => ({ offset, name, attribute, ...(cell !== undefined ? { cell } : {}) })),
-      ...(mode.cells ? { cells: mode.cells } : {}),
-      ...(mode.grid ? { grid: mode.grid } : {}),
-      ...(mode.defaults ? { defaults: mode.defaults } : {}),
-    };
-    const res = await post('/api/profiles', profile);
-    if (res.ok) {
-      toast.info(`Added "${profile.name} — ${profile.modeName}": pick it for a fixture in the patch`);
-      onDone();
-    } else {
-      setStatus(res.error);
-    }
-  };
-  return (
-    <div class="mode-picker" role="group" aria-label={`Add ${fixture.name}`}>
-      <div class="mode-field"><span class="mode-key">Fixture</span><strong>{fixture.name}</strong></div>
-      <label class="mode-field"><span class="mode-key">Manufacturer</span>
-        <input type="text" maxLength={128} placeholder="Who makes it" value={maker} onInput={(e) => setMaker(e.target.value)} /></label>
-      <label class="mode-field"><span class="mode-key">DMX mode</span>
-        <select value={modeIndex} onChange={(e) => setModeIndex(parseInt(e.target.value, 10))}>
-          {fixture.modes.map((m, i) => (
-            <option key={i} value={i}>{`${m.modeName} (${m.channelCount}ch${m.cells ? `, ${m.cells.length} cells` : ''})`}</option>
-          ))}
-        </select>
-      </label>
-      <ChannelPreview mode={mode} warnings={fixture.warnings} />
-      <div class="setting-actions">
-        <button type="button" class="btn active" onClick={add}>Add profile</button>
-        <button type="button" class="btn" onClick={onDone}>Cancel</button>
-        {status && <span class="import-status error" role="alert">{status}</span>}
-      </div>
-    </div>
-  );
-}
-
-/** For a bar with no GDTF file: from its cell count and channel order (server/bar-profile.ts). */
+/** A bar's profile from its cell count and channel order (server/bar-profile.ts). */
 function BarMaker() {
   const [spec, setSpec] = useState({ name: '', cells: '16', first: '3', order: 'RGB', stride: '', dimmer: '1', strobe: '2' });
   const [preview, setPreview] = useState(null);
@@ -143,7 +86,7 @@ function BarMaker() {
   return (
     <details class="bar-maker" onToggle={(e) => setOpen(e.currentTarget.open)}>
       <summary>Make an LED bar profile</summary>
-      <p class="section-desc">For a bar with no GDTF file: how many cells it has, where the first cell starts, and the order of
+      <p class="section-desc">How many cells the bar has, where the first cell starts, and the order of
         each cell's channels (R G B W A U, and D for a cell's own dimmer).</p>
       <div class="mode-picker">
         {field('name', 'Name', { type: 'text', maxLength: 128, placeholder: 'LED Bar 16' })}
@@ -163,48 +106,6 @@ function BarMaker() {
   );
 }
 
-/** The Open Fixture Library, searched online. */
-function OflSearch({ onPick }) {
-  const [query, setQuery] = useState('');
-  const [result, setResult] = useState(null);   // { note, error, hits }
-  const search = async (e) => {
-    e.preventDefault();
-    const q = query.trim();
-    if (q.length < 2) { setResult({ note: 'Type at least two letters' }); return; }
-    setResult({ note: 'Searching…' });
-    try {
-      const data = await (await fetch(`/api/ofl/search?q=${encodeURIComponent(q)}`)).json();
-      if (!data.ok) setResult({ error: data.error || 'The search failed' });
-      else if (!data.results.length) setResult({ note: `Nothing in the Open Fixture Library matches "${q}"` });
-      else setResult({ hits: data.results });
-    } catch {
-      setResult({ error: 'Could not reach the server' });
-    }
-  };
-  return (
-    <>
-      <form class="ofl-search" role="search" onSubmit={search}>
-        <input type="search" maxLength={100} value={query} onInput={(e) => setQuery(e.target.value)}
-          placeholder="Search the Open Fixture Library: pixel bar, root par…" aria-label="Search the Open Fixture Library" />
-        <button class="btn" type="submit">Search</button>
-      </form>
-      {result && (
-        <div class="ofl-results" aria-live="polite">
-          {result.note && <div class="ofl-note">{result.note}</div>}
-          {result.error && <div class="ofl-note error">{result.error}</div>}
-          {(result.hits || []).map((hit) => (
-            <button key={`${hit.manufacturerKey}/${hit.fixtureKey}`} type="button" class="ofl-hit"
-              onClick={() => onPick(`Fetching ${hit.name}…`, () => fetch(`/api/ofl/fixture/${encodeURIComponent(hit.manufacturerKey)}/${encodeURIComponent(hit.fixtureKey)}`))}>
-              <span class="ofl-hit-name">{hit.name}</span>
-              <span class="ofl-hit-maker">{[hit.manufacturer, ...(hit.categories || [])].join(' · ')}</span>
-            </button>
-          ))}
-        </div>
-      )}
-    </>
-  );
-}
-
 function ProfileList() {
   const s = pick(['profiles', 'builtinProfileIds', 'fixtures']);
   const profiles = Object.values(s.profiles || {});
@@ -213,7 +114,7 @@ function ProfileList() {
   const remove = async (profile) => {
     const res = await api(`/api/profiles/${encodeURIComponent(profile.id)}`, { method: 'DELETE' });
     if (!res.ok) return;
-    // An import is a file someone had to go and find: undo is re-posting it.
+    // Undo is re-posting it.
     toast.push({ message: `Removed "${profile.name}"`, action: { label: 'Undo', onClick: () => post('/api/profiles', profile) } });
   };
   return (
@@ -242,42 +143,10 @@ function ProfileList() {
 }
 
 export function Profiles() {
-  const [pending, setPending] = useState(null);   // an imported fixture, until its mode is picked
-  const [status, setStatus] = useState(null);
-  const importFixture = async (message, load) => {
-    setStatus({ ok: true, text: message });
-    let data;
-    try {
-      data = await (await load()).json();
-    } catch {
-      data = { ok: false, error: 'Could not reach the server' };
-    }
-    if (!data.ok) { setStatus({ ok: false, text: data.error || 'Import failed' }); return; }
-    setStatus({ ok: true, text: `Read: ${data.fixture.name} by ${data.fixture.manufacturer}` });
-    setPending(data.fixture);
-  };
-  const fileImport = (url, field) => async (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-    const form = new FormData();
-    form.append(field, file);
-    await importFixture('Reading…', () => fetch(url, { method: 'POST', body: form }));
-    e.target.value = '';
-  };
   return (
     <section class="panel" aria-labelledby="profiles-title">
       <header class="panel-head"><h2 class="panel-title" id="profiles-title">Fixture profiles</h2></header>
-      <p class="section-desc">What each kind of fixture is, channel by channel. Import a GDTF or Open Fixture Library file,
-        find a fixture in the Open Fixture Library, or make an LED bar from its manual.</p>
-      <div class="import-row">
-        <label class="btn active file-upload-btn">Import GDTF file
-          <input type="file" accept=".gdtf" class="sr-only" onChange={fileImport('/api/gdtf/parse', 'gdtf')} /></label>
-        <label class="btn active file-upload-btn" title="A fixture's .json file, downloaded from open-fixture-library.org">Import OFL file
-          <input type="file" accept=".json,application/json" class="sr-only" onChange={fileImport('/api/ofl/parse', 'ofl')} /></label>
-        {status && <span class={`import-status ${status.ok ? '' : 'error'}`} role="status">{status.text}</span>}
-      </div>
-      <OflSearch onPick={importFixture} />
-      {pending && <ModePicker key={`${pending.manufacturer}/${pending.name}`} fixture={pending} onDone={() => { setPending(null); setStatus(null); }} />}
+      <p class="section-desc">What each kind of fixture is, channel by channel. Make an LED bar from its manual.</p>
       <BarMaker />
       <ProfileList />
     </section>

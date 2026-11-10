@@ -335,7 +335,7 @@ function attachSockets(io: Server, { midi, integrations }: {
 
     socket.on('tap', processTap);
 
-    // The energy effects' hold, as Companion and the pages before voices send
+    // The energy effects' hold, as the pages before voices sent
     // it: a voice under its energy's id, over the latched one (state.ts). Its
     // lease is the voices': one token names one hold, whichever event pressed it.
     // A press refused (a strobe before the acknowledgement) is told as a voice-hold's is.

@@ -1,5 +1,4 @@
 import { execFile } from 'node:child_process';
-import { isSea } from 'node:sea';
 import { envTool } from './tools.ts';
 
 const JS_RUNTIME_SINCE = '2025.11.12';
@@ -47,25 +46,12 @@ function needsJsRuntime(v: unknown): boolean {
   return dateOf(v) >= dateOf(JS_RUNTIME_SINCE);
 }
 
-export interface RuntimeOptions {
-  execPath?: string;
-  sea?: boolean;
-  deno?: string | null;
+function runtimeArgs(v: unknown, { execPath = process.execPath }: { execPath?: string } = {}): string[] {
+  return needsJsRuntime(v) ? ['--js-runtimes', `node:${execPath}`] : [];
 }
 
-function runtimeArgs(v: unknown, {
-  execPath = process.execPath, sea = isSea(), deno,
-}: RuntimeOptions = {}): string[] {
-  if (!needsJsRuntime(v)) return [];
-  if (!sea) return ['--js-runtimes', `node:${execPath}`];
-  const runtime = deno === undefined ? envTool('deno') : deno;
-  return runtime ? ['--js-runtimes', `deno:${runtime}`] : [];
-}
-
-function runtimeName({ sea = isSea(), deno }: Omit<RuntimeOptions, 'execPath'> = {}): string | null {
-  if (!sea) return `Node ${process.versions.node} (this server)`;
-  const runtime = deno === undefined ? envTool('deno') : deno;
-  return runtime ? 'Deno, from the analysis environment' : null;
+function runtimeName(): string {
+  return `Node ${process.versions.node} (this server)`;
 }
 
 function _reset(): void { found$ = null; }

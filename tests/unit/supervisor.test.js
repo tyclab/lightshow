@@ -23,20 +23,19 @@ function reader(record) {
   };
 }
 
-function run(t, plan, options = {}, env = {}) {
+function run(t, plan, options = {}) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'supervisor-'));
   t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
   const record = path.join(dir, 'runs.jsonl');
   const said = [];
   const supervisor = supervise({
     script: FAKE,
-    env: { ...process.env, NODE_OPTIONS: '', FAKE_SERVER_PLAN: plan, FAKE_SERVER_RECORD: record, ...env },
+    env: { ...process.env, NODE_OPTIONS: '', FAKE_SERVER_PLAN: plan, FAKE_SERVER_RECORD: record },
     log: (m) => said.push(m),
     backoffMs: [20],
     hangMs: 300,
     startupMs: 5000,
     checkMs: 50,
-    sea: false,
     ...options,
   });
   return { supervisor, said, ...reader(record) };
@@ -106,7 +105,7 @@ test('servers exit when their supervisor disappears', async (t) => {
   const { runs, endings } = reader(record);
   const script = `
     const { supervise } = await import(${JSON.stringify(new URL('../../src/supervisor.ts', import.meta.url).href)});
-    supervise({ script: ${JSON.stringify(FAKE)}, sea: false, log: () => {} });
+    supervise({ script: ${JSON.stringify(FAKE)}, log: () => {} });
     setInterval(() => {}, 1000);
   `;
   const env = { ...process.env, NODE_OPTIONS: '', FAKE_SERVER_PLAN: 'stay', FAKE_SERVER_RECORD: record };
@@ -145,17 +144,6 @@ test('the legacy OpenSSL provider only when a Deezer ARL is set', async (t) => {
   const off = run(t, '0', { legacyProvider: () => false, execArgv: ['--openssl-legacy-provider'] });
   await off.supervisor.done;
   assert.deepEqual(off.runs()[0].execArgv, []);
-
-  // A single executable takes no flags on its command line: NODE_OPTIONS
-  // carries them, after the operator's own.
-  const sea = run(t, '0', { sea: true, legacyProvider: () => true, execArgv: ['--max-old-space-size=512'] },
-    { NODE_OPTIONS: '--no-warnings --openssl-legacy-provider' });
-  await sea.supervisor.done;
-  assert.deepEqual(sea.runs()[0].execArgv, []);
-  assert.equal(sea.runs()[0].nodeOptions, '--no-warnings --max-old-space-size=512 --openssl-legacy-provider');
-  const seaOff = run(t, '0', { sea: true, legacyProvider: () => false }, { NODE_OPTIONS: '--openssl-legacy-provider --no-warnings' });
-  await seaOff.supervisor.done;
-  assert.equal(seaOff.runs()[0].nodeOptions, '--no-warnings', 'not when no ARL is set, even left over from before');
 
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'arl-'));
   t.after(() => fs.rmSync(dir, { recursive: true, force: true }));

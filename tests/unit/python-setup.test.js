@@ -62,20 +62,15 @@ test('the log keeps the last two hundred lines', () => {
   assert.equal(job.lines[0], ' + package-50==1.0');
 });
 
-test('uv: the packaged build\'s own, then PATH, then where its installer puts it', () => {
-  const app = '/opt/lightshow/app';
+test('uv: on PATH, then where its installer puts it', () => {
   const has = (...files) => (f) => files.includes(f);
-  assert.deepEqual(findUv({ platform: 'linux', app, env: { PATH: '/usr/bin' }, home: '/home/op', exists: has('/opt/lightshow/tools/uv', '/usr/bin/uv') }),
-    { command: '/opt/lightshow/tools/uv', from: 'bundled' });
-  assert.deepEqual(findUv({ platform: 'linux', app, env: { PATH: '/usr/bin' }, home: '/home/op', exists: has('/usr/bin/uv', '/home/op/.local/bin/uv') }),
+  assert.deepEqual(findUv({ platform: 'linux', env: { PATH: '/usr/bin' }, home: '/home/op', exists: has('/usr/bin/uv', '/home/op/.local/bin/uv') }),
     { command: '/usr/bin/uv', from: 'path' });
-  assert.deepEqual(findUv({ platform: 'linux', app, env: { PATH: '/usr/bin' }, home: '/home/op', exists: has('/home/op/.local/bin/uv') }),
+  assert.deepEqual(findUv({ platform: 'linux', env: { PATH: '/usr/bin' }, home: '/home/op', exists: has('/home/op/.local/bin/uv') }),
     { command: '/home/op/.local/bin/uv', from: 'home' });
-  assert.deepEqual(findUv({ platform: 'win32', app: 'C:\\LS\\app', env: { Path: 'C:\\Windows' }, home: 'C:\\Users\\op', exists: has('C:\\LS\\tools\\uv.exe') }),
-    { command: 'C:\\LS\\tools\\uv.exe', from: 'bundled' });
-  assert.deepEqual(findUv({ platform: 'win32', app: 'C:\\LS\\app', env: { Path: 'C:\\Windows' }, home: 'C:\\Users\\op', exists: has('C:\\Users\\op\\.local\\bin\\uv.exe') }),
+  assert.deepEqual(findUv({ platform: 'win32', env: { Path: 'C:\\Windows' }, home: 'C:\\Users\\op', exists: has('C:\\Users\\op\\.local\\bin\\uv.exe') }),
     { command: 'C:\\Users\\op\\.local\\bin\\uv.exe', from: 'home' });
-  assert.equal(findUv({ platform: 'linux', app, env: { PATH: '/usr/bin' }, home: '/home/op', exists: () => false }), null);
+  assert.equal(findUv({ platform: 'linux', env: { PATH: '/usr/bin' }, home: '/home/op', exists: () => false }), null);
 });
 
 test('Python setup selects the torch build supported by detected hardware', async () => {

@@ -36,7 +36,6 @@ import { createAuth, configError, hostOfUrl, sourceMapsForLoopback } from './ser
 import { isLoopback } from './server/loopback.ts';
 import { settings, CONFIG_FILE } from './server/settings.ts';
 import { cacheDir, dataDir } from './server/config-dir.ts';
-import { openBrowser, shouldOpenBrowser } from './server/open-browser.ts';
 import { createApplier } from './server/apply.ts';
 import { createIdleDisarm } from './server/idle-disarm.ts';
 import { isArmed, onDisarm } from './server/armed.ts';
@@ -315,8 +314,6 @@ server.listen(PORT, HOST, () => {
   console.log(`  Now Playing       →  ${npStatus}`);
   console.log(`  Python            →  ${pythonEnv.describe()}`);
   console.log(`  Auto Show         →  Essentia + Spotify integration\n`);
-
-  if (shouldOpenBrowser({ restarts: supervised.restarts })) openBrowser(`http://${shownHost}:${PORT}/`);
 
   restoreSpotifySession();
 

@@ -55,7 +55,7 @@ local Audition and colour sliders. All new-show workflows hide retired rows.
   and whether it is an energy voice or a rapid flash. Multi-select chips filter by
   them; the Spatial, Own and Classic sections are gone. `src/shared/effects/tags.ts`
   derives the tags from kind and params and holds a table for the 59 classic
-  patterns; MIDI and Companion browse by the same tags. See the
+  patterns; MIDI browses by the same tags. See the
   [README](../README.md#effects-catalogue-and-tags).
 
 Verification covers original legacy goldens, a separate new-preset snapshot,

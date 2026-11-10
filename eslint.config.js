@@ -1,8 +1,7 @@
-// Flat config. Four source shapes live in this repo and they do not share a
+// Flat config. Two source shapes live in this repo and they do not share a
 // module system, a syntax or a set of globals, so each gets its own block:
 //   - the Node server (TypeScript, and the ES-module JavaScript around it)
 //   - the browser client (public-src, ESM + JSX; public/, classic scripts)
-//   - the Companion module (ESM, its own package)
 //
 // The rule set is deliberately small: catch what actually bit us — unused
 // bindings, accidental globals, unreachable code — without turning a working
@@ -56,13 +55,11 @@ export default [
   {
     ignores: [
       'node_modules/**',
-      'companion-module/node_modules/**',
       'public/app.bundle.js',      // generated
       'public/chunks/**',          // generated
       'cache/**',
       'tests/fixtures/**',
       '.venv/**',
-      'dist/**',                   // the packaged build (npm run package)
       '.superpowers/**',           // untracked agent workspace, not project source
     ],
   },
@@ -74,18 +71,6 @@ export default [
       ecmaVersion: 2024,
       sourceType: 'module',
       globals: NODE_GLOBALS,
-    },
-    rules: { ...js.configs.recommended.rules, ...COMMON_RULES },
-  },
-
-  // ── The packaged build's launcher: CommonJS, as a single executable's
-  //    main script has to be (scripts/sea-main.cjs) ─────────────────────────
-  {
-    files: ['scripts/**/*.cjs'],
-    languageOptions: {
-      ecmaVersion: 2024,
-      sourceType: 'commonjs',
-      globals: { ...NODE_GLOBALS, require: 'readonly', module: 'writable', __dirname: 'readonly', __filename: 'readonly' },
     },
     rules: { ...js.configs.recommended.rules, ...COMMON_RULES },
   },
@@ -188,17 +173,6 @@ export default [
       ecmaVersion: 2023,
       sourceType: 'script',
       globals: BROWSER_GLOBALS,
-    },
-    rules: { ...js.configs.recommended.rules, ...COMMON_RULES },
-  },
-
-  // ── Companion module (ESM, tab-indented, its own prettier config) ─────────
-  {
-    files: ['companion-module/src/**/*.js'],
-    languageOptions: {
-      ecmaVersion: 2023,
-      sourceType: 'module',
-      globals: { ...NODE_GLOBALS, ...BROWSER_GLOBALS },
     },
     rules: { ...js.configs.recommended.rules, ...COMMON_RULES },
   },

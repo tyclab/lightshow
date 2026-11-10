@@ -1,6 +1,5 @@
 import { state, allocateFixtureId, universeOf, maxBrightnessOf, countUniverses, placeAddresslessFixtures } from '../state.ts';
 import { resizeFixtureBuffers } from '../engine.ts';
-import { parseGDTF } from '../../gdtf.ts';
 import { BUILTIN_PROFILE_ID, HUE_BY_HAND, isBuiltinProfile, MAX_FIXTURES, UNIVERSE_SIZE, endChannel, fitsInUniverse, universeOverflow, registerProfile, unregisterProfile, listProfiles, getProfile, unitCapOverflow } from '../profiles.ts';
 import { MAX_UNIVERSES } from '../universes.ts';
 import { INTERNAL_UNIVERSE, footprintOf, hasNoAddress, isHueLamp, isWled, universeCount } from '../../shared/placement.ts';
@@ -14,7 +13,6 @@ import { ddpConflict } from '../ddp-routes.ts';
 import { showStore, snapshotShow } from '../show-store.ts';
 import { addFixtures } from '../fixture-add.ts';
 import { barProfile } from '../bar-profile.ts';
-import { parseOfl } from '../ofl.ts';
 import { DEFAULT_WLED_MODE, ledmapUnused, wledProfile, wledSeat, wledSpan } from '../wled.ts';
 import type { WledClient, WledInfo, WledLedmap, WledLook } from '../wled.ts';
 import { bindingsOf, remapRoomCells, sameCells } from '../wled-refresh.ts';
@@ -27,66 +25,15 @@ import { defaultHueBridgeId } from '../settings.ts';
 import { messageOf, statusOf } from '../../errors.ts';
 import type { Express, Response } from 'express';
 import type { Fixture, Profile } from '../../types/rig.ts';
-import { asyncHandler, resolveHueBridge, uploadGdtf, uploadOfl } from './common.ts';
+import { asyncHandler, resolveHueBridge } from './common.ts';
 import type { RouteContext } from './common.ts';
 
 /**
- * The patch: fixture profiles (GDTF, the Open Fixture Library, a bar built
- * from its manual), WLEDs and other DDP pixel devices, Hue lamps, the fixtures
+ * The patch: fixture profiles (a bar built from its manual), WLEDs and other DDP pixel devices, Hue lamps, the fixtures
  * themselves, and the show file. OpenRGB devices are routes/openrgb.ts.
  */
 export function attachFixtureRoutes(app: Express, ctx: RouteContext): void {
-  const { integrations, oflLibrary, wled, hueAreas } = ctx;
-
-  // ─── GDTF / Profiles / Fixtures / Show ────────────────────────────────────
-  app.post('/api/gdtf/parse', uploadGdtf.single('gdtf'), asyncHandler(async (req, res) => {
-    if (!req.file) return res.status(400).json({ ok: false, error: 'No file uploaded' });
-    try {
-      const result = await parseGDTF(req.file.buffer);
-      res.json({ ok: true, fixture: result });
-    } catch (err) {
-      console.error('GDTF parse error:', messageOf(err));
-      res.status(400).json({ ok: false, error: messageOf(err) });
-    }
-  }));
-
-  // ─── Open Fixture Library ─────────────────────────────────────────────────
-  // A downloaded OFL fixture file (no internet needed), or a fixture searched
-  // for and fetched from the library online. Both answer as /api/gdtf/parse
-  // does, so the page offers their modes the same way.
-  app.post('/api/ofl/parse', uploadOfl.single('ofl'), (req, res) => {
-    if (!req.file) return res.status(400).json({ ok: false, error: 'No file uploaded' });
-    let json: unknown;
-    try {
-      json = JSON.parse(req.file.buffer.toString('utf8'));
-    } catch (_) {
-      return res.status(400).json({ ok: false, error: 'That file is not JSON: an Open Fixture Library fixture is a .json file' });
-    }
-    try {
-      const manufacturer = typeof req.body?.manufacturer === 'string' ? req.body.manufacturer.trim() : null;
-      res.json({ ok: true, fixture: parseOfl(json, { manufacturer }) });
-    } catch (err) {
-      res.status(statusOf(err) || 400).json({ ok: false, error: messageOf(err) });
-    }
-  });
-
-  app.get('/api/ofl/search', asyncHandler(async (req, res) => {
-    try {
-      const results = await oflLibrary.search(typeof req.query.q === 'string' ? req.query.q : '');
-      res.json({ ok: true, results });
-    } catch (err) {
-      res.status(statusOf(err) || 502).json({ ok: false, error: messageOf(err) });
-    }
-  }));
-
-  app.get('/api/ofl/fixture/:manufacturer/:fixture', asyncHandler(async (req, res) => {
-    try {
-      const fixture = await oflLibrary.fixture(String(req.params.manufacturer), String(req.params.fixture));
-      res.json({ ok: true, fixture });
-    } catch (err) {
-      res.status(statusOf(err) || 502).json({ ok: false, error: messageOf(err) });
-    }
-  }));
+  const { integrations, wled, hueAreas } = ctx;
 
   // ─── WLED ─────────────────────────────────────────────────────────────────
   // Find the WLEDs on the network, and add one: its profile from what it says

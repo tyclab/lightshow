@@ -3,8 +3,8 @@
 Stage can draw a private room model instead of the generic venue. Open Stage's
 room controls to import a room JSON file, place fixtures, and edit or remove
 bindings. Room data lives in `config/stage-room.json`, served through the same
-authenticated API as the lighting controls. It is not part of a packaged build
-or a public source checkout.
+authenticated API as the lighting controls. It is not part of a public source
+checkout.
 
 Use Download room JSON to preserve saved placements before replacement. Replacing
 or clearing a room with saved positions asks for confirmation, as does discarding

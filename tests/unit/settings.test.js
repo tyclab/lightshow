@@ -238,24 +238,23 @@ test('live input settings: off by default, a source it knows, a latency in range
   assert.strictEqual(s.get('live.source'), 'input', 'a refused update changes nothing');
 });
 
-// The first-run wizard is offered on a fresh install and not to a rig set up
-// before it existed.
-test('setup completion persists across reloads', () => {
-  const fresh = store().load();
-  assert.strictEqual(fresh.get('setup.completed'), false);
-  fresh.update({ artnet: { host: '10.0.0.5' } });
-  assert.strictEqual(new SettingsStore(fresh.file).load().get('setup.completed'), false, 'still offered after a save');
+// A settings file written by a build that still had the first-run setup holds its `setup` group.
+test('a file that still holds a retired group loads as it is and is saved without it', (t) => {
+  const s = store();
+  const warned = t.mock.method(console, 'warn', () => {});
+  const failed = t.mock.method(console, 'error', () => {});
+  fs.writeFileSync(s.file, JSON.stringify({ formatVersion: 1, values: { setup: { completed: true }, live: { latencyMs: 120 } } }));
+  s.load();
+  assert.strictEqual(s.get('live.latencyMs'), 120, 'the rest of the file is read');
+  assert.ok(!('setup' in s.all()));
+  assert.deepStrictEqual(fs.readdirSync(path.dirname(s.file)), ['settings.json'], 'not moved aside, no backup');
+  assert.deepStrictEqual([warned.mock.callCount(), failed.mock.callCount()], [0, 0], 'nothing logged');
+  assert.ok('setup' in JSON.parse(fs.readFileSync(s.file, 'utf8')).values, 'loading does not rewrite the file');
 
-  fresh.update({ setup: { completed: true } });
-  assert.strictEqual(new SettingsStore(fresh.file).load().get('setup.completed'), true);
-});
-
-test('pre-wizard settings migrate as already configured', () => {
-  const old = store();
-  fs.writeFileSync(old.file, JSON.stringify({ artnet: { host: '10.0.0.9' } }));
-  old.load();
-  assert.strictEqual(old.get('setup.completed'), true);
-  assert.strictEqual(old.get('artnet.host'), '10.0.0.9');
+  s.update({ live: { latencyMs: 80 } });
+  const saved = JSON.parse(fs.readFileSync(s.file, 'utf8'));
+  assert.deepStrictEqual([saved.formatVersion, saved.values.live.latencyMs, 'setup' in saved.values], [1, 80, false]);
+  assert.throws(() => s.update({ setup: { completed: false } }), 'the group is no longer a setting');
 });
 
 // Automatic tempo match is on unless the operator switched it off, and stays

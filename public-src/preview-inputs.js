@@ -1,13 +1,12 @@
 import { withEffectColours } from '../src/shared/effect-colours.ts';
 import { presetById } from '../src/shared/effects/catalogue.ts';
-import { abSpec } from '../src/shared/effects/ab-candidates.ts';
 import { playingState } from './now-playing.js';
 import { MAIN_EFFECT, mainEffectText } from './picture-layers.js';
 
 
 export function resolverOf(saved = []) {
   const mine = new Map((Array.isArray(saved) ? saved : []).filter((p) => p && p.spec).map((p) => [p.id, p.spec]));
-  return (id) => mine.get(id) || presetById(id)?.spec || abSpec(id);
+  return (id) => mine.get(id) || presetById(id)?.spec || null;
 }
 
 export function presetNameOf(saved = []) {
