@@ -260,6 +260,7 @@ export const SHOW = {
         { value: 'effects', label: 'The show\'s effects' },
         { value: 'inspired', label: 'Visualizer colours + motion, with spatial effects' },
         { value: 'visualizer', label: 'The visualizer picture, sampled at each lamp' },
+        { value: 'squid', label: 'The squid on the largest LED panel, effects on the rest' },
       ],
       help: 'Colour + motion takes the incoming picture\'s palette and movement speed to drive the selected spatial effect; '
         + 'choose a Visualizer Flow effect in Effects. The visualizer picture arrives from the browser helper\'s --room mode: one '

@@ -291,7 +291,7 @@ const schema = z.object({
     idleDisarmMin: z.number().int().min(0).max(1440),
   }).strict(),
   picture: z.object({
-    source: z.enum(['effects', 'visualizer', 'inspired']),
+    source: z.enum(['effects', 'visualizer', 'inspired', 'squid']),
     decode: z.boolean(),
     blackPoint: pictureBlackPointSchema,
     grade: pictureGradeSchema,

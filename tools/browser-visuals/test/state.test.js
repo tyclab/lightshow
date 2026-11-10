@@ -69,6 +69,13 @@ test('Colour + motion allows the room feed while panels pause and still requires
   value.state.armed = true; value.state.safety.photosensitivityAcknowledged = false; mirror.snapshot(value);
   assert.equal(mirror.base().ok, false);
 });
+test('the built-in Squid needs no helper output: every lease pauses as under Effects', () => {
+  const mirror = new StateMirror();
+  const value = snapshot(); value.state.picture = { source: 'squid' };
+  mirror.snapshot(value);
+  assert.deepEqual(mirror.base(), { ok: false, reason: 'Visualizer not selected' });
+  assert.equal(mirror.target(options).ok, false);
+});
 test('a live sync keeps the rig held for the same revision, drops it for another, and replaces it when sent', () => {
   const mirror = new StateMirror(() => 0);
   const at = (revision, withRig = true) => {

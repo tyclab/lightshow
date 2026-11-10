@@ -29,6 +29,7 @@ import { validateSpec } from '../shared/effects/registry.ts';
 import { effectContentKey } from '../shared/effects/layer.ts';
 import { pixelInputs } from './pixel-input-live.ts';
 import { pictureInput } from './picture-live.ts';
+import { squidPicture } from './squid-picture.ts';
 import { PictureFeatureExtractor } from '../shared/picture-features.ts';
 import { FrameBarrier } from './frame-barrier.ts';
 import { control } from './control.ts';
@@ -253,6 +254,8 @@ function renderInput({ points = true }: { points?: boolean } = {}): RenderInput 
   const picture = pictureInput.current(thread === 'worker' ? WORKER_CLOCK_SHIFT : 0);
   const features = pictureFeatures.update(pictureSource === 'inspired' ? picture : null, pictureInput.image(true),
     clock() + (thread === 'worker' ? WORKER_CLOCK_SHIFT : 0));
+  // The Squid feeds the largest panel by the pixel path; outside feeds wait meanwhile, as under Colour + motion.
+  const squid = pictureSource === 'squid' ? squidPicture.frame(conductor.peek(), thread === 'worker' ? WORKER_CLOCK_SHIFT : 0) : squidPicture.stop();
   return {
     running: state.running,
     programmePlaying: state.running,
@@ -298,7 +301,8 @@ function renderInput({ points = true }: { points?: boolean } = {}): RenderInput 
     effect,
     effectRevision,
     voices: voiceFrames(),
-    pixelInputs: pictureSource === 'inspired' ? [] : pixelInputs.frames(thread === 'worker' ? WORKER_CLOCK_SHIFT : 0),
+    pixelInputs: pictureSource === 'squid' ? (squid ? [squid] : []) : pictureSource === 'inspired' ? []
+      : pixelInputs.frames(thread === 'worker' ? WORKER_CLOCK_SHIFT : 0),
     picture: pictureSource === 'visualizer' ? picture : null,
     pictureFeatures: features,
     pictureGrade: settings.get('picture.grade'),
