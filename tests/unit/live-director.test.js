@@ -157,13 +157,13 @@ test('live passages advance every sixteen bars and release on stop', () => {
   assert.strictEqual(t.patches.length, n, 'no timer or event reaches the rig after');
 });
 
-test('a look picked by hand holds for sixty-four bars: accents play on, another pick counts anew', () => {
+test('a look picked by hand holds for half a minute: accents play on, another pick counts anew', () => {
   const t = director();
   t.hear({ seconds: 3 });
   t.d.start();
   const n = t.patches.length;
   t.d.hold();
-  for (let i = 0; i < 40; i++) t.event('BAR');
+  for (let i = 0; i < 12; i++) { t.run(2000); t.event('BAR'); }
   t.event('TRANSITION', { to: 'high' });
   t.event('BUILDUP');
   assert.strictEqual(t.patches.length, n, 'no new look, build or section change over the hand\'s look');
@@ -179,10 +179,15 @@ test('a look picked by hand holds for sixty-four bars: accents play on, another 
 
   t.d.hold();
   const held = t.patches.length;
-  for (let i = 0; i < 63; i++) t.event('BAR');
-  assert.strictEqual(t.patches.length, held, 'the second pick started the count again');
+  for (let i = 0; i < 14; i++) { t.run(2000); t.event('BAR'); }
+  assert.strictEqual(t.patches.length, held, 'the second pick started the time again: 28 s in, still the hand\'s look');
+  t.run(1999);
+  t.event('TRANSITION', { to: 'high' });
+  assert.strictEqual(t.patches.length, held, 'and nothing ends it between bars');
+  t.run(1);
   t.event('BAR');
-  assert.ok(patternIds.has(t.last().pattern), 'after the last bar the director picks again');
+  assert.ok(patternIds.has(t.last().pattern), 'on the first bar after half a minute the director picks again');
+  assert.ok(t.last().fadeMs > 0, 'with half a bar\'s fade');
   assert.strictEqual(t.patches.length, held + 1);
   for (let i = 0; i < 16; i++) t.event('BAR');
   assert.strictEqual(t.patches.length, held + 2, 'and rotates as before');
