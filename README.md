@@ -56,25 +56,8 @@ It also starts with the programme stopped and no held picture or pad leases. A s
 Blackout stays active. Use the global header on any tab or the versioned
 `/api/control` endpoint when the rig should transmit. Arming does not start the programme.
 
-### Packaged builds
-
-TycStation Lightshow has no published release packages yet. Use a pinned source checkout,
-or build a package on the target operating system with `npm run package`.
-The [CI workflows](https://github.com/tyclab/lightshow/actions) test Windows
-and Linux packaging. Packages include Node; install the analysis environment
-separately from the app when needed.
-
-| Package | Start and data location |
-|---------|-------------------------|
-| Windows installer, `*-win32-x64-setup.exe` | Start menu → TycStation Lightshow; new installs in `%LOCALAPPDATA%\Programs\TycStation Lightshow`, data in `%LOCALAPPDATA%\TycStation Lightshow` |
-| Windows portable, `*-win32-x64.zip` | Run `TycStation Lightshow.exe`; data in the adjacent `data` folder while the `portable` marker exists |
-| Linux archive, `*-linux-x64.tar.gz` | Run `./tycstation-lightshow`; portable data as above, otherwise `~/.local/share/tycstation-lightshow` |
-
-Closing the server console stops the show. `--version` prints the version.
 `--no-supervisor` disables the built-in process supervisor.
-`LIGHTSHOW_DATA_DIR` overrides the data location. Updating or uninstalling the
-Windows installer leaves the data directory in place. Existing Windows installs
-keep their installation directory when upgraded.
+`LIGHTSHOW_DATA_DIR` overrides the data location.
 
 The rebrand preserves existing data and model-cache paths, `ARTNET_*` and
 `LIGHTSHOW_*` environment variables, browser storage keys, API/authentication
@@ -112,8 +95,8 @@ sequences. For the default source-checkout location:
 cp -a config config.pre-engine
 ```
 
-Use the actual `LIGHTSHOW_CONFIG_DIR` or packaged data directory when it differs.
-Preserve the matching application revision or package as well. Update through
+Use the actual `LIGHTSHOW_CONFIG_DIR` or `LIGHTSHOW_DATA_DIR` when it differs.
+Preserve the matching application revision as well. Update through
 the installation's normal release/service path; for a checkout, install the
 locked dependencies with `npm ci` and rebuild with `npm run build:client`.
 Restart, run preflight, check `/api/health`, and verify the preview while
@@ -1628,8 +1611,8 @@ Hue flash/pulse adaptation preserves the exemptions described under
 ### Analysis environment
 
 Sources → Analysis environment installs the locked Python environment using
-uv and Python 3.12. Select CPU, CUDA (`cu128`) or ROCm. In a checkout, uv must
-be on `PATH`; packaged builds include it.
+uv and Python 3.12. Select CPU, CUDA (`cu128`) or ROCm. uv must
+be on `PATH`.
 
 ```bash
 npm run setup:python
@@ -2372,7 +2355,6 @@ node --test --test-concurrency=3 tests/unit/*.test.js
 npm run test:performance   # serial render budgets, after other tests finish
 npm run test:e2e
 npm run gen:analysis-types # after changing the analysis document schema
-npm run package            # package this platform into dist/
 ```
 
 Server TypeScript runs directly through Node's type stripping. Browser sources
@@ -2418,9 +2400,7 @@ or presentation. Without the parameter nothing is recorded or observed.
 `tests/e2e/browser-performance.spec.js` holds a steady stage to a 200 ms main-thread
 budget and checks that an injected 250 ms renderer stall fails it.
 
-Build packages with Node 24 on the target platform. Package/release workflows
-are in `.github/workflows/`; a version tag matching `package.json` drafts the
-release. Preserve repository hooks, CI checks and normal release policies.
+Preserve repository hooks and CI checks.
 
 Python validation uses the analysis environment:
 `python -m unittest discover -s tests/python -v`. Optional model and audio

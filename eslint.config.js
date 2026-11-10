@@ -1,4 +1,4 @@
-// Flat config. Three source shapes live in this repo and they do not share a
+// Flat config. Two source shapes live in this repo and they do not share a
 // module system, a syntax or a set of globals, so each gets its own block:
 //   - the Node server (TypeScript, and the ES-module JavaScript around it)
 //   - the browser client (public-src, ESM + JSX; public/, classic scripts)
@@ -60,7 +60,6 @@ export default [
       'cache/**',
       'tests/fixtures/**',
       '.venv/**',
-      'dist/**',                   // the packaged build (npm run package)
       '.superpowers/**',           // untracked agent workspace, not project source
     ],
   },
@@ -72,18 +71,6 @@ export default [
       ecmaVersion: 2024,
       sourceType: 'module',
       globals: NODE_GLOBALS,
-    },
-    rules: { ...js.configs.recommended.rules, ...COMMON_RULES },
-  },
-
-  // ── The packaged build's launcher: CommonJS, as a single executable's
-  //    main script has to be (scripts/sea-main.cjs) ─────────────────────────
-  {
-    files: ['scripts/**/*.cjs'],
-    languageOptions: {
-      ecmaVersion: 2024,
-      sourceType: 'commonjs',
-      globals: { ...NODE_GLOBALS, require: 'readonly', module: 'writable', __dirname: 'readonly', __filename: 'readonly' },
     },
     rules: { ...js.configs.recommended.rules, ...COMMON_RULES },
   },

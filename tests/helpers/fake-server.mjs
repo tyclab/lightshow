@@ -17,7 +17,6 @@ fs.appendFileSync(process.env.FAKE_SERVER_RECORD, `${JSON.stringify({
   recover: process.env.LIGHTSHOW_RECOVER,
   lastExit: process.env.LIGHTSHOW_LAST_EXIT ? JSON.parse(process.env.LIGHTSHOW_LAST_EXIT).reason : null,
   execArgv: process.execArgv,
-  nodeOptions: process.env.NODE_OPTIONS || '',
   pid: process.pid,
 })}\n`);
 

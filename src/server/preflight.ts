@@ -793,17 +793,9 @@ async function checkYtDlp(): Promise<Check> {
     };
   }
   const where = found && found.from === 'environment' ? ' from the analysis environment' : '';
-  const runtime = ytdlp.runtimeName();
-  if (!runtime) {
-    return {
-      id: 'yt-dlp', label: 'yt-dlp', status: WARN,
-      detail: `version ${r.version}${where}, but no JavaScript runtime: YouTube downloads are likely to fail.`,
-      fix: 'Set up the analysis environment (Sources → Analysis): it installs Deno beside yt-dlp.',
-    };
-  }
   return {
     id: 'yt-dlp', label: 'yt-dlp', status: OK,
-    detail: `version ${r.version}${where}, JavaScript runtime: ${runtime}.`,
+    detail: `version ${r.version}${where}, JavaScript runtime: ${ytdlp.runtimeName()}.`,
   };
 }
 
