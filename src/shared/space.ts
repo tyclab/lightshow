@@ -134,18 +134,21 @@ function placements(rig: Rig, room: RoomScene): { sums: Vec3[]; counts: number[]
 // nearest on a panel's grid, else along the strip. A model that places every other row still places the whole panel.
 function fillUnplaced(rig: Rig, bound: Uint8Array, x: Float32Array, y: Float32Array, z: Float32Array): void {
   rig.fixtures.forEach((_, i) => {
-    const { start, count } = rig.ranges[i], columns = rig.grids[i]?.columns ?? count;
+    const { start, count } = rig.ranges[i], grid = rig.grids[i];
+    // The rig knows each cell's place on its fixture as fractions across and down: in whole cell steps here, so of two
+    // cells as near the first in cell order wins, whatever the fractions round to.
+    const across = (grid ? grid.columns : count) - 1, down = grid ? grid.rows - 1 : 0;
     const placed: number[] = [];
-    for (let k = 0; k < count; k++) if (bound[start + k]) placed.push(k);
+    for (let u = start; u < start + count; u++) if (bound[u]) placed.push(u);
     if (!placed.length || placed.length === count) return;
-    for (let k = 0; k < count; k++) {
-      if (bound[start + k]) continue;
+    for (let u = start; u < start + count; u++) {
+      if (bound[u]) continue;
       let nearest = placed[0], least = Infinity;
       for (const other of placed) {
-        const across = other % columns - k % columns, down = Math.floor(other / columns) - Math.floor(k / columns);
-        if (across * across + down * down < least) { least = across * across + down * down; nearest = other; }
+        const dx = Math.round((rig.local[other] - rig.local[u]) * across), dy = Math.round((rig.localY[other] - rig.localY[u]) * down);
+        if (dx * dx + dy * dy < least) { least = dx * dx + dy * dy; nearest = other; }
       }
-      x[start + k] = x[start + nearest]; y[start + k] = y[start + nearest]; z[start + k] = z[start + nearest];
+      x[u] = x[nearest]; y[u] = y[nearest]; z[u] = z[nearest];
     }
   });
 }

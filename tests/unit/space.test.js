@@ -139,6 +139,11 @@ test('a cell no binding names stands at the nearest cell of its fixture the room
     assert.equal(space.bound[panel + k], 0, `cell ${k} is still without a binding`);
   }
   at(space, strip + 9, [-1, 2.4, -1]); at(space, strip + 11, [1, 2.4, -1]); at(space, strip + 29, [1, 2.4, -1]);
+  // A panel wired back and forth names each cell's grid place: the nearest cell is the one beside it, not the next in the wire.
+  const wired = { cells: Array.from({ length: 8 }, (_, c) => ({ channelMap: { red: c }, at: { x: c < 4 ? c : 7 - c, y: c < 4 ? 0 : 1 } })), grid: { columns: 4, rows: 2 } };
+  const wRig = buildRig([{ id: 1, profileId: 'wired', position: { x: 50, y: 50, height: 50 }, geometry: { length: 10, angle: 0 } }], () => wired);
+  const wSpace = buildUnitSpace(wRig, roomOf([point('left', 1, { x: -1, y: 1, z: 0 }, 0), point('right', 1, { x: 1, y: 1, z: 0 }, 3)]));
+  at(wSpace, 7, [-1, 1, 0]); at(wSpace, 4, [1, 1, 0]);
   assert.equal(spaceReport(sRig, model, space).unbound.length, sRig.units.length - 5);
   // The lamps no binding names stay on the plot.
   at(space, first(1), [(0.375 - 0.5) * 4, 0.385 * 2.6, (0.125 - 0.5) * 4]);
