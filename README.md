@@ -48,8 +48,7 @@ npm start
 ```
 
 Open **http://localhost:3000**. `npm start` builds the browser client and starts
-the server under its supervisor. Complete or skip the first-run wizard; its
-controls remain available in Rig, Sources and Settings.
+the server under its supervisor. Set the rig up in Rig, Sources and Settings.
 
 The server always starts **disarmed**, including after a crash or restart.
 It also starts with the programme stopped and no held picture or pad leases. A saved
@@ -666,7 +665,7 @@ saved, and an acknowledgement that arrives later clears the error. A superseded
 request cannot claim that its older rig was applied.
 
 Save Art-Net separately from other settings: mixed requests are rejected before
-any changes with `mixed_settings_domains`. Outputs, the setup wizard, node
+any changes with `mixed_settings_domains`. Outputs, node
 **Send only here** and **Undo** all wait for this result. Old physical destinations
 receive dark frames and their required ArtSync on their original ports before new
 destinations receive light. Failed retirement is retried and withholds application.
@@ -692,7 +691,6 @@ New mapping revisions discard delayed and partially staged colours.
 | `midi` | `input: ''`, `output: ''`, `clockOutput: ''`, `controlFeedback: true` |
 | `engine` | `thread: 'worker'`; `'main'` is available for diagnosis |
 | `analysis` | `analyzerTimeoutMs: 600000`, `analyzerTimeoutMsPerSec: 1500`, `downloadTimeoutMs: 300000`, `localRoot: ''`, `pythonPath: ''`, `separator: 'demucs'`, `structureModel: 'auto'`, `gpuMemory: 'auto'`, `localWorker: 'standby'` (`'resident'` keeps this machine's analyser loaded from start-up); `workerToken: ''` (write-only; blank turns [remote GPU workers](#remote-gpu-analysis) off), `remoteWaitMs: 120000` |
-| `setup` | `completed: false` until the first-run wizard is completed or skipped |
 
 `server.host`, `server.port`, `server.token`, engine thread and the first Deezer
 ARL require a restart.

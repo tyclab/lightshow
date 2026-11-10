@@ -122,9 +122,6 @@ const DEFAULTS: Settings = {
     blackPoint: PICTURE_BLACK_POINT_DEFAULT,
     grade: { ...PICTURE_GRADE_DEFAULTS },
   },
-  setup: {
-    completed: false,
-  },
   engine: {
     thread: 'worker',
   },
@@ -299,9 +296,6 @@ const schema = z.object({
     blackPoint: pictureBlackPointSchema,
     grade: pictureGradeSchema,
   }).strict(),
-  setup: z.object({
-    completed: z.boolean(),
-  }).strict(),
   engine: z.object({
     thread: z.enum(['worker', 'main']),
   }).strict(),
@@ -325,6 +319,9 @@ const schema = z.object({
     remoteWaitMs: z.number().int().min(0).max(900000),
   }).strict(),
 }).strict();
+
+// Groups an earlier build stored and this one no longer reads. A file that still holds one loads as if it did not, and the next save leaves it out.
+const RETIRED_GROUPS = ['setup'];
 
 const patchSchema = z.object(
   Object.fromEntries(
@@ -394,7 +391,7 @@ class SettingsStore extends JsonStore {
       this.loadFailure = new Error('Invalid settings document; the file was left intact');
       throw this.loadFailure;
     }
-    if (version === 0 && !('setup' in values)) values.setup = { completed: true };
+    for (const group of RETIRED_GROUPS) delete values[group];
     const result = schema.safeParse(merge(DEFAULTS, parsed));
     if (!result.success) {
       this.quarantine(result.error.issues.map(i => `${i.path.join('.')} ${i.message}`).join('; '));

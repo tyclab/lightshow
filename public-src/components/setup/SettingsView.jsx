@@ -5,7 +5,6 @@ import { useSettings, settingsSig, saveSettings, at } from '../../setup-state.js
 import { SettingsSection } from './Section.jsx';
 import { SHOW, ENGINE, MIDI_CLOCK, SERVER } from './specs.js';
 import { MidiMap } from './MidiMap.jsx';
-import { openWizard } from './Wizard.jsx';
 import { RestartBanner } from './RestartBanner.jsx';
 
 /**
@@ -89,21 +88,6 @@ function MidiController() {
   );
 }
 
-function SetupAgain() {
-  const data = settingsSig.value;
-  const done = at(data && data.settings, 'setup.completed');
-  return (
-    <section class="panel setup-section" aria-labelledby="setup-again-title">
-      <header class="panel-head"><h2 class="panel-title" id="setup-again-title">Setup</h2></header>
-      <p class="section-desc">The first-run setup walks through the outputs, the fixtures, where they hang and the music, and
-        ends with the pre-show check. It changes nothing it does not ask about.{done === false ? ' It has not been finished yet.' : ''}</p>
-      <div class="setting-actions">
-        <button type="button" class="btn" onClick={openWizard}>Run the setup again</button>
-      </div>
-    </section>
-  );
-}
-
 export function SettingsView() {
   useSettings();
   const s = pick(['midi', 'armed']);
@@ -128,7 +112,6 @@ export function SettingsView() {
           <SettingsSection {...ENGINE} />
           <SettingsSection {...SERVER}
             footer={data && data.configFile ? <p class="setting-help">Stored in {data.configFile}.</p> : null} />
-          <SetupAgain />
         </div>
       </div>
     </div>

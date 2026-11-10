@@ -28,7 +28,6 @@ import { RigView } from './components/setup/RigView.jsx';
 import { SourcesView } from './components/setup/SourcesView.jsx';
 import { SettingsView } from './components/setup/SettingsView.jsx';
 import { PreflightView } from './components/setup/PreflightView.jsx';
-import { Wizard, useFirstRun } from './components/setup/Wizard.jsx';
 
 import { VIEWS, VIEW_IDS, viewShortcut, resolveRoute } from './views.js';
 import { pageTitle } from './brand.js';
@@ -162,7 +161,6 @@ function Root() {
   const Panel = PANELS[mode];
   // Show uses the header's look controls; Perform also carries its own transport.
   const bare = mode === 'show' || mode === 'perform';
-  useFirstRun();
   useTapShortcut();
 
   // The bars' heights as the ResizeObserver reports them, from the layout the
@@ -234,7 +232,6 @@ function Root() {
         {!bare && <BottomDrawer />}
         <ShortcutsOverlay />
       </footer>
-      <Wizard />
       <ConnectionVeil />
     </>
   );

@@ -2947,7 +2947,7 @@ input[type=range]::-moz-range-thumb {
 .track-edits .edit-sections select { width: 100%; }
 
 /* =============================================================
-   SETUP VIEWS — Rig, Sources, Settings, Preflight, the wizard
+   SETUP VIEWS — Rig, Sources, Settings, Preflight
    ============================================================= */
 .mode-tab-sep {
   width: 1px;
@@ -3000,9 +3000,9 @@ input[type=range]::-moz-range-thumb {
 .panel-tag.warn { color: var(--text-amber); border-color: currentColor; }
 .panel-tag.ok { color: var(--text-green); border-color: currentColor; }
 
-/* Form controls in the setup views and the wizard. */
+/* Form controls in the setup views. */
 .setup-view input[type=text], .setup-view input[type=number], .setup-view input[type=password], .setup-view input[type=search],
-.setup-view select, .wizard input[type=text], .wizard input[type=number], .wizard input[type=password], .wizard select {
+.setup-view select {
   min-width: 0;
   background: var(--surface);
   border: 1px solid var(--border);
@@ -3012,13 +3012,12 @@ input[type=range]::-moz-range-thumb {
   font: inherit;
   font-size: 13px;
 }
-.setup-view input[type=text], .setup-view input[type=number], .setup-view input[type=password],
-.wizard input[type=text], .wizard input[type=number], .wizard input[type=password] { font-family: var(--mono); font-size: 12px; }
-.setup-view input:focus-visible, .setup-view select:focus-visible, .wizard input:focus-visible, .wizard select:focus-visible {
+.setup-view input[type=text], .setup-view input[type=number], .setup-view input[type=password] { font-family: var(--mono); font-size: 12px; }
+.setup-view input:focus-visible, .setup-view select:focus-visible {
   outline: .125rem solid var(--accent); outline-offset: .1875rem;
   border-color: var(--accent);
 }
-.setup-view input[type=checkbox], .wizard input[type=checkbox] { width: 18px; height: 18px; accent-color: var(--accent); margin: 0; cursor: pointer; }
+.setup-view input[type=checkbox] { width: 18px; height: 18px; accent-color: var(--accent); margin: 0; cursor: pointer; }
 
 /* A stored setting: label, control, badge; its help under it. */
 .setting-rows { display: flex; flex-direction: column; gap: 10px; }
@@ -3303,58 +3302,9 @@ input[type=range]::-moz-range-thumb {
   border-radius: var(--radius-sm);
 }
 
-/* The first-run setup. */
-.wizard-backdrop {
-  position: fixed; inset: 0; z-index: 400;
-  display: grid; place-items: center;
-  padding: 16px;
-  background: color-mix(in srgb, var(--ground) 60%, transparent);
-}
-.wizard {
-  width: min(960px, 100%);
-  max-height: calc(100vh - 32px);
-  overflow-y: auto;
-  display: flex; flex-direction: column; gap: 12px;
-  padding: 16px 18px;
-  background: var(--card);
-  border: 1px solid var(--border-hi);
-  border-radius: var(--radius-lg);
-}
-.wizard:focus { outline: none; }
-.wizard-head { display: flex; align-items: center; gap: 10px; }
-.wizard-head h2 { margin: 0; font-size: 16px; }
-.wizard-step-name { color: var(--muted); font-weight: 600; }
-.wizard-head .btn { margin-left: auto; }
-.wizard-steps { display: flex; flex-wrap: wrap; gap: 4px; list-style: none; margin: 0; padding: 0; }
-.wizard-step-btn {
-  appearance: none; border: 1px solid var(--border); background: var(--surface); color: var(--muted);
-  font: inherit; font-size: 11px; font-weight: 700; padding: 5px 10px; border-radius: 999px; cursor: pointer;
-}
-.wizard-steps li.done .wizard-step-btn { color: var(--text-2); border-color: var(--border-hi); }
-.wizard-steps li.current .wizard-step-btn { background: var(--accent-fill); color: var(--text-on-accent); border-color: transparent; }
-.wizard-step-btn:focus-visible { outline: .125rem solid var(--accent); outline-offset: .1875rem; }
-.wizard-body { display: flex; flex-direction: column; gap: 10px; }
-.wizard-lead { margin: 0; font-size: 14px; line-height: 1.5; color: var(--text); }
-.wizard-list { margin: 0; padding-left: 20px; font-size: 13px; line-height: 1.8; color: var(--text-2); }
-.wizard-sub { margin: 6px 0 0; font-size: 10px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
-.wizard-group { border: 1px solid var(--border); border-radius: var(--radius); padding: 10px 12px; display: flex; flex-direction: column; gap: 8px; margin: 0; }
-.wizard-group legend { padding: 0 6px; font-size: 10px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
-.wizard-check { display: flex; align-items: center; gap: 8px; font-size: 13px; }
-.wizard-field { display: flex; align-items: center; gap: 10px; font-size: 12px; }
-.wizard-field > span { width: 110px; flex-shrink: 0; color: var(--muted); font-size: 10px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
-.wizard-field input, .wizard-field select { flex: 1; }
-.wizard-found, .wizard-patch { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; max-height: 260px; overflow-y: auto; }
-.wizard-found li, .wizard-patch li { display: flex; align-items: center; gap: 8px; padding: 4px 6px; border: 1px solid var(--border); border-radius: var(--radius-sm); font-size: 12px; }
-.wizard-found li > span:first-child, .wizard-patch-label { flex: 1; min-width: 0; }
-.wizard-patch .setting-help { flex: 2; }
-.wizard .plan-panel { padding: 0; border: none; background: none; }
-.wizard .plan-surface { max-height: 52vh; }
-.wizard-foot { display: flex; align-items: center; gap: 8px; padding-top: 10px; border-top: 1px solid var(--border); }
-.wizard-foot-gap { flex: 1; }
 @media (max-width: 640px) {
-  .wizard { padding: 12px; }
-  .wizard-field, .mode-field { flex-direction: column; align-items: stretch; }
-  .wizard-field > span, .mode-key { width: auto; }
+  .mode-field { flex-direction: column; align-items: stretch; }
+  .mode-key { width: auto; }
 }
 /* =============================================================
    STAGE — the rig in 3D
@@ -3578,7 +3528,7 @@ input[type=range]::-moz-range-thumb {
   .header-tool, .header-theme, .stat-pill.gate, .stat-pill.control, .cb-energy-btn, .cb-tap, .cb-play, .cb-bpm-follow,
   .palette-btn, .pattern-btn, .cue-recall, .cue-capture, .sync-nudge,
   .transport-btn, .warm-toggle, .auto-select, .warm-playlist-select, .shortcuts-tab,
-  .sub-tab, .remove-btn, .wizard-step-btn, .ofl-hit, .file-upload-btn, .timeline-section,
+  .sub-tab, .remove-btn, .ofl-hit, .file-upload-btn, .timeline-section,
   .effects-chip, .effect-star, .effect-edit, .palette-random, .insp-check,
   select, input[type=number], input[type=text], input[type=search], input[type=password], input[type=color], textarea {
     min-height: 44px;

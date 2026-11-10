@@ -32,24 +32,3 @@ for (const theme of ['dark', 'light', 'red']) {
   }
 }
 
-test('the setup wizard, every step', async ({ page, request }) => {
-  test.setTimeout(90_000);
-  await request.put('/api/settings', { data: { setup: { completed: false } } });
-  try {
-    await open(page, 'effects');
-    const dialog = page.getByRole('dialog', { name: /Set up the rig/ });
-    await page.addScriptTag({ path: AXE });
-    for (const step of ['Welcome', 'Outputs', 'Fixtures', 'Placement', 'Music', 'Check']) {
-      await dialog.getByRole('button', { name: new RegExp(`^(\\d\\. )?${step}$`) }).click();
-      await expect(dialog.locator('#wizard-title')).toContainText(step);
-      if (step === 'Check') await expect(dialog.locator('.preflight-summary')).toBeVisible({ timeout: 45_000 });
-      const violations = await page.evaluate(async () => {
-        const result = await window.axe.run(document.querySelector('.wizard'), { resultTypes: ['violations'] });
-        return result.violations.map((v) => `${v.impact} ${v.id}: ${v.nodes.slice(0, 3).map((n) => n.target.join(' ')).join(' | ')}`);
-      });
-      expect(violations, step).toEqual([]);
-    }
-  } finally {
-    await request.put('/api/settings', { data: { setup: { completed: true } } });
-  }
-});
