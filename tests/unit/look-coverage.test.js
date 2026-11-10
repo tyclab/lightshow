@@ -4,6 +4,8 @@ import { createHash } from 'node:crypto';
 import { measureLookCoverage, LookCoverage } from '../../src/server/look-coverage.ts';
 import { buildRoom } from '../../src/shared/room.ts';
 import { buildRig } from '../../src/shared/rig.ts';
+import { roomSceneSchema } from '../../src/shared/room-scene.ts';
+import { buildUnitSpace } from '../../src/shared/space.ts';
 import { syntheticRig, syntheticSpace } from '../../scripts/golden-frames.js';
 import { MEASURED_LOOKS, availableFor } from '../../src/show/look.ts';
 import { kindOf } from '../../src/shared/effects/registry.ts';
@@ -63,6 +65,48 @@ test('every look an automatic show may pick is measured, and a rig no shape reac
   assert.ok(corner.eligible.has('v2.wash') && corner.eligible.has('v2.rotation'));
   assert.ok(corner.eligible.size < MEASURED_LOOKS.size);
   for (const id of corner.eligible) assert.ok(corner.litShare.get(id) >= 0.1 && corner.darkBeats.get(id) <= 4, id);
+});
+
+/** The synthetic rig, every unit placed where its own room has it, moved by `at` inside a room model of `bounds`. */
+function modelled(bounds, at) {
+  const { fixtures, profileOf, room } = syntheticRig();
+  const rig = buildRig(fixtures, profileOf), own = syntheticSpace();
+  const move = (p) => ({ x: p.x + at.x, y: p.y + at.y, z: p.z + at.z });
+  const model = roomSceneSchema.parse({ version: 1, name: 'Model', bounds,
+    bindings: rig.units.map(({ fixture, cell }, u) => ({ id: `u${u}`, fixtureId: fixtures[fixture].id, unit: cell, confidence: 'estimated',
+      position: move({ x: own.x[u], y: own.y[u], z: own.z[u] }) })),
+    anchors: room.anchors.map((a) => ({ ...a, position: move(a.position) })),
+    listeners: room.listeners.map((l) => ({ ...l, position: move(l.position) })) });
+  return { rig, space: buildUnitSpace(rig, model) };
+}
+const building = { width: 40, depth: 30, height: 6 }, corner = { x: 12, y: 0.4, z: -9 };
+
+test('where the rig stands in its room model, and how much model lies round it, does not change what a look lights', async () => {
+  const fitted = modelled({ width: 4, depth: 4, height: 2.6 }, { x: 0, y: 0, z: 0 }), far = modelled(building, corner);
+  assert.deepEqual([far.space.box.width, far.space.box.depth, far.space.box.height].map((v) => Math.round(v * 100)),
+    [fitted.space.box.width, fitted.space.box.depth, fitted.space.box.height].map((v) => Math.round(v * 100)));
+  const here = await measureLookCoverage(effectRoom(voiceLayout(fitted.rig), fitted.space));
+  const there = await measureLookCoverage(effectRoom(voiceLayout(far.rig), far.space));
+  // Noise fields and scatter tiles are laid out in room metres from the model's origin: moving the rig moves it through them.
+  const crossing = PRESETS.filter((p) => !['v2.noise', 'v2.scatter'].includes(p.spec.kind)).map((p) => p.id);
+  assert.ok(crossing.length > 25);
+  for (const id of crossing) {
+    assert.ok(Math.abs(here.litShare.get(id) - there.litShare.get(id)) < 0.01, `${id}: ${here.litShare.get(id)} here, ${there.litShare.get(id)} there`);
+    assert.ok(Math.abs(here.darkBeats.get(id) - there.darkBeats.get(id)) <= 0.25, `${id}: dark ${here.darkBeats.get(id)} here, ${there.darkBeats.get(id)} there`);
+    assert.equal(here.eligible.has(id), there.eligible.has(id), id);
+  }
+});
+
+test('a sweep crosses the rig, not the model round it', async () => {
+  const { rig, space } = modelled(building, corner);
+  const round = await measureLookCoverage(effectRoom(voiceLayout(rig), space));
+  // The same rig played across the whole model, as a space without a box of its own plays.
+  const across = await measureLookCoverage(effectRoom(voiceLayout(rig), { ...space, revision: 'whole model', box: undefined }));
+  for (const id of ['v2.grooveWave', 'v2.bigRoomWave', 'v2.swagger']) {
+    assert.ok(round.eligible.has(id) && round.darkBeats.get(id) <= 2, `${id} round the rig: dark ${round.darkBeats.get(id)} beats`);
+    assert.ok(!across.eligible.has(id) && across.darkBeats.get(id) > 4, `${id} across the model: dark ${across.darkBeats.get(id)} beats`);
+  }
+  assert.ok(round.litShare.get('v2.zones') > 0.3 && round.darkBeats.get('v2.zones') <= 0.5, 'left and right both hold fixtures');
 });
 
 test('coverage yields before rendering and between samples, so timers remain runnable', async () => {

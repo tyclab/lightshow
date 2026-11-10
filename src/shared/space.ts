@@ -151,14 +151,14 @@ function fillUnplaced(rig: Rig, bound: Uint8Array, x: Float32Array, y: Float32Ar
 }
 
 // The looks cross the box they play in. A room model may hold a whole home with the rig in one corner of it, so once
-// the room places a unit that box is the one round the rig's emitters; a room that places none says nothing about
-// where the rig stands, and the looks keep the whole room.
-function playBox(space: Pick<UnitSpace, 'n' | 'x' | 'y' | 'z' | 'size' | 'bound' | 'bounds'>): PlayBox {
+// the room places a unit that box is the one round the rig's units: a sweep starts on the first and ends on the last.
+// A room that places none says nothing about where the rig stands, and the looks keep the whole room.
+function playBox(space: Pick<UnitSpace, 'n' | 'x' | 'y' | 'z' | 'bound' | 'bounds'>): PlayBox {
   if (!space.bound.includes(1)) return { x: 0, y: 0, z: 0, ...space.bounds };
   const lo = { x: Infinity, y: Infinity, z: Infinity }, hi = { x: -Infinity, y: -Infinity, z: -Infinity };
   for (let u = 0; u < space.n; u++) for (const axis of ['x', 'y', 'z'] as const) {
-    lo[axis] = Math.min(lo[axis], space[axis][u] - space.size[u]);
-    hi[axis] = Math.max(hi[axis], space[axis][u] + space.size[u]);
+    lo[axis] = Math.min(lo[axis], space[axis][u]);
+    hi[axis] = Math.max(hi[axis], space[axis][u]);
   }
   return { x: (lo.x + hi.x) / 2, y: lo.y, z: (lo.z + hi.z) / 2,
     width: Math.max(MIN_BOX, hi.x - lo.x), depth: Math.max(MIN_BOX, hi.z - lo.z), height: Math.max(MIN_BOX, hi.y - lo.y) };
@@ -201,7 +201,7 @@ export function buildUnitSpace(rig: Rig, room: RoomScene | null): UnitSpace {
   const listeners = Object.fromEntries((room?.listeners ?? []).map((l) => [l.id, { ...l.position, facingDeg: l.facingDeg }]));
   const meta = new TextEncoder().encode(JSON.stringify([bounds, anchors, listeners]));
   const revision = hashBytes([x, y, z, size].map((a) => new Uint8Array(a.buffer)).concat([bound, meta]));
-  return { revision, n, x, y, z, size, bound, bounds, box: playBox({ n, x, y, z, size, bound, bounds }), anchors, listeners };
+  return { revision, n, x, y, z, size, bound, bounds, box: playBox({ n, x, y, z, bound, bounds }), anchors, listeners };
 }
 
 /** Read-only disagreement report: unbound units, units several bindings share, and bound units far from their plot position. */

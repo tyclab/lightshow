@@ -2,11 +2,12 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import { CELL_SCATTER, DARK, V2_COMPLETE_BEATS, V2_COMPLETE_OPTIONS, frameDiff, renderGolden, renderPaths } from '../../scripts/golden-frames.js';
+import { CELL_SCATTER, DARK, V2_COMPLETE_BEATS, V2_COMPLETE_OPTIONS, frameDiff, renderGolden, renderPaths, roomlessHashes, roomlessSpace } from '../../scripts/golden-frames.js';
 import { V2_PRESETS } from '../../src/shared/effects/v2/presets.ts';
 
 const paths = JSON.parse(fs.readFileSync(new URL('../fixtures/golden/v2-spatial.json', import.meta.url), 'utf8'));
 const golden = JSON.parse(fs.readFileSync(new URL('../fixtures/golden/v2-complete.json', import.meta.url), 'utf8'));
+const roomless = JSON.parse(fs.readFileSync(new URL('../fixtures/golden/v2-roomless.json', import.meta.url), 'utf8'));
 const rendered = renderPaths(golden);
 
 test('every preset that reacts to input renders its recorded frames with none', () => {
@@ -28,6 +29,15 @@ test('every Spatial preset renders its recorded frames', () => {
   const frames = renderGolden(V2_PRESETS.map((p) => p.id), 'synthetic', V2_COMPLETE_BEATS, V2_COMPLETE_OPTIONS);
   const moved = V2_PRESETS.map((p) => [p.id, frameDiff(frames[p.id], golden[p.id])]).filter(([, d]) => d.maxChannel > 0);
   assert.deepEqual(moved, []);
+});
+
+// Recorded before the looks followed the placed fixtures: a rig without a room plays in the whole generic venue, byte for byte as it did.
+test('without a room every Spatial preset renders its recorded frames', () => {
+  const space = roomlessSpace();
+  assert.deepEqual(space.box, { x: 0, y: 0, z: 0, ...space.bounds });
+  assert.deepEqual(Object.keys(roomless).sort(), V2_PRESETS.map((p) => p.id).sort());
+  const hashes = roomlessHashes();
+  assert.deepEqual(Object.keys(hashes).filter((id) => hashes[id] !== roomless[id]), []);
 });
 
 test('the recorded frames light the room in both forms and differ between them', () => {
