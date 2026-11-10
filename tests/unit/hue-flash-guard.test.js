@@ -187,3 +187,18 @@ test('40 ms ambiance transitions follow visible white changes while raw colour a
   assert.ok(rising > 0 && rising <= 25 / 40, `white returning level ${rising}`);
   assert.equal(level(white, 275), 1);
 });
+
+test('a Hue flash from dark leaves at its full level in its first frame, as on every other output', () => {
+  const profile = HUE_COLOR, fixture = { ...fixtureOf(profile), hardware: undefined };
+  const store = createUniverseStore(allocateShared()), renderer = createRenderer({ profileOf: () => profile, now: 0 });
+  const peaks = [];
+  for (let k = 0; k < 44; k++) {
+    const t = k * FRAME_MS, on = k >= 10 && k < 20;
+    renderer.frame({ ...base, colorA: 9, fixtures: [fixture], masterDimmer: on ? 255 : 0 }, { beatPos: t / 300, bpm: 200, epoch: 0 }, t, store, 0);
+    peaks.push(Math.max(...wire(profile, store).map(({ r, g, b }) => Math.max(r, g, b))));
+  }
+  const rise = peaks.findIndex((peak) => peak > 0), full = peaks.findIndex((peak) => peak === 255);
+  assert.equal(rise, 10);
+  assert.equal((full - rise) * FRAME_MS, 0, `full level ${(full - rise) * FRAME_MS} ms after the first lit frame`);
+  assert.equal(peaks[20], 0, 'dark in the first frame after the flash');
+});
