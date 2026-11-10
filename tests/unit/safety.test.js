@@ -6,7 +6,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { safety } from '../../src/server/safety.ts';
+import { AHEAD_MS, safety } from '../../src/server/safety.ts';
 import { settings } from '../../src/server/settings.ts';
 import { isArmed, setArmedFlag } from '../../src/server/armed.ts';
 import { armOutputs } from '../helpers/armed.js';
@@ -131,6 +131,24 @@ test('an acknowledgement given while disarmed ends at a disarm too', (t) => {
   assert.equal(settings.get('safety.photosensitivityAcknowledged'), true);
   setArmedFlag(false);
   assert.equal(settings.get('safety.photosensitivityAcknowledged'), false);
+});
+
+test('an acknowledgement given while disarmed counts for an arm within a minute, not for a later one', (t) => {
+  holdSettings(t);
+  t.mock.timers.enable({ apis: ['Date'] });
+  t.after(() => setArmedFlag(false));
+  safety.acknowledge();
+  t.mock.timers.tick(AHEAD_MS);
+  setArmedFlag(true);
+  assert.equal(safety.acknowledged(), true, 'the Arm button acknowledges, then arms');
+  setArmedFlag(false);
+  safety.acknowledge();
+  t.mock.timers.tick(AHEAD_MS + 1);
+  setArmedFlag(true);
+  assert.equal(safety.acknowledged(), false, 'a stale acknowledgement does not open the gate');
+  safety.acknowledge();
+  t.mock.timers.tick(AHEAD_MS * 10);
+  assert.equal(safety.acknowledged(), true, 'given while armed it holds until the disarm');
 });
 
 test('what the gate answers is told again after the outputs arm or disarm and when the acknowledgement is given', (t) => {

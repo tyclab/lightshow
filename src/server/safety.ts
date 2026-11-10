@@ -15,6 +15,10 @@ export interface SafetyStatus {
   strobeMaxLatchSec: number;
 }
 
+// An acknowledgement given while disarmed is for the arm that follows it, not for one a day later.
+export const AHEAD_MS = 60_000;
+let ahead: number | null = null;
+
 export const safety = {
   /** Given at each arm and gone at the disarm; with the outputs disarmed nothing reaches the rig, so nothing waits for it. */
   acknowledged(): boolean {
@@ -27,6 +31,7 @@ export const safety = {
   },
 
   acknowledge(): void {
+    ahead = isArmed() ? null : Date.now();
     settings.update({ safety: { photosensitivityAcknowledged: true } });
   },
 
@@ -55,3 +60,8 @@ export const safety = {
 };
 
 onDisarm(() => safety.reset());
+// Registered here, so it runs before any listener of onChange hears of the arm.
+onArmedChange(() => {
+  if (isArmed() && ahead !== null && Date.now() - ahead > AHEAD_MS) safety.reset();
+  ahead = null;
+});
