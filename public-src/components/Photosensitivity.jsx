@@ -1,4 +1,4 @@
-import { useRef, useState } from 'preact/hooks';
+import { useEffect, useRef, useState } from 'preact/hooks';
 import { api, pick } from '../state.js';
 import { useFocusTrap } from '../focus-trap.js';
 
@@ -50,7 +50,10 @@ export function useSafetyGate() {
   const s = pick(['safety']);
   const [question, setQuestion] = useState(null);
   const [given, setGiven] = useState(false);
-  const acknowledged = given || isAcknowledged(s.safety);
+  const told = isAcknowledged(s.safety);
+  // Once the server says it, the local one is done: the next arm asks again.
+  useEffect(() => { if (told) setGiven(false); }, [told]);
+  const acknowledged = given || told;
   const guard = (name, run) => guardRapid(acknowledged, name, run, setQuestion);
   const confirm = async () => {
     const q = question;

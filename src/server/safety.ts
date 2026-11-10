@@ -1,5 +1,5 @@
 import { settings } from './settings.ts';
-import { isArmed, onDisarm } from './armed.ts';
+import { isArmed, onDisarm, onArmedChange } from './armed.ts';
 import { requiresAcknowledgement } from '../shared/effects/registry.ts';
 import { RAPID_PATTERNS } from '../shared/strobe-fx.ts';
 import { HttpError } from '../errors.ts';
@@ -28,6 +28,12 @@ export const safety = {
 
   acknowledge(): void {
     settings.update({ safety: { photosensitivityAcknowledged: true } });
+  },
+
+  /** Runs when the answer of acknowledged() may have changed: the acknowledgement given or ended, the outputs armed or disarmed. */
+  onChange(listener: () => void): void {
+    settings.onChange((changed) => { if (changed.includes('safety.photosensitivityAcknowledged')) listener(); });
+    onArmedChange(listener);
   },
 
   requireAcknowledged(spec: EffectSpec): void {
