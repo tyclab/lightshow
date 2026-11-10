@@ -1330,7 +1330,11 @@ clients. Old indexed palettes retain their curated 2/3/4-colour variants;
 old palette files, presets and cues load without losing colours or Random.
 The palette strip opens with a curated selection. **Show all palettes** reveals
 the complete catalogue; every existing palette ID still works through REST and
-Home Assistant. The shared editor and the active colour slot offer hue,
+Home Assistant. The curated **TycStation** palette (`tycStation`) holds the
+product mark's colours: blue `#5AA2FF`, violet `#8B6CF0`, red `#FF4A3D` and
+violet again, so an effect that runs round the palette comes back to blue
+without a seam. As the global override (`PUT /api/palette-override` with
+`{ "paletteId": "tycStation" }`) it colours every lamp's effect. The shared editor and the active colour slot offer hue,
 saturation and brightness sliders. RGB edits retain the white, amber and UV
 emitters, available as separate numeric fields. **Generate a hue pair** controls
 the starting hue, angular separation, saturation and brightness; it fills the

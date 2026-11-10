@@ -5,7 +5,7 @@
 import type { PaletteEntry } from './types.ts';
 import type { GradientSettings } from '../palette-model.ts';
 
-export interface BuiltinPalette extends GradientSettings { id: string; name?: string; app: 'ldj' | 'hd' | 'look'; colours: readonly PaletteEntry[] }
+export interface BuiltinPalette extends GradientSettings { id: string; name?: string; app: 'ldj' | 'hd' | 'look' | 'own'; colours: readonly PaletteEntry[] }
 
 const RANDOM = Object.freeze({ random: true as const });
 
