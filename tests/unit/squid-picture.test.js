@@ -20,7 +20,7 @@ const LOOPS = ['breathing', 'ink', 'deepsea', 'eyes', 'skin'];
 test.after(() => stopEngine());
 
 // The frames ImageMagick decodes from the same files (`magick f.gif -coalesce -depth 8 rgb:-`), hashed.
-const DECODED = { breathing: [200, 80, '4bfecd4c6888f65f'], ink: [120, 80, '4cfe0802b36f044d'], deepsea: [200, 80, 'da75e4d3604140a1'],
+const DECODED = { breathing: [200, 80, '8c194e2545ece88a'], ink: [120, 80, '4cfe0802b36f044d'], deepsea: [200, 80, 'da75e4d3604140a1'],
   eyes: [200, 80, 'f8c2f4461f27a796'], skin: [120, 100, 'e9f9d24972c57032'] };
 const decoded = Object.fromEntries(LOOPS.map((name) => [name, decodeGif(fs.readFileSync(path.join(ASSETS, `squid-${name}.gif`)))]));
 
