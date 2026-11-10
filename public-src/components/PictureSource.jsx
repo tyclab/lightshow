@@ -4,6 +4,7 @@ import { pick } from '../state.js';
 import { mainEffectName } from '../now-playing.js';
 import { PICTURE_SOURCES, chooseSource, namesEffect, pictureHintSig, pictureSourceSig } from '../picture-source.js';
 import { useDismiss } from '../popover.js';
+import { squidPanel } from '../../src/shared/squid.ts';
 import { EffectPicker } from './EffectPicker.jsx';
 
 /** Whether the effect picker under the picture source is open: E opens it from anywhere while the source names an effect. */
@@ -23,11 +24,12 @@ export function pickerKey(e) {
 }
 
 /**
- * The header's first control: what paints the room. Effects and Colour + motion name the main effect, and
- * their button opens the effect picker; the Visualizer names none and opens nothing. Another source is one tap away.
+ * The header's first control: what paints the room. Effects, Colour + motion and Squid (whose effect paints all but
+ * its panel) name the main effect, and their button opens the effect picker; the Visualizer names none and opens
+ * nothing. Another source is one tap away.
  */
 export function PictureSource() {
-  const s = pick(['pattern', 'patterns', 'effects']);
+  const s = pick(['pattern', 'patterns', 'effects', 'fixtures', 'profiles']);
   const source = pictureSourceSig.value;
   const hint = pictureHintSig.value;
   const open = pickerOpenSig.value;
@@ -42,10 +44,12 @@ export function PictureSource() {
   }, []);
 
   const name = mainEffectName(s);
+  // A rig with no LED panel has nothing for the Squid to paint, so it is offered only once one is patched.
+  const offered = (id) => id !== 'squid' || id === source || !!squidPanel(s.fixtures || [], (f) => s.profiles?.[f.profileId]);
   return (
     <div class="picture-source" ref={panel}>
       <div class="picture-source-segments" role="group" aria-label="Picture source">
-        {PICTURE_SOURCES.map((src) => {
+        {PICTURE_SOURCES.filter((src) => offered(src.id)).map((src) => {
           const chosen = src.id === source;
           if (chosen && namesEffect(src.id)) {
             return <button key={src.id} ref={trigger} type="button" class="picture-segment active" data-source={src.id} aria-pressed="true"

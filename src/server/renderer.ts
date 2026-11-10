@@ -1093,8 +1093,9 @@ function createRenderer({ profileOf, profilesRevision = () => 0, now = performan
       const lights: LightValue[] = [];
       const identifiedLights = ident?.ids.has(fix.id) ? identifyLights(count, now - ident.start) : null;
       const profile = profileOf(fix), stream = pixels.get(fix.id);
+      // A grid read with its ledmap holds fewer cells than the frame, each at its own column and row.
       const pixel = input.programmePlaying !== false && stream && profile.grid?.columns === stream.width && profile.grid.rows === stream.height
-        && profile.cells?.length === stream.width * stream.height ? stream : null;
+        && !!profile.cells?.length && profile.cells.length <= stream.width * stream.height ? stream : null;
       const painted = art && !pixel ? art : null;
       const hueGraded = !!painted && !!input.pictureGrade?.enabled && hueLamp(fix);
       let first: EnergyLook | null = sync;

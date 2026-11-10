@@ -149,10 +149,11 @@ The sticky header is one row on a desktop (two on a phone, 1000 px and narrower)
 the same on every view, including while scrolling through Show:
 
 ```text
-[mark] [Effects: Swirl ▾ | Colour + motion | Visualizer]  [▶ Look ▾] [Freeze] [Blackout] [Arm]  Master ━━●━ 100%  [● 120 BPM Online] [⋮]
+[mark] [Effects: Swirl ▾ | Colour + motion | Visualizer | Squid]  [▶ Look ▾] [Freeze] [Blackout] [Arm]  Master ━━●━ 100%  [● 120 BPM Online] [⋮]
 ```
 
-- **Picture source** comes first. **Effects** and **Colour + motion** name the
+- **Picture source** comes first. **Effects**, **Colour + motion** and **Squid**
+  (offered once the rig has an LED panel; see [Squid picture](#squid-picture)) name the
   main effect when chosen (**Effects: Swirl**); pressing that segment, or **E**
   anywhere, opens the effect picker: favourites, your presets and the party
   looks, then every look A to Z with a search. A tap puts a look on stage and
@@ -688,7 +689,7 @@ New mapping revisions discard delayed and partially staged colours.
 | `artnet` | `enabled: true`, `host: '2.255.255.255'`, `port: 6454`, `universe: 0`, `discovery: true`, `sync: false` |
 | `sacn` | `enabled: false`, `host: ''` for multicast, `priority: 100`, `sourceName: 'TycStation Lightshow'`, `universeOffset: 1`, `interface: ''`; stable generated `cid` |
 | `hue` | `bridges: []`, `latencyMs: 0`, `strobe: 'flash'`; each paired bridge has an id, address, enabled flag, area and write-only credentials |
-| `picture` | `source: 'effects'`, `'visualizer'` or `'inspired'` (Colour + motion); `blackPoint: 0.12`, the peak under which a picture unit stays dark; `decode: false`, sRGB to linear light; `grade`: the room picture's optional colour grade, off by default, `{ enabled: false, whiteLimit: 0, saturation: 1, ceiling: 1, hueCeiling: 1 }`; see [Room picture](#room-picture) |
+| `picture` | `source: 'effects'`, `'visualizer'`, `'inspired'` (Colour + motion) or `'squid'`; `blackPoint: 0.12`, the peak under which a picture unit stays dark; `decode: false`, sRGB to linear light; `grade`: the room picture's optional colour grade, off by default, `{ enabled: false, whiteLimit: 0, saturation: 1, ceiling: 1, hueCeiling: 1 }`; see [Room picture](#room-picture) |
 | `outputs` | `armed: false`; always reset to false at startup. `idleDisarmMin: 15`: minutes armed with nothing playing before the outputs disarm themselves; `0` never |
 | `sources` | `prolink: false`, `smtc: true` |
 | `spotify` | Client id, secret, server-written refresh token; optional `proxyBase`; `allowUnverifiedState: false` |
@@ -1072,7 +1073,7 @@ feed reads that same canvas without a desktop capture or OBS process.
 
 The same canvas can paint the whole rig. The header's picture source (also
 Settings → Show → Picture Source, or `POST /api/picture/source` with
-`{ "source": "effects" | "visualizer" | "inspired" }`) chooses what the base layer paints
+`{ "source": "effects" | "visualizer" | "inspired" | "squid" }`) chooses what the base layer paints
 from. With **Visualizer** selected, a sender claims the room picture over the
 authenticated socket and sends one RGB colour per rig unit, sampled from the
 picture at the unit's plan position: the plot's left-to-right is the picture's
@@ -1165,6 +1166,38 @@ to the pages subscribed to the picture topic (`picture-image`, the newest up to
 24 times a second, null once the sender is gone), and the 3D Stage, the one
 subscriber, paints it on the room's screens: the objects a room
 export marks `role: screen` (the TV and the monitors in a house-model export).
+
+### Squid picture
+
+**Squid** in the picture source plays the TycStation squid on the rig's largest LED
+panel: the DDP grid with the most cells, the first patched on a tie (a grid one cell
+high or wide is a strip, not a panel). Every other lamp keeps the main effect, so
+with the **TycStation** palette as the global override the room takes the mark's
+colours around it. The picture is five loops, 68 × 42 frames rendered from the
+squid drawings (`assets/squid`, from tyclab/tycwled `curtain/squid`), played in
+turn: breathing, ink, deep sea, eyes, skin. A panel of another size gets the whole
+picture, centred, each cell the mean of the pixels it covers.
+
+The loops follow the show's beat clock (the live input's beat at a party). Each
+spans the whole number of bars nearest its drawn length at the tempo it starts on,
+four beats to the bar: at 120 BPM a 16-second loop is 8 bars and plays as drawn; at
+128 BPM the 9.6-second one is 5 bars, 2 % faster. Its motion so keeps its drawn pace
+within half a bar, and each loop starts on a bar line of the clock (the live input
+counts beats, not downbeats, so that line need not be the music's). A clock that
+steps back or jumps ahead starts the current loop again on its bar.
+
+The frames take the path an external panel feed takes ([Screen pictures on an LED
+panel](#screen-pictures-on-an-led-panel)): lifted off the picture's black point and
+decoded when the decode is on, below voices, pads, overrides and Identify, under the
+masters, trims, blackout and flash limits, through the panel's ledmap. A WLED read
+with its ledmap (fewer cells than its grid) takes each cell's pixel at its column and
+row. They need the photosensitivity acknowledgement as any picture does, and the
+programme playing. While Squid is chosen, outside pixel feeds and the room picture
+wait, and the browser helper releases its leases as under **Effects**. The files are
+decoded once (60 ms on a desktop CPU) after Squid is chosen and outside the frame loop (the
+panel shows its effect meanwhile); choosing another source frees the 7 MB of frames.
+A settings file holding `picture.source: 'squid'` is refused by builds from before
+it: choose another source before rolling back.
 
 ### OpenRGB
 
