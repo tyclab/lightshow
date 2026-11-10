@@ -481,7 +481,7 @@ class StreamingAnalyzer:
             self._last_event['transition'] = self.time
             events.append(Event(
                 t=self.time, type=DROP, confidence=0.45,
-                intensity=dsp.clamp01(landing / self._loud),
+                intensity=dsp.clamp01(landing / max(1e-9, self._loud)),
                 effect='flash', data={'live': True, 'unconfirmed': True}))
         elif rising and landed and self._cooldown('transition', 10.0):
             self._rose = self._loud is None
