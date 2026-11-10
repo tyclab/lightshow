@@ -36,7 +36,7 @@ registerKind<NoiseParams, null>({
     const t = Math.max(0, f.beatPos - f.anchorBeat) * p.speed;
     const trigger = triggerLevel(p, f);
     for (let i = 0; i < room.n; i++) {
-      const height = pos.plan ? 1 - pos.z[i] : (pos.y[i] - pos.origin.y) / pos.bounds.height;
+      const height = pos.plan ? 1 - pos.z[i] : pos.y[i] / pos.bounds.height;
       let value = 0, weight = 0;
       for (let octave = 0; octave < p.octaves; octave++) {
         const frequency = 2 ** octave, amplitude = 1 / frequency;

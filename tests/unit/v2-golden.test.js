@@ -34,7 +34,7 @@ test('every Spatial preset renders its recorded frames', () => {
 // Recorded before the looks followed the placed fixtures: a rig without a room plays in the whole generic venue, byte for byte as it did.
 test('without a room every Spatial preset renders its recorded frames', () => {
   const space = roomlessSpace();
-  assert.deepEqual(space.box, { x: 0, y: 0, z: 0, ...space.bounds });
+  assert.deepEqual(space.box, { x: 0, z: 0, width: space.bounds.width, depth: space.bounds.depth });
   assert.deepEqual(Object.keys(roomless).sort(), V2_PRESETS.map((p) => p.id).sort());
   const hashes = roomlessHashes();
   assert.deepEqual(Object.keys(hashes).filter((id) => hashes[id] !== roomless[id]), []);

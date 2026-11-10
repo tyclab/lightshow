@@ -17,14 +17,14 @@ export interface UnitSpace {
   // 1 for a unit a room binding placed, 0 for the plot fallback.
   bound: Uint8Array;
   bounds: { width: number; depth: number; height: number };
-  // Where the looks play: the box round the rig once the room places a unit, the whole room before.
+  // The floor the looks play over: the area the rig stands on once the room places a unit, the whole room before.
   box: PlayBox;
   anchors: Readonly<Record<string, Vec3>>;
   listeners: Readonly<Record<string, Listener>>;
 }
 
-// A box in room metres: x and z are its middle on the floor plan, y its foot.
-export interface PlayBox extends Vec3 { width: number; depth: number; height: number }
+// A floor area in room metres: its middle (x, z) and its size. Floor and ceiling stay the room's.
+export interface PlayBox { x: number; z: number; width: number; depth: number }
 
 export interface SpaceReport { unbound: number[]; shared: number[]; far: { unit: number; metres: number }[] }
 
@@ -36,7 +36,7 @@ export interface RoomSpace {
   // 1 where a room binding places the entry (for a lamp, any of its cells), 0 for the plot fallback.
   bound?: Uint8Array;
   bounds: UnitSpace['bounds'];
-  // Absent on a space made by hand: the looks then play in `bounds`, centred on the origin.
+  // Absent on a space made by hand: the looks then play over `bounds`, centred on the origin.
   box?: PlayBox;
   listener: Listener;
   anchors: Readonly<Record<string, Vec3>>;
@@ -49,7 +49,7 @@ const PAR_SIZE = 0.1;
 const LAMP_SIZE = 0.15;
 const CELL_SIZE = 0.05;
 const FAR_METRES = 1;
-// A millimetre, the smallest dimension a room model may have: a rig with no extent along an axis still divides by its box.
+// A millimetre, the smallest dimension a room model may have: a rig in one line still has a floor area to divide by.
 const MIN_BOX = 0.001;
 
 type Binding = RoomScene['bindings'][number];
@@ -150,18 +150,18 @@ function fillUnplaced(rig: Rig, bound: Uint8Array, x: Float32Array, y: Float32Ar
   });
 }
 
-// The looks cross the box they play in. A room model may hold a whole home with the rig in one corner of it, so once
-// the room places a unit that box is the one round the rig's units: a sweep starts on the first and ends on the last.
-// A room that places none says nothing about where the rig stands, and the looks keep the whole room.
-function playBox(space: Pick<UnitSpace, 'n' | 'x' | 'y' | 'z' | 'bound' | 'bounds'>): PlayBox {
-  if (!space.bound.includes(1)) return { x: 0, y: 0, z: 0, ...space.bounds };
-  const lo = { x: Infinity, y: Infinity, z: Infinity }, hi = { x: -Infinity, y: -Infinity, z: -Infinity };
-  for (let u = 0; u < space.n; u++) for (const axis of ['x', 'y', 'z'] as const) {
-    lo[axis] = Math.min(lo[axis], space[axis][u]);
-    hi[axis] = Math.max(hi[axis], space[axis][u]);
+// The looks cross the floor they play over. A room model may hold a whole home with the rig in one corner of it, so
+// once the room places a unit that floor is the area the rig stands on: a sweep starts on the first unit and ends on
+// the last. Floor and ceiling stay the room's: a wall still rises from the floor. A room that places no unit says
+// nothing about where the rig stands, and the looks keep the whole room.
+function playBox(space: Pick<UnitSpace, 'n' | 'x' | 'z' | 'bound' | 'bounds'>): PlayBox {
+  if (!space.bound.includes(1)) return { x: 0, z: 0, width: space.bounds.width, depth: space.bounds.depth };
+  let left = Infinity, right = -Infinity, front = Infinity, back = -Infinity;
+  for (let u = 0; u < space.n; u++) {
+    left = Math.min(left, space.x[u]); right = Math.max(right, space.x[u]);
+    front = Math.min(front, space.z[u]); back = Math.max(back, space.z[u]);
   }
-  return { x: (lo.x + hi.x) / 2, y: lo.y, z: (lo.z + hi.z) / 2,
-    width: Math.max(MIN_BOX, hi.x - lo.x), depth: Math.max(MIN_BOX, hi.z - lo.z), height: Math.max(MIN_BOX, hi.y - lo.y) };
+  return { x: (left + right) / 2, z: (front + back) / 2, width: Math.max(MIN_BOX, right - left), depth: Math.max(MIN_BOX, back - front) };
 }
 
 // FNV-1a over the bytes, in two lanes so equal content always gives the same revision.
@@ -201,7 +201,7 @@ export function buildUnitSpace(rig: Rig, room: RoomScene | null): UnitSpace {
   const listeners = Object.fromEntries((room?.listeners ?? []).map((l) => [l.id, { ...l.position, facingDeg: l.facingDeg }]));
   const meta = new TextEncoder().encode(JSON.stringify([bounds, anchors, listeners]));
   const revision = hashBytes([x, y, z, size].map((a) => new Uint8Array(a.buffer)).concat([bound, meta]));
-  return { revision, n, x, y, z, size, bound, bounds, box: playBox({ n, x, y, z, bound, bounds }), anchors, listeners };
+  return { revision, n, x, y, z, size, bound, bounds, box: playBox({ n, x, z, bound, bounds }), anchors, listeners };
 }
 
 /** Read-only disagreement report: unbound units, units several bindings share, and bound units far from their plot position. */

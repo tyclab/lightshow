@@ -79,12 +79,13 @@ function modelled(bounds, at) {
     listeners: room.listeners.map((l) => ({ ...l, position: move(l.position) })) });
   return { rig, space: buildUnitSpace(rig, model) };
 }
-const building = { width: 40, depth: 30, height: 6 }, corner = { x: 12, y: 0.4, z: -9 };
+// Floor and ceiling stay the room's: the building has the room's height and the rig stands on its floor.
+const building = { width: 40, depth: 30, height: 2.6 }, corner = { x: 12, y: 0, z: -9 };
 
 test('where the rig stands in its room model, and how much model lies round it, does not change what a look lights', async () => {
   const fitted = modelled({ width: 4, depth: 4, height: 2.6 }, { x: 0, y: 0, z: 0 }), far = modelled(building, corner);
-  assert.deepEqual([far.space.box.width, far.space.box.depth, far.space.box.height].map((v) => Math.round(v * 100)),
-    [fitted.space.box.width, fitted.space.box.depth, fitted.space.box.height].map((v) => Math.round(v * 100)));
+  assert.deepEqual([far.space.box.width, far.space.box.depth].map((v) => Math.round(v * 100)),
+    [fitted.space.box.width, fitted.space.box.depth].map((v) => Math.round(v * 100)));
   const here = await measureLookCoverage(effectRoom(voiceLayout(fitted.rig), fitted.space));
   const there = await measureLookCoverage(effectRoom(voiceLayout(far.rig), far.space));
   // Noise fields and scatter tiles are laid out in room metres from the model's origin: moving the rig moves it through them.

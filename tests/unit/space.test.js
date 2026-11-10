@@ -93,7 +93,7 @@ test('without a room every unit takes the plot fallback in the generic venue', (
 test('until the room places a unit the looks play in the whole room', () => {
   for (const model of [null, roomOf([])]) {
     const space = buildUnitSpace(rig, model);
-    assert.deepEqual(space.box, { x: 0, y: 0, z: 0, ...space.bounds });
+    assert.deepEqual(space.box, { x: 0, z: 0, width: space.bounds.width, depth: space.bounds.depth });
     assert.equal(roomSpaceOf([0, 1, 2, 3], space).box, space.box);
   }
 });
@@ -102,18 +102,18 @@ const wide = (bindings) => roomSceneSchema.parse({ version: 1, name: 'A whole bu
 const corner = [point('a', 10, { x: 12, y: 0.5, z: -9 }), point('c', 30, { x: 14, y: 3, z: -11 }),
   { ...point('s', 20, { x: 14, y: 2, z: -8 }), path: [{ x: 13, y: 2, z: -8 }, { x: 15, y: 2, z: -8 }] }];
 
-test('once the room places the rig the box is the one round its units, wherever it stands in the model', () => {
+test('once the room places the rig the looks play over the floor it stands on, wherever that is in the model', () => {
   const { box } = buildUnitSpace(rig, wide(corner));
   // The strip's two cells stand at 13.5 and 14.5 on its path.
   near(box.width, 14.5 - 12, 'width'); near(box.x, (14.5 + 12) / 2, 'middle across');
   near(box.depth, -8 + 11, 'depth'); near(box.z, (-8 - 11) / 2, 'middle along');
-  near(box.height, 3 - 0.5, 'height'); near(box.y, 0.5, 'foot');
+  assert.deepEqual(Object.keys(box).sort(), ['depth', 'width', 'x', 'z'], 'floor and ceiling stay the room\'s');
 });
 
-test('a rig with no extent along an axis still has a box to divide by', () => {
-  const { box } = buildUnitSpace(rig, roomOf([point('a', 10, { x: 1, y: 2, z: 0 }), point('c', 30, { x: -1, y: 2, z: 0 }),
+test('a rig in one line still has a floor area to divide by', () => {
+  const { box } = buildUnitSpace(rig, roomOf([point('a', 10, { x: 1, y: 2, z: 0 }), point('c', 30, { x: -1, y: 1, z: 0 }),
     { ...point('s', 20, { x: 0, y: 2, z: 0 }), path: [{ x: -0.5, y: 2, z: 0 }, { x: 0.5, y: 2, z: 0 }] }]));
-  assert.deepEqual([box.width, box.depth, box.height], [2, 0.001, 0.001]);
+  assert.deepEqual([box.width, box.depth], [2, 0.001]);
 });
 
 test('a fixture the room does not place keeps its plot position and stretches the box to it', () => {

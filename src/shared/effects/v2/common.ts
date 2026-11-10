@@ -45,9 +45,9 @@ export interface Positions {
   y: ArrayLike<number>;
   z: ArrayLike<number>;
   size: ArrayLike<number>;
-  // The box the looks play in, and in a room where it stands: its middle on the floor plan (x, z) and its foot (y).
+  // The box the looks play in, and in a room the middle of its floor (x, z): the floor the rig stands on, under the room's height.
   bounds: { width: number; depth: number; height: number };
-  origin: Point;
+  origin: { x: number; z: number };
   // True for the plot's unit box: generators then work in the plot's plane (x across, z down the rows).
   plan?: boolean;
 }
@@ -55,14 +55,16 @@ export interface Positions {
 const clamp = (v: number, lo = 0, hi = 1) => (v < lo ? lo : v > hi ? hi : v);
 const frac = (v: number) => v - Math.floor(v);
 const PLAN_BOUNDS = Object.freeze({ width: 1, depth: 1, height: 1 });
-const ORIGIN: Point = Object.freeze({ x: 0, y: 0, z: 0 });
+const ORIGIN = Object.freeze({ x: 0, z: 0 });
 const planMemo = new WeakMap<Room, Positions>();
 const roomMemo = new WeakMap<object, Positions>();
 
 function roomPositions(space: NonNullable<Room['space']>): Positions {
   let positions = roomMemo.get(space);
   if (!positions) {
-    positions = { x: space.x, y: space.y, z: space.z, size: space.size, bounds: space.box ?? space.bounds, origin: space.box ?? ORIGIN, plan: false };
+    const box = space.box;
+    positions = { x: space.x, y: space.y, z: space.z, size: space.size, plan: false, origin: box ?? ORIGIN,
+      bounds: box ? { width: box.width, depth: box.depth, height: space.bounds.height } : space.bounds };
     roomMemo.set(space, positions);
   }
   return positions;
@@ -230,13 +232,13 @@ export function extentAlong(pos: Positions, d: Point): [number, number] {
   const span = (a: number, b: number, k: number): [number, number] => [Math.min(a * k, b * k), Math.max(a * k, b * k)];
   const { width, depth, height } = pos.bounds, o = pos.origin;
   const parts = pos.plan ? [span(0, 1, d.x), span(0, 1, d.z)]
-    : [span(o.x - width / 2, o.x + width / 2, d.x), span(o.y, o.y + height, d.y), span(o.z - depth / 2, o.z + depth / 2, d.z)];
+    : [span(o.x - width / 2, o.x + width / 2, d.x), span(0, height, d.y), span(o.z - depth / 2, o.z + depth / 2, d.z)];
   return [parts.reduce((sum, [lo]) => sum + lo, 0), parts.reduce((sum, [, hi]) => sum + hi, 0)];
 }
 
 /** The centre of the space: the box's middle, or the middle of the plot. */
 export function centreOf(pos: Positions): Point {
-  return pos.plan ? { x: 0.5, y: 0.5, z: 0.5 } : { x: pos.origin.x, y: pos.origin.y + pos.bounds.height / 2, z: pos.origin.z };
+  return pos.plan ? { x: 0.5, y: 0.5, z: 0.5 } : { x: pos.origin.x, y: pos.bounds.height / 2, z: pos.origin.z };
 }
 
 /** Distance between a unit and a point: 3D in the room, across the plot's plane on the plan. */
@@ -248,7 +250,7 @@ export function distanceTo(pos: Positions, i: number, p: Point): number {
 export function farthestCorner(pos: Positions, p: Point): number {
   const { width, depth, height } = pos.bounds, o = pos.origin;
   const xs = pos.plan ? [0, 1] : [o.x - width / 2, o.x + width / 2], zs = pos.plan ? [0, 1] : [o.z - depth / 2, o.z + depth / 2];
-  const ys = pos.plan ? [p.y] : [o.y, o.y + height];
+  const ys = pos.plan ? [p.y] : [0, height];
   let far = 0;
   for (const x of xs) for (const y of ys) for (const z of zs) far = Math.max(far, Math.hypot(x - p.x, y - p.y, z - p.z));
   return far;

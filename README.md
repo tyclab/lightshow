@@ -641,11 +641,12 @@ position. A cell without a binding, on a light the room does place, stands at th
 nearest cell of that light with one (nearest on a panel's grid, else along the strip).
 A light without any binding keeps its Rig plot position scaled into the room;
 without a room, the generic Stage venue (12 × 8 × 4.6 m) stands in. Once the room
-places a light, the looks play in the box round the rig, not across the whole room
-model: a sweep runs from the first light to the last, a left/right or floor/ceiling
-split falls in the middle of the rig, rain falls over it and a ring ends at its far
-corner. Sizes and speeds stay metres, and the listener and anchors stay where the room
-has them. A room that places no light plays across the whole room. Optional room
+places a light, the looks play over the floor the rig stands on, not across the whole
+room model: a sweep runs from the first light to the last, a left/right split falls
+in the middle of the rig, rain falls over it and a ring ends at its far corner. Floor
+and ceiling stay the room's, sizes and speeds stay metres, and the listener and
+anchors stay where the room has them. A room that places no light plays across the
+whole room. Optional room
 anchors (`speakerLeft`, `speakerRight`) and listeners (`desk`, …) are described in the
 [room format](docs/stage-room.md); without them a Shell starts at the room centre and
 an Orbit turns round the centre facing the top of the plot. `GET /api/stage/room/report`

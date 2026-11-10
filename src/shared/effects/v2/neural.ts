@@ -47,7 +47,7 @@ function heardBands(p: NeuralParams, s: NeuralState, f: EffectFrame): Bands | nu
 
 // Across the room, 0 at one side and 1 at the other, and height, 0 at the floor (on the plot: the bottom row).
 const acrossOf = (pos: Positions, i: number) => clamp(pos.plan ? pos.x[i] : (pos.x[i] - pos.origin.x) / Math.max(1e-6, pos.bounds.width) + 0.5);
-const heightOf = (pos: Positions, i: number) => (pos.plan ? 1 - pos.z[i] : (pos.y[i] - pos.origin.y) / Math.max(1e-6, pos.bounds.height));
+const heightOf = (pos: Positions, i: number) => (pos.plan ? 1 - pos.z[i] : pos.y[i] / Math.max(1e-6, pos.bounds.height));
 // A light's own roll for the highs, fresh every half beat.
 const scattered = (i: number, half: number) => ((Math.imul(i + 1, 0x9e3779b1) ^ Math.imul(half + 7, 0x85ebca6b)) >>> 0) / 4294967296;
 

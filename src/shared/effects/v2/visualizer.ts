@@ -33,7 +33,7 @@ function render(p: Params, state: Motion, room: Room, f: EffectFrame, out: Effec
       const span = pos.bounds.width + width * 2;
       const origin = pos.plan ? 0 : pos.origin.x - pos.bounds.width / 2;
       const crest = origin - width + (state.phase / 4 % 1) * span;
-      level = soft(x - crest, width, pos.size[i]); colour = ((y - pos.origin.y) / pos.bounds.height + state.phase / 8) % 1;
+      level = soft(x - crest, width, pos.size[i]); colour = (y / pos.bounds.height + state.phase / 8) % 1;
     } else {
       const scale = pos.plan ? 4 : 1;
       const wave = (Math.sin(x * scale - state.phase) + Math.sin(y * scale * 1.3 + state.phase * 0.7) + Math.sin(z * scale + state.phase * 0.4)) / 3;

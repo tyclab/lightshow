@@ -45,9 +45,9 @@ export function particleObjects(p: ParticlesParams, room: Room, f: EffectFrame):
     : pos.plan ? centreOf(pos) : room.space?.listener ?? centreOf(pos);
   const radius = p.radiusM * scale, path = p.pathRadiusM * scale, gravity = p.gravity * scale;
   const t = Math.max(0, f.beatPos - f.anchorBeat), objects: LightParticle[] = [];
-  const height = pos.plan ? 1 : pos.bounds.height, floor = pos.origin.y;
+  const height = pos.plan ? 1 : pos.bounds.height;
   const add = (x: number, y: number, z: number, r: number, level: number, colour: number) => {
-    if (level > 0 && y >= floor - r) objects.push({ x, y: pos.plan ? 0 : y, z, radius: r, level, colour });
+    if (level > 0 && y >= -r) objects.push({ x, y: pos.plan ? 0 : y, z, radius: r, level, colour });
   };
   const place = (x: number, h: number, z: number, r: number, level: number, colour: number) => {
     add(x, pos.plan ? 0 : h, pos.plan ? 1 - h : z, r, level, colour);
@@ -80,11 +80,11 @@ export function particleObjects(p: ParticlesParams, room: Room, f: EffectFrame):
     const age = t % p.cycleBeats, seed = f.seed[0] ^ Math.floor(t / p.cycleBeats);
     const explicitLaunch = pos.plan && p.fromPoint ? { x: 0.5 + p.fromPoint.x / (room.space?.bounds.width ?? DEFAULT_BOUNDS.width), y: 0,
       z: 1 - p.fromPoint.y / (room.space?.bounds.height ?? DEFAULT_BOUNDS.height) } : null;
-    const origin = explicitLaunch ?? from ?? pointIn(room, pos, room.space?.anchors.speakerLeft) ?? { ...centre, y: floor, z: pos.plan ? 1 : centre.z };
+    const origin = explicitLaunch ?? from ?? pointIn(room, pos, room.space?.anchors.speakerLeft) ?? { ...centre, y: 0, z: pos.plan ? 1 : centre.z };
     const originHeight = pos.plan ? 1 - origin.z : origin.y;
     let launch = Math.min(p.cycleBeats * 0.3, Math.sqrt(2 * height * 0.7 / gravity));
     const velocity = Math.max(p.speed * scale, height * 0.7 / launch + gravity * launch / 2);
-    const remaining = floor + height - originHeight, discriminant = velocity * velocity - 2 * gravity * remaining;
+    const remaining = height - originHeight, discriminant = velocity * velocity - 2 * gravity * remaining;
     // Burst at the first ceiling crossing; clamping only the burst position teleports a high launch back down.
     if (remaining >= 0 && discriminant >= 0) launch = Math.min(launch, 2 * remaining / (velocity + Math.sqrt(discriminant)));
     const apex = originHeight + velocity * launch - gravity * launch * launch / 2;
@@ -113,13 +113,13 @@ export function particleObjects(p: ParticlesParams, room: Room, f: EffectFrame):
     if (age < fall) {
       for (let tail = 0; tail <= p.trail; tail++) {
         const a = Math.max(0, age - tail * 0.04);
-        place(x, floor + height - speed * a - gravity * a * a / 2, z, radius * 0.45, 1 - tail / (p.trail + 1), k / p.count);
+        place(x, height - speed * a - gravity * a * a / 2, z, radius * 0.45, 1 - tail / (p.trail + 1), k / p.count);
       }
     } else if (age < fall + 0.65) {
       const a = age - fall;
       for (let splash = 0; splash < 4; splash++) {
         const angle = splash * TAU / 4;
-        place(x + Math.cos(angle) * a * scale, floor + Math.max(0, 0.25 * scale * Math.sin(a / 0.65 * Math.PI)),
+        place(x + Math.cos(angle) * a * scale, Math.max(0, 0.25 * scale * Math.sin(a / 0.65 * Math.PI)),
           z + Math.sin(angle) * a * scale, radius * 0.7, 1 - a / 0.65, k / p.count);
       }
     }
