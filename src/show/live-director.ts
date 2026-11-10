@@ -246,6 +246,8 @@ class LiveDirector {
         } else this._apply({ beatDivision: 2 });
         break;
       case 'DROP': {
+        // A drop heard in a pause is not one: its gesture would light the dark and stay, as no timer ends a burst in silence.
+        if (this._silent) break;
         this._newLook({ rise: true });
         const kind = burstFor({ moment: 'drop', character: this._character, score: null, drive: this._drive() });
         this._burst(kind, Math.max(800, Math.min(2500, this._barMs())));
@@ -257,7 +259,9 @@ class LiveDirector {
         const drive = this._drive();
         if (drive < 0.45) break;
         this._lastAccentAt = now;
-        this._burst(burstFor({ moment: 'accent', character: this._character, score: null, drive }), 150);
+        // An accent marks a loud moment and never blacks the rig: darkness is silence's. Where the pick is a blackout the glow plays.
+        const kind = burstFor({ moment: 'accent', character: this._character, score: null, drive });
+        this._burst(kind === 'kill' ? 'glow' : kind, 150);
         break;
       }
       case 'SILENCE':

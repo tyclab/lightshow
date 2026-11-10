@@ -95,6 +95,7 @@ test('a build doubles the pace, a drop lands a burst on a new look, and it clear
   t.run(4000);
   t.event('ENERGY_SPIKE');
   assert.ok(ENERGY_EFFECT_IDS.includes(t.last().energyOverride));
+  assert.notStrictEqual(t.last().energyOverride, 'kill', 'an accent never blacks the rig');
   t.run(150);
   assert.deepStrictEqual(t.last(), { energyOverride: null });
 });
@@ -126,6 +127,7 @@ test('silence is dark until the music comes back, with something new', () => {
   assert.strictEqual(t.d.status().silent, true);
   t.event('ENERGY_SPIKE');
   t.event('BUILDUP');
+  t.event('DROP');
   assert.deepStrictEqual(t.last(), { energyOverride: 'kill', beatDivision: 1 }, 'nothing lights the dark');
   t.hear({ energy: 0.002, seconds: 2 });
   assert.strictEqual(t.d.status().silent, true, 'still quiet');
