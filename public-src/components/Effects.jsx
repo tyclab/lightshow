@@ -6,8 +6,6 @@ import { useEffect, useRef, useState } from 'preact/hooks';
 import { librarySig, pick, send } from '../state.js';
 import { useFocusTrap } from '../focus-trap.js';
 import { Inspector, familyOf } from './Inspector.jsx';
-import { ComparePanel } from './Compare.jsx';
-import { AB_CANDIDATES } from '../../src/shared/effects/ab-candidates.ts';
 import { Photosensitivity as PhotosensitivityConfirm, acknowledgeThen } from './Photosensitivity.jsx';
 import { mappingOf, MAPPING_LABELS } from '../../src/shared/effects/mapping.ts';
 import { REACTIVE_TAGS, SOURCES, TAG_AXES, TAG_NOTES, TAGS } from '../../src/shared/effects/tags.ts';
@@ -318,7 +316,6 @@ export function Effects() {
   const filters = filtersSig.value;
   const [favourites, setFavourites] = useState(readFavourites);
   const [confirm, setConfirm] = useState(null);
-  const [comparing, setComparing] = useState(false);
   const acknowledged = !!(s.safety && s.safety.photosensitivityAcknowledged);
 
   const { allRows, rows, playingId, savedPins, pins, familyId } = catalogueOf(s, lib, families, favourites);
@@ -366,11 +363,7 @@ export function Effects() {
 
   return <>
     <div class="card effects">
-      <div class="effects-head">
-        <div class="card-title">Effects</div>
-        {AB_CANDIDATES.length > 0 && <button type="button" class="btn sm effects-compare" aria-haspopup="dialog" title="Play pairs of looks on the rig and decide between them"
-          onClick={() => setComparing(true)}>Compare A/B</button>}
-      </div>
+      <div class="card-title">Effects</div>
       <div class="effects-tools">
         <div class="effects-now" role="status" aria-live="polite">
           <NowPlaying />
@@ -435,6 +428,5 @@ export function Effects() {
     <Strobe />
     {editing && <InspectorSheet id={editing} onSelect={edit} onPlay={playById} onClose={() => edit(null)} />}
     {confirm && <PhotosensitivityConfirm preset={confirm} onConfirm={confirmPlay} onCancel={() => setConfirm(null)} />}
-    {comparing && <ComparePanel onClose={() => setComparing(false)} />}
   </>;
 }

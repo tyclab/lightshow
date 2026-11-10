@@ -1420,23 +1420,6 @@ input[type=range]::-moz-range-thumb {
   box-shadow: -1rem 0 3rem rgba(0, 0, 0, .35);
 }
 .effect-sheet:focus { outline: none; }
-/* A/B compare: a sheet like the inspector, one block per pair; the pair the keys act on is outlined. */
-.effects-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
-.effects-compare { flex: none; }
-.ab-title { justify-content: space-between; }
-.ab-title h2 { flex: 1; margin: 0; font-size: inherit; }
-.ab-disarmed { margin: 0 0 8px; padding: 6px 8px; border: 1px solid var(--amber); border-radius: var(--radius); font-size: 12px; }
-.ab-pair { margin: 0 0 8px; padding: 8px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); }
-.ab-pair.current { border-color: var(--accent); }
-.ab-pair-head { display: flex; gap: 8px; margin-bottom: 6px; font-size: 10px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
-.ab-sides { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
-.ab-play { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; min-width: 0; text-align: left; }
-.ab-side { font-size: 10px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; }
-.ab-name { font-size: 13px; font-weight: 700; overflow-wrap: anywhere; }
-.ab-diff, .ab-note, .ab-decided { margin: 6px 0 0; font-size: 11px; line-height: 1.4; color: var(--muted); }
-.ab-choices { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; margin-top: 6px; }
-.ab-note-input { flex: 1 1 140px; min-width: 0; padding: 4px 8px; font: inherit; font-size: 12px; color: var(--text);
-  background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius); }
 .effect-inspector .card-title { justify-content: space-between; }
 .effect-inspector-title { flex: 1; }
 .effect-inspector-head { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin-bottom: 6px; font-size: 13px; }

@@ -1,12 +1,11 @@
 import { presetById } from '../src/shared/effects/catalogue.ts';
-import { abName } from '../src/shared/effects/ab-candidates.ts';
 
 export const NOW_PLAYING_FIELDS = ['pattern', 'effectColours', 'patterns', 'effects', 'running', 'control', 'sequence', 'voices', 'strobe', 'matrix', 'paletteOverride', 'pixelPattern', 'panelPattern', 'fixtures', 'profiles'];
 
 export function effectName(id, s = {}) {
   return (s.effects || []).find((row) => row.id === id)?.name
     || (s.patterns || []).find((row) => row.id === id)?.name
-    || presetById(id)?.name || (id && abName(id)) || id || 'No look';
+    || presetById(id)?.name || id || 'No look';
 }
 
 export function padLabel(pad, s = {}) {

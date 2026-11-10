@@ -382,14 +382,6 @@ MIDI's **Browse patterns** and **Browse effects** and Companion's pattern and ef
 lists are built from them: effects are the Energy looks, the bars' picture the Bars &
 panels looks, patterns every other look; retired ids are in none.
 
-**Compare A/B**, beside the Effects card's title while pairs wait for a decision (it is hidden when there are none), opens the pairs of looks waiting for your decision:
-two looks that may be one look twice, or a classic look against the v2 preset it would
-move onto. Each pair shows its frame diff; Play A and Play B (or the keys A and B, and
-Space to swap) set the main effect as a tap in the list does, and Keep A, Keep B, Keep
-both or Neither records the decision, which can be changed later. A side given as a
-kind and parameters plays without being saved as a preset. Disarmed, the panel says the
-rig must be armed to see the looks and plays nothing; it never arms the rig.
-
 ### Spatial effects
 
 The Effects list has one entry for each of the 41 spatial looks, over twelve
@@ -735,7 +727,6 @@ Other settings apply immediately. The UI lists pending restart keys.
 | `config/sequence-workspace.json` | Recovery copy of the loaded sequence, playhead and pending take |
 | `config/look.json` | Saved look content and Blackout; playback restarts stopped |
 | `config/stage-room.json` | Optional private Stage geometry and light bindings; mode 0600 |
-| `config/ab-decisions.json` | The A/B compare decisions by pair key |
 | `cache/` | Analysis cache |
 | `logs/` | Structured logs |
 | `.venv/` | Managed analysis environment |
@@ -2010,8 +2001,6 @@ All endpoints return JSON. When a token is configured, send it as an
 | DELETE | `/api/palette-override` | Remove it |
 | GET | `/api/safety` | `{ photosensitivityAcknowledged, hdFlashIntervalMs, strobeMaxLatchSec }`; the first is true while disarmed |
 | POST | `/api/safety/acknowledge` | Give the photosensitivity acknowledgement; it holds until the next disarm |
-| GET | `/api/ab` | `{ candidates, decisions }` — the A/B pairs (`src/shared/effects/ab-candidates.ts`), each with `play.a`/`play.b` `{ pattern, name, rapidFlash }`, and the decisions so far by key |
-| POST | `/api/ab/decision` | `{ key, choice: 'a' \| 'b' \| 'both' \| 'neither', note? }`: store a decision in `ab-decisions.json` in the config directory (a later one replaces it; 404 for an unknown key) and log it as one `ab` line, `A/B decision` with `key`, `choice` and `note` |
 
 ### Voices, pads, strobe and the matrix board
 
