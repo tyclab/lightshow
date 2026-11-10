@@ -33,6 +33,8 @@ export interface PatchHooks {
   showChanged(): void;
   /** A hand on the master or the tempo (not the sequence's own change): the sequencer ends that automation. */
   handEdit(edit: { masterDimmer: boolean; bpm: boolean; paletteOverride?: boolean }): void;
+  /** A look picked by hand (not the sequence's own change): whatever picks looks by itself holds it. */
+  handLook(): void;
 }
 
 const COLOR_SLOTS = ['colorA', 'colorB', 'colorC', 'colorD'] as const;
@@ -54,6 +56,7 @@ const hooks: PatchHooks = {
   // Registered by server.js: the show store reads this module, so importing it here is a cycle.
   showChanged: () => {},
   handEdit: () => {},
+  handLook: () => {},
 };
 
 function setHooks(partial: Partial<PatchHooks>): void { Object.assign(hooks, partial); }
@@ -267,6 +270,7 @@ function applyPatch(rawData: unknown, { beforeCommit, origin = 'hand', paletteOv
   }
 
   if (origin === 'sequence') return data;
+  if (data.pattern !== undefined) hooks.handLook();
   // A tempo the auto show schedules (anchorMs) is the music's, not a hand's.
   const masterDimmer = data.masterDimmer !== undefined;
   const bpm = data.bpm !== undefined && data.anchorMs === undefined;

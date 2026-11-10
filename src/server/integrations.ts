@@ -343,10 +343,15 @@ function setupIntegrations({ io, midi, spotify, nowPlaying, deezerSource, prolin
   }
   setExtrasProvider(extras);
 
+  // The live director's own looks arrive as patches like a hand's: `directing` tells them apart, and a hand's look
+  // is the director's to hold once it exists (below).
+  let directing = false;
+  let holdLook: () => void = () => {};
   setHooks({
     palette: (id) => library.palettes.materializeBody(id),
     broadcast,
     handEdit: (edit) => { sequence.sequencer.handEdit(edit); liveAutomation.handEdit(edit); },
+    handLook: () => { if (!directing) holdLook(); },
     prolinkEnable: () => {
       prolink.enable().catch((err) => {
         console.error('PRO DJ LINK enable failed:', messageOf(err));
@@ -438,12 +443,17 @@ function setupIntegrations({ io, midi, spotify, nowPlaying, deezerSource, prolin
 
   // Suppress live-director patches while a timeline plays so the two cannot fight over the look.
   const liveDirector = liveInput ? new LiveDirector({
-    applyPatch: (patch) => { if (!autoShow.running) applyPatch(patch); },
+    applyPatch: (patch) => {
+      if (autoShow.running) return;
+      directing = true;
+      try { applyPatch(patch); } finally { directing = false; }
+    },
     patterns: [...PATTERNS, ...SPATIAL_AUTO_PATTERNS],
     pixels: () => currentRig().hasPixels,
     usablePatterns: () => lookCoverage.allowed,
   }) : null;
   if (liveInput && liveDirector) liveInput.onEvent((e) => liveDirector.onEvent(e));
+  if (liveDirector) holdLook = () => liveDirector.hold();
 
   function syncLiveDirector(): void {
     if (!liveDirector) return;
