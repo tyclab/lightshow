@@ -20,9 +20,14 @@ export interface EngineWorkerData {
   retire?: ArtnetDestination[];
   /** A previous engine thread streamed Hue and its release is not confirmed: each first open stops our old session. */
   hueReclaim?: boolean;
+  /** Send this thread's console lines to the main thread as `log` messages instead of writing them here. */
+  log?: boolean;
 }
 
 export type RenderedFrames = Record<number, number[] | null>;
+
+export const CONSOLE_METHODS = ['log', 'info', 'warn', 'error', 'debug'] as const;
+export type ConsoleMethod = typeof CONSOLE_METHODS[number];
 
 /** The engine thread's own V8 heap: the main thread's process.memoryUsage() does not see it. */
 export interface EngineHeap { usedBytes: number; totalBytes: number }
@@ -48,4 +53,5 @@ export type FromWorker =
   | { type: 'stopped'; applied?: boolean; hue?: boolean }
   | { type: 'hue'; status: HueStreamStatus[] }
   | { type: 'commands'; results: CommandResult[]; processed: number; applied: number }
+  | { type: 'log'; method: ConsoleMethod; text: string }
   | { type: 'rendered'; id: number; frames: RenderedFrames; commands?: CommandResult[] };
