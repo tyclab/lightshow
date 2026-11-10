@@ -37,9 +37,9 @@ const PEAK_DECAY_PER_SEC = 0.988;
 // of memory, so a single hit does not decide the look.
 const CHARACTER_SMOOTHING = 0.15;
 const ROTATE_BARS = 16;
-// A look picked by hand stays this long before the director changes looks again: about two minutes at 120 BPM, long
-// enough to be the host's choice, short enough that a forgotten tap does not end the automatic show for the night.
-const HAND_HOLD_BARS = 64;
+// A look picked by hand stays this long before the director changes looks again: about one of its own rotations at
+// dance tempo (16 bars at 128 BPM), long enough to be seen as the host's choice without taking the automatic show away.
+const HAND_HOLD_MS = 30_000;
 const ACCENT_COOLDOWN_MS = 4000;
 
 type Patch = Record<string, unknown>;
@@ -73,7 +73,8 @@ class LiveDirector {
   declare _hue: number;
   declare _look: Patch | null;
   declare _bars: number;
-  declare _held: number;
+  /** When the hand's look may end (the director's clock), 0 while none is held. */
+  declare _heldUntil: number;
   declare _silent: boolean;
   declare _building: boolean;
   declare _lastAccentAt: number;
@@ -107,7 +108,7 @@ class LiveDirector {
     this._hue = 0;
     this._look = null;
     this._bars = 0;
-    this._held = 0;
+    this._heldUntil = 0;
     this._silent = false;
     this._building = false;
     this._lastAccentAt = -Infinity;
@@ -119,7 +120,7 @@ class LiveDirector {
     if (this.active) return;
     this.active = true;
     this._bars = 0;
-    this._held = 0;
+    this._heldUntil = 0;
     this._newLook({ fadeMs: 1000 });
   }
 
@@ -135,12 +136,12 @@ class LiveDirector {
   }
 
   /**
-   * A look was picked by hand while this plays (the page, a remote, a cue): it stays for HAND_HOLD_BARS bars, counted
+   * A look was picked by hand while this plays (the page, a remote, a cue): it stays for HAND_HOLD_MS, counted
    * anew from each pick. Accents keep playing over it; looks, builds and section changes wait.
    */
   hold(): void {
     if (!this.active) return;
-    this._held = HAND_HOLD_BARS;
+    this._heldUntil = this._now() + HAND_HOLD_MS;
     this._look = null;
     this._building = false;
   }
@@ -186,7 +187,8 @@ class LiveDirector {
     if (this.active && this._silent && energy > 0.2) {
       this._silent = false;
       this._apply({ energyOverride: null });
-      if (!this._held) this._newLook({ fadeMs: 0 });
+      if (this._heldUntil && now >= this._heldUntil) this._heldUntil = 0;
+      if (!this._heldUntil) this._newLook({ fadeMs: 0 });
     }
   }
 
@@ -249,12 +251,15 @@ class LiveDirector {
     const now = this._now();
     switch (e.type) {
       case 'BAR':
-        // The hand's look ends with its last bar; a pause does not count against it.
-        if (this._held) { if (!this._silent && --this._held === 0) this._newLook({ fadeMs: this._barMs() / 2 }); break; }
+        // The hand's look ends on the first bar after its time is up, so the change lands on the bar line.
+        if (this._heldUntil) {
+          if (now >= this._heldUntil && !this._silent) { this._heldUntil = 0; this._newLook({ fadeMs: this._barMs() / 2 }); }
+          break;
+        }
         if (++this._bars >= ROTATE_BARS && !this._silent) this._newLook({ fadeMs: this._barMs() / 2 });
         break;
       case 'TRANSITION': {
-        if (this._held) break;
+        if (this._heldUntil) break;
         const rising = !!(e.data && e.data.to === 'high');
         // Into a quieter passage the room is settling, and a cut would jar;
         // into a louder one the change is the moment.
@@ -262,7 +267,7 @@ class LiveDirector {
         break;
       }
       case 'BUILDUP':
-        if (this._building || this._silent || this._held) break;
+        if (this._building || this._silent || this._heldUntil) break;
         this._building = true;
         if (this._available.has('v2.risingWall') && automaticPattern('v2.risingWall', this._usablePatterns())) {
           this._look = { ...this._look, pattern: 'v2.risingWall', beatDivision: 2, pixelPattern: null, panelPattern: null,
@@ -273,7 +278,7 @@ class LiveDirector {
       case 'DROP': {
         // A drop heard in a pause is not one: its gesture would light the dark and stay, as no timer ends a burst in silence.
         if (this._silent) break;
-        if (!this._held) this._newLook({ rise: true });
+        if (!this._heldUntil) this._newLook({ rise: true });
         const kind = burstFor({ moment: 'drop', character: this._character, score: null, drive: this._drive() });
         this._burst(kind, Math.max(800, Math.min(2500, this._barMs())));
         this._lastAccentAt = now;
