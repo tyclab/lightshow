@@ -262,6 +262,51 @@ test('startup ignores stored arming and subsequent saves toggle output', (t) => 
   }
 }));
 
+test('a start ends a stored photosensitivity acknowledgement', (t) => withSettings(() => {
+  settings._values.safety.photosensitivityAcknowledged = true;
+  const log = t.mock.method(console, 'log', () => {});
+  try {
+    createApplier(subsystems([])).applyAll();
+    assert.equal(isArmed(), false);
+    assert.equal(settings.get('safety.photosensitivityAcknowledged'), false, 'the next arm asks again');
+  } finally {
+    log.mock.restore();
+  }
+}));
+
+test('the acknowledgement is asked at every arm: it holds from the arm to the disarm', (t) => withSettings(async () => {
+  const app = express();
+  app.use(express.json());
+  const deps = controlDeps(createApplier(subsystems([])));
+  installControlRuntime(t, deps);
+  attachRoutes(app, deps);
+  const server = await new Promise((r) => { const s = app.listen(0, '127.0.0.1', () => r(s)); });
+  t.after(() => new Promise((r) => server.close(r)));
+  const call = (method, path, body) => fetch(`http://127.0.0.1:${server.address().port}${path}`, {
+    method, headers: { 'Content-Type': 'application/json' }, body: body === undefined ? undefined : JSON.stringify(body),
+  })
+    .then(async (res) => ({ status: res.status, body: await res.json() }));
+  const told = async () => [(await call('GET', '/api/safety')).body.photosensitivityAcknowledged, settings.get('safety.photosensitivityAcknowledged')];
+
+  assert.deepEqual(await told(), [true, false], 'disarmed: nothing waits, nothing is stored');
+  // A remote that arms and acknowledges nothing.
+  assert.equal((await sendControl(call, 'arm')).body.control.armed, true);
+  assert.deepEqual(await told(), [false, false], 'armed without it: the strobes are locked');
+  assert.equal((await call('POST', '/api/safety/acknowledge')).body.photosensitivityAcknowledged, true);
+  assert.deepEqual(await told(), [true, true]);
+  assert.equal((await sendControl(call, 'disarm')).body.control.armed, false);
+  assert.deepEqual(await told(), [true, false], 'the disarm ended it');
+
+  // The Arm button, and a party start from home automation: acknowledge, then arm.
+  await call('POST', '/api/safety/acknowledge');
+  assert.equal((await sendControl(call, 'arm')).body.control.armed, true);
+  assert.deepEqual(await told(), [true, true], 'given for this arm, it holds through it');
+  assert.equal((await call('POST', '/api/outputs/disarm')).body.armed, false);
+  assert.deepEqual(await told(), [true, false], 'the protective Disarm ends it too');
+  assert.equal((await sendControl(call, 'arm')).body.control.armed, true);
+  assert.deepEqual(await told(), [false, false], 'the next arm asks again');
+}));
+
 test('explicit controls arm and disarm; legacy arm/toggle/settings writes are rejected', (t) => withSettings(async () => {
   const applied = [];
   const app = express();

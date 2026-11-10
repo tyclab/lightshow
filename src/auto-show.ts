@@ -1,6 +1,7 @@
 import { spawn } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { settings } from './server/settings.ts';
+import { safety } from './server/safety.ts';
 import path from 'node:path';
 import fs from 'node:fs';
 import os from 'node:os';
@@ -718,7 +719,7 @@ class AutoShow {
       blackoutIndex: this._blackoutIdx,
       pixels: this._pixels,
       particlePatterns: this._particlePatterns,
-      acknowledged: settings.get('safety.photosensitivityAcknowledged'),
+      acknowledged: safety.acknowledged(),
       panels: this._panels,
       lamps: this._lamps,
       history: settings.group('auto').setMemory === false ? null : this._memory.history(this._memoryKey()),

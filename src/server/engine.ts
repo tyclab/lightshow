@@ -4,6 +4,7 @@ import { Worker } from 'node:worker_threads';
 
 import { state, universeOf, maxBrightnessOf, activeUniverses, voices, freeClockRuns } from './state.ts';
 import { settings } from './settings.ts';
+import { safety } from './safety.ts';
 import { getProfile, profilesRevision, listProfiles, isBuiltinProfile } from './profiles.ts';
 import * as output from './output.ts';
 import * as universes from './universes.ts';
@@ -290,7 +291,7 @@ function renderInput({ points = true }: { points?: boolean } = {}): RenderInput 
     // Always include safety settings so live output cannot use legacy absent-safety admission.
     safety: {
       hdFlashIntervalMs: settings.get('safety.hdFlashIntervalMs'),
-      acknowledged: settings.get('safety.photosensitivityAcknowledged'),
+      acknowledged: safety.acknowledged(),
     },
     hueStrobe: settings.get('hue.strobe'),
     hardware: settings.group('hardware'),

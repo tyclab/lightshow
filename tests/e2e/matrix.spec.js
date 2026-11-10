@@ -63,6 +63,8 @@ test('Matrix lock releases when its page loses focus', async ({ page, request })
 test('Locked Matrix presses still require rapid-flash acknowledgement', async ({ page, request }) => {
   const { settings } = await (await request.get('/api/settings')).json();
   try {
+    // Armed without the acknowledgement, as a remote leaves it; disarmed nothing would ask.
+    await control(request, 'arm');
     await request.put('/api/settings', { data: { safety: { photosensitivityAcknowledged: false } } });
     await page.getByRole('radio', { name: 'Flashes', exact: true }).click();
     await page.getByRole('button', { name: 'Lock colours', exact: true }).click();
@@ -70,6 +72,7 @@ test('Locked Matrix presses still require rapid-flash acknowledgement', async ({
     await expect(page.getByRole('alertdialog', { name: 'Rapid flashing' })).toBeVisible();
     expect((await state(request)).matrix.colours).toEqual([]);
   } finally {
+    await control(request, 'disarm');
     await request.put('/api/settings', { data: { safety: { photosensitivityAcknowledged: settings.safety.photosensitivityAcknowledged } } });
   }
 });

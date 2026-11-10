@@ -6,6 +6,7 @@
 
 import test from 'node:test';
 import { installControlRuntime, sendControl } from './control-runtime-helpers.js';
+import { armOutputs } from '../helpers/armed.js';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
@@ -214,6 +215,7 @@ test('socket energy-hold press/release still works through the shim', async (t) 
 
 test("energy strobe requests require acknowledgement", async (t) => {
   const s = await serve(t);
+  armOutputs(t);
   const { socket, heard } = await s.page();
   const refused = [409, false, 'string'];
   await s.call('POST', '/api/energy/glow');
@@ -308,6 +310,7 @@ test("voice DELETE stops all remaining voices", async (t) => {
 
 test("invalid voice requests launch nothing", async (t) => {
   const s = await serve(t);
+  armOutputs(t);
   await s.call('POST', '/api/energy/glow');
   const bad = [
     {}, { effect: FADE, preset: 'blinder' }, { preset: 'blinder', ms: 100, beats: 1 }, { preset: 'blinder', mode: 'latched', ms: 100 },
@@ -339,6 +342,7 @@ test("invalid voice requests launch nothing", async (t) => {
 
 test("voice holds are leased to their owning socket", async (t) => {
   const s = await serve(t);
+  armOutputs(t);
   const a = await s.page();
   const b = await s.page();
   a.socket.emit('voice-hold', { action: 'press', token: 'h1', effect: FADE, targets: [state.fixtures[1].id] });
@@ -668,6 +672,7 @@ test("worker voices retain lifetime through a busy main thread", async (t) => {
 
 test("matrix routes expose guarded initial state", async (t) => {
   const s = await serve(t);
+  armOutputs(t);
   t.after(() => { liveMatrix.clear(); liveMatrix.setMode('pulses'); });
   let res = await s.call('GET', '/api/matrix');
   assert.deepEqual(res, { status: 200, body: { ok: true, mode: 'pulses', colours: [], voice: null } });

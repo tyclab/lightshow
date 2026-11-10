@@ -6,7 +6,7 @@ import { solidPlotPoints } from '../shared/space.ts';
 import { currentRig } from './rig.ts';
 import { currentSpace } from './unit-space.ts';
 import { isArmed, onDisarm } from './armed.ts';
-import { settings } from './settings.ts';
+import { safety } from './safety.ts';
 import type { PictureRig } from './picture.ts';
 
 // A panel the Stage room places as a solid samples at its cells' room positions, so the room's revision is part of what a sender samples.
@@ -27,7 +27,7 @@ export function pictureUnits(): PictureRig & { units: number; list: { fixture: n
 
 export const pictureInput = new PictureInput({
   armed: isArmed,
-  acknowledged: () => settings.get('safety.photosensitivityAcknowledged'),
+  acknowledged: () => safety.acknowledged(),
   rig: () => {
     const { rig, signature } = sampledRig();
     return { signature, units: rig.units.length };

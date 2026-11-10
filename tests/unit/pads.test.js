@@ -5,6 +5,7 @@
 
 import test from 'node:test';
 import { installControlRuntime, sendControl } from './control-runtime-helpers.js';
+import { armOutputs } from '../helpers/armed.js';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
@@ -565,6 +566,7 @@ test("strobe pads delegate their hold lifecycle to the hook", async (t) => {
 
 test("socket strobe holds delegate to the live hook", async (t) => {
   const s = await serve(t);
+  armOutputs(t);
   const { socket, heard } = await s.page();
   socket.emit('voice-hold', { action: 'press', token: 's1', effect: { preset: 'strobe' } });
   socket.emit('voice-hold', { action: 'press', token: 's2', pad: { bank: 0, slot: 6 } });
@@ -763,6 +765,7 @@ test("REST pattern pads render only their targeted fixtures", async (t) => {
 
 test("REST rapid pattern pads require acknowledgement", async (t) => {
   const s = await serve(t);
+  armOutputs(t);
   await s.call('POST', '/api/sequence/patterns', onlyClip('rapid', { effect: { kind: 'energy.whiteStrobe', params: {} } }));
   await s.call('PUT', '/api/pads/1/6', pad({ kind: 'pattern', id: 'rapid' }, { quantise: 0 }));
   assert.equal((await s.call('POST', '/api/pads/1/6/press')).status, 409);

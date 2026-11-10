@@ -15,6 +15,7 @@ import { settings } from '../../src/server/settings.ts';
 import { registerProfile, unregisterProfile } from '../../src/server/profiles.ts';
 import { snapshotShow } from '../../src/server/show-store.ts';
 import { setArmed } from '../../src/server/output.ts';
+import { safety } from '../../src/server/safety.ts';
 
 const grid = () => ({
   id: 'test-pixel-input', name: 'Pixel input test', channelCount: 12, channelMap: {}, grid: { columns: 2, rows: 2 },
@@ -203,8 +204,11 @@ async function serve(t) {
   const profile = grid(); registerProfile(profile);
   state.fixtures = [{ id: 53, label: 'Test panel', universe: 1, address: 1, profileId: profile.id,
     maxBrightness: 255, override: null, output: { protocol: 'ddp', host: '127.0.0.1' } }];
-  settings._values = { ...saved.settings, safety: { ...saved.settings.safety, photosensitivityAcknowledged: true } };
+  // A disarm ends the acknowledgement; nothing of it is written here.
+  const ownSave = Object.hasOwn(settings, 'save') ? settings.save : null;
+  settings.save = () => {};
   setArmed(false);
+  settings._values = { ...saved.settings, safety: { ...saved.settings.safety, photosensitivityAcknowledged: true } };
   const auth = createAuth({ token: 'local-pixel-test-token' });
   const server = http.createServer(), io = new Server(server, { allowRequest: auth.allowSocketRequest });
   io.use(auth.socketMiddleware);
@@ -217,6 +221,8 @@ async function serve(t) {
     await new Promise((resolve) => io.close(resolve));
     setArmed(false); pixelInputs.clear(); state.fixtures = saved.fixtures;
     settings._values = saved.settings; unregisterProfile(profile.id);
+    if (ownSave) settings.save = ownSave;
+    else delete settings.save;
   });
   function client(token = 'local-pixel-test-token') {
     const socket = connect(`http://127.0.0.1:${server.address().port}`, { transports: ['websocket'],
@@ -256,6 +262,8 @@ test('authenticated sockets enforce ownership, binary frames, disconnect and dis
   assert.equal(next.ok, true);
   setArmed(false); setArmed(true);
   assert.equal((await emit(second, 'frame', { ...frame, leaseId: next.leaseId })).code, 'NO_LEASE', 'even immediate rearm invalidates the previous lease');
+  assert.equal((await emit(second, 'claim', CLAIM)).code, 'ACKNOWLEDGEMENT_REQUIRED', 'and the disarm ended the acknowledgement');
+  safety.acknowledge();
   const fresh = await emit(second, 'claim', CLAIM);
   assert.notEqual(fresh.leaseId, next.leaseId);
   assert.deepEqual(await emit(second, 'release', { fixtureId: 53, leaseId: fresh.leaseId }), { ok: true });

@@ -11,6 +11,7 @@ import { LookStore, currentLook, putBack } from '../../src/server/look-store.ts'
 import { state } from '../../src/server/state.ts';
 import { applyPatch, applyOverride } from '../../src/server/patch.ts';
 import { setEffectSource, stopEngine } from '../../src/server/engine.ts';
+import { armOutputs } from '../helpers/armed.js';
 import { settings } from '../../src/server/settings.ts';
 import { presetById } from '../../src/shared/effects/index.ts';
 import { acknowledgeFlashes } from '../helpers/acknowledged.js';
@@ -122,6 +123,7 @@ test('restoring a look leaves guarded effects off', (t) => {
     applyOverride(id, null);
     applyPatch({ masterBlackout: false });
   });
+  armOutputs(t);
   const warn = t.mock.method(console, 'warn', () => {});
   applyPatch({ pattern: 'chase', colorB: 2, masterBlackout: false });
   applyOverride(id, null);
@@ -156,6 +158,7 @@ test('a guarded saved effect drops its colour edit while restoring Blackout and 
     setEffectSource(null);
     applyPatch({ ...before, effectColours: null });
   });
+  armOutputs(t);
   t.mock.method(console, 'warn', () => {});
   const background = { version: 1, mode: 'fixed', level: .4,
     colour: { r: 12, g: 34, b: 56, w: 78, a: 90, uv: 11 } };
