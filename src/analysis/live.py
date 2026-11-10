@@ -23,6 +23,7 @@ each, and the Node server (src/live-input.ts) reads them:
 the line is written: the reader maps it onto its own clock. `beat` is the
 analyser's continuous beat position at stream time `t`. After 3 s under
 −80 dBFS states come a quarter second apart, with `"quiet": true`, until sound.
+In `bands`, one the sample rate cannot carry is null: `air`, 12-20 kHz, at 22.05 kHz.
 
 With `--bands lo-hi,...` (Hz) each state also carries the newest frame's
 `spectrum` for the party effects, on the party engine's scale — `|X|²` per bin of
@@ -72,10 +73,8 @@ N_FFT = 1024
 # Frames are dated by window start but onsets register about half a window in: 23 ms, 15-33 ms measured (test_live.py).
 WINDOW_LAG_SEC = N_FFT / 2 / SAMPLE_RATE
 
-# −80 dBFS: an idle sink's digital silence sits below it, the quietest music the show follows far above.
-QUIET_RMS = 1e-4
-# Longer than any rest within a track, so music is never thinned out, yet short enough to idle soon after it stops.
-QUIET_AFTER_SEC = 3.0
+QUIET_RMS = RealtimeConfig.quiet_rms
+QUIET_AFTER_SEC = RealtimeConfig.quiet_after_sec
 # Four states a second stay inside the server's 500 ms freshness and audio-gap limits.
 QUIET_STATE_SEC = 0.25
 QUIET_BLOCK = 8
