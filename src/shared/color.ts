@@ -82,15 +82,10 @@ function colourMixer(from: Colour, to: Colour): (t: number) => EmitterLevels {
   };
 }
 
-function chromaOf(col: Colour): number {
-  return toLch(col).C;
-}
-
 export {
   ACHROMATIC,
   SRGB_DECODE,
   colourMixer,
-  chromaOf,
   fromLch,
   toLch,
 };

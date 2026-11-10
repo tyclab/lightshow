@@ -12,6 +12,7 @@ import * as pythonEnv from './python-env.ts';
 import { SYNC_OFFSET_LIMIT_MS } from './server/presets.ts';
 import { ShowDirector, measureBuildup } from './show/director.ts';
 import { renderIntents } from './show/render.ts';
+import { blendMs } from './show/transition.ts';
 import { pulseTrack } from './show/pulse.ts';
 import { SetMemory } from './show/set-memory.ts';
 import type { SetArc, TrackMemory } from './show/set-memory.ts';
@@ -112,6 +113,7 @@ class AutoShow {
   declare _pulse: PulseTrack | null;
   declare _memory: SetMemory;
   declare _planMemory: Omit<TrackMemory, 'key' | 'at'> | null;
+  declare _plannedFor: Analysis | null;
   declare _arc: SetArc | null;
   declare _overlay: { key: string | null; overlay: ShowOverlay | null } | null;
   declare analysisKey: string | null;
@@ -168,6 +170,7 @@ class AutoShow {
     this._pulse = null;
     this._memory = new SetMemory();
     this._planMemory = null;
+    this._plannedFor = null;
     this._arc = null;
     this._overlay = null;
     this.analysisKey = null;
@@ -715,6 +718,7 @@ class AutoShow {
       blackoutIndex: this._blackoutIdx,
       pixels: this._pixels,
       particlePatterns: this._particlePatterns,
+      acknowledged: settings.get('safety.photosensitivityAcknowledged'),
       panels: this._panels,
       lamps: this._lamps,
       history: settings.group('auto').setMemory === false ? null : this._memory.history(this._memoryKey()),
@@ -732,7 +736,13 @@ class AutoShow {
     this.intents = plan.intents;
     this.timeline = renderIntents(plan.intents, { blackoutIndex: this._blackoutIdx });
     this.timelineRevision = randomUUID();
-    if (this.running) this._reseek();
+    const replanned = this._plannedFor === this.analysis;
+    this._plannedFor = this.analysis;
+    if (!this.running) return;
+    // The same track planned again under a playing show (a rig measured after the start, an intensity change)
+    // blends into its new scene; a new track's plan cuts in, as before.
+    if (replanned) this._startFadeMs = Math.max(this._startFadeMs, blendMs(Number(this.analysis.bpm)));
+    this._reseek();
   }
 
   start(getPositionMs: () => number, { fadeMs = 0 }: { fadeMs?: number } = {}): void {

@@ -113,7 +113,6 @@ const RHYTHMIC = new Set(['chase', 'chase-rev', 'runner', 'pairs', 'ping-pong',
   'split', 'sections', 'stack-up', 'random-flash', 'hit', 'color-cycle', 'comet', 'burst', 'drums']);
 const FLOWY = new Set(['solid', 'fade', 'wave', 'sparkle', 'twinkle', 'gradient', 'plasma']);
 const PULSE_PATTERNS = new Set(['drums', 'stems']);
-const EXPRESSIVE = new Set(['ensemble', 'ribbon']);
 
 const SPATIAL_MATCH: Record<string, string[]> = {
   solid: ['v2.wash'], fade: ['v2.breathe'], ribbon: ['v2.lightOrbs', 'v2.aurora'], wave: ['v2.grooveWave'],
@@ -369,9 +368,10 @@ function pickPattern({ character, available, score = null, seed = 0, drive = 0.5
 const PAR_PICTURES: ReadonlySet<string> = new Set(['gradient', 'plasma', 'comet', 'burst']);
 const PAR_PICTURES_WITH_DRUMS: ReadonlySet<string> = new Set([...PAR_PICTURES, 'drums']);
 
-function availableFor(patterns: readonly { id: string }[], analysis: { pulse?: unknown } | null | undefined,
-  { particles }: { particles?: ReadonlySet<string> } = {}): Set<string> {
-  const ids = new Set(patterns.map((p) => p.id).filter((id) => automaticPattern(id, particles)));
+function availableFor(patterns: readonly { id: string; rapidFlash?: unknown }[], analysis: { pulse?: unknown } | null | undefined,
+  { particles, acknowledged = true }: { particles?: ReadonlySet<string>; acknowledged?: boolean } = {}): Set<string> {
+  // A Rapid flash row is planned only once the photosensitivity acknowledgement is given; the renderer holds it dark before.
+  const ids = new Set(patterns.filter((p) => acknowledged || !p.rapidFlash).map((p) => p.id).filter((id) => automaticPattern(id, particles)));
   if (!analysis || !analysis.pulse) for (const id of PULSE_PATTERNS) ids.delete(id);
   return ids;
 }
@@ -443,7 +443,6 @@ export {
   TIER_FLOOR,
   RHYTHMIC,
   FLOWY,
-  EXPRESSIVE,
   PULSE_PATTERNS,
   availableFor,
   PAR_PICTURES,

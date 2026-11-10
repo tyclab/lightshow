@@ -12,7 +12,7 @@ const OUTPUTS = [['curtain', connectCurtain], ['room', connectRoom]];
 const armedState = { protocol: 2, versions: { rig: 1 }, state: { armed: true } };
 
 /** A lightshow server on loopback whose sockets `handle`, and one helper output connected to it. */
-async function serve(connect, handle, source = null) {
+async function serve(connect, handle, source = null, capture = async () => null) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'live-sync-'));
   const server = http.createServer();
   const io = new Server(server);
@@ -22,7 +22,7 @@ async function serve(connect, handle, source = null) {
   fs.writeFileSync(path.join(dir, 'token'), 'test-token\n');
   fs.writeFileSync(path.join(dir, 'cfg', 'party-visuals.json'), JSON.stringify({ lightshow: { url: `http://127.0.0.1:${server.address().port}/`, tokenFile: 'token' } }));
   const settings = { nodecgConfig: path.join(dir, 'cfg', 'party-visuals.json'), fixtureId: 1, width: 2, height: 1, roomWidth: 8, roomHeight: 8, fps: 1 };
-  const output = await connect(settings, async () => null, source, () => {});
+  const output = await connect(settings, capture, source, () => {});
   return { output, async close() {
     await output.stop();
     io.close();
@@ -103,6 +103,42 @@ test('the curtain keeps its rig across live syncs and takes the new one when the
     Object.assign(server, { revision: 9, rig: rig(2) });
     await until(() => asked.some((options) => options.rigRevision === 9), 'the next revision');
     assert.equal(target().ok, true);
+  } finally {
+    await s.close();
+  }
+});
+
+// A Stage room import moves the server's unit signature without a rig patch: the next claim answers
+// STALE, and the helper asks for the units again at once instead of on its 30 s timer.
+test('the room output fetches the units again when a claim answers STALE, and claims with the new signature', async () => {
+  const server = { signature: 'room-1', unitsAsked: 0, claims: [] };
+  const s = await serve(connectRoom, (socket) => {
+    socket.on('sync', (_options, ack) => ack({ protocol: 2, versions: { rig: 1 }, state: {
+      armed: true, clock: { bpm: 120, beatPos: 1, at: Date.now() }, safety: { photosensitivityAcknowledged: true }, picture: { source: 'visualizer' } } }));
+    socket.on('picture:units', (ack) => { server.unitsAsked++; ack({ ok: true, signature: server.signature, list: [{ fixture: 1, cell: 0, x: 50, y: 50, grid: false }] }); });
+    socket.on('picture:claim', (payload, ack) => {
+      server.claims.push(payload.signature);
+      ack(payload.signature === server.signature ? { ok: true, leaseId: 'lease', units: 1, ttlMs: 2000, maxFps: 20, format: 'rgb24', order: 'units' }
+        : { ok: false, code: 'STALE', error: 'The rig changed: fetch the units again' });
+    });
+    socket.on('picture:frame', (_payload, ack) => ack({ ok: true }));
+    socket.on('picture:release', (_payload, ack) => ack({ ok: true }));
+  }, () => ({ ok: true }), async () => ({ width: 8, height: 8, data: new Uint8Array(8 * 8 * 3) }));
+  const pause = () => new Promise((resolve) => setTimeout(resolve, 25));
+  const until = async (done, what, ms = 3000) => { for (const end = Date.now() + ms; !done(); await pause()) assert.ok(Date.now() < end, what); };
+  try {
+    await until(() => server.unitsAsked >= 1 && s.output.pump.target().ok, 'the first unit list');
+    await s.output.pump.step();
+    assert.deepEqual(server.claims, ['room-1']);
+    server.signature = 'room-2';
+    const step = () => { s.output.pump.nextCaptureAt = 0; return s.output.pump.step(); };
+    await s.output.pump.invalidate();
+    await step();
+    assert.deepEqual(server.claims, ['room-1', 'room-1'], 'the old signature, refused');
+    await until(() => server.unitsAsked >= 2, 'units asked again at once, not after 30 s', 1000);
+    await until(() => s.output.pump.target().key === 'room-2', 'the new signature');
+    await step();
+    assert.deepEqual(server.claims.at(-1), 'room-2', 'claimed again without waiting out the backoff');
   } finally {
     await s.close();
   }

@@ -8,7 +8,8 @@ for (const [id, name] of [['party.fire', 'Fire'], ['party.ice', 'Ice']]) {
     await page.locator(`.effect-pad[data-id="${id}"]`).getByRole('button', { name: `Edit ${name}`, exact: true }).click();
     const sheet = page.getByRole('dialog', { name: 'Edit effect' });
     await expect(sheet.getByRole('button', { name: 'Save as…', exact: true })).toBeEnabled();
-    await expect(sheet.getByLabel('Attack', { exact: true })).toBeEditable();
+    // Its own controls, whichever engine it plays on (the hd envelope, or the v2 form once moved).
+    await expect(sheet.locator('input[type="number"], input[type="range"]').first()).toBeEditable();
   });
 
   test(`${name} can be assigned and played from a normal pad`, async ({ page, request }) => {

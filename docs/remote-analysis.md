@@ -10,13 +10,13 @@ has the routing rules.
 
 ```mermaid
 flowchart LR
-  subgraph Server[Server, e.g. tychome]
+  subgraph Server[Server]
     Router[Analysis router] -->|no idle worker, a link, a failure| CPU[CPU analyser]
     Router -->|idle worker| Pool[Worker pool<br/>/analysis-worker]
     Cache[(Analysis cache)]
     Files[(Job audio)]
   end
-  subgraph PC[GPU PC, e.g. GamerTyc in WSL2]
+  subgraph PC[GPU PC, e.g. Windows with WSL2]
     Agent[tools/remote-analyzer] -->|docker run -i, /dev/dxg| Worker[analyze.py --worker<br/>on the GPU]
     Agent -. SetThreadExecutionState .-> Windows[Windows: stay awake, what is in front]
   end
@@ -45,8 +45,8 @@ flowchart LR
 - **The desktop.** It declines jobs while a program other than the allowed
   browsers (`allowFullscreen`, the party visuals' Chrome) covers its whole
   monitor in front, or a Direct3D exclusive fullscreen runs, or other programs
-  use more than `maxOtherVramMiB` (4096 MiB) of the card: GamerTyc's desktop with
-  the party visuals idles at 2.4–3.3 GB of its 8 GB, and a job needs ~3.1 GB more. A game that comes to the
+  use more than `maxOtherVramMiB` (4096 MiB) of the card: a desktop showing
+  the party visuals idled at 2.4–3.3 GB of an 8 GB card, and a job needs ~3.1 GB more. A game that comes to the
   front during a job stops it and gives the job back to the server, and the
   analysis container stops so the game has the card. While a job runs the
   worker holds `ES_SYSTEM_REQUIRED` so Windows does not sleep; the displays may.
@@ -84,7 +84,7 @@ configuration in `~/.config/lightshow-remote-analyzer`.
 3. **The configuration**, `~/.config/lightshow-remote-analyzer/config.json`:
 
    ```json
-   { "server": "http://10.27.2.42:3000", "tokenFile": "token", "name": "gamertyc" }
+   { "server": "http://<server>:3000", "tokenFile": "token", "name": "gpu-pc" }
    ```
 
    | Key | Default | Meaning |
@@ -104,12 +104,12 @@ configuration in `~/.config/lightshow-remote-analyzer`.
    | `idleStopMin` | `15` | Minutes without a job before the container stops |
    | `searchCommits` | `400` | How far back to look for the server's version |
 
-4. **The models**, the server's exact weights: copy them from the server, e.g.
-   from tychome (`/opt/lightshow/data` on the host):
+4. **The models**, the server's exact weights: copy them from the server's data
+   folder (`/data` in its container; `<data-dir>` is where that lives on the host):
 
    ```bash
    M=~/.local/share/lightshow-remote-analyzer/model-data; mkdir -p "$M"
-   ssh root@tychome.internal.tycstation.com 'tar -C /opt/lightshow/data -c models .cache/torch .cache/huggingface' | tar -x -C "$M"
+   ssh <user>@<server> 'tar -C <data-dir> -c models .cache/torch .cache/huggingface' | tar -x -C "$M"
    ```
 
    `node cli.js prepare --fetch-models` downloads what is missing instead, with
@@ -151,19 +151,13 @@ with Generate, or `settings.json`) is separate from `server.token`: it opens the
 token disconnects the connected workers; they reconnect once they hold the new
 one. The settings API never returns it.
 
-On tycstation the token belongs beside `vault_lightshow_token` in OpenBao:
-
-- a `bao:seed-lightshow-worker-token` job, like `bao:seed-lightshow-token`,
-  mints `vault_lightshow_worker_token` in `secret/tycpve/creds` if it is absent;
-- both settings templates render it as `analysis.workerToken`
-  (`lightshow-settings.json.j2`, and the `combine` in
-  `lightshow-settings-rotated.json.j2`); the server reads it at start, so
-  deploy:guests' restart (held while armed) applies it;
-- the PC gets it from the operator's secret store into the token file
-  (`bao kv get -field=vault_lightshow_worker_token secret/tycpve/creds`, piped
-  straight into `install -m 600 /dev/stdin ~/.config/lightshow-remote-analyzer/token`),
-  or on an enrolled box as its own sops-nix secret pointed to by `tokenFile`;
-- tychome's nftables guard already lets the PC (10.27.2.80) reach port 3000.
+Keep the token where the server's other secrets live and render it into the
+server's `settings.json` as `analysis.workerToken`; the server reads it at start,
+so a restart applies a new one. Give the PC the same value as its token file
+(mode 0600, for example piped from the secret store straight into
+`install -m 600 /dev/stdin ~/.config/lightshow-remote-analyzer/token`), never on a
+command line. The server's firewall must let the PC (`<pc-ip>`) reach the
+server's port (3000 by default).
 
 ## Protocol
 

@@ -175,7 +175,7 @@ test('performance summaries say whether the live input hears silence', () => {
 test('performance summaries name what keeps the engine awake', () => {
   const next = { ...timing, sampledAtMs: 31_000, totalFrames: 1240 };
   const awake = (reasons) => performanceSample(next, fine.eventLoop, memory, false, timing, 31_010, null, reasons).awake;
-  assert.deepEqual(awake(['dmx', 'v1']), ['dmx', 'v1'], 'the integrations name the holders');
+  assert.deepEqual(awake(['dmx', 'identify']), ['dmx', 'identify'], 'the integrations name the holders');
   assert.deepEqual(awake([]), [], 'empty: the source allows idling, a frame still owed keeps it awake');
   assert.equal(awake(null), null, 'nothing registered yet');
   assert.equal(sample(next, timing).awake, null);
@@ -190,7 +190,7 @@ test('one existing health timer emits bounded summaries and survives collection 
   const since = buffer.last;
   const summaries = () => buffer.since(since).filter((entry) => entry.component === 'performance');
   setLiveProvider(() => ({ listening: true, quiet: true }));
-  setAwakeProvider(() => ['v1']);
+  setAwakeProvider(() => ['identify']);
   t.after(() => { setLiveProvider(null); setAwakeProvider(null); });
   startHealthMonitor();
   startHealthMonitor();
@@ -199,7 +199,7 @@ test('one existing health timer emits bounded summaries and survives collection 
   t.mock.timers.tick(1);
   assert.equal(summaries().length, 1);
   assert.equal(summaries()[0].data.liveQuiet, true, 'read from the live input the integrations registered');
-  assert.deepEqual(summaries()[0].data.awake, ['v1'], 'read from the idle source the integrations registered');
+  assert.deepEqual(summaries()[0].data.awake, ['identify'], 'read from the idle source the integrations registered');
   const usage = t.mock.method(process, 'memoryUsage', () => { throw new Error('collection failed'); });
   assert.doesNotThrow(() => t.mock.timers.tick(30_000));
   usage.mock.restore();

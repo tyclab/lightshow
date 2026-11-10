@@ -1,7 +1,9 @@
 // Catalogue tags: facts a look's code states (what it reads, where it draws, its colours, its use), never how it looks.
 import { ENERGY_KIND_BY_ID } from './energy.ts';
+import { RAPID_PATTERNS } from '../strobe-fx.ts';
 import { mappingOf } from './mapping.ts';
 import { kindOf, requiresAcknowledgement } from './registry.ts';
+import { legacyKind } from './migrate.ts';
 import type { EffectSpec } from './types.ts';
 
 export type TagId = 'beat' | 'static' | 'bands' | 'level' | 'sections' | 'screen' | 'rig' | 'room' | 'bars' | 'ownColours' | 'energy' | 'rapid';
@@ -138,7 +140,13 @@ function containerReactions(children: unknown[]): LookTags {
   return reactive.length ? tagged(reactive.flatMap((r) => r.tags.filter((tag) => REACTIVE_TAGS.has(tag))), reactive.flatMap((r) => r.via)) : tagged(['beat']);
 }
 
-function reactions(spec: Pick<EffectSpec, 'kind' | 'params'>): LookTags {
+/** A compat.* spec (an old library's hd/ldj spec) is its plain kind's effect, so it gets that kind's tags. */
+function plain<S extends Pick<EffectSpec, 'kind'>>(spec: S): S {
+  return spec.kind.startsWith('compat.') ? { ...spec, kind: legacyKind(spec.kind) } : spec;
+}
+
+function reactions(raw: Pick<EffectSpec, 'kind' | 'params'>): LookTags {
+  const spec = plain(raw);
   const p = spec.params ?? {};
   if (spec.kind === 'v2.neural') return tagged(['bands'], ['live']);
   if (spec.kind === 'v2.visualizer') return tagged(['screen'], ['screen']);
@@ -187,7 +195,8 @@ function ownColours(spec: EffectSpec): boolean {
 }
 
 /** A spec's tags from its kind and params, so a saved preset or an edited copy gets its own. */
-export function specTags(spec: EffectSpec, { pixel = false }: { pixel?: boolean } = {}): LookTags {
+export function specTags(raw: EffectSpec, { pixel = false }: { pixel?: boolean } = {}): LookTags {
+  const spec = plain(raw);
   const { tags, via } = reactions(spec);
   const where = surface(spec, pixel);
   return tagged([...tags, ...(where ? [where] : []), ...(ownColours(spec) ? ['ownColours' as const] : []),
@@ -197,7 +206,7 @@ export function specTags(spec: EffectSpec, { pixel = false }: { pixel?: boolean 
 /** A legacy pattern's tags, or none for an id the table does not know. */
 export function legacyTags(id: string): LookTags {
   const entry = Object.hasOwn(LEGACY, id) ? LEGACY[id] : null;
-  return tagged(entry?.tags ?? [], entry?.via ?? []);
+  return tagged([...entry?.tags ?? [], ...(RAPID_PATTERNS.has(id) ? ['rapid' as const] : [])], entry?.via ?? []);
 }
 
 export type BrowseList = 'pattern' | 'effect' | 'bars';
