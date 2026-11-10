@@ -190,13 +190,18 @@ class LiveDirector {
     this._seed++;
     // Well apart from the last few, round the wheel.
     this._hue = goldenStep(this._seed, WHEEL.length);
-    const character: Character = rise ? { ...this._character, energy: Math.max(0.8, this._character.energy) } : this._character;
+    // A rise is picked as the hard passage it starts: the meters still read the quiet before it.
+    const hard = (v: number) => Math.max(0.8, v);
+    const c = this._character;
+    const character: Character = rise ? { ...c, energy: hard(c.energy), kick: hard(c.kick), pulse: hard(c.pulse) } : c;
     const drive = rise ? Math.max(0.8, this._drive()) : this._drive();
     const dropLooks = ['v2.speakerShockwave', 'v2.fireworks', 'v2.orbCollision']
       .filter((id) => this._available.has(id) && automaticPattern(id, this._usablePatterns()));
-    const pattern = rise && dropLooks.length ? dropLooks[this._seed % dropLooks.length] : pickPattern({
+    // A drop takes turns through its own looks while the rig has two of them to alternate; with one left every drop
+    // would land on the same look, so the pick for a hard passage chooses instead.
+    const pattern = rise && dropLooks.length > 1 ? dropLooks[this._seed % dropLooks.length] : pickPattern({
       character, available: this._available, seed: this._seed, drive,
-      dance: this._character.pulse, pixels: this._pixels(), usable: this._usablePatterns(),
+      dance: character.pulse, pixels: this._pixels(), usable: this._usablePatterns(),
     });
     const at = (k: number) => WHEEL[(this._hue + k) % WHEEL.length];
     const look: Patch = {

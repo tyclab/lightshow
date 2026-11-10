@@ -80,14 +80,15 @@ test('live director selects a rising wall for builds and a spatial impact on a d
   assert.equal(patches.at(-1).pixelFrom, null);
   director.onEvent({ type: 'DROP', data: {} });
   const drop = patches.findLast((p) => p.pattern);
-  assert.ok(['v2.speakerShockwave', 'v2.fireworks', 'v2.orbCollision'].includes(drop.pattern));
+  // No coverage measured: of the drop's own looks only the shockwave is left, so the pick for a hard passage chooses.
+  assert.ok(['v2.speakerShockwave', 'v2.risingWall', 'v2.zones', 'v2.surroundAnswer', 'v2.rotation', 'v2.stemsSpace'].includes(drop.pattern), drop.pattern);
   assert.equal(drop.pixelPattern, null);
   assert.equal(drop.pixelSpan, null);
   assert.equal(drop.pixelFrom, null);
   director.stop();
 });
 
-test('automatic shows require measured particle coverage independently of pixel capability', () => {
+test('automatic shows play particle looks only on measured coverage, independently of pixel capability', () => {
   const all = [...PATTERNS, ...V2_PRESETS], sparse = availableFor(all, null);
   const covered = new Set(['v2.lightOrbs']);
   const measured = availableFor(all, null, { usable: covered });
@@ -116,15 +117,16 @@ test('automatic shows require measured particle coverage independently of pixel 
   }
 });
 
-test('live sparse rigs keep drop selection on a room-spanning field', () => {
+test('live sparse rigs keep drop selection on room-spanning fields, and not on one of them', () => {
   const patches = [], director = new LiveDirector({ patterns, pixels: () => false,
     applyPatch: (p) => patches.push(p), setTimer: () => 1, clearTimer: () => {} });
   director.start();
   for (let i = 0; i < 8; i++) director.onEvent({ type: 'DROP', data: {} });
   director.stop();
   const looks = patches.filter((p) => p.pattern);
-  assert.ok(looks.slice(1).every((p) => p.pattern === 'v2.speakerShockwave'));
   assert.ok(looks.every((p) => presetById(p.pattern)?.spec.kind !== 'v2.particles'));
+  // One drop look left (the particle paths are out): the drops do not all land on it.
+  assert.ok(new Set(looks.slice(1).map((p) => p.pattern)).size > 1);
 });
 
 test('a measured rig plays its usable looks, and an empty measurement leaves every look but the particle paths', () => {
