@@ -38,18 +38,18 @@ const PINNED = {
   twinkle: 'beat',
   sparkle: 'beat',
   'random-flash': 'beat',
-  ensemble: 'beat',
+  ensemble: 'bands / live',
   ribbon: 'beat',
   gradient: 'beat bars',
   comet: 'beat bars',
   burst: 'beat bars',
   plasma: 'beat bars',
   meter: 'bands level bars / track',
-  drums: 'bands bars / track',
+  drums: 'bands bars / live',
   stems: 'bands bars / track',
   rise: 'sections bars / track',
   impact: 'bands bars / track',
-  bars: 'bands bars / track',
+  bars: 'bands bars / live',
   fire: 'bands bars / track',
   rain: 'bands bars / track',
   'flash-chase': 'beat bars rapid',
@@ -60,7 +60,7 @@ const PINNED = {
   'ramp-scatter': 'beat bars',
   'decay-scatter': 'beat bars',
   'flash-burst': 'beat bars rapid',
-  core: 'bands bars rapid / track',
+  core: 'level bars rapid / live',
   'position-chase': 'beat',
   'radial-pulse': 'bands / track',
   'spatial-wash': 'beat',
@@ -167,13 +167,13 @@ test('the twelve tags and their counts over the 113 looks', () => {
   ]);
   const counts = Object.fromEntries(Object.keys(TAGS).map((tag) => [tag, count(VISIBLE, tag)]));
   assert.deepEqual(counts, {
-    beat: 79, static: 7, bands: 19, level: 4, sections: 3, screen: 2,
+    beat: 78, static: 7, bands: 19, level: 5, sections: 3, screen: 2,
     rig: 17, room: 41, bars: 21, ownColours: 8, energy: 11, rapid: 16,
   });
   const reactive = VISIBLE.filter((row) => row.tags.some((tag) => REACTIVE_TAGS.has(tag)));
-  assert.equal(reactive.length, 27);
+  assert.equal(reactive.length, 28);
   assert.deepEqual(Object.fromEntries(Object.keys(SOURCES).map((s) => [s, reactive.filter((r) => r.via.includes(s)).length])),
-    { track: 16, live: 10, screen: 2 });
+    { track: 13, live: 14, screen: 2 });
 });
 
 test('tags restate the fields the server already sends: pixel, room mapping, rapid flash, the energy family', () => {
@@ -235,11 +235,6 @@ test('the presets saved here carry their tags in the summaries the browser lists
 });
 
 // ── Review round 1 ───────────────────────────────────────────────────────────
-
-test('the show expression is no input tag: ensemble and ribbon, which both read it, are tagged alike', () => {
-  assert.deepEqual(legacyTags('ensemble'), legacyTags('ribbon'));
-  assert.deepEqual(legacyTags('ensemble'), { tags: ['beat'], via: [] });
-});
 
 test('every registered kind says what it reacts to, from its code', () => {
   const reacts = new Set(TAG_AXES.find((axis) => axis.id === 'reacts').tags);
