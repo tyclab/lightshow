@@ -107,8 +107,8 @@ export function particleObjects(p: ParticlesParams, room: Room, f: EffectFrame):
   for (let k = 0; k < p.count; k++) {
     const q = t / p.cycleBeats + k / p.count, age = frac(q) * p.cycleBeats;
     const seed = f.seed[0] ^ Math.floor(q) * 7919;
-    const x = pos.plan ? random(seed, k * 2) : (random(seed, k * 2) - 0.5) * pos.bounds.width;
-    const z = pos.plan ? 0 : (random(seed, k * 2 + 1) - 0.5) * pos.bounds.depth;
+    const x = pos.plan ? random(seed, k * 2) : pos.origin.x + (random(seed, k * 2) - 0.5) * pos.bounds.width;
+    const z = pos.plan ? 0 : pos.origin.z + (random(seed, k * 2 + 1) - 0.5) * pos.bounds.depth;
     const speed = p.speed * scale, fall = (-speed + Math.sqrt(speed * speed + 2 * gravity * height)) / gravity;
     if (age < fall) {
       for (let tail = 0; tail <= p.trail; tail++) {

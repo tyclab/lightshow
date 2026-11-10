@@ -63,7 +63,7 @@ function partitionOf(p: ZonesParams, room: Room, f: EffectFrame): Partition {
       case 'floorCeiling': return clamp(pos.plan ? 1 - pos.z[i] : pos.y[i] / pos.bounds.height);
       case 'nearFar': return clamp(distanceTo(pos, i, centre) / Math.max(0.001, p.radiusM / (pos.plan ? 4 : 1) * 2));
       case 'frontBack': return angle < 0.25 || angle >= 0.75 ? 0 : 0.75;
-      default: return clamp(pos.plan ? pos.x[i] : (pos.x[i] + pos.bounds.width / 2) / pos.bounds.width);
+      default: return clamp(pos.plan ? pos.x[i] : (pos.x[i] - pos.origin.x + pos.bounds.width / 2) / pos.bounds.width);
     }
   });
   return { order, count };

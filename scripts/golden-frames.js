@@ -2,6 +2,7 @@
 // Rows are output units in rig order; a row holds that unit's channels for every sampled beat.
 
 import fs from 'node:fs';
+import { createHash } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 
 import { createRenderer } from '../src/server/renderer.ts';
@@ -79,10 +80,22 @@ function unitChannels(fixtures, profileOf) {
   });
 }
 
-/** Frames per id on a named rig: one row per unit, its channels at each beat in turn. The synthetic rig plays in its room unless `space` is false. */
+/** The synthetic rig as a rig without a room plays: every unit at its plot position in the generic venue. */
+export function roomlessSpace() {
+  const { fixtures, profileOf } = syntheticRig();
+  return buildUnitSpace(buildRig(fixtures, profileOf), null);
+}
+
+/** One hash per Spatial preset of the frames the complete demo show renders without a room. */
+export function roomlessHashes() {
+  const frames = renderGolden(V2_PRESETS.map((p) => p.id), 'synthetic', V2_COMPLETE_BEATS, { ...V2_COMPLETE_OPTIONS, space: roomlessSpace() });
+  return Object.fromEntries(Object.entries(frames).map(([id, rows]) => [id, createHash('sha256').update(JSON.stringify(rows)).digest('hex')]));
+}
+
+/** Frames per id on a named rig: one row per unit, its channels at each beat in turn. The synthetic rig plays in its room unless `space` is false or a unit space of its own. */
 export function renderGolden(ids, rigName, beats, { space = true, audioAt, modulationAt, pictureAt, effectOf = presetSpec } = {}) {
   const { fixtures, profileOf } = rigOf(rigName);
-  const unitSpace = space && rigName === 'synthetic' ? syntheticSpace() : null;
+  const unitSpace = typeof space === 'object' ? space : space && rigName === 'synthetic' ? syntheticSpace() : null;
   const channels = unitChannels(fixtures, profileOf);
   const random = Math.random;
   Math.random = seeded(SEED);
@@ -170,6 +183,7 @@ function main() {
   const paths = renderPaths(frames);
   fs.writeFileSync(new URL('../tests/fixtures/golden/v2-spatial.json', import.meta.url),
     `{\n${Object.entries(paths).map(([group, rows]) => `  ${JSON.stringify(group)}: {\n${rowsJson(rows, '    ')}\n  }`).join(',\n')}\n}\n`);
+  fs.writeFileSync(new URL('../tests/fixtures/golden/v2-roomless.json', import.meta.url), `${JSON.stringify(roomlessHashes(), null, 2)}\n`);
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) main();

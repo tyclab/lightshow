@@ -22,7 +22,7 @@ effects sample it (`plotPosition` in `src/shared/space.ts`: plot x and y percent
 room's width and depth, height percent of its height), each cell of an explicit cell map at
 its own point inside a dark, see-through body spanning its pixels, and the list says so. A fixture with no position anywhere is not drawn, so no
 location is invented. Cells left unbound in a partly bound fixture (a pixel map's gaps) are
-not drawn either.
+not drawn either; the effects sample each at the nearest bound cell of its fixture.
 One output unit can have several visual bindings when a shared channel drives
 several physical lights. `unit` is the zero-based light/cell within a fixture,
 not a DMX channel or an index in the entire rig. On a panel whose grid has places
