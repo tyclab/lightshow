@@ -47,7 +47,7 @@ test('an energy pad runs its effect while held, and stops when let go', async ({
   const button = cell(page, blinder);
   await button.scrollIntoViewIfNeeded();
   await hold(page, button);
-  // What Companion, MIDI, Home Assistant and the header read.
+  // What MIDI, Home Assistant and the header read.
   await until(request, (s) => s.energyOverride === 'blinder');
   await expect(button).toHaveAttribute('aria-pressed', 'true');
   await page.mouse.up();

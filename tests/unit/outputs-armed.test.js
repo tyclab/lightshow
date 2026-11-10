@@ -367,7 +367,7 @@ test('each arm and disarm is logged once, with where it came from and never a to
 
   await explicit('arm', { 'user-agent': 'HomeAssistant/2026.10.1 aiohttp/3.12', 'x-forwarded-for': '192.0.2.140' }, '?token=query-secret');
   await explicit('arm', { 'user-agent': 'HomeAssistant/2026.10.1 aiohttp/3.12' });
-  await call('POST', '/api/outputs/disarm', { 'user-agent': 'node', 'x-lightshow-client': 'companion/2.1.0' });
+  await call('POST', '/api/outputs/disarm', { 'user-agent': 'node', 'x-lightshow-client': 'deck/2.1.0' });
   await explicit('arm', { 'user-agent': 'Mozilla/5.0 (Windows NT 10.0)' });
   await explicit('disarm', { 'user-agent': 'curl/8.9' });
   applier.applyChanged(settings.update({ outputs: { armed: true } }), { via: 'schedule', reason: 'a test' });
@@ -376,7 +376,7 @@ test('each arm and disarm is logged once, with where it came from and never a to
   const lines = armingLines(mark);
   assert.deepEqual(lines.map((l) => [l.armed, l.via, l.route ?? null]), [
     [true, 'rest', 'POST /api/control'],
-    [false, 'companion', 'POST /api/outputs/disarm'],
+    [false, 'rest', 'POST /api/outputs/disarm'],
     [true, 'rest', 'POST /api/control'],
     [false, 'rest', 'POST /api/control'],
     [true, 'schedule', null],
@@ -387,7 +387,7 @@ test('each arm and disarm is logged once, with where it came from and never a to
   assert.equal(lines[0].remote, '127.0.0.1');
   assert.equal(lines[0].userAgent, 'HomeAssistant/2026.10.1 aiohttp/3.12');
   assert.equal(lines[0].forwardedFor, '192.0.2.140');
-  assert.equal(lines[1].client, 'companion/2.1.0');
+  assert.equal(lines[1].client, 'deck/2.1.0');
   assert.equal(lines[2].userAgent, 'Mozilla/5.0 (Windows NT 10.0)');
   assert.equal(lines[4].reason, 'a test');
   assert.doesNotMatch(JSON.stringify(lines), /secret/, 'no token, query string or auth header');

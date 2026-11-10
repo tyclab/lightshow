@@ -23,16 +23,13 @@ import type { PresetLookup, Voice, VoiceManager, VoiceMode, VoiceTargets } from 
  * its own (0 is now) and on the whole rig or some fixtures. The layout lives
  * in config/pads.json; what a pad plays is a voice (voices.ts), one per pad.
  *
- *   hold   plays while its owner renews the lease: a page over the socket,
- *          or a REST caller pressing again within HOLD_TIMEOUT_MS
+ *   hold   plays while its owner renews the lease: a page over the socket
  *   once   plays its length: `?ms=`, else the preset's, else its loop's
  *   loop   latched until the pad is pressed or toggled again
  */
 
 // The party default: 240 of the 960 ticks to the beat.
 export const DEFAULT_QUANTISE = 0.25;
-/** The token a REST press uses when it names none, so its bare release finds it. */
-export const REST_TOKEN = 'rest';
 
 /** What a pattern pad hands the pattern player: the pad's launch, under the pad's key. No length: the pattern's own plays, unless `lengthMs`. */
 export interface PadVoiceLaunch {
@@ -98,13 +95,6 @@ export function padIndex(bank: unknown, slot: unknown): number {
   }
   return bank * PAD_SLOTS + slot;
 }
-
-/**
- * The owner a REST press holds a pad under: one per pad, and never a
- * socket's (socket.io ids have no colon), so a REST press and a socket's
- * never share a lease.
- */
-export const restOwner = (bank: number, slot: number): string => `rest:pad:${bank}:${slot}`;
 
 const padKey = (index: number) => `pad:${Math.floor(index / PAD_SLOTS)}:${index % PAD_SLOTS}`;
 

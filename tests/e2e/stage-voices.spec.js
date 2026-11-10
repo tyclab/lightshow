@@ -1,4 +1,4 @@
-// The live voices on the stage: a held pad and the latched strobe are named on
+// The live voices on the stage: a pad's voice and the latched strobe are named on
 // the stage preview's "Now playing" line and drawn by the 3D Stage view over
 // the look. Puts back the pad, the strobe, the acknowledgement and the look.
 
@@ -52,22 +52,18 @@ test('voices appear over the stage look and disappear when stopped', async ({ pa
     const baseline = await now.textContent();
     const look = await samples(page, 6);
 
-    // Held: named, and the stage no longer looks like the look alone.
-    const press = await (await request.post(`/api/pads/${BANK}/${SLOT}/press`, { data: {} })).json();
+    // Playing: named, and the stage no longer looks like the look alone.
+    const press = await (await request.post(`/api/pads/${BANK}/${SLOT}/toggle`, { data: {} })).json();
     expect(press.id, JSON.stringify(press)).toBeTruthy();
     const held = await until(request, (s) => s.voices.some((v) => v.id === press.id));
     const label = held.voices.find((v) => v.id === press.id).label;
     await expect(now).toContainText(label);
     const fromLook = (s) => Math.min(...look.map((l) => distance(l, s)));
-    await expect.poll(async () => {
-      const renewal = await request.post(`/api/pads/${BANK}/${SLOT}/press`, { data: { token: press.token } });
-      expect(renewal.ok()).toBe(true);
-      return fromLook(await stageSample(page));
-    },
-      { message: 'the held pad changes the stage picture', timeout: 5000 }).toBeGreaterThan(4);
+    await expect.poll(async () => fromLook(await stageSample(page)),
+      { message: 'the pad\'s voice changes the stage picture', timeout: 5000 }).toBeGreaterThan(4);
 
-    // Released: back to the look.
-    await request.post(`/api/pads/${BANK}/${SLOT}/release`, { data: { token: press.token } });
+    // Stopped: back to the look.
+    await request.post(`/api/pads/${BANK}/${SLOT}/toggle`, { data: {} });
     await until(request, (s) => !s.voices.some((v) => v.id === press.id));
     await expect(now).toHaveText(baseline);
     await expect.poll(async () => fromLook(await stageSample(page)),
@@ -97,7 +93,7 @@ test('voices appear over the stage look and disappear when stopped', async ({ pa
     await preview.close();
     latch.release();
     await request.post('/api/strobe/off', { data: {} });
-    await request.post(`/api/pads/${BANK}/${SLOT}/release`, { data: {} });
+    await request.delete('/api/voices');
     await request.put(`/api/pads/${BANK}/${SLOT}`, { data: original });
     await request.put('/api/settings', { data: { safety: { photosensitivityAcknowledged: acknowledged } } });
     await reset(request);

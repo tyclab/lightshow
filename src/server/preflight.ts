@@ -880,7 +880,7 @@ function checkMidi(midi: PreflightSubjects['midi']): Check {
   if (!wanted) {
     return {
       id: 'midi', label: 'MIDI', status: INFO,
-      detail: 'No controller configured. The web UI and Companion still work.',
+      detail: 'No controller configured. The web UI still works.',
     };
   }
 

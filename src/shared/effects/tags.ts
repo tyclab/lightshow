@@ -216,7 +216,7 @@ export function legacyTags(id: string): LookTags {
 
 export type BrowseList = 'pattern' | 'effect' | 'bars';
 
-/** The MIDI and Companion browse list a catalogue row belongs to; a row without tags (an older server) goes by its pixel flag. */
+/** The MIDI browse list a catalogue row belongs to; a row without tags goes by its pixel flag. */
 export function browseListOf(row: { tags?: readonly string[]; pixel?: boolean }): BrowseList {
   const tags = row.tags ?? (row.pixel ? ['bars'] : []);
   return tags.includes('bars') ? 'bars' : tags.includes('energy') ? 'effect' : 'pattern';

@@ -1,6 +1,6 @@
 // Home Assistant polls the state every 5 s and reads only live keys; the
 // catalogues (about 117 KB of built-ins) stay with GET /api/state, which the
-// UI and the Companion module read.
+// UI reads.
 
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -36,7 +36,7 @@ const integrations = (io = new Server()) => setupIntegrations({
   },
 });
 
-// The live state no longer carries the rig: the pages, Companion and the helper get the fixtures and
+// The live state no longer carries the rig: the pages and the helper get the fixtures and
 // profiles from the rig patches only if the server's own broadcast hands the publisher their signatures.
 test('the server\'s broadcast sends the fixtures when one changes and the profiles when one registers', (t) => {
   const io = new Server();

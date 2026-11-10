@@ -81,7 +81,7 @@ export function requestOrigin(req: Request): ArmOrigin {
     userAgent: headerOf(req, 'user-agent'),
     client,
   };
-  const origin: ArmOrigin = { via: client && /^companion\b/i.test(client) ? 'companion' : 'rest' };
+  const origin: ArmOrigin = { via: 'rest' };
   for (const [key, value] of Object.entries(fields)) if (value) Object.assign(origin, { [key]: value });
   return origin;
 }

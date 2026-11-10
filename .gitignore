@@ -1,5 +1,4 @@
 node_modules/
-companion-module/node_modules/
 .env
 
 # Local settings include secrets.

@@ -89,7 +89,7 @@ test('the pale and white presets are told apart by hue or by saturation', () => 
 });
 
 test('every preset swatch is distinguishable from every other', () => {
-  // The UI and the Companion buttons both draw a preset by mixing it down to
+  // The UI draws a preset by mixing it down to
   // one RGB colour. Two presets that mix to the same swatch are two buttons the
   // operator cannot tell apart, whatever the underlying channels say.
   const seen = new Map();

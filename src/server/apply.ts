@@ -9,7 +9,7 @@ import { logger } from './log.ts';
 
 /** Where an arm or disarm came from, for its log line: never a token, query string or other header. */
 export interface ArmOrigin {
-  via: 'rest' | 'companion' | 'schedule' | 'boot' | 'control';
+  via: 'rest' | 'schedule' | 'boot' | 'control';
   route?: string;
   remote?: string;
   forwardedFor?: string;

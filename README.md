@@ -1,7 +1,7 @@
 # TycStation Lightshow
 
 Lighting controller for Art-Net, sACN, WLED/DDP, OpenRGB and Philips Hue
-Entertainment. Control it from the browser, MIDI, Bitfocus Companion or REST.
+Entertainment. Control it from the browser, MIDI or REST.
 Manual looks, effects, pads and sequences work without Python; analysed shows
 and live audio use the optional analysis environment.
 
@@ -14,7 +14,7 @@ longer tracked; an upstream release is not a TycStation Lightshow release.
 
 ```mermaid
 flowchart LR
-  Controls[Browser / MIDI / Companion / REST] --> Server[Server state and validation]
+  Controls[Browser / MIDI / REST] --> Server[Server state and validation]
   Playback[Playback sources] --> Clock[Musical clock]
   Audio[Audio file or live input] --> Analysis[Python analysis / live features]
   Analysis --> Show[Auto show and effect inputs]
@@ -78,7 +78,7 @@ keep their installation directory when upgraded.
 
 The rebrand preserves existing data and model-cache paths, `ARTNET_*` and
 `LIGHTSHOW_*` environment variables, browser storage keys, API/authentication
-headers, analysis schema identifiers, Hue registration names and Companion and
+headers, analysis schema identifiers, Hue registration names and
 browser-extension IDs. The Python package remains `tycstation-lightshow-analysis`.
 Existing shows, pairings and integrations continue to
 use those identifiers; no manual data migration is required.
@@ -378,7 +378,7 @@ tags, so a saved preset or an edited copy is tagged by what it now does (a Wash 
 a bass beat accent becomes Bands & drums, live); the 59 classic patterns have no spec
 and take theirs from a table in the same module. The server sends them on every
 catalogue row and saved-preset summary as `tags` and, for a reaction, `via`.
-MIDI's **Browse patterns** and **Browse effects** and Companion's pattern and effect
+MIDI's **Browse patterns** and **Browse effects**
 lists are built from them: effects are the Energy looks, the bars' picture the Bars &
 panels looks, patterns every other look; retired ids are in none.
 
@@ -1447,7 +1447,7 @@ preset. Pattern voices map shared lanes to the pad targets and track lanes to
 target fixtures in patch order. Hold and loop repeat the bundle; once plays it
 once. Strobe content permits only hold, not once/toggle.
 
-REST, Socket.IO, MIDI `padPress` and Companion share these launch semantics.
+REST, Socket.IO and MIDI `padPress` share these launch semantics.
 Renewal extends only an existing hold. Explicit stop revokes the old token;
 it cannot relaunch until released or absent for 1.2 seconds. MIDI holds also
 end on port loss; a missing note-off is bounded by the strobe cap for a strobe
@@ -1596,7 +1596,7 @@ It holds until the disarm; a disarm and a server start end it, so the next arm
 asks again. While the outputs are disarmed nothing reaches the rig and nothing
 waits for it: there is no notice and no question, previews play, rapid effects
 are accepted, and `GET /api/safety` and the state report
-`photosensitivityAcknowledged: true`. A remote that arms (Companion, MIDI, the
+`photosensitivityAcknowledged: true`. A remote that arms (MIDI, the
 API) gives it with `POST /api/safety/acknowledge` before or after its arm.
 Armed without it, rapid-flash presets/voices,
 strobes, rapid sequence content and rapid Matrix modes are refused, and so are
@@ -1607,7 +1607,7 @@ picture, a track edit) they render and preview dark, and the automatic show
 plans none of them until the acknowledgement, re-planning when it is given and
 when the outputs arm or disarm. REST
 returns `409 photosensitivity acknowledgement required`; socket commands
-return `error-msg`; MIDI/Companion report the refusal. Stop/release remains
+return `error-msg`; MIDI reports the refusal. Stop/release remains
 available. Armed without it, the **Strobes locked** indicator in the header's status
 details and in Perform opens the warning.
 
@@ -1804,9 +1804,7 @@ threshold, reactive depth and brightness. `ldjTrigger` defaults to 0.3.
 The highest applicable voice, then sequence clip, then base owns each detector;
 otherwise configured defaults apply. `/api/audio` reports detector ownership.
 
-## MIDI and Companion
-
-### MIDI
+## MIDI
 
 Select input/output ports in Settings → MIDI. Only the selected ports open;
 **none** leaves that direction disconnected, and an unavailable port is never
@@ -1868,25 +1866,6 @@ encoders configured to send relative steps. The actions remain the same.
 | Button row 1 | Notes 16–23 | Patterns |
 | Button row 2 | Notes 24–31 | 2 patterns + Colour A presets 1–6 |
 
-### Bitfocus Companion
-
-Use Companion 4.3+ and the module in `companion-module/`. Install its dependencies,
-then place or symlink the module inside the configured Developer modules folder.
-Add a TycStation Lightshow connection with host, port and access token.
-
-The **Busk** page browses and randomises patterns and effects, toggles palettes
-over the running show, launches pads, follows or taps tempo, and stops live
-effects. Pattern browsing covers every current look but the bars' pictures and the
-energy looks (Fire and Ice included), effect browsing the energy holds and strobes;
-rapid effects require the server's photosensitivity acknowledgement. **Auto Show** and **Sequence** have
-their own preset pages. Preset variable references use the connection's label.
-
-Presets also cover energy holds, transport, cues, strobe bursts and fixture
-controls. Hold buttons renew until release; once and loop pads launch once per press. Server catalogs populate
-actions and feedback. The module uses Socket.IO protocol 2. See
-[installation](companion-module/INSTALL.md) and
-[action/feedback reference](companion-module/companion/HELP.md).
-
 ## Global control contract
 
 `GET /api/control` returns `{ ok, control }`. Send a deliberate action with the
@@ -1931,7 +1910,7 @@ from POST/PUT/DELETE actions.
 | Programme and picture | `/api/control` actions `select`, `start`, `stop`, `freeze`, `resume`; state `control` |
 | Master | `/api/master/:value`; `/api/control` actions `blackout` / `restore`; `masterDimmer`, `control.blackout` |
 | Palette | `PUT /api/palette-override` with `{ paletteId }`; clear with DELETE; feedback `paletteOverrideId` plus materialised `paletteOverride` |
-| Pads | Press/renew/release, toggle or once; `pads.layout`, `pads.lit` |
+| Pads | Toggle or once; `pads.layout`, `pads.lit` |
 | Voices | GET/POST/DELETE `/api/voices`; state `voices` |
 | Strobe | PUT settings, POST on/off/burst; state `strobe`; burst 100–30,000 ms |
 | Sequence | Load/unload and transport routes; state `sequence`, shelf `sequences` |
@@ -1951,12 +1930,11 @@ an acknowledgement.
 
 Each arm or disarm that changes the state logs one info line under
 `component=outputs` with `armed` and `via`: `rest` (the three
-`/api/outputs/*` routes or `PUT /api/settings`), `companion` (a request that
-sends `X-Lightshow-Client: companion`, as the Companion module does),
+`/api/outputs/*` routes or `PUT /api/settings`),
 `schedule` (the idle disarm, with its `reason`) or `boot` (the forced disarm
 at start). A request also gives its `route` (method and path, without the
 query string), `remote` address and, when sent, `forwardedFor`, `userAgent`
-and `client`. Tokens, the query string and other headers are never logged.
+and `client` (its `X-Lightshow-Client` header). Tokens, the query string and other headers are never logged.
 
 ## REST API
 
@@ -2014,7 +1992,6 @@ A refused effect for want of the acknowledgement answers
 | DELETE | `/api/voices/:id` · `/api/voices` | Stop one (404 `No such voice`) · all (`{ ok, stopped }`) |
 | GET · PUT | `/api/pads` | The layout and the lit pads (`{ layout, lit }`) · a whole layout (`{ pads }`) |
 | PUT | `/api/pads/:bank/:slot` | One pad's fields (bank 0–1, slot 0–7) |
-| POST | `/api/pads/:bank/:slot/press` · `/renew` · `/release` | Press a pad from REST (`{ token? }` or `?token=`, default `rest`), keep its hold, let it go. `renew` within 1.2 s extends a live hold and never launches (`{ renewed }`, false for a `once`, a `loop` or a hold ended); the same press within 1.2 s also renews a hold |
 | POST | `/api/pads/:bank/:slot/toggle` | Start or stop a pad as a loop |
 | POST | `/api/pads/:bank/:slot/once` | Fire it once (`?ms=` for a length) |
 | GET | `/api/show-setup` | The effective audio response and pads, whether the loaded show owns them, the fixture order and the layout names, with an `expected` revision token |
@@ -2264,7 +2241,7 @@ an effect or `{ preset }` (`{ preset: 'strobe' }` holds the strobe), and the
 holder sends `renew` within 1.2 s or the voice dies, as it does when the socket
 disconnects. A refusal comes back as `error-msg` with `source: 'voice-hold'`.
 `energy-hold` (`{ action, token, effect }`, `effect` an energy override id) is
-kept for the Companion module.
+the older form of the same hold for an energy effect; the pages send `voice-hold`.
 
 The `fixture` message carries
 `{ id, address?, universe?, label?, profileId?, maxBrightness?, position?, group?, geometry?, emission?, output? }`.
@@ -2391,7 +2368,6 @@ npm run watch:client       # rebuild browser assets on changes
 npm run dev                # watch the server, without supervisor
 npm run lint
 npm run typecheck
-npm ci --prefix companion-module # dependency used by Companion tests
 node --test --test-concurrency=3 tests/unit/*.test.js
 npm run test:performance   # serial render budgets, after other tests finish
 npm run test:e2e
