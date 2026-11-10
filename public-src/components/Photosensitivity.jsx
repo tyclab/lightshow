@@ -51,8 +51,8 @@ export function useSafetyGate() {
   const [question, setQuestion] = useState(null);
   const [given, setGiven] = useState(false);
   const told = isAcknowledged(s.safety);
-  // Once the server says it, the local one is done: the next arm asks again.
-  useEffect(() => { if (told) setGiven(false); }, [told]);
+  // The local one ends whenever the server's answer changes, whichever arrived first: the next arm asks again.
+  useEffect(() => { setGiven(false); }, [told]);
   const acknowledged = given || told;
   const guard = (name, run) => guardRapid(acknowledged, name, run, setQuestion);
   const confirm = async () => {
