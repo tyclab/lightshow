@@ -157,6 +157,8 @@ test('changing mapping on an edited draft preserves edits and saves the chosen s
 
 test('playing a hidden rapid mapping still requires acknowledgement', async ({ page, request }) => {
   const { settings } = await (await request.get('/api/settings')).json();
+  // Armed without the acknowledgement, as a remote leaves it; disarmed nothing would ask.
+  await control(request, 'arm');
   await request.put('/api/settings', { data: { safety: { photosensitivityAcknowledged: false } } });
   try {
     await open(page, 'effects');
@@ -167,8 +169,9 @@ test('playing a hidden rapid mapping still requires acknowledgement', async ({ p
     await sheet.getByRole('button', { name: 'Play', exact: true }).click();
     await expect(page.getByRole('alertdialog', { name: 'Rapid flashing' })).toBeVisible();
     expect((await state(request)).pattern).toBe('chase');
-    expect((await state(request)).armed).toBe(false);
+    expect((await state(request)).safety.photosensitivityAcknowledged).toBe(false);
   } finally {
+    await control(request, 'disarm');
     await request.put('/api/settings', { data: { safety: { photosensitivityAcknowledged: settings.safety.photosensitivityAcknowledged } } });
   }
 });

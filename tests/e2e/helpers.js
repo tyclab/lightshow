@@ -22,6 +22,12 @@ export async function control(request, action, programme) {
   return (await response.json()).control;
 }
 
+/** Arm with the header's button: it asks for the photosensitivity acknowledgement every time. */
+export async function armFromHeader(page) {
+  await page.locator('.app-header').getByRole('button', { name: 'Arm', exact: true }).click();
+  await page.getByRole('alertdialog', { name: 'Rapid flashing' }).getByRole('button', { name: 'I understand — arm' }).click();
+}
+
 /** The look every spec starts from. */
 export async function reset(request) {
   await control(request, 'stop');

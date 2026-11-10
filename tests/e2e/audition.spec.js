@@ -6,7 +6,8 @@ import { protectedState, watchControlWrites } from './audition-isolation.js';
 test('demo audition animates room and plot while every live control keeps its state', async ({ page, request }) => {
   const before = await protectedState(request), writes = watchControlWrites(page);
   expect(before.state.armed).toBe(false);
-  expect(before.state.safety.photosensitivityAcknowledged).toBe(false);
+  // Disarmed, nothing waits for the acknowledgement: a rapid effect auditions without a question.
+  expect(before.state.safety.photosensitivityAcknowledged).toBe(true);
   await open(page, 'stage');
   const unlit = await stageImage(page);
   await page.getByRole('button', { name: 'Audition effects', exact: true }).click();
@@ -25,9 +26,8 @@ test('demo audition animates room and plot while every live control keeps its st
   const lights = await surface.locator('.stage-fixture').evaluateAll((nodes) => nodes.map((node) => node.dataset.light || ''));
   expect(lights.some((colour) => /^rgb\(/.test(colour) && (colour.match(/\d+/g) || []).some((channel) => Number(channel) > 40))).toBe(true);
   await picker.selectOption('v2.scatterStrobe');
-  const allow = page.getByRole('button', { name: 'Allow flashing in this browser preview' });
-  await expect(allow).toBeVisible();
-  await allow.click();
+  await expect(page.getByLabel('Audition effect', { exact: true })).toHaveValue('v2.scatterStrobe');
+  await expect(page.getByRole('button', { name: 'Allow flashing in this browser preview' })).toHaveCount(0);
   await picker.selectOption('v2.neural');
   await page.getByRole('button', { name: 'Pause demo', exact: true }).click();
   await page.getByLabel('Audition position', { exact: true }).fill('16000');

@@ -194,7 +194,8 @@ the same on every view, including while scrolling through Show:
   one playing carries on.
 - **Freeze/Resume**, **Blackout/Restore** and **Arm/Disarm** keep their own 44 px
   buttons at fixed places. Armed shows on the button itself: filled red, **● Armed**
-  over **Disarm**.
+  over **Disarm**. **Arm** asks for the photosensitivity acknowledgement every time
+  (see [Safety](#safety)); **Disarm** asks nothing.
 - **Master** is the slider and its value.
 - The **status chip** shows the BPM and the connection without a tap (on a phone
   the dot alone says Online); pressing it shows the show's state and the Energy,
@@ -213,8 +214,8 @@ synthetic beat, bass, mid and high levels. Pause, restart or scrub the demo; swi
 Stage between **3D room** and **2D plot** to inspect the same moment. These are
 simulated audio levels, so no music file or audio input is required. The audition
 uses its own palette and transport. It sends no look, engine, room or output
-commands. Rapid effects need an acknowledgement local to this browser preview;
-it does not enable flashing on the server. Arming ends the audition. In the
+commands. It runs only while the outputs are disarmed, so rapid effects audition
+without a question. Arming ends the audition. In the
 inspector, **Audition on Stage** previews an edited draft; **Hold on live rig**
 is the separate live voice control.
 
@@ -351,7 +352,7 @@ a look appears.
 | | **Bars & panels** | draws cell by cell (a pixel effect) |
 | Colour | **Own colours** | plays its own colours (white, UV, black or a palette of its own) instead of the look's |
 | Use & safety | **Energy** | is an energy hold or a strobe voice over the running look |
-| | **Rapid ⚡** | plays only after the photosensitivity acknowledgement |
+| | **Rapid ⚡** | with the outputs armed, plays only after the photosensitivity acknowledgement |
 
 A reaction also says where its input comes from: **track** (only while the auto show
 plays an analysed track; picked by hand the look runs on its clock), **live** (the
@@ -711,7 +712,7 @@ New mapping revisions discard delayed and partially staged colours.
 | `auto` | `syncOffsetMs: 0`, `setMemory: true` |
 | `clock` | `tempoMode: 'auto'` or `'manual'` |
 | `audio` | `mode: 'tempo'`, the party master controls, `ldjTrigger: 0.3` |
-| `safety` | `photosensitivityAcknowledged: false`, `strobeMaxLatchSec: 60`, `hdFlashIntervalMs: 350`, `flashLimit: false` |
+| `safety` | `photosensitivityAcknowledged: false` (ends at each disarm and start), `strobeMaxLatchSec: 60`, `hdFlashIntervalMs: 350`, `flashLimit: false` |
 | `strobe` | Palette, rate, clock, background behaviour and brightness; see [Strobe](#strobe) |
 | `midi` | `input: ''`, `output: ''`, `clockOutput: ''`, `controlFeedback: true` |
 | `engine` | `thread: 'worker'`; `'main'` is available for diagnosis |
@@ -1598,17 +1599,26 @@ shelf summaries. The shelf permits 64 saved sequences.
 
 ## Safety
 
-`photosensitivityAcknowledged` starts false and persists when acknowledged via
-`POST /api/safety/acknowledge`. Until then, rapid-flash presets/voices,
+The photosensitivity acknowledgement is asked every time the outputs are armed:
+the **Arm** button opens the warning, and confirming it acknowledges and then arms.
+It holds until the disarm; a disarm and a server start end it, so the next arm
+asks again. While the outputs are disarmed nothing reaches the rig and nothing
+waits for it: there is no notice and no question, previews play, rapid effects
+are accepted, and `GET /api/safety` and the state report
+`photosensitivityAcknowledged: true`. A remote that arms (Companion, MIDI, the
+API) gives it with `POST /api/safety/acknowledge` before or after its arm.
+Armed without it, rapid-flash presets/voices,
 strobes, rapid sequence content and rapid Matrix modes are refused, and so are
 the seven classic programs that strike flashes (Flash Chase, Flash Scatter,
 Flash Alternate, Flash Burst, Strobe Core, Ring Strobe, Ring Backlit, marked
 Rapid ⚡). Named by hand they are refused; reached any other way (a saved bar
 picture, a track edit) they render and preview dark, and the automatic show
-plans none of them until the acknowledgement, re-planning when it is given. REST
+plans none of them until the acknowledgement, re-planning when it is given and
+when the outputs arm or disarm. REST
 returns `409 photosensitivity acknowledgement required`; socket commands
 return `error-msg`; MIDI/Companion report the refusal. Stop/release remains
-available. The acknowledgement indicator in the header's status details and in Perform opens the warning.
+available. Armed without it, the **Strobes locked** indicator in the header's status
+details and in Perform opens the warning.
 
 | Control | Scope |
 |---------|-------|
@@ -1998,8 +2008,8 @@ All endpoints return JSON. When a token is configured, send it as an
 | POST · PUT · DELETE | `/api/palettes` · `/api/palettes/:id` | Save (201), change or delete a palette of your own |
 | PUT | `/api/palette-override` | `{ colours: ['#RRGGBB', …] }` (1 to 8) or `{ paletteId }`: override effect palettes (fixed white, UV and blackout energies keep their output); random entries roll once per request; answers `{ ok, paletteOverride }` |
 | DELETE | `/api/palette-override` | Remove it |
-| GET | `/api/safety` | `{ photosensitivityAcknowledged, hdFlashIntervalMs, strobeMaxLatchSec }` |
-| POST | `/api/safety/acknowledge` | Give the photosensitivity acknowledgement (stored) |
+| GET | `/api/safety` | `{ photosensitivityAcknowledged, hdFlashIntervalMs, strobeMaxLatchSec }`; the first is true while disarmed |
+| POST | `/api/safety/acknowledge` | Give the photosensitivity acknowledgement; it holds until the next disarm |
 | GET | `/api/ab` | `{ candidates, decisions }` — the A/B pairs (`src/shared/effects/ab-candidates.ts`), each with `play.a`/`play.b` `{ pattern, name, rapidFlash }`, and the decisions so far by key |
 | POST | `/api/ab/decision` | `{ key, choice: 'a' \| 'b' \| 'both' \| 'neither', note? }`: store a decision in `ab-decisions.json` in the config directory (a later one replaces it; 404 for an unknown key) and log it as one `ab` line, `A/B decision` with `key`, `choice` and `note` |
 

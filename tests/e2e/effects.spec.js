@@ -3,7 +3,7 @@
 
 import { test, expect } from '@playwright/test';
 import { createRequire } from 'node:module';
-import { open, reset, state, until } from './helpers.js';
+import { control, open, reset, state, until } from './helpers.js';
 
 const AXE = createRequire(import.meta.url).resolve('axe-core/axe.min.js');
 
@@ -136,6 +136,8 @@ test('rapid draft audition requires acknowledgement and a fresh hold', async ({ 
   const library = await (await request.get('/api/effects')).json();
   const preset = library.builtin.find((p) => p.id === 'v2.scatterStrobe');
   const ack = (value) => request.put('/api/settings', { data: { safety: { photosensitivityAcknowledged: value } } });
+  // Armed without the acknowledgement, as a remote leaves it; disarmed nothing would ask.
+  await control(request, 'arm');
   expect((await ack(false)).ok()).toBe(true);
   try {
     await open(page, 'effects');
@@ -154,6 +156,7 @@ test('rapid draft audition requires acknowledgement and a fresh hold', async ({ 
   } finally {
     await page.keyboard.up('Enter');
     await until(request, (s) => s.voices.length === 0);
+    await control(request, 'disarm');
     expect((await ack(settings.safety.photosensitivityAcknowledged)).ok()).toBe(true);
   }
 });

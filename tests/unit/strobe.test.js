@@ -6,6 +6,7 @@
 
 import test from 'node:test';
 import { installControlRuntime, sendControl } from './control-runtime-helpers.js';
+import { armOutputs } from '../helpers/armed.js';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
@@ -589,6 +590,7 @@ test("strobe defaults are published in live state", async (t) => {
 
 test("strobe routes reject unacknowledged launches", async (t) => {
   const s = await serve(t);
+  armOutputs(t);
   const defaults = { ...STROBE_DEFAULTS, palette: WHITE };
   for (const route of ['/api/strobe/on', '/api/strobe/burst/400']) {
     const res = await s.call('POST', route);
@@ -674,6 +676,7 @@ test("palette edits reach the next latched strobe flash", async (t) => {
 
 test("energy strobe routes require acknowledgement", async (t) => {
   const s = await serve(t);
+  armOutputs(t);
   const res = await s.call('POST', '/api/energy/palette-strobe');
   assert.deepEqual([res.status, res.body.ok, typeof res.body.error], [409, false, 'string']);
   assert.deepEqual([ids(), state.energyOverride], [[], null]);
@@ -776,6 +779,7 @@ test("cue recall preserves the current strobe state", async (t) => {
 
 test("strobe pads and voice holds use the strobe lifecycle", async (t) => {
   const s = await serve(t);
+  armOutputs(t);
   const { socket, heard } = await s.page();
   socket.emit('voice-hold', { action: 'press', token: 'p', pad: { bank: 0, slot: 6 } });
   socket.emit('voice-hold', { action: 'press', token: 'q', effect: { preset: 'strobe' } });

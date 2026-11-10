@@ -36,6 +36,8 @@ import { validateSpec } from '../../src/shared/effects/registry.ts';
 import { resolvePalette, toHex } from '../../src/shared/effects/palette.ts';
 import { acknowledgeFlashes } from '../helpers/acknowledged.js';
 import { installControlRuntime } from './control-runtime-helpers.js';
+import { armOutputs, disarmOutputs } from '../helpers/armed.js';
+import { isArmed, setArmedFlag } from '../../src/server/armed.ts';
 
 showStore.scheduleSave = () => {};   // never the real show file
 
@@ -308,6 +310,7 @@ test("full palette libraries return HTTP 400", async (t) => {
 
 test("editing the live preset respects acknowledgement", async (t) => {
   const s = await serve(t);
+  armOutputs(t);
   const onStage = s.effectLibrary.create({ name: 'On stage', spec: FADE });
   const offStage = s.effectLibrary.create({ name: 'Off stage', spec: FADE });
   applyPatch({ pattern: onStage.id });
@@ -442,6 +445,7 @@ test("pattern routes resolve effect presets into engine input", async (t) => {
 
 test('a rapidFlash preset is 409 until POST /api/safety/acknowledge', async (t) => {
   const s = await serve(t);
+  armOutputs(t);
   applyPatch({ pattern: 'ldj.FadeCycle', masterDimmer: 255, colorA: 0 });
   let res = await s.call('GET', '/api/safety');
   assert.deepEqual([res.status, res.body], [200, { ok: true, photosensitivityAcknowledged: false, hdFlashIntervalMs: 350, strobeMaxLatchSec: 60 }]);
@@ -466,8 +470,37 @@ test('a rapidFlash preset is 409 until POST /api/safety/acknowledge', async (t) 
   assert.equal(renderInput().effect.kind, 'ldj.visualizer');
 });
 
+test('disarmed, rapid effects are taken and the status says nothing waits', async (t) => {
+  const s = await serve(t);
+  assert.equal(isArmed(), false);
+  assert.equal(settings.get('safety.photosensitivityAcknowledged'), false, 'none is stored');
+  applyPatch({ pattern: 'ldj.FadeCycle', energyOverride: null });
+  let res = await s.call('GET', '/api/safety');
+  assert.deepEqual([res.status, res.body.photosensitivityAcknowledged], [200, true]);
+  assert.equal(getLiveState().safety.photosensitivityAcknowledged, true, 'the pages show no notice and ask nothing');
+  assert.equal(renderInput().safety.acknowledged, true, 'the preview plays it');
+  res = await s.call('POST', '/api/pattern/ldj.visualizer.flash');
+  assert.equal(res.status, 200);
+  assert.equal(state.pattern, 'ldj.visualizer.flash');
+  res = await s.call('POST', '/api/energy/white-strobe');
+  assert.deepEqual([res.status, res.body.energyOverride], [200, 'white-strobe']);
+  await s.call('POST', '/api/energy/off');
+
+  // The same server armed, by a remote that acknowledged nothing: refused, and the renderer holds what was on dark.
+  armOutputs(t);
+  assert.equal((await s.call('GET', '/api/safety')).body.photosensitivityAcknowledged, false);
+  assert.equal(getLiveState().safety.photosensitivityAcknowledged, false, 'the Strobes locked notice shows');
+  assert.equal(renderInput().safety.acknowledged, false);
+  res = await s.call('POST', '/api/pattern/ldj.visualizer.flash');
+  assert.deepEqual([res.status, res.body.error], [409, 'photosensitivity acknowledgement required']);
+  res = await s.call('POST', '/api/energy/white-strobe');
+  assert.equal(res.status, 409);
+  assert.equal(getLiveState().energyOverride, null);
+});
+
 test("energy strobe routes respect acknowledgement", async (t) => {
   const s = await serve(t);
+  armOutputs(t);
   applyPatch({ pattern: 'ldj.FadeCycle', energyOverride: null, masterDimmer: 255, masterBlackout: false });
   const look = renderStage();
   for (const id of ['white-strobe', 'color-strobe', 'palette-strobe']) {
@@ -619,6 +652,7 @@ test("mutation responses omit catalogues from live state", async (t) => {
 
 test('a user preset saved by one client appears in the live state (domain library)', async (t) => {
   const s = await serve(t);
+  armOutputs(t);
   attachSockets(s.io, { midi: s.midi, integrations: s.integrations });
   const socket = connect(s.url, { auth: { protocol: 2 }, transports: ['websocket'], reconnection: false });
   t.after(() => socket.close());
@@ -834,7 +868,12 @@ test("busking from MIDI reaches the looks, the palettes, the voices, the strobe 
   busk.stopEffects();
   assert.deepEqual((await s.call('GET', '/api/voices')).body.voices, []);
 
-  assert.throws(() => busk.strobeBurst(1000), /acknowledg/i, 'a burst waits for the acknowledgement, as from its route');
+  setArmedFlag(true);
+  try {
+    assert.throws(() => busk.strobeBurst(1000), /acknowledg/i, 'armed, a burst waits for the acknowledgement, as from its route');
+  } finally {
+    disarmOutputs();
+  }
   busk.setStrobeRate(4);
   assert.equal(busk.strobeRate(), 4);
 

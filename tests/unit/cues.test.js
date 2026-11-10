@@ -13,6 +13,7 @@ import { settings } from '../../src/server/settings.ts';
 import { EffectLibrary } from '../../src/server/effect-library.ts';
 import { conductor } from '../../src/server/conductor.ts';
 import { makeGrid } from '../../src/shared/beat-clock.ts';
+import { armOutputs } from '../helpers/armed.js';
 
 let dir;
 let file;
@@ -508,6 +509,7 @@ test("unacknowledged rapid cue patterns leave the look unchanged", (t) => {
     assert.strictEqual(settings.get('audio.mode'), base.audioMode);
     assert.strictEqual(state.fixtures[0].override, null);
   };
+  armOutputs(t);
   assert.throws(() => recallLook({ ...changed, pattern: 'ldj.visualizer.flash' }), (err) => err.status === 409);
   unchanged();
 });
@@ -532,6 +534,7 @@ test("unacknowledged strobe cue energy leaves the look unchanged", (t) => {
     assert.strictEqual(settings.get('audio.mode'), base.audioMode);
     assert.strictEqual(state.fixtures[0].override, null);
   };
+  armOutputs(t);
   for (const energyOverride of ['white-strobe', 'color-strobe']) {
     assert.throws(() => recallLook({ ...changed, energyOverride }), (err) => err.status === 409, energyOverride);
     unchanged();

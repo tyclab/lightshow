@@ -6,6 +6,7 @@
 
 import test from 'node:test';
 import { installControlRuntime, sendControl } from './control-runtime-helpers.js';
+import { armOutputs } from '../helpers/armed.js';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
@@ -494,6 +495,7 @@ test('the audio detectors run on the settings of a Disco playing as a clip', asy
 
 test('rapid sequence playback requires acknowledgement', async (t) => {
   const s = await serve(t);
+  armOutputs(t);
   const fast = { kind: 'ldj.StrobeCycle', params: { cadence: 0.25 } };
   await s.call('PUT', '/api/sequence', { ...SET, clips: [clip('A', 0, 4), clip('F', 4, 4, fast)], options: { initialPalette: 'redCyan' } });
   const before = state.paletteOverride;
