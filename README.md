@@ -465,13 +465,16 @@ Falling Wall releases again on every bar line. The automatic director and defaul
 pads use these spatial looks. Strobe overlays select all lights, steps, scattered
 segments or zones over the underlying look. Popcorn is absent from the chooser; its
 old ids resolve to Scatter Fade so saved sequences still load.
-Automatic shows admit particle looks after sampling their paths against the current
-room geometry: two cycles with a fixed seed, every eighth beat, with no sampled
-all-dark gap longer than one bar. This is a geometric coverage policy, not a
-hardware limit or a guarantee for every later random path. Dense surfaces can still miss a path; well-placed single
-lamps can catch it. While checking, automatic shows use broad fields; manual
-particle selection remains available. Neural and Visualizer looks stay manual
-choices because their live inputs are not guaranteed by track analysis alone.
+Automatic shows admit a spatial look after sampling it against the current room
+geometry: two cycles with a fixed seed, every eighth beat. A look stays in when it
+keeps at least a tenth of the fixtures lit on average and leaves no sampled all-dark
+gap longer than one bar. Each fixture counts once, by the share of its cells lit from
+a tenth of full level, so a large panel weighs as much as a single lamp. This is a
+geometric coverage policy without audio, not a hardware limit or a guarantee for
+every later random path. While checking, and when no look passes, automatic shows
+use every look but the particle looks; manual selection remains available. Neural and
+Visualizer looks stay manual choices because their live inputs are not guaranteed by
+track analysis alone.
 
 Room coordinates are metres: **x** runs across the room, **y is height above the
 floor**, and **z** runs along its depth. Vertical pixel surfaces must have room

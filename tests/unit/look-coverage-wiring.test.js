@@ -1,4 +1,4 @@
-// Particle coverage measures hundreds of renders per rig. Only an automatic show
+// Look coverage measures thousands of renders per rig. Only an automatic show
 // reads the result, so a rig edit with the show off must not start one, and a
 // show started after such an edit measures then and re-plans when it lands.
 
@@ -61,7 +61,7 @@ test('a rig change with the show off renders no particle probe; starting the sho
     getPositionMs: () => 0, getClientState: () => ({}), isCached: () => false, gridFor: () => null, isPrefetching: () => false,
     prefetch: async () => ({ skipped: true, reason: 'already-cached' }), applyQueueOrder() {},
     setPaletteSize() {}, setIntensity() {}, setSyncOffsetMs() {},
-    setRig: (rig) => rigs.push(rig.particlePatterns),
+    setRig: (rig) => rigs.push(rig.usablePatterns),
     start() { this.running = true; }, stop() { this.running = false; },
   };
   const integrations = build(autoShow);
@@ -70,16 +70,16 @@ test('a rig change with the show off renders no particle probe; starting the sho
   for (const shift of [1, 2, 3]) {
     state.fixtures = ring(shift);
     integrations.broadcast();
-    await integrations.particleCoverage.ready;
+    await integrations.lookCoverage.ready;
     await settle();
   }
   assert.equal(render.mock.callCount(), 0, 'no particle render for an edit with the show off');
   assert.ok(rigs.length >= 4 && rigs.every((set) => set.size === 0), 'and no particle looks for a rig nobody measured');
 
   integrations.startAutoShow();
-  await integrations.particleCoverage.ready;
+  await integrations.lookCoverage.ready;
   assert.ok(render.mock.callCount() > 0, 'the show measures the rig it found');
-  const measured = integrations.particleCoverage.allowed;
+  const measured = integrations.lookCoverage.allowed;
   assert.ok(measured.size > 0);
   assert.equal(rigs.at(-1), measured, 'the result went out at once');
 
@@ -87,7 +87,7 @@ test('a rig change with the show off renders no particle probe; starting the sho
   render.mock.resetCalls();
   state.fixtures = ring(4);
   integrations.broadcast();
-  await integrations.particleCoverage.ready;
+  await integrations.lookCoverage.ready;
   await settle();
   assert.equal(render.mock.callCount(), 0, 'stopped again, edits measure nothing');
   assert.equal(rigs.at(-1).size, 0);
@@ -124,7 +124,7 @@ test('an automatic show started after a rig edit re-plans and reseeks once the m
   state.fixtures = ring(2);
   integrations.broadcast();
   await settle();
-  assert.equal(show._particlePatterns.size, 0, 'planned without particle looks while nothing is measured');
+  assert.equal(show._usablePatterns.size, 0, 'planned without particle looks while nothing is measured');
 
   const reseek = t.mock.method(show, '_reseek');
   show.getPositionMs = () => 50_000;
@@ -132,9 +132,9 @@ test('an automatic show started after a rig edit re-plans and reseeks once the m
   assert.equal(show.running, true);
   assert.equal(patches.at(-1).fadeMs, undefined, 'the start cuts in, as before');
   const started = { revision: show.timelineRevision, reseeks: reseek.mock.callCount(), patches: patches.length };
-  await integrations.particleCoverage.ready;
-  assert.ok(show._particlePatterns.size > 0, 'the measured set reached the show');
-  assert.equal(show._particlePatterns, integrations.particleCoverage.allowed);
+  await integrations.lookCoverage.ready;
+  assert.ok(show._usablePatterns.size > 0, 'the measured set reached the show');
+  assert.equal(show._usablePatterns, integrations.lookCoverage.allowed);
   assert.notEqual(show.timelineRevision, started.revision, 'it planned again');
   assert.equal(reseek.mock.callCount(), started.reseeks + 1, 'and found its place in the new plan');
   // Regression audit 2026-11-09, finding 2: the new plan's scene came in as a cut a moment after the start.
@@ -146,13 +146,13 @@ test('an automatic show started after a rig edit re-plans and reseeks once the m
   assert.equal(patches.slice(cut).find((patch) => 'pattern' in patch)?.fadeMs, undefined, 'a new track\'s plan still cuts in');
 
   // A show reload hands the same rig over in new objects: measured again, the same result, the running show left alone.
-  const unchanged = { set: show._particlePatterns, revision: show.timelineRevision };
+  const unchanged = { set: show._usablePatterns, revision: show.timelineRevision };
   const render = t.mock.method(kindOf('v2.particles'), 'render');
   state.fixtures = state.fixtures.map((f) => ({ ...f }));
   integrations.broadcast();
-  await integrations.particleCoverage.ready;
+  await integrations.lookCoverage.ready;
   await settle();
   assert.ok(render.mock.callCount() > 0, 'measured again');
-  assert.equal(show._particlePatterns, unchanged.set);
+  assert.equal(show._usablePatterns, unchanged.set);
   assert.equal(show.timelineRevision, unchanged.revision);
 });
