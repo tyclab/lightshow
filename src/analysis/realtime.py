@@ -207,13 +207,12 @@ class StreamingAnalyzer:
         events.extend(self._silence_events(energy))
         if self._in_silence:
             self._after_silence = True
-        if energy >= self.config.quiet_rms and not self._in_silence:
-            self._sound_frames, self._quiet_frames = self._sound_frames + 1, 0
-        else:
-            self._sound_frames, self._quiet_frames = 0, self._quiet_frames + 1
-            # A pause longer than any rest within a track: the music starts over, and so does what loud is.
-            if self._quiet_frames * self.hop >= self.config.quiet_after_sec * self.sample_rate:
-                self._loud = None
+        heard = energy >= self.config.quiet_rms
+        self._sound_frames = self._sound_frames + 1 if heard and not self._in_silence else 0
+        self._quiet_frames = 0 if heard else self._quiet_frames + 1
+        # A pause longer than any rest within a track: the music starts over, and so does what loud is.
+        if self._quiet_frames * self.hop >= self.config.quiet_after_sec * self.sample_rate:
+            self._loud = None
         onset = self._detect_onset(flux)
         if onset:
             events.extend(self._on_onset(band_levels))

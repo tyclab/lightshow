@@ -213,6 +213,16 @@ class Sections(unittest.TestCase):
         events = called(hear('rest-quiet', track), 'DROP', 'TRANSITION')
         self.assertEqual([(e.type, e.data.get('to')) for e in events], [('TRANSITION', 'high')])
 
+    def test_a_hush_that_is_not_digital_silence_keeps_what_loud_was(self):
+        """Four bars far under the music but above the floor are a break
+        inside it, however long: what comes back that loud is a drop."""
+        hush = dict(kick=False, snare=False, hats=False, bass=0.004)
+        track = synth.arrangement([('intro', 8, synth.QUIET), ('loud', 8, synth.LOUD),
+                                   ('hush', 4, hush), ('drop', 8, synth.LOUD)])
+        events = called(hear('hush', track), 'DROP', 'TRANSITION')
+        self.assertEqual([e.type for e in events], ['TRANSITION', 'DROP'])
+        self.assertLess(events[1].t - track.drops[0]['t'], self.landing + 1024 / float(synth.SR))
+
     def test_a_pause_longer_than_a_rest_forgets_what_loud_was(self):
         """After a bar's rest the second loud entry is measured against the
         first and is a drop; after two bars, longer than any rest within a
