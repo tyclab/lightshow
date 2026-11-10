@@ -3186,23 +3186,10 @@ input[type=range]::-moz-range-thumb {
 .inspector-list { margin: 0; padding-left: 18px; font-size: 12px; line-height: 1.6; color: var(--text-2); max-height: 240px; overflow-y: auto; }
 .inspector .setting-help { margin-top: 8px; }
 
-/* The fixture library. */
+/* Fixture profiles and file uploads. */
 .import-row { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; margin-bottom: 12px; }
 .file-upload-btn { cursor: pointer; display: inline-flex; align-items: center; gap: 6px; }
 .file-upload-btn:focus-within { outline: .125rem solid var(--accent); outline-offset: .1875rem; }
-.ofl-search { display: flex; gap: 8px; margin-bottom: 10px; }
-.ofl-search input { flex: 1; }
-.ofl-results { display: flex; flex-direction: column; gap: 4px; margin-bottom: 12px; max-height: 320px; overflow-y: auto; }
-.ofl-hit {
-  display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px;
-  text-align: left; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-sm);
-  padding: 8px 12px; color: var(--text); font: inherit; cursor: pointer;
-}
-.ofl-hit:hover, .ofl-hit:focus-visible { border-color: var(--accent); outline: none; }
-.ofl-hit-name { font-size: 13px; font-weight: 600; }
-.ofl-hit-maker { font-size: 11px; color: var(--muted); }
-.ofl-note { font-size: 12px; color: var(--muted); }
-.ofl-note.error { color: var(--text-red); }
 .mode-picker {
   display: flex; flex-direction: column; gap: 10px;
   padding: 12px; margin-bottom: 12px;
@@ -3221,8 +3208,7 @@ input[type=range]::-moz-range-thumb {
 }
 .ch-tag .ch-num, .ch-tag .ch-held { color: var(--muted); font-size: 10px; }
 .ch-tag.mapped { border-color: var(--accent); background: var(--wash-blue); }
-.ch-summary, .ch-warning { flex-basis: 100%; font-size: 12px; margin-bottom: 2px; }
-.ch-warning { color: var(--text-amber); }
+.ch-summary { flex-basis: 100%; font-size: 12px; margin-bottom: 2px; }
 .profiles-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 8px; }
 .profile-card {
   display: flex; flex-direction: column; gap: 3px;
@@ -3528,7 +3514,7 @@ input[type=range]::-moz-range-thumb {
   .header-tool, .header-theme, .stat-pill.gate, .stat-pill.control, .cb-energy-btn, .cb-tap, .cb-play, .cb-bpm-follow,
   .palette-btn, .pattern-btn, .cue-recall, .cue-capture, .sync-nudge,
   .transport-btn, .warm-toggle, .auto-select, .warm-playlist-select, .shortcuts-tab,
-  .sub-tab, .remove-btn, .ofl-hit, .file-upload-btn, .timeline-section,
+  .sub-tab, .remove-btn, .file-upload-btn, .timeline-section,
   .effects-chip, .effect-star, .effect-edit, .palette-random, .insp-check,
   select, input[type=number], input[type=text], input[type=search], input[type=password], input[type=color], textarea {
     min-height: 44px;

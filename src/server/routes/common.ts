@@ -2,7 +2,6 @@ import multer from 'multer';
 import type { ErrorRequestHandler, NextFunction, Request, RequestHandler, Response } from 'express';
 import { messageOf, statusOf } from '../../errors.ts';
 import { cues as defaultCues } from '../cues.ts';
-import { createOflLibrary } from '../ofl-library.ts';
 import { wledClient } from '../wled.ts';
 import { openrgbClient } from '../openrgb.ts';
 import { listEntertainmentConfigs, pair } from '../hue.ts';
@@ -18,7 +17,6 @@ import type ProLink from '../../prolink.ts';
 import type SpotifyClient from '../../spotify.ts';
 import type { ArmOrigin, createApplier } from '../apply.ts';
 import type { setupIntegrations } from '../integrations.ts';
-import type { OflLibrary } from '../ofl-library.ts';
 import type { WledClient } from '../wled.ts';
 import type { OpenRgbClient } from '../openrgb.ts';
 import type { RoomSceneStore } from '../room-scene-store.ts';
@@ -33,7 +31,6 @@ export interface RouteDeps {
   analysisCache: AnalysisCache;
   integrations: ReturnType<typeof setupIntegrations>;
   applier: ReturnType<typeof createApplier>;
-  oflLibrary?: OflLibrary;
   wled?: WledClient;
   openrgb?: OpenRgbClient;
   hueAreas?: typeof listEntertainmentConfigs;
@@ -45,17 +42,14 @@ export interface RouteDeps {
 }
 
 export const uploadAudio = multer({ storage: multer.memoryStorage(), limits: { fileSize: 50 * 1024 * 1024, files: 1, fields: 8 } });
-export const uploadGdtf = multer({ storage: multer.memoryStorage(), limits: { fileSize: 8 * 1024 * 1024, files: 1, fields: 8 } });
-export const uploadOfl = multer({ storage: multer.memoryStorage(), limits: { fileSize: 2 * 1024 * 1024, files: 1, fields: 8 } });
 
 export type RouteContext = RouteDeps & {
-  oflLibrary: OflLibrary; wled: WledClient; openrgb: OpenRgbClient; hueAreas: typeof listEntertainmentConfigs; huePair: typeof pair; cues: CueStore;
+  wled: WledClient; openrgb: OpenRgbClient; hueAreas: typeof listEntertainmentConfigs; huePair: typeof pair; cues: CueStore;
 };
 
 export function routeContext(deps: RouteDeps): RouteContext {
   return {
     ...deps,
-    oflLibrary: deps.oflLibrary || createOflLibrary(),
     wled: deps.wled || wledClient,
     openrgb: deps.openrgb || openrgbClient,
     hueAreas: deps.hueAreas || listEntertainmentConfigs,

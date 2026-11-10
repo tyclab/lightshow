@@ -773,8 +773,8 @@ masters; it is not a temporary override. A fixture override can set colour,
 dimmer, strobe or blackout. Clear removes the override. Cues capture looks,
 not patch changes.
 
-Import GDTF `.gdtf` or Open Fixture Library `.json` profiles through Rig →
-Profiles. OFL search can fetch a fixture online. Profiles in use cannot be
+Rig → Profiles lists the profiles and builds an LED bar's from its manual; any
+other DMX profile is added as JSON with `POST /api/profiles`. Profiles in use cannot be
 deleted. LED profiles use `cells`; `grid` describes a panel. An undriven
 channel's nonzero default belongs in `defaults: [{ offset, value }]`.
 Use `/api/profiles/bar` to build a bar profile from cell count, channel order,
@@ -2036,10 +2036,6 @@ Transport routes answer `{ ok, status }`; with no sequence loaded they answer
 | POST | `/api/fixture/:id/max/:value` | Fixture maximum brightness (0–255) — scales the fixture's output; not an override |
 | POST | `/api/fixtures` · DELETE `/api/fixtures/:id` | Add / remove fixtures. With no body, one generic par behind whatever is on the default universe; with `{ profileId?, count?, universe?, address?, label? }`, `count` (up to 64) of that profile one after another, on into the next universe when one fills (a strip on universes of its own); answers `{ fixtures: [ids], placed: [{ universe, address }] }`. A Hue lamp profile is refused: Hue lamps are added with `POST /api/hue/:bridge/add`. DELETE answers with the fixture and its index |
 | POST | `/api/fixtures/restore` | Put a deleted fixture back (`{ index, fixture }`) |
-| POST | `/api/gdtf/parse` | Parse an uploaded `.gdtf` (multipart `gdtf`) |
-| POST | `/api/ofl/parse` | Parse an uploaded Open Fixture Library `.json` (multipart `ofl`, optional `manufacturer`) |
-| GET | `/api/ofl/search?q=` | Search the Open Fixture Library online: `{ results: [{ manufacturerKey, fixtureKey, manufacturer, name, categories }] }` |
-| GET | `/api/ofl/fixture/:manufacturer/:fixture` | Fetch a fixture from the Open Fixture Library and parse it, as `/api/ofl/parse` answers |
 | POST | `/api/profiles` · DELETE `/api/profiles/:id` | Register / remove a fixture profile (`cells` makes it an LED bar, `grid` a panel; `defaults: [{ offset, value }]` holds undriven channels off 0) |
 | POST | `/api/profiles/bar` | Build and register an LED bar profile from `{ id, name, cells, firstChannel, order, stride?, dimmer?, strobe? }`; `?dryRun=1` answers with it without registering |
 | GET · POST | `/api/show` | Export / import the patch |
@@ -2425,10 +2421,9 @@ Preflight reports unverified limits.
 
 Capabilities include the profile's colour channels, pixel count and hardware
 strobe range. RGB outputs approximate missing white, amber and UV with visible
-RGB. White-only cells continue to respond to their white channels. OFL and
-GDTF imports retain numeric physical strobe rates when the driven standard
-range has a supported increasing mapping. Unknown or nonnumeric mappings retain
-the unverified 1–20 Hz fallback. Software strobes cannot exceed half the render
+RGB. White-only cells continue to respond to their white channels. A profile's
+`strobeHz` gives its physical strobe range; without one the
+unverified 1–20 Hz fallback applies. Software strobes cannot exceed half the render
 frame rate. They use whole render-frame periods with timing headroom so rate
 guards do not periodically drop flashes. Slower fixtures join an integer subset
 of the requested pulse grid: at full speed the default 20 Hz RGB cap runs at
