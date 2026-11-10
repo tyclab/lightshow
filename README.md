@@ -1172,9 +1172,10 @@ its name is listed. Devices must support a direct LED colour mode.
 
 Disarm or removal sends darkness and closes the connection. OpenRGB has no
 realtime timeout: another client/profile must restore the desired hardware
-effect. Unavailable PCs generate warnings; other outputs continue. A device still
-connecting or being prepared holds back neither control acknowledgements nor Hue
-until it has taken a frame; a lit one that misses a frame does. Missing devices
+effect. Unavailable PCs generate warnings; other outputs continue. A device that
+cannot take a frame (still connecting, asleep, behind) is passed over and holds
+back neither control acknowledgements nor Hue; disarm and removal still wait for
+one that has shown light to go dark. Missing devices
 retry after 1 second, doubling to at most 30 seconds. Frames pause briefly while
 discovery validates device numbers, then healthy devices resume at the normal
 frame rate without replaying dropped frames. A device-list update or reconnect
