@@ -88,7 +88,13 @@ class StreamingAnalyzer:
         self._silence_since = None
         self._in_silence = False
         self._rise_history = deque(maxlen=history_frames)
-        self._section_energy = None
+        self._sound_frames = 0
+        self._quiet_frames = 0
+        self._after_silence = False
+        self._loud = None
+        self._loud_at = 0
+        self._rose = False
+        self._rise_from = None
 
         freqs = np.fft.rfftfreq(self.n_fft, 1.0 / self.sample_rate)
         self._band_masks = {
@@ -196,6 +202,15 @@ class StreamingAnalyzer:
         self._onset_history.append(flux)
 
         events.extend(self._silence_events(energy))
+        if self._in_silence:
+            self._after_silence = True
+        if energy >= self.config.quiet_rms and not self._in_silence:
+            self._sound_frames, self._quiet_frames = self._sound_frames + 1, 0
+        else:
+            self._sound_frames, self._quiet_frames = 0, self._quiet_frames + 1
+            # A pause longer than any rest within a track: the music starts over, and so does what loud is.
+            if self._quiet_frames * self.hop >= self.config.quiet_after_sec * self.sample_rate:
+                self._loud = None
         onset = self._detect_onset(flux)
         if onset:
             events.extend(self._on_onset(band_levels))
@@ -376,7 +391,7 @@ class StreamingAnalyzer:
 
     def _dynamics_events(self, energy):
         """
-        Spikes, build-ups and drops, called from the rise alone.
+        Spikes, build-ups, drops and section changes, called from the rise alone.
 
         Offline these are confirmed by what follows. Live there is no what
         follows, so each is reported with a lower confidence and the show engine
@@ -402,12 +417,7 @@ class StreamingAnalyzer:
         if recent.size >= half * 2:
             before = float(np.mean(recent[-half * 2:-half]))
             after = float(np.mean(recent[-half:]))
-            if after - before > 2.5 and self._cooldown('drop', 8.0):
-                events.append(Event(
-                    t=self.time, type=DROP, confidence=0.45,
-                    intensity=dsp.clamp01((after - before) / 5.0),
-                    effect='flash', data={'live': True, 'unconfirmed': True}))
-            elif 0.6 < after - before <= 2.5 and self._trending_up(recent) \
+            if 0.6 < after - before <= 2.5 and self._trending_up(recent) \
                     and self._cooldown('buildup', 6.0):
                 events.append(Event(
                     t=self.time, type=BUILDUP, confidence=0.4,
@@ -415,21 +425,72 @@ class StreamingAnalyzer:
                     duration=self.config.tempo_refresh_sec, effect='ramp',
                     data={'live': True}))
 
-        long_term = float(np.mean(window))
-        if self._section_energy is None:
-            self._section_energy = long_term
-        elif abs(long_term - self._section_energy) > max(1e-6, self._section_energy) * 0.55 \
-                and self._cooldown('transition', 10.0):
-            rising = long_term > self._section_energy
-            self._section_energy = long_term
-            events.append(Event(
-                t=self.time, type=TRANSITION, confidence=0.4,
-                intensity=dsp.clamp01(long_term / max(1e-9, median * 3.0)),
-                effect='scene-change',
-                data={'live': True, 'to': 'high' if rising else 'low'}))
-        else:
-            self._section_energy = 0.9 * self._section_energy + 0.1 * long_term
+        events.extend(self._section_events(window, median))
         return events
+
+    def _section_events(self, window, median):
+        """
+        Section changes and drops: the last seconds against the passage before.
+
+        The passage is the unbroken sound before those seconds, as far back as
+        the history goes; a change is called when the two differ by
+        `section_step`. A rise is a DROP when it lands within a step of the
+        loudest level remembered, and so is sound that comes back that loud
+        from a silence; any other change is a TRANSITION. The first rise after
+        a start or a pause has nothing to be measured against: it is a
+        TRANSITION, and where it settles is the first loud level.
+        """
+        frame_rate = self.sample_rate / float(self.hop)
+        span = max(2, int(self.config.section_recent_sec * frame_rate))
+        landing_span = max(1, int(self.config.landing_sec * frame_rate))
+        step = self.config.section_step
+        recent = float(np.mean(window[-span:]))
+        landing = float(np.mean(window[-landing_span:]))
+
+        if self._loud is not None:
+            if recent * (1.0 + step) >= self._loud:
+                self._loud, self._loud_at = max(self._loud, recent), self._frame_index
+            elif self._frame_index - self._loud_at > self.config.loud_memory_sec * frame_rate:
+                self._loud = None
+        lands = self._loud is not None and landing * (1.0 + step) >= self._loud
+
+        back = self._after_silence and self._sound_frames == landing_span
+        if back:
+            self._after_silence = False
+        rising = falling = arriving = False
+        passage = min(self._sound_frames, window.size)
+        if passage >= span * 2:
+            before = float(np.mean(window[-passage:-span]))
+            rising = recent - before > before * step
+            falling = before - recent > before * step
+            arriving = rising or landing - before > before * step
+        if self._rose and not rising:
+            self._loud, self._loud_at, self._rose = recent, self._frame_index, False
+        if not arriving:
+            self._rise_from = None
+        elif self._rise_from is None:
+            self._rise_from = self._frame_index
+        # With a loud level known, a rise may be a drop until the half second it lands in is all new sound.
+        landed = self._loud is None or (arriving and self._frame_index - self._rise_from >= landing_span)
+
+        events = []
+        if lands and (rising or back) and self._cooldown('drop', 8.0):
+            self._last_event['transition'] = self.time
+            events.append(Event(
+                t=self.time, type=DROP, confidence=0.45,
+                intensity=dsp.clamp01(landing / self._loud),
+                effect='flash', data={'live': True, 'unconfirmed': True}))
+        elif rising and landed and self._cooldown('transition', 10.0):
+            self._rose = self._loud is None
+            events.append(self._transition(recent, median, 'high'))
+        elif falling and self._cooldown('transition', 10.0):
+            events.append(self._transition(recent, median, 'low'))
+        return events
+
+    def _transition(self, level, median, to):
+        return Event(t=self.time, type=TRANSITION, confidence=0.4,
+                     intensity=dsp.clamp01(level / max(1e-9, median * 3.0)),
+                     effect='scene-change', data={'live': True, 'to': to})
 
     def _silence_events(self, energy):
         window = np.fromiter(self._energy_history, dtype=float)

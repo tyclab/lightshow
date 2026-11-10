@@ -172,6 +172,86 @@ def four_on_the_floor(bpm=128.0, bars=32, sr=SR, meter=4, with_structure=True):
     return Track(samples, sr, bpm, beats, downbeats, sections, drops, buildups)
 
 
+def arrangement(plan, bpm=128.0, sr=SR):
+    """
+    A track from a written plan: [(name, bars, mix), ...].
+
+    A mix names what plays: `kick`, `snare` and `hats` (on unless turned off),
+    the amplitudes `bass`, `lead` and `pad`, and `riser` for a noise riser over
+    the whole section. A mix with nothing in it is a rest: digital silence.
+    The sections named 'drop' and 'build' are the ground truth for both.
+    """
+    beat_sec = 60.0 / bpm
+    bar_sec = beat_sec * 4
+    total_bars = sum(bars for _name, bars, _mix in plan)
+    buf = np.zeros(int(total_bars * bar_sec * sr), dtype=np.float64)
+    k, s, h = kick(sr), snare(sr), hat(sr)
+    beats, downbeats, sections, drops, buildups = [], [], [], [], []
+    bar = 0
+    for name, bars, mix in plan:
+        start = bar * bar_sec
+        sections.append({'name': name, 'start': start, 'end': start + bars * bar_sec})
+        if name == 'drop':
+            drops.append({'t': start})
+        if name == 'build':
+            buildups.append({'start': start, 'end': start + bars * bar_sec})
+        rest = not any(mix.get(part, 0) for part in ('kick', 'snare', 'hats', 'bass', 'lead', 'pad', 'riser'))
+        for i in range(bars):
+            bar_t = (bar + i) * bar_sec
+            downbeats.append(bar_t)
+            for b in range(4):
+                t = bar_t + b * beat_sec
+                beats.append(t)
+                if rest:
+                    continue
+                if mix.get('kick', True):
+                    _place(buf, k, t, sr, gain=0.9 if b == 0 else 0.75)
+                if mix.get('snare', True) and b % 2 == 1:
+                    _place(buf, s, t, sr, gain=0.55)
+                if mix.get('hats', True):
+                    _place(buf, h, t, sr, gain=0.3)
+                    _place(buf, h, t + beat_sec / 2, sr, gain=0.22)
+            if mix.get('bass'):
+                freq = 55.0 * (2 ** ((i % 4) / 12.0))
+                _place(buf, tone(freq, bar_sec, sr, harmonics=4, amplitude=mix['bass']), bar_t, sr)
+            if mix.get('lead'):
+                freq = 440.0 * (2 ** (((i * 3) % 7) / 12.0))
+                _place(buf, tone(freq, bar_sec, sr, harmonics=3, amplitude=mix['lead']), bar_t, sr)
+        if mix.get('pad'):
+            _place(buf, tone(440.0, bars * bar_sec, sr, harmonics=6, amplitude=mix['pad']), start, sr)
+        if mix.get('riser'):
+            _place(buf, noise_riser(bars * bar_sec, sr, 0.35), start, sr)
+        bar += bars
+
+    peak = float(np.max(np.abs(buf))) or 1.0
+    samples = (buf / peak * 0.85).astype(np.float32)
+    return Track(samples, sr, bpm, beats, downbeats, sections, drops, buildups)
+
+
+REST = dict(kick=False, snare=False, hats=False)
+QUIET = dict(snare=False, hats=False, bass=0.15)
+VERSE = dict(bass=0.35)
+BUILD = dict(bass=0.4, riser=True)
+LOUD = dict(bass=0.9, pad=0.25)
+BREAK = dict(kick=False, snare=False, hats=False, bass=0.12, lead=0.1)
+
+
+def dance(bpm=128.0, sr=SR):
+    """A dance track with two drops: every section eight bars, each drop after a build."""
+    return arrangement([
+        ('intro', 8, QUIET), ('verse', 8, VERSE), ('build', 8, BUILD), ('drop', 8, LOUD),
+        ('break', 8, BREAK), ('verse', 8, VERSE), ('build', 8, BUILD), ('drop', 8, LOUD),
+        ('outro', 8, QUIET),
+    ], bpm, sr)
+
+
+def even(bpm=128.0, bars=48, sr=SR):
+    """A loud, even master: the full kit throughout, a quiet lead in every other eight bars."""
+    plan = [('chorus' if i % 2 else 'verse', 8, dict(bass=0.6, lead=0.08 if i % 2 else 0.0))
+            for i in range(bars // 8)]
+    return arrangement(plan, bpm, sr)
+
+
 def waltz(bpm=150.0, bars=24, sr=SR):
     """
     Oom-pah-pah: a bass note on beat one, chords on two and three.

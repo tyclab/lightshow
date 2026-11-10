@@ -111,6 +111,18 @@ class RealtimeConfig:
     phase_lock_strength: float = 0.5
     # A larger value lets a syncopated passage drag the tempo.
     frequency_lock_strength: float = 0.012
+    #: −80 dBFS: an idle sink's digital silence sits below it, the quietest music the show follows far above.
+    quiet_rms: float = 1e-4
+    #: Longer than any rest within a track, so music is never thinned out, yet short enough to idle soon after it stops.
+    quiet_after_sec: float = 3.0
+    #: A section is judged on its last two seconds, a bar at 120 BPM: the rise and fall inside a bar average out.
+    section_recent_sec: float = 2.0
+    #: How far those seconds must leave the passage before them, as a share of its level: 3.8 dB up, 6.9 dB down.
+    section_step: float = 0.55
+    #: Where a rise lands is read off its last half second, a beat at 120 BPM: one kick and the gap after it.
+    landing_sec: float = 0.5
+    #: The loudest level is forgotten after four minutes with nothing near it: a quieter track then sets its own.
+    loud_memory_sec: float = 240.0
 
 
 @dataclass(frozen=True)

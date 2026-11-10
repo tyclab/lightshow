@@ -130,6 +130,102 @@ class Robustness(unittest.TestCase):
         self.assertEqual(analyzer.state().t, 0.0)
 
 
+_HEARD = {}
+
+
+def hear(name, track):
+    """`track` through the analyser as the live service sets it up, once per name: these tracks run for minutes."""
+    if name not in _HEARD:
+        from analysis.live import live_config
+        _HEARD[name] = run(track, block=256, config=live_config())[1]
+    return _HEARD[name]
+
+
+def called(events, *kinds):
+    return [e for e in events if e.type in kinds]
+
+
+@needs_numpy
+class Sections(unittest.TestCase):
+    """
+    Section changes and drops, against tracks whose sections are written down.
+
+    A change is asserted where two sections differ by 6 dB or more; a build is
+    a ramp, not a step, and is no section change here.
+    """
+
+    def setUp(self):
+        from analysis.config import RealtimeConfig
+        # A change is heard before the seconds it is judged on have turned over.
+        self.recent = RealtimeConfig().section_recent_sec
+        self.landing = RealtimeConfig().landing_sec
+
+    def test_a_drop_is_called_at_each_drop_and_nowhere_else(self):
+        for bpm in (100, 128, 174):
+            with self.subTest(bpm=bpm):
+                track = synth.dance(bpm)
+                drops = called(hear(f'dance-{bpm}', track), 'DROP')
+                self.assertEqual(len(drops), len(track.drops), [round(e.t, 1) for e in drops])
+                for drop, real in zip(drops, track.drops):
+                    self.assertGreaterEqual(drop.t, real['t'])
+                    self.assertLess(drop.t - real['t'], self.recent)
+
+    def test_each_step_between_sections_is_one_transition(self):
+        for bpm in (100, 128):
+            with self.subTest(bpm=bpm):
+                track = synth.dance(bpm)
+                transitions = called(hear(f'dance-{bpm}', track), 'TRANSITION')
+                steps = [(s['start'], to) for s, to in zip(track.sections, '-^--v^--v') if to != '-']
+                self.assertEqual([e.data['to'] for e in transitions],
+                                 ['high' if to == '^' else 'low' for _t, to in steps])
+                for event, (start, _to) in zip(transitions, steps):
+                    self.assertGreaterEqual(event.t, start)
+                    self.assertLess(event.t - start, self.recent)
+
+    def test_an_even_track_has_no_drop_and_no_section_change(self):
+        self.assertEqual(called(hear('even', synth.even()), 'DROP', 'TRANSITION'), [])
+
+    def test_nothing_is_called_in_a_pause_and_the_music_after_it_starts_over(self):
+        """Digital silence is not a passage, and after it nothing is loud yet: a
+        track that starts at full level is no drop."""
+        import numpy as np
+        before, after = synth.dance(128), synth.even(bars=16)
+        pause = np.zeros(25 * synth.SR, dtype=np.float32)
+        track = synth.Track(np.concatenate([before.samples, pause, after.samples]), synth.SR, 0.0, [], [], [])
+        late = [e for e in called(hear('pause', track), 'DROP', 'TRANSITION') if e.t >= before.duration]
+        self.assertEqual(late, [])
+
+    def test_the_first_rise_is_a_section_change_and_a_return_that_loud_is_a_drop(self):
+        """A bar's rest, then the music back at the level it had: the drop is
+        called as soon as the half second it lands in is heard."""
+        track = synth.arrangement([('intro', 8, synth.QUIET), ('loud', 8, synth.LOUD),
+                                   ('rest', 1, synth.REST), ('drop', 8, synth.LOUD)])
+        events = called(hear('rest-loud', track), 'DROP', 'TRANSITION')
+        self.assertEqual([(e.type, e.data.get('to')) for e in events], [('TRANSITION', 'high'), ('DROP', None)])
+        back = track.drops[0]['t']
+        frame = 1024 / float(synth.SR)
+        self.assertGreater(events[1].t, back - frame)
+        self.assertLess(events[1].t - back, self.landing + frame)
+
+    def test_a_quiet_return_from_a_rest_is_not_a_drop(self):
+        track = synth.arrangement([('intro', 8, synth.QUIET), ('loud', 8, synth.LOUD),
+                                   ('rest', 1, synth.REST), ('intro', 8, synth.QUIET)])
+        events = called(hear('rest-quiet', track), 'DROP', 'TRANSITION')
+        self.assertEqual([(e.type, e.data.get('to')) for e in events], [('TRANSITION', 'high')])
+
+    def test_a_pause_longer_than_a_rest_forgets_what_loud_was(self):
+        """After a bar's rest the second loud entry is measured against the
+        first and is a drop; after two bars, longer than any rest within a
+        track, the music has started over and it is a section change."""
+        for bars, second in ((1, 'DROP'), (2, 'TRANSITION')):
+            with self.subTest(rest_bars=bars):
+                track = synth.arrangement([('intro', 8, synth.QUIET), ('loud', 8, synth.LOUD),
+                                           ('rest', bars, synth.REST),
+                                           ('intro', 8, synth.QUIET), ('loud', 8, synth.LOUD)])
+                events = called(hear(f'rest-{bars}', track), 'DROP', 'TRANSITION')
+                self.assertEqual([e.type for e in events], ['TRANSITION', second])
+
+
 @needs_numpy
 class OctaveFolding(unittest.TestCase):
     def test_a_half_tempo_reading_folds_back_onto_the_running_grid(self):

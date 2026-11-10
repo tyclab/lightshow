@@ -72,10 +72,8 @@ N_FFT = 1024
 # Frames are dated by window start but onsets register about half a window in: 23 ms, 15-33 ms measured (test_live.py).
 WINDOW_LAG_SEC = N_FFT / 2 / SAMPLE_RATE
 
-# −80 dBFS: an idle sink's digital silence sits below it, the quietest music the show follows far above.
-QUIET_RMS = 1e-4
-# Longer than any rest within a track, so music is never thinned out, yet short enough to idle soon after it stops.
-QUIET_AFTER_SEC = 3.0
+QUIET_RMS = RealtimeConfig.quiet_rms
+QUIET_AFTER_SEC = RealtimeConfig.quiet_after_sec
 # Four states a second stay inside the server's 500 ms freshness and audio-gap limits.
 QUIET_STATE_SEC = 0.25
 QUIET_BLOCK = 8
