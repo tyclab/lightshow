@@ -18,6 +18,7 @@ async function load() {
         export { store, librarySig } from './public-src/state.js';
         export { CHOICES, CompareList, ComparePanel, compareKey, compareRows, currentPair, diffText, flipSide, playSide, playingSide } from './public-src/components/Compare.jsx';
         export { Effects } from './public-src/components/Effects.jsx';
+        export { AB_CANDIDATES } from './src/shared/effects/ab-candidates.ts';
         export { effectName } from './public-src/now-playing.js';
       `,
       resolveDir: ROOT,
@@ -118,7 +119,10 @@ test('A and B play a side, Space swaps, and keys typed into a field or with a mo
 test('the Effects view opens the panel beside its title, which stays the title alone, and an unknown ab: id shows as it is', () => {
   ui.store.applySnapshot({ versions: {}, state: { armed: false, pattern: 'solid', patterns: [], effects: [], safety: {} } });
   const html = ui.html(ui.h(ui.Effects, {}));
-  assert.match(html, /<div class="effects-head"><div class="card-title">Effects<\/div><button type="button" class="btn sm effects-compare" aria-haspopup="dialog"[^>]*>Compare A\/B<\/button>/);
+  // With no pair to decide the button is not there: a panel with nothing in it helps nobody.
+  const button = /<div class="effects-head"><div class="card-title">Effects<\/div><button type="button" class="btn sm effects-compare" aria-haspopup="dialog"[^>]*>Compare A\/B<\/button>/;
+  if (ui.AB_CANDIDATES.length) assert.match(html, button);
+  else assert.doesNotMatch(html, /effects-compare/);
   assert.doesNotMatch(/<div class="effects-tools">(.*?)<\/div>/s.exec(html)[1], /effects-compare/, 'not in the sticky tools, which must stay short on a phone');
   assert.equal(ui.effectName('ab:none:b', {}), 'ab:none:b', 'an unknown ab: id shows as it is');
 });
