@@ -1,4 +1,4 @@
-import { emissionOf, hueEmission, beamDirection } from '../../src/shared/emission.ts';
+import { emissionOf, hueEmission, hueLumen, beamDirection, BULB_LUMEN, STRIP_LUMEN_PER_METRE, PIXEL_LUMEN } from '../../src/shared/emission.ts';
 import { isPlaced, stagePositions } from '../../src/shared/stage.ts';
 import { lineOf } from '../../src/shared/rig.ts';
 import { bindingSources, pathPoints, plotPosition, resolveBindings } from '../../src/shared/space.ts';
@@ -27,6 +27,10 @@ const ROOF = TRUSS_H + 2.5;
 const POOL_LIFT = 0.006;
 // The cone's footprint stretches by 1/cos of the angle it strikes at; this cos caps a grazing hit.
 const GRAZE = 0.35;
+// Lumen per square metre at which a pool is drawn at full strength: a 350 lm, 36° spot on the floor 2.45 m below it.
+export const POOL_FULL = 97;
+// The pitch of a 60-per-metre strip: a panel's pixels closer than this are smaller LEDs, giving less by the area each has.
+const PIXEL_PITCH = 1 / 60;
 
 const dot = (a, b) => a.x * b.x + a.y * b.y + a.z * b.z;
 const cross = (a, b) => ({ x: a.y * b.z - a.z * b.y, y: a.z * b.x - a.x * b.z, z: a.x * b.y - a.y * b.x });
@@ -95,7 +99,10 @@ function beamLight(light, emission, floor = false, bounds = null, walls = [], di
   const length = hit ? hit.length : MAX_BEAM;
   const end = { x: from.x + aim.x * length, y: from.y + aim.y * length, z: from.z + aim.z * length };
   const radius = Math.tan((emission.beamAngle ?? 22) * Math.PI / 360) * length;
-  return { ...light, kind: 'par', aim, length, end, radius, pool: hit?.normal && radius > 0 ? poolOn(end, hit.normal, aim, radius) : null };
+  const pool = hit?.normal && radius > 0 ? poolOn(end, hit.normal, aim, radius) : null;
+  // A lamp of known lumen lights its pool by the area it spreads over; a par of unknown lumen keeps full strength.
+  if (pool && light.lumen) pool.level = Math.min(1, light.lumen / (Math.PI * pool.major * pool.minor) / POOL_FULL);
+  return { ...light, kind: 'par', aim, length, end, radius, pool };
 }
 
 export function placeRig(fixtures, profiles, rig) {
@@ -232,16 +239,18 @@ export function roomRig(fixtures, rig, model, profiles = {}) {
     if (missingSources === sources.length) { unresolved.push(binding); continue; }
     if (missingSources) incomplete.push({ binding, missingSources });
     if (binding.confidence !== 'measured') estimated++;
+    const index = indices.get(binding.fixtureId ?? binding.sources?.[0]?.fixtureId), fixture = fixtures[index];
+    // A Hue lamp's lumen: the whole lamp's for one marker over all its units, else this unit's share.
+    const flux = fixture ? hueLumen(profiles[fixture.profileId]) : null;
     const light = { unit: sources[0].unit, fixture: binding.fixtureId, position: binding.position,
-      ...(binding.sources ? { sources } : {}) };
-    const fixture = fixtures[indices.get(binding.fixtureId ?? binding.sources?.[0]?.fixtureId)];
+      ...(binding.sources ? { sources } : {}), ...(flux ? { lumen: flux.lumen / (binding.sources ? 1 : rig.ranges[index].count) } : {}) };
     // A room draws unshaped lamps as bulbs, except a Hue fitting its bridge names (emission.ts).
     const emission = fixture && (fixture.emission ?? hueEmission(fixture, profiles[fixture.profileId]));
     const target = binding.lightTarget;
     const origin = binding.path ? pathPoints(binding.path, 1)[0] : light.position;
     const offset = target && { x: target.x - origin.x, y: target.y - origin.y, z: target.z - origin.z };
     const aim = offset && Math.hypot(offset.x, offset.y, offset.z) >= 0.001 ? unit(offset) : null;
-    const directed = (source, body) => ({ ...beamLight(source, { kind: 'beam', beamAngle: emission?.beamAngle ?? 100 },
+    const directed = (source, body) => ({ ...beamLight({ lumen: BULB_LUMEN, ...source }, { kind: 'beam', beamAngle: emission?.beamAngle ?? 100 },
       false, model.bounds, surfaces, aim), body, ...(body === 0 ? { weight: 0 } : {}) });
     if (lightObjects.has(binding.id)) {
       for (const object of lightObjects.get(binding.id)) {
@@ -256,7 +265,7 @@ export function roomRig(fixtures, rig, model, profiles = {}) {
         const from = binding.path[index - 1], to = binding.path[index];
         const length = Math.hypot(to.x - from.x, to.y - from.y, to.z - from.z);
         if (length > 1e-6) {
-          const cell = { ...light, size: STRIP_THICKNESS, length, from, to,
+          const cell = { ...light, lumen: (flux?.perMetre ?? STRIP_LUMEN_PER_METRE) * length, size: STRIP_THICKNESS, length, from, to,
             position: { x: (from.x + to.x) / 2, y: (from.y + to.y) / 2, z: (from.z + to.z) / 2 } };
           cells.push(cell);
           if (aim) lamps.push(directed(cell, 0));
@@ -274,15 +283,20 @@ export function roomRig(fixtures, rig, model, profiles = {}) {
     plotted.push(fixture);
     const { start, count } = rig.ranges[index];
     const emission = emissionOf(fixture, profiles[fixture.profileId], !!rig.cellMaps[index]);
+    const flux = hueLumen(profiles[fixture.profileId]);
     for (let unit = start; unit < start + count; unit++) {
-      const light = { unit, fixture: fixture.id, position: plotPosition(rig, unit, model.bounds), plot: true };
+      const light = { unit, fixture: fixture.id, position: plotPosition(rig, unit, model.bounds), plot: true, ...(flux ? { lumen: flux.lumen / count } : {}) };
       if (rig.cellMaps[index] || emission.kind === 'strip') cells.push({ ...light, size: POINT_CELL });
       else if (emission.kind === 'beam') lamps.push({ ...beamLight(light, emission, fixture.group === 'floor', model.bounds, walls), body: ROOM_BULB });
       else lamps.push({ ...light, kind: 'bulb', aim: null, length: 0, body: ROOM_BULB });
     }
   });
   const pitch = pitches(cells);
-  for (const cell of cells) if (!cell.length && pitch.has(cell.fixture)) cell.size = pixelSize(pitch.get(cell.fixture));
+  for (const cell of cells) if (!cell.length && pitch.has(cell.fixture)) {
+    const grid = rig.grids[indices.get(cell.fixture)], dense = grid?.rows > 1 && grid.columns > 1 ? pitch.get(cell.fixture) / PIXEL_PITCH : 1;
+    cell.size = pixelSize(pitch.get(cell.fixture));
+    if (!cell.lumen) cell.lumen = PIXEL_LUMEN * Math.min(1, dense * dense);
+  }
   const bodies = plotted.filter((fixture) => fixture.geometry?.points?.length > 1).map((fixture) => bodyOf(fixture.id, cells));
   const missing = fixtures.filter((fixture) => !mapped.has(fixture.id));
   const partial = fixtures.filter((fixture, index) => mapped.has(fixture.id) && mapped.get(fixture.id).size < rig.ranges[index].count);
@@ -304,13 +318,15 @@ function bodyOf(fixture, cells) {
     size: { x: hi.x - lo.x + pad, y: hi.y - lo.y + pad, z: hi.z - lo.z + pad } };
 }
 
-// What an emitter adds to the light a room is lit by, against a bulb's 1: a pixel's hundredth,
-// a strip's run in metres, a lit surface by its area.
+// What an emitter adds to the light a room is lit by, against an 806 lm bulb's 1: its lumen where known
+// (emission.ts), else a pixel's hundredth, a strip's 0.6 a metre, a lit surface by its area.
 const surfaceWeight = ({ size }) => Math.min(1, 8 * (size.x * size.y + size.y * size.z + size.x * size.z));
 export function emitterWeight(emitter) {
   if (emitter.weight !== undefined) return emitter.weight;
-  if (emitter.length) return 0.6 * emitter.length;
-  return emitter.size !== undefined ? 0.01 : 1;
+  if (emitter.lumen) return emitter.lumen / BULB_LUMEN;
+  // A beam's `length` is its throw, not a run of tape: it counts as a lamp.
+  if (emitter.length && emitter.kind !== 'par') return STRIP_LUMEN_PER_METRE * emitter.length / BULB_LUMEN;
+  return emitter.size !== undefined ? PIXEL_LUMEN / BULB_LUMEN : 1;
 }
 
 export const ROOM_LIGHTS = 8;

@@ -108,6 +108,18 @@ without a beam spread. The first opaque box wall or furniture surface, or room
 boundary, receives the pool. Other object shapes do not stop these beams.
 Physical positions, output addressing and effect sampling remain unchanged.
 
+How strongly a lamp lights the room follows its lumen at full white, by one rule. An 806 lm bulb
+counts as 1 in the room's lights, which fall off with the square of the distance. A Hue lamp
+counts by the product its bridge names (a GU10 spot 350 lm, a candle 470 lm, a Play bar 530 lm,
+a light strip 800 lm a metre; `HUE_LUMEN` in `src/shared/emission.ts`, the maker's figures at
+4000 K, rounded), any other strip 484 lm a metre of surveyed run and a pixel 8 lm. A panel's
+pixels closer than a 60-per-metre strip's are smaller LEDs and count by the area each has
+(a 5.6 mm pitch gives 0.9 lm a pixel); that figure is an estimate. A beam's pool is drawn at
+the lumen it spreads over each square metre, full strength at 97 lm/m² (a 350 lm, 36° spot on
+the floor 2.45 m below), so a wide wash from a small lamp is faint. A lamp of unknown lumen (a
+DMX par) keeps a bulb's 1 and a full-strength pool, and an aimed lamp without a product counts
+as a bulb. The generic venue is drawn as before.
+
 Optional `anchors` name points effects can start from, such as speakers:
 `[{ "id": "speakerLeft", "position": { "x": -1.5, "y": 1, "z": -1.5 } }]`. Optional
 `listeners` are listening positions with a facing in degrees, seen from above: 0 looks
