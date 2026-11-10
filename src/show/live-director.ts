@@ -47,7 +47,7 @@ export interface LiveDirectorOptions {
   patterns: readonly { id: string }[];
   /** Whether a rig with LED bars can take the pixel patterns. */
   pixels?: () => boolean;
-  particlePatterns?: () => ReadonlySet<string> | undefined;
+  usablePatterns?: () => ReadonlySet<string> | undefined;
   now?: () => number;
   setTimer?: (fn: () => void, ms: number) => unknown;
   clearTimer?: (timer: unknown) => void;
@@ -57,7 +57,7 @@ class LiveDirector {
   declare _apply: (patch: Patch) => unknown;
   declare _available: Set<string>;
   declare _pixels: () => boolean;
-  declare _particlePatterns: () => ReadonlySet<string> | undefined;
+  declare _usablePatterns: () => ReadonlySet<string> | undefined;
   declare _now: () => number;
   declare _setTimer: (fn: () => void, ms: number) => unknown;
   declare _clearTimer: (timer: unknown) => void;
@@ -75,7 +75,7 @@ class LiveDirector {
   declare _lastAccentAt: number;
   declare _timers: Set<unknown>;
 
-  constructor({ applyPatch, patterns, pixels = () => false, particlePatterns = () => undefined, now = () => performance.now(),
+  constructor({ applyPatch, patterns, pixels = () => false, usablePatterns = () => undefined, now = () => performance.now(),
     setTimer = (fn, ms) => setTimeout(fn, ms), clearTimer = (t) => clearTimeout(t as ReturnType<typeof setTimeout>) }: LiveDirectorOptions) {
     // Called from the live input's events, where a throw would end the server:
     // a patch refused (a strobe burst before the photosensitivity
@@ -90,7 +90,7 @@ class LiveDirector {
     };
     this._available = new Set(patterns.map((p) => p.id));
     this._pixels = pixels;
-    this._particlePatterns = particlePatterns;
+    this._usablePatterns = usablePatterns;
     this._now = now;
     this._setTimer = setTimer;
     this._clearTimer = clearTimer;
@@ -190,13 +190,18 @@ class LiveDirector {
     this._seed++;
     // Well apart from the last few, round the wheel.
     this._hue = goldenStep(this._seed, WHEEL.length);
-    const character: Character = rise ? { ...this._character, energy: Math.max(0.8, this._character.energy) } : this._character;
+    // A rise is picked as the hard passage it starts: the meters still read the quiet before it.
+    const hard = (v: number) => Math.max(0.8, v);
+    const c = this._character;
+    const character: Character = rise ? { ...c, energy: hard(c.energy), kick: hard(c.kick), pulse: hard(c.pulse) } : c;
     const drive = rise ? Math.max(0.8, this._drive()) : this._drive();
     const dropLooks = ['v2.speakerShockwave', 'v2.fireworks', 'v2.orbCollision']
-      .filter((id) => this._available.has(id) && automaticPattern(id, this._particlePatterns()));
-    const pattern = rise && dropLooks.length ? dropLooks[this._seed % dropLooks.length] : pickPattern({
+      .filter((id) => this._available.has(id) && automaticPattern(id, this._usablePatterns()));
+    // A drop takes turns through its own looks while the rig has two of them to alternate; with one left every drop
+    // would land on the same look, so the pick for a hard passage chooses instead.
+    const pattern = rise && dropLooks.length > 1 ? dropLooks[this._seed % dropLooks.length] : pickPattern({
       character, available: this._available, seed: this._seed, drive,
-      dance: this._character.pulse, pixels: this._pixels(), particles: this._particlePatterns(),
+      dance: character.pulse, pixels: this._pixels(), usable: this._usablePatterns(),
     });
     const at = (k: number) => WHEEL[(this._hue + k) % WHEEL.length];
     const look: Patch = {
@@ -239,7 +244,7 @@ class LiveDirector {
       case 'BUILDUP':
         if (this._building || this._silent) break;
         this._building = true;
-        if (this._available.has('v2.risingWall')) {
+        if (this._available.has('v2.risingWall') && automaticPattern('v2.risingWall', this._usablePatterns())) {
           this._look = { ...this._look, pattern: 'v2.risingWall', beatDivision: 2, pixelPattern: null, panelPattern: null,
             pixelMap: 'stage', pixelSpan: fillBeats('v2.risingWall'), pixelFrom: null, split: null };
           this._apply(this._look);

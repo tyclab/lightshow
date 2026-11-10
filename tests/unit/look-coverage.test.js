@@ -1,11 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
-import { measureParticleCoverage, ParticleCoverage } from '../../src/server/particle-coverage.ts';
+import { measureLookCoverage, LookCoverage } from '../../src/server/look-coverage.ts';
 import { buildRoom } from '../../src/shared/room.ts';
 import { buildRig } from '../../src/shared/rig.ts';
 import { syntheticRig, syntheticSpace } from '../../scripts/golden-frames.js';
-import { availableFor } from '../../src/show/look.ts';
+import { MEASURED_LOOKS, availableFor } from '../../src/show/look.ts';
 import { kindOf } from '../../src/shared/effects/registry.ts';
 import { V2_PRESETS } from '../../src/shared/effects/v2/presets.ts';
 import { effectRoom, voiceLayout } from '../../src/shared/effects/layer.ts';
@@ -20,7 +20,7 @@ function pointsRoom(points) {
 }
 
 test('a corner pixel pair does not qualify while well-placed whole lamps do', async () => {
-  const corner = await measureParticleCoverage(pointsRoom([[1.9, 3.9, 1.9], [1.91, 3.9, 1.9]]));
+  const corner = await measureLookCoverage(pointsRoom([[1.9, 3.9, 1.9], [1.91, 3.9, 1.9]]));
   for (const id of ['v2.lightOrbs', 'v2.orbCollision', 'v2.fireworks']) {
     assert.equal(corner.eligible.has(id), false, id);
     assert.ok(corner.darkBeats.get(id) > 4, id);
@@ -29,15 +29,45 @@ test('a corner pixel pair does not qualify while well-placed whole lamps do', as
     const a = i * Math.PI / 16;
     return [Math.cos(a) * 2, 1.2 + Math.sin(a * 2) * 0.8, Math.sin(a) * 2];
   }));
-  const coverage = await measureParticleCoverage(lamps);
+  const coverage = await measureLookCoverage(lamps);
   assert.ok(coverage.eligible.has('v2.lightOrbs'));
   assert.ok(coverage.darkBeats.get('v2.lightOrbs') <= 4);
-  assert.ok(availableFor(V2_PRESETS, null, { particles: coverage.eligible }).has('v2.lightOrbs'));
+  assert.ok(availableFor(V2_PRESETS, null, { usable: coverage.eligible }).has('v2.lightOrbs'));
+});
+
+/** The runtime rig (a wall of 2,400 cells, a keyboard, two strips, thirty lamps) with every unit placed by hand. */
+function placedRoom(name, at) {
+  const { rig, space } = runtimeRig();
+  const x = new Float32Array(space.n), y = new Float32Array(space.n), z = new Float32Array(space.n);
+  rig.units.forEach(({ fixture }, u) => { [x[u], y[u], z[u]] = at(fixture, u); });
+  return effectRoom(voiceLayout(rig), { ...space, revision: name, x, y, z });
+}
+
+test('fixtures count once whatever their cell count: a panel on the path does not outvote the lamps off it', async () => {
+  // Light Orbs circle the listener two metres out; whatever is not on that ring hangs out of their reach.
+  const ring = (u) => [Math.cos(u * 2.4) * 2, 1.2, Math.sin(u * 2.4) * 2], away = [0, 3, 0];
+  const panel = await measureLookCoverage(placedRoom('panel', (fixture, u) => (fixture === 0 ? ring(u) : away)));
+  assert.ok(panel.litShare.get('v2.lightOrbs') < 0.02, `one fixture of 34: ${panel.litShare.get('v2.lightOrbs')}`);
+  assert.equal(panel.eligible.has('v2.lightOrbs'), false, '2,400 of 3,000 cells on the path are still one fixture');
+  assert.equal(panel.darkBeats.get('v2.lightOrbs'), 0, 'it was never all dark: one lit unit used to be enough');
+  const lamps = await measureLookCoverage(placedRoom('lamps', (fixture, u) => (fixture >= 4 ? ring(u) : away)));
+  assert.ok(lamps.litShare.get('v2.lightOrbs') > 0.15, `thirty fixtures of 34: ${lamps.litShare.get('v2.lightOrbs')}`);
+  assert.equal(lamps.eligible.has('v2.lightOrbs'), true);
+});
+
+test('every look an automatic show may pick is measured, and a rig no shape reaches keeps the looks every fixture shows', async () => {
+  const corner = await measureLookCoverage(pointsRoom([[1.9, 3.9, 1.9], [1.91, 3.9, 1.9]]));
+  assert.deepEqual([...corner.darkBeats.keys()].sort(), [...MEASURED_LOOKS].sort());
+  assert.deepEqual([...corner.litShare.keys()].sort(), [...MEASURED_LOOKS].sort());
+  assert.equal(corner.litShare.get('v2.wash'), 1);
+  assert.ok(corner.eligible.has('v2.wash') && corner.eligible.has('v2.rotation'));
+  assert.ok(corner.eligible.size < MEASURED_LOOKS.size);
+  for (const id of corner.eligible) assert.ok(corner.litShare.get(id) >= 0.1 && corner.darkBeats.get(id) <= 4, id);
 });
 
 test('coverage yields before rendering and between samples, so timers remain runnable', async () => {
   let pauses = 0, timerRan = false;
-  const pending = measureParticleCoverage(pointsRoom([[2, 1.2, 0]]), () => false, async () => {
+  const pending = measureLookCoverage(pointsRoom([[2, 1.2, 0]]), () => false, async () => {
     pauses++; await new Promise((resolve) => setImmediate(resolve));
   });
   assert.equal(pauses, 1);
@@ -47,11 +77,14 @@ test('coverage yields before rendering and between samples, so timers remain run
   assert.equal(timerRan, true);
 });
 
+const measured = async (rig, space) => [...(await measureLookCoverage(effectRoom(voiceLayout(rig), space))).eligible].sort();
+
 test('while a show wants it, the cache reuses unchanged geometry, re-measures profiles/order/room and cancels stale work', async () => {
   const { fixtures, profileOf } = syntheticRig();
   const rig = buildRig(fixtures, profileOf), space = syntheticSpace();
+  const inRoom = await measured(rig, space);
   let changes = 0;
-  const cache = new ParticleCoverage(() => changes++);
+  const cache = new LookCoverage(() => changes++);
   cache.want(true);
   assert.equal(cache.forRig(rig, space).size, 0);
   assert.equal(changes, 0, 'starting a probe returns without synchronous rendering');
@@ -61,8 +94,9 @@ test('while a show wants it, the cache reuses unchanged geometry, re-measures pr
   const moved = { ...space, revision: `${space.revision}/moved`, x: new Float32Array(space.n).fill(50) };
   cache.forRig(rig, moved);
   await cache.ready; await pending;
-  assert.equal(changes, 0, 'superseded geometry cannot publish its eligible result, and an empty one changes nothing');
-  assert.equal(cache.allowed.size, 0);
+  assert.equal(changes, 1, 'superseded geometry cannot publish its eligible result');
+  assert.deepEqual([...cache.allowed].sort(), await measured(rig, moved));
+  assert.notDeepEqual([...cache.allowed].sort(), inRoom);
   const previous = cache.ready;
   cache.forRig(rig, moved);
   assert.equal(cache.ready, previous);
@@ -70,35 +104,39 @@ test('while a show wants it, the cache reuses unchanged geometry, re-measures pr
   cache.forRig(reordered, null);
   assert.notEqual(cache.ready, previous);
   await cache.ready;
-  assert.equal(changes, 1);
-  assert.deepEqual([...cache.allowed].sort(), ['v2.fireworks', 'v2.lightOrbs', 'v2.orbCollision', 'v2.rain']);
+  assert.equal(changes, 2);
+  assert.deepEqual([...cache.allowed].sort(), await measured(reordered, null));
+  assert.notDeepEqual([...cache.allowed].sort(), inRoom);
   const profilesChanged = buildRig(fixtures, (f) => ({ ...profileOf(f) }));
   const before = cache.ready;
   const shown = cache.forRig(profilesChanged, space);
   assert.notEqual(cache.ready, before);
   assert.equal(shown, cache.allowed, 'the last result stays out while the next is measured: no empty round trip');
   await cache.ready;
-  assert.equal(changes, 2);
-  assert.deepEqual([...cache.allowed].sort(), ['v2.lightOrbs', 'v2.orbCollision', 'v2.rain']);
+  assert.equal(changes, 3);
+  assert.deepEqual([...cache.allowed].sort(), inRoom);
 });
+
+const PRESETS = V2_PRESETS.filter((p) => MEASURED_LOOKS.has(p.id)), CANDIDATES = PRESETS.length;
+const KINDS = [...new Set(PRESETS.map((p) => p.spec.kind))].map((kind) => kindOf(kind));
 
 /** Counts the probe's measurements (one init per candidate preset) and renders while `fn` runs. */
 async function counting(fn) {
-  const def = kindOf('v2.particles'), { init, render } = def;
-  const seen = { inits: 0, renders: 0 };
-  def.init = (...args) => { seen.inits++; return init(...args); };
-  def.render = (...args) => { seen.renders++; return render(...args); };
-  try { await fn(seen); } finally { def.init = init; def.render = render; }
+  const seen = { inits: 0, renders: 0 }, originals = KINDS.map(({ init, render }) => ({ init, render }));
+  KINDS.forEach((def, k) => {
+    def.init = (...args) => { seen.inits++; return originals[k].init(...args); };
+    def.render = (...args) => { seen.renders++; return originals[k].render(...args); };
+  });
+  try { await fn(seen); } finally { KINDS.forEach((def, k) => Object.assign(def, originals[k])); }
   return seen;
 }
 const settle = async () => { for (let i = 0; i < 4; i++) await new Promise((resolve) => setImmediate(resolve)); };
-const CANDIDATES = V2_PRESETS.filter((p) => p.spec.kind === 'v2.particles' && !p.id.endsWith('.2d')).length;
 
 test('with the show off a changed rig is only recorded: nothing renders and the set is empty until a show wants it', async () => {
   const { fixtures, profileOf } = syntheticRig();
   const space = syntheticSpace();
   let changes = 0;
-  const cache = new ParticleCoverage(() => changes++);
+  const cache = new LookCoverage(() => changes++);
   const seen = await counting(async () => {
     for (let i = 0; i < 3; i++) {
       const rig = buildRig(fixtures.map((f) => ({ ...f, position: { ...f.position, x: f.position.x + i } })), profileOf);
@@ -109,7 +147,7 @@ test('with the show off a changed rig is only recorded: nothing renders and the 
   assert.deepEqual(seen, { inits: 0, renders: 0 });
   assert.equal(changes, 0);
 
-  const pending = buildRig(fixtures, profileOf);
+  const pending = buildRig(fixtures, profileOf), inRoom = await measured(pending, space);
   cache.forRig(pending, space);
   const wanted = await counting(async () => {
     cache.want(true);
@@ -119,12 +157,12 @@ test('with the show off a changed rig is only recorded: nothing renders and the 
   });
   assert.equal(wanted.inits, CANDIDATES, 'wanting it measures the pending rig once');
   assert.equal(changes, 1);
-  const measured = cache.allowed;
-  assert.deepEqual([...measured].sort(), ['v2.lightOrbs', 'v2.orbCollision', 'v2.rain']);
+  const published = cache.allowed;
+  assert.deepEqual([...published].sort(), inRoom);
 
   const off = await counting(async () => {
     cache.want(false);
-    assert.equal(cache.forRig(pending, space), measured, 'the stored result is this rig\'s, so it stays');
+    assert.equal(cache.forRig(pending, space), published, 'the stored result is this rig\'s, so it stays');
     const edited = buildRig(fixtures.map((f) => ({ ...f, group: 'edited' })), profileOf);
     assert.equal(cache.forRig(edited, space), cache.allowed);
     assert.equal(cache.allowed.size, 0, 'a rig without a result of its own gets none while the show is off');
@@ -138,7 +176,7 @@ test('stopping the show cancels a measurement in progress, and starting it again
   const { fixtures, profileOf } = syntheticRig();
   const rig = buildRig(fixtures, profileOf), space = syntheticSpace();
   let changes = 0;
-  const cache = new ParticleCoverage(() => changes++);
+  const cache = new LookCoverage(() => changes++);
   const seen = await counting(async (counts) => {
     cache.want(true);
     cache.forRig(rig, space);
@@ -154,14 +192,14 @@ test('stopping the show cancels a measurement in progress, and starting it again
   });
   assert.equal(seen.inits, CANDIDATES + 1, 'the first probe stopped in its first preset; the second ran whole');
   assert.equal(changes, 1);
-  assert.deepEqual([...cache.allowed].sort(), ['v2.lightOrbs', 'v2.orbCollision', 'v2.rain']);
+  assert.deepEqual([...cache.allowed].sort(), await measured(rig, space));
 });
 
 test('a measurement with the same result keeps the published set, so nothing re-plans', async () => {
   const { fixtures, profileOf } = syntheticRig();
   const space = syntheticSpace();
   let changes = 0;
-  const cache = new ParticleCoverage(() => changes++);
+  const cache = new LookCoverage(() => changes++);
   cache.want(true);
   cache.forRig(buildRig(fixtures, profileOf), space);
   await cache.ready;
@@ -180,12 +218,12 @@ test('a measurement with the same result keeps the published set, so nothing re-
 });
 
 // While a show runs, the last set stays out until the next one is measured. A measurement that fails
-// leaves no next one: the set out then is another rig's, so the show loses its particle looks.
-test('a measurement that fails while a show runs takes the previous rig\'s particle looks away', async (t) => {
+// leaves no next one: the set out then is another rig's, so the show is back on the unmeasured set.
+test('a measurement that fails while a show runs takes the previous rig\'s result away', async (t) => {
   const { fixtures, profileOf } = syntheticRig();
   const space = syntheticSpace();
   let changes = 0;
-  const cache = new ParticleCoverage(() => changes++);
+  const cache = new LookCoverage(() => changes++);
   cache.want(true);
   cache.forRig(buildRig(fixtures, profileOf), space);
   await cache.ready;
@@ -199,7 +237,7 @@ test('a measurement that fails while a show runs takes the previous rig\'s parti
     await cache.ready;
   } finally { render.mock.restore(); }
   assert.equal(warn.mock.callCount(), 1, 'the failure is reported');
-  assert.equal(cache.allowed.size, 0, 'no particle looks on a rig nobody could measure');
+  assert.equal(cache.allowed.size, 0, 'no result for a rig nobody could measure');
   assert.equal(changes, 2, 'and the show is told');
   assert.equal(cache.forRig(moved, space).size, 0);
 });
@@ -222,7 +260,7 @@ async function probeOutput(room, reveal) {
     return result;
   };
   try {
-    const { eligible, darkBeats } = await measureParticleCoverage(room);
+    const { eligible, darkBeats } = await measureLookCoverage(room);
     return { eligible: [...eligible], darkBeats: [...darkBeats], output: hash.digest('hex') };
   } finally { def.render = render; }
 }
@@ -243,12 +281,12 @@ test('a probe that does not reveal gaps measures the same levels, colours, eligi
 
 
 test('the probe renders only one frame between yields and cancellation stops before the next frame', async () => {
-  const def = kindOf('v2.particles'), render = def.render;
+  const def = KINDS[0], render = def.render;
   let renders = 0, cancelled = false;
   const resumes = [];
   def.render = (...args) => { renders++; return render(...args); };
   try {
-    const pending = measureParticleCoverage(pointsRoom([[2, 1.2, 0]]), () => cancelled,
+    const pending = measureLookCoverage(pointsRoom([[2, 1.2, 0]]), () => cancelled,
       () => new Promise((resolve) => resumes.push(resolve)));
     assert.equal(renders, 0);
     resumes.shift()();
