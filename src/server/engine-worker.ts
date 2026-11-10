@@ -1,5 +1,6 @@
 import { parentPort, workerData } from 'node:worker_threads';
 import { getHeapStatistics } from 'node:v8';
+import { format } from 'node:util';
 
 import { createRenderer } from './renderer.ts';
 import { allocateShared, createUniverseStore } from './universes.ts';
@@ -12,6 +13,7 @@ import { hueProfile } from './hue-profile.ts';
 import { HOLD_STROBE } from '../shared/look-math.ts';
 import { guarded } from './guard.ts';
 import type { MusicalTime } from './conductor.ts';
+import { CONSOLE_METHODS } from './engine-messages.ts';
 import type { EngineHeap, EngineWorkerData, FromWorker, RenderedFrames, ToWorker } from './engine-messages.ts';
 import type { Ticker } from './frame-clock.ts';
 import type { RenderInput } from './renderer.ts';
@@ -26,7 +28,12 @@ const post = (msg: FromWorker) => port.postMessage(msg);
 
 const {
   shared, epochMs, periodMs = FRAME_MS, capture = false, seed = null, startNow = null, retire = null, hueReclaim = false,
+  log = false,
 } = (workerData || {}) as EngineWorkerData;
+
+// The logger lives in the main thread (one log file, one in-app log). Written from here, this thread's lines (every
+// output's warnings) reached the terminal as bare text, without level or component, and missed both.
+if (log) for (const method of CONSOLE_METHODS) console[method] = (...args: unknown[]) => post({ type: 'log', method, text: format(...args) });
 
 function seeded(value: number): () => number {
   let a = value >>> 0;

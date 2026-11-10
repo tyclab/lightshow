@@ -641,7 +641,7 @@ function spawnWorker(epochMs: number): void {
   ready = false;
   let started = false;
   const w = new Worker(workerFile, {
-    workerData: { shared: universes.shared, epochMs, periodMs: FRAME_MS, retire: routes.outstanding(), hueReclaim: hueBridges.size > 0 },
+    workerData: { shared: universes.shared, epochMs, periodMs: FRAME_MS, retire: routes.outstanding(), hueReclaim: hueBridges.size > 0, log: true },
   });
   worker = w;
   postedRevision = -1;
@@ -649,6 +649,8 @@ function spawnWorker(epochMs: number): void {
   postedSpace = undefined;
   postedRig = undefined;
   w.on('message', (msg: FromWorker | null) => {
+    // Its console lines, said here so the logger files them; a replaced worker's last words count too.
+    if (msg?.type === 'log') { console[msg.method](msg.text); return; }
     if (worker !== w && msg?.type !== 'stopped') return;
     if (msg && msg.type === 'ready') { started = true; markReady(); }
     if (msg && msg.type === 'commands' && worker !== w) return;

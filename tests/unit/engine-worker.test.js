@@ -842,6 +842,25 @@ async function liveWorker() {
   };
 }
 
+// The logger lives in the main thread: the engine asks its worker to send its console lines over instead of writing them.
+test('a worker asked to sends its console lines to the main thread, with the method that wrote them', async () => {
+  const lines = [];
+  const w = new Worker(WORKER, { workerData: { shared: universes.allocateShared(), epochMs: hrtimeMs(), periodMs: FRAME_MS, log: true } });
+  try {
+    await new Promise((resolve, reject) => {
+      w.on('message', (m) => { if (m.type === 'ready') resolve(); if (m.type === 'log') lines.push(m); });
+      w.once('error', reject);
+    });
+    // Not a list of profiles: the worker's message guard reports the failure on its console.
+    w.postMessage({ type: 'profiles', profiles: 7 });
+    await until(() => lines.length > 0, 'the guard\'s report');
+    assert.strictEqual(lines[0].method, 'error');
+    assert.match(lines[0].text, /^\[engine-worker\] TypeError/);
+  } finally {
+    await w.terminate();
+  }
+});
+
 test('an idle worker renders only for a snapshot or a command, and keeps reporting', async () => {
   const worker = await liveWorker();
   try {
