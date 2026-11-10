@@ -47,27 +47,36 @@ interface Span { beats: number; from: number }
 
 export type LayerSet = (unit: number, colour: Colour, dim: number, strobe: number, background?: BackgroundField) => void;
 
+type PartsLook = Pick<LayerLook, 'split' | 'pixelMap' | 'pixelPattern' | 'panelPattern'>;
+
+/** The parts of the rig the pixel and panel layers paint, as renderLayer splits it; null where a layer does not play. */
+function layerParts(rig: Rig, look: PartsLook): { pixel: { only: LayerPart; layout: Layout } | null; panel: Layout | null } {
+  const panel = look.panelPattern && rig.hasPanels ? rig.layout(look.split, look.pixelMap, 'panels') : null;
+  const only: LayerPart | null = !look.pixelPattern ? null : panel ? 'strips' : rig.hasPixels ? 'cells' : null;
+  return { pixel: only && { only, layout: rig.layout(look.split, look.pixelMap, only) }, panel };
+}
+
 function renderLayer(rig: Rig, look: LayerLook, clock: LayerClock | null, set: LayerSet,
   { skipPattern = false, skipPixelPattern = false, skipPanelPattern = false } = {}): void {
   const whole = rig.layout(look.split, look.pixelMap);
-  if (look.panelPattern && rig.hasPanels) {
+  const { pixel, panel } = layerParts(rig, look);
+  if (panel) {
     const part = (only: LayerPart, map = look.pixelMap) => rig.layout(look.split, map, only);
     if (!skipPanelPattern) {
-      paintPart(rig, part('panels'), look.panelPattern, look, clock, clock?.panelTwinkle ?? clock?.twinkle, null, set);
+      paintPart(rig, panel, look.panelPattern!, look, clock, clock?.panelTwinkle ?? clock?.twinkle, null, set);
     }
-    if (look.pixelPattern) {
+    if (pixel) {
       if (!skipPattern) paintPart(rig, part('pars', 'stage'), look.pattern, look, clock, clock?.twinkle, null, set);
       if (!skipPixelPattern) {
-        paintPart(rig, part('strips'), look.pixelPattern, look, clock, clock?.pixelTwinkle ?? clock?.twinkle, spanOf(look), set);
+        paintPart(rig, pixel.layout, look.pixelPattern!, look, clock, clock?.pixelTwinkle ?? clock?.twinkle, spanOf(look), set);
       }
     } else if (!skipPattern) {
       paintPart(rig, part('unpanelled'), look.pattern, look, clock, clock?.twinkle, spanOf(look), set);
     }
-  } else if (look.pixelPattern && rig.hasPixels) {
+  } else if (pixel) {
     if (!skipPattern) paint(rig, rig.layout(look.split, 'stage', 'pars'), look.pattern, look, clock, clock?.twinkle, null, set, false);
     if (!skipPixelPattern) {
-      paint(rig, rig.layout(look.split, look.pixelMap, 'cells'), look.pixelPattern, look, clock,
-        clock?.pixelTwinkle ?? clock?.twinkle, spanOf(look), set, false);
+      paint(rig, pixel.layout, look.pixelPattern!, look, clock, clock?.pixelTwinkle ?? clock?.twinkle, spanOf(look), set, false);
     }
   } else if (!skipPattern) {
     paint(rig, whole, look.pattern, look, clock, clock?.twinkle, spanOf(look), set, true);
@@ -191,6 +200,7 @@ function patternContext(rig: Rig, layout: Layout, pattern: string, colors: reado
 }
 
 export {
+  layerParts,
   renderLayer,
 };
 

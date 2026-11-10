@@ -16,11 +16,11 @@ import type { Profile } from '../types/rig.ts';
 import { fixedColours, colourSlots, resolveGradient } from './palette-model.ts';
 import type { PaletteBody } from './palette-model.ts';
 import { PATTERN_FUNCS, paletteOf } from './patterns.ts';
-import { renderLayer } from './layer.ts';
+import { layerParts, renderLayer } from './layer.ts';
 import { buildRig, rigSignature, isHueLamp } from './rig.ts';
 import { EXPRESSION_REST, resolveEnergyOverride, blendExpression, blendFixture, HOLD_STROBE } from './look-math.ts';
 import { gridFromAnalysis, beatPositionAt, localBpm, anchorStep, stepAt, motionAdvance } from './beat-clock.ts';
-import { canonical, effectContentKey, handOverStrobes, relaunchEffect, renderEffectLayer, renderVoices, voiceAnchor, voiceLaunchKey, voiceLayout } from './effects/layer.ts';
+import { canonical, effectContentKey, handOverStrobes, partInstance, relaunchEffect, renderEffectLayer, renderVoices, voiceAnchor, voiceLaunchKey, voiceLayout } from './effects/layer.ts';
 import { energyEffectSpec } from './effects/catalogue.ts';
 import { requiresAcknowledgement, ridesLevel, validateSpec } from './effects/registry.ts';
 import { EffectStepper } from './effects/stepper.ts';
@@ -33,7 +33,7 @@ import type { AudioFrame } from './effects/audio-frame.ts';
 import type { GridSource } from './beat-clock.ts';
 import type { Layout, Rig } from './rig.ts';
 import type { UnitLight } from './look-math.ts';
-import type { VoiceFrame, VoiceRecord } from './effects/layer.ts';
+import type { PartLaunch, VoiceFrame, VoiceRecord } from './effects/layer.ts';
 import type { EffectInstance } from './effects/stepper.ts';
 import type { SequenceRun, SequenceTable, SequenceTransport } from './effects/sequence.ts';
 import type { EffectSlot, EffectSpec, FrameBase, Seed } from './effects/types.ts';
@@ -164,6 +164,11 @@ interface LayerEntry {
   color: Colour;
   dim: number;
 }
+
+type PartName = 'pixels' | 'panels';
+/** A pixel or panel layer as it plays, as renderer.ts partsOf: its id, its spec if it has one, and the units it paints. */
+interface Part { name: PartName; pattern: string; spec: EffectSpec | null; layout: Layout; key: string; plays: boolean }
+interface Parts { pixelPattern: string | null; panelPattern: string | null; pixel: Part | null; panel: Part | null }
 
 const LOOK_KEYS = ['basePalette', 'pattern', 'palette', 'split', 'pixelMap', 'pixelPattern', 'panelPattern', 'colorA', 'colorB', 'colorC', 'colorD'];
 const COLOUR_KEYS = ['colorA', 'colorB', 'colorC', 'colorD'] as const;
@@ -297,6 +302,8 @@ interface Walk {
   /** Seek markers so far: the rig's clock epoch. */
   epoch: number;
   base: { key: string; id: string; kind: string; seed: Seed; startedAtMs: number } | null;
+  /** The pixel and panel layers' own effects. */
+  parts: Record<PartName, PartLaunch | null>;
   /** The voices launched and not ended, in launch order. */
   voices: Map<string, VoiceFrame>;
   records: Map<string, VoiceRecord>;
@@ -324,6 +331,7 @@ function copyWalk(w: Walk): Walk {
     hardwareClock: w.hardwareClock.clone(),
     expression: { ...w.expression },
     base: w.base && { ...w.base },
+    parts: { ...w.parts },
     // Voice frames, fade sources, shown lights and outputs are made afresh and never changed.
     voices: new Map(w.voices),
     records: new Map([...w.records].map(([id, rec]) => [id, { ...rec }])),
@@ -340,7 +348,8 @@ interface Checkpoint { walk: Walk; periodic: boolean; used: number }
 
 const emptyWalk = (k: number, intervalMs: number): Walk => ({
   k, cursor: 0, stepper: new EffectStepper(), outputGuard: new OutputGuard(intervalMs), hardwareClock: new HardwareClock(), expression: { ...EXPRESSION_REST }, phase: 0,
-  lastBeat: null, lastEpoch: 0, lastNow: null, lastSweep: -Infinity, epoch: 0, base: null, voices: new Map(), records: new Map(), strobes: new Set(),
+  lastBeat: null, lastEpoch: 0, lastNow: null, lastSweep: -Infinity, epoch: 0, base: null, parts: { pixels: null, panels: null },
+  voices: new Map(), records: new Map(), strobes: new Set(),
   compat: null, fadeOf: null, fade: null, shown: [], output: null, seq: newSequenceRun(),
 });
 
@@ -441,7 +450,7 @@ function createPreviewSampler(events: readonly PreviewEvent[] = [], grid: GridSo
 
   // A voice event anywhere means the timeline owns its voices, as a renderer input with `voices` does.
   const explicitVoices = timeline.some((e) => e.action === 'voice' || e.action === 'voice-end');
-  const patterns = [...new Set(frames.map((f) => f.look.pattern))];
+  const patterns = [...new Set(frames.flatMap((f) => [f.look.pattern, f.look.pixelPattern, f.look.panelPattern]).filter((id): id is string => !!id))];
   // An event that launches the base again (a seek, or a new pattern or anchor step: the base's id): a copy is kept before it.
   const keyframe = timeline.map((e, i) => {
     const before = frames[i - 1] ?? { look: OPENING, anchor: 0 };
@@ -466,7 +475,24 @@ function createPreviewSampler(events: readonly PreviewEvent[] = [], grid: GridSo
   // As the renderer: a classic program that strikes flashes stays dark until the photosensitivity acknowledgement.
   const held = (id: string | null | undefined): boolean => safetyGiven && !acknowledged && !!id && RAPID_PATTERNS.has(id);
 
-  function drawPattern(f: Frame, positionMs: number, rig: Rig, colors: Colour[], expr: Expression, phase: number, bpm: number, hardware?: HardwareCaps[], hardwareClock?: HardwareClock): LayerEntry[] {
+  /** Which layers play on which units, as renderer.ts partsOf: an id with a spec plays it, one without keeps its pattern function. */
+  function partsOf(s: PreviewLook, rig: Rig, specs?: ReadonlyMap<string, EffectSpec | null>): Parts {
+    const specOf = (id: string | null | undefined) => (id && specs?.get(id)) || null;
+    const pixelSpec = specOf(s.pixelPattern), panelSpec = specOf(s.panelPattern);
+    const pixelPattern = s.pixelPattern && (pixelSpec || PATTERN_FUNCS[s.pixelPattern]) ? s.pixelPattern : null;
+    const panelPattern = s.panelPattern && (panelSpec || PATTERN_FUNCS[s.panelPattern]) ? s.panelPattern : null;
+    const { pixel, panel } = layerParts(rig, { split: s.split, pixelMap: s.pixelMap, pixelPattern, panelPattern });
+    const part = (name: PartName, pattern: string, spec: EffectSpec | null, layout: Layout, only: string): Part => ({ name, pattern, spec, layout,
+      key: `${s.split ?? null}|${s.pixelMap ?? 'stage'}|${only}`, plays: !!spec || !held(pattern) });
+    return {
+      pixelPattern, panelPattern,
+      pixel: pixel && part('pixels', pixelPattern!, pixelSpec, pixel.layout, pixel.only),
+      panel: panel && part('panels', panelPattern!, panelSpec, panel, 'panels'),
+    };
+  }
+
+  function drawPattern(f: Frame, positionMs: number, rig: Rig, colors: Colour[], expr: Expression, phase: number, bpm: number, hardware?: HardwareCaps[],
+    hardwareClock?: HardwareClock, parts = partsOf(f.look, rig), overEffect = false): LayerEntry[] {
     const s = f.look;
     const settingsOf = backgroundOf(s, rig);
     const division = Math.max(1, s.beatDivision || 1);
@@ -480,10 +506,10 @@ function createPreviewSampler(events: readonly PreviewEvent[] = [], grid: GridSo
       gradient: resolveGradient(paletteOverride ? options.overridePalette : s.basePalette, colors),
       split: s.split,
       pixelMap: s.pixelMap,
-      pixelPattern: s.pixelPattern && PATTERN_FUNCS[s.pixelPattern] ? s.pixelPattern : null,
+      pixelPattern: parts.pixelPattern,
       pixelSpan: s.pixelSpan ?? null,
       pixelFrom: s.pixelFrom ?? null,
-      panelPattern: s.panelPattern && PATTERN_FUNCS[s.panelPattern] ? s.panelPattern : null,
+      panelPattern: parts.panelPattern,
     }, {
       beatPos,
       step,
@@ -501,7 +527,8 @@ function createPreviewSampler(events: readonly PreviewEvent[] = [], grid: GridSo
     }, (u, color, dim, strobe, background) => {
       const resolved = composeBackground(color, dim / 255, background, settingsOf(u));
       layer[u] = { color: resolved.colour, dim: resolved.level * 255, strobe };
-    }, { skipPattern: held(s.pattern), skipPixelPattern: held(s.pixelPattern), skipPanelPattern: held(s.panelPattern) });
+    }, { skipPattern: overEffect || held(s.pattern), skipPixelPattern: !!parts.pixel?.spec || held(s.pixelPattern),
+      skipPanelPattern: !!parts.panel?.spec || held(s.panelPattern) });
     return layer;
   }
 
@@ -732,15 +759,17 @@ function createPreviewSampler(events: readonly PreviewEvent[] = [], grid: GridSo
 
     const colors = coloursOf(s, presets);
     const spec = e.specs.get(s.pattern) ?? null;
+    const parts = partsOf(s, rig, e.specs);
     const settingsOf = backgroundOf(s, rig);
     const { voices, admitted } = playingVoices(w, t, beatPos, f);
     const n = rig.units.length;
     const units: UnitLight[] = new Array<UnitLight>(n);
     const baseKind: (string | null)[] = new Array<string | null>(n).fill(null);
     const baseOwner: (string | undefined)[] = new Array(n);
+    const partOwner: (string | undefined)[] = new Array(n);
     let fb: FrameBase | null = null;
     let voiceCells: Cells | null = null;
-    if (spec || voices.length || sequence) {
+    if (spec || parts.pixel?.spec || parts.panel?.spec || voices.length || sequence) {
       voiceCells = cellsOf(e, 'voices', () => voiceLayout(rig));
       const ids = voiceCells.ids;
       // Disco's automatic strobe stands down for any manual strobe playing.
@@ -777,7 +806,11 @@ function createPreviewSampler(events: readonly PreviewEvent[] = [], grid: GridSo
       }
       const instance: EffectInstance = { id, spec, seed: w.base.seed, anchorBeat: f.anchor / division, startedAtMs: w.base.startedAtMs, targets: null };
       const modulation = s.pixelSpan ? { ...fb.modulation, spanProgress: fb.modulation?.sectionProgress } : fb.modulation;
+      // A layer that plays keeps its units: the base effect leaves them to it.
+      const layered = parts.pixel?.plays || parts.panel?.plays ? new Array<boolean>(n).fill(false) : null;
+      for (const part of [parts.pixel, parts.panel]) if (part?.plays) for (const u of part.layout.units.list) layered![u] = true;
       renderEffectLayer(rig, cells.layout, { ...fb, modulation, fixtureIds: cells.ids, hardware: cells.hardware }, instance, w.stepper, (u, colour, dim, strobe, kind, owner, background) => {
+        if (layered?.[u]) return;
         const resolved = composeBackground(colour, dim / 255, background, settingsOf(u));
         units[u] = unitLight(resolved.colour, resolved.level * 255, strobe);
         baseKind[u] = kind;
@@ -791,9 +824,35 @@ function createPreviewSampler(events: readonly PreviewEvent[] = [], grid: GridSo
           units[u] = unitLight(resolved.colour, resolved.level * 255); baseKind[u] = null;
         }
       }
+      const classic = [parts.pixel, parts.panel].filter((part) => part && !part.spec && part.plays) as Part[];
+      if (classic.length) {
+        const layer = drawPattern(f, t, rig, colors, w.expression, w.phase, bpm, e.hardware, w.hardwareClock, parts, true);
+        for (const part of classic) for (const u of part.layout.units.list) {
+          units[u] = unitLight(layer[u].color, layer[u].dim, layer[u].strobe);
+          partOwner[u] = `legacy:${part.pattern}`;
+        }
+      }
     } else {
-      const layer = drawPattern(f, t, rig, colors, w.expression, w.phase, bpm, e.hardware, w.hardwareClock);
+      const layer = drawPattern(f, t, rig, colors, w.expression, w.phase, bpm, e.hardware, w.hardwareClock, parts);
       for (let u = 0; u < n; u++) units[u] = unitLight(layer[u].color, layer[u].dim, layer[u].strobe);
+    }
+    for (const [name, part] of [['pixels', parts.pixel], ['panels', parts.panel]] as const) {
+      const launch = w.parts[name];
+      if (launch && !part?.spec) { w.stepper.forget(launch.id); w.parts[name] = null; }
+      if (!part?.spec || !fb) continue;
+      // The layer's own effect on its part's units, launched and anchored as the base is.
+      const cells = cellsOf(e, part.key, () => part.layout);
+      const division = Math.max(1, s.beatDivision || 1);
+      const played = partInstance(w.stepper, w.parts[name], `${name}:${part.pattern}:${f.anchor}`, part.spec, f.anchor / division, part.key, w.epoch, t);
+      w.parts[name] = played.launch;
+      const modulation = name === 'pixels' && s.pixelSpan ? { ...fb.modulation, spanProgress: fb.modulation?.sectionProgress } : fb.modulation;
+      renderEffectLayer(rig, cells.layout, { ...fb, modulation, fixtureIds: cells.ids, hardware: cells.hardware }, played.instance, w.stepper,
+        (u, colour, dim, strobe, kind, owner, background) => {
+          const resolved = composeBackground(colour, dim / 255, background, settingsOf(u));
+          units[u] = unitLight(resolved.colour, resolved.level * 255, strobe);
+          baseKind[u] = kind;
+          partOwner[u] = owner ?? `${name}:excluded`;
+        });
     }
 
     // The sequence's clip on top of each light it covers, over the look, as renderer.ts renderSequence.
@@ -865,7 +924,7 @@ function createPreviewSampler(events: readonly PreviewEvent[] = [], grid: GridSo
     if (e.hardware) for (let u = 0; u < n; u++) {
       const { fixture: i, cell } = rig.units[u];
       const voice = voiceTop?.[u], clip = clips?.[u];
-      const owner = voice?.owner ?? (clip ? clipOwner[u] ?? 'sequence:black' : spec ? baseOwner[u] ?? 'base:excluded' : `legacy:${s.pattern}`);
+      const owner = voice?.owner ?? (clip ? clipOwner[u] ?? 'sequence:black' : partOwner[u] ?? (spec ? baseOwner[u] ?? 'base:excluded' : `legacy:${s.pattern}`));
       const cut = tops[u] === 'energy.kill' || !voice && (target?.level === 0 || !!clip && sequence?.transport.stop?.mode === 'black');
       const guardedLight = w.outputGuard.light(`${fixtures[i]?.id ?? i}:${cell}`, cols[u], dims[u], t, e.hardware[i], owner, cut);
       cols[u] = guardedLight.colour; dims[u] = guardedLight.dim;
@@ -898,7 +957,7 @@ function createPreviewSampler(events: readonly PreviewEvent[] = [], grid: GridSo
       const profile = options.profiles?.[fixture?.profileId ?? ''];
       if (caps.technology !== 'hue' || !profile) continue;
       const voice = voiceTop?.[u], clip = clips?.[u];
-      const owner = voice?.owner ?? (clip ? clipOwner[u] ?? 'sequence:black' : spec ? baseOwner[u] ?? 'base:excluded' : `legacy:${s.pattern}`);
+      const owner = voice?.owner ?? (clip ? clipOwner[u] ?? 'sequence:black' : partOwner[u] ?? (spec ? baseOwner[u] ?? 'base:excluded' : `legacy:${s.pattern}`));
       const cut = tops[u] === 'energy.kill' || !voice && (target?.level === 0 || !!clip && sequence?.transport.stop?.mode === 'black');
       const map = rig.cellMaps[i]?.[cell] ?? profile.channelMap;
       if (!programs[u]) {

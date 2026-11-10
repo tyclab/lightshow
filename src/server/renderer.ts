@@ -19,7 +19,7 @@ import { isHueProfile } from '../shared/hue-lamp.ts';
 import { HUE_PROFILE_IDS } from './profiles.ts';
 import { FRAME_MS } from './frame-clock.ts';
 import { PATTERN_FUNCS, paletteOf } from '../shared/patterns.ts';
-import { renderLayer } from '../shared/layer.ts';
+import { layerParts, renderLayer } from '../shared/layer.ts';
 import { buildRig, createRigSignature } from '../shared/rig.ts';
 import { cellPlace, channelPlace, stripOf } from '../shared/placement.ts';
 // Shared with the browser's rehearsal preview so the two cannot drift.
@@ -29,7 +29,7 @@ import { strobeCap, FLASHES_PER_SECOND } from './flash-limit.ts';
 import { fixtureLuminance, limitRoomFlashes } from '../shared/room-flash.ts';
 import { identifyLights } from './identify.ts';
 import { HD_MASTER_DEFAULTS } from '../shared/effects/types.ts';
-import { canonical, effectContentKey, handOverStrobes, relaunchEffect, renderEffectLayer, renderVoices, voiceAnchor, voiceLaunchKey, voiceLayout } from '../shared/effects/layer.ts';
+import { canonical, effectContentKey, handOverStrobes, partInstance, relaunchEffect, renderEffectLayer, renderVoices, voiceAnchor, voiceLaunchKey, voiceLayout } from '../shared/effects/layer.ts';
 import { energyEffectSpec } from '../shared/effects/catalogue.ts';
 import { endSequence, newSequenceRun, renderSequenceLayer, retable } from '../shared/effects/sequence.ts';
 import { kindOf, ridesLevel } from '../shared/effects/registry.ts';
@@ -42,7 +42,7 @@ import type { MusicalTime } from './conductor.ts';
 import type { PatternAnchor } from './state.ts';
 import type { UniverseStore } from './universes.ts';
 import type { AudioFrame } from '../shared/effects/audio-frame.ts';
-import type { VoiceFrame, VoiceRecord } from '../shared/effects/layer.ts';
+import type { PartLaunch, VoiceFrame, VoiceRecord } from '../shared/effects/layer.ts';
 import type { EffectInstance } from '../shared/effects/stepper.ts';
 import type { SequenceTable, SequenceTransport } from '../shared/effects/sequence.ts';
 import type { AudioMode, EffectCommand, EffectSlot, EffectSpec, FrameBase, HdMaster, Seed } from '../shared/effects/types.ts';
@@ -96,6 +96,9 @@ export interface RenderInput {
   pixelSpan?: number | null;
   pixelFrom?: number | null;
   panelPattern?: string | null;
+  /** The pixel and panel layers' specs, resolved as the main look's is; absent plays their pattern functions. */
+  pixelEffect?: EffectSpec | null;
+  panelEffect?: EffectSpec | null;
   beatDivision: number;
   strobeSpeed: number;
   strobeFunction: string;
@@ -223,6 +226,15 @@ export interface Renderer {
 
 const RANDOM_PATTERNS = new Set(['twinkle', 'sparkle', 'random-flash']);
 
+type PartName = 'pixels' | 'panels';
+/** A pixel or panel layer as it plays this frame: its id, its spec if it has one, and the units it paints. */
+interface Part { name: PartName; pattern: string; spec: EffectSpec | null; layout: Layout; key: string; plays: boolean }
+interface Parts { pixelPattern: string | null; panelPattern: string | null; pixel: Part | null; panel: Part | null }
+const NO_PARTS: Parts = Object.freeze({ pixelPattern: null, panelPattern: null, pixel: null, panel: null });
+
+// A classic program that strikes flashes draws nothing until the photosensitivity acknowledgement.
+const allowedPattern = (input: FrameInput, id: string) => input.safety.acknowledged || !RAPID_PATTERNS.has(id);
+
 const SYNC_FLASH_MS = 100;
 
 const blankUnit = (): UnitLight => ({ r: 0, g: 0, b: 0, w: 0, a: 0, uv: 0, dim: 255, strobe: 0 });
@@ -334,6 +346,13 @@ function createRenderer({ profileOf, profilesRevision = () => 0, now = performan
     key: string; id: string; kind: string; pattern: string; revision: number | null; content: string;
     seed: Seed; startedAtMs: number;
   } | null = null;
+  // Each layer's own effect, and its owner per unit where it plays over the main look.
+  const partLaunch: Record<PartName, PartLaunch | null> = { pixels: null, panels: null };
+  let partCells = new WeakMap<Layout, { layout: Layout; ids: number[] }>();
+  const partOwner: (string | undefined)[] = [];
+  let partOwners = false;
+  const layered: boolean[] = [];
+  let layeredUnits = false;
   // Track launch identity separately from musical anchors so seeks preserve wall-clock lifetimes.
   const voiceRecords = new Map<string, VoiceRecord>();
   const strobeTrail = new Set<string>();
@@ -364,6 +383,7 @@ function createRenderer({ profileOf, profilesRevision = () => 0, now = performan
     stepper.reset();
     // Output permits follow physical fixture cells and monotonic time, independent of animation resets.
     base = null;
+    partLaunch.pixels = partLaunch.panels = null;
     if (!clock) return;
     voiceRecords.clear();
     strobeTrail.clear();
@@ -399,6 +419,7 @@ function createRenderer({ profileOf, profilesRevision = () => 0, now = performan
       identityKey = identity;
       baseCells = null;
       voiceCells = null;
+      partCells = new WeakMap();
     }
     const baseKey = `${input.split}|${input.pixelMap}`;
     if (!baseCells || baseCells.key !== baseKey) baseCells = { key: baseKey, ...effectCells(rigNow.layout(input.split, input.pixelMap), rigNow, input.fixtures) };
@@ -597,6 +618,8 @@ function createRenderer({ profileOf, profilesRevision = () => 0, now = performan
     seqLight.length = count;
     while (seqKind.length < count) seqKind.push(null);
     seqKind.length = count;
+    while (layered.length < count) layered.push(false);
+    layered.length = partOwner.length = count;
     baseBackground.length = seqBackground.length = lastBackground.length = shownBackground.length = count;
   }
 
@@ -655,16 +678,75 @@ function createRenderer({ profileOf, profilesRevision = () => 0, now = performan
     return { step: stepAt(reading.beatPos, anchor.step, division), anchor: anchor.step, division };
   }
 
-  // Derive pattern steps from musical position so timers and seeks cannot cause phase drift.
-  function renderPattern(input: FrameInput, rigNow: Rig<RenderFixture>, reading: MusicalTime, hidden: boolean): void {
-    if (!input.running) return;
-    if (baseKinds) { baseKind.fill(null); baseKinds = false; }
+  // Which layers play on which units: an id with a spec plays it, one without keeps its pattern function.
+  function partsOf(input: FrameInput, rigNow: Rig<RenderFixture>): Parts {
+    if (!input.pixelPattern && !input.panelPattern) return NO_PARTS;
     const pixelPattern = rigNow.hasPixels && input.pixelPattern ? input.pixelPattern : null;
-    const panelPattern = rigNow.hasPanels && input.panelPattern && PATTERN_FUNCS[input.panelPattern] ? input.panelPattern : null;
-    // A classic program that strikes flashes draws nothing until the photosensitivity acknowledgement.
-    const allowed = (id: string) => input.safety.acknowledged || !RAPID_PATTERNS.has(id);
-    const known = !!PATTERN_FUNCS[input.pattern] && allowed(input.pattern);
-    const knownPixel = !!pixelPattern && !!PATTERN_FUNCS[pixelPattern] && allowed(pixelPattern);
+    const panelSpec = rigNow.hasPanels && input.panelPattern ? input.panelEffect ?? null : null;
+    const panelPattern = rigNow.hasPanels && input.panelPattern && (panelSpec || PATTERN_FUNCS[input.panelPattern]) ? input.panelPattern : null;
+    const { pixel, panel } = layerParts(rigNow, { split: input.split, pixelMap: input.pixelMap, pixelPattern, panelPattern });
+    const part = (name: PartName, pattern: string, spec: EffectSpec | null, layout: Layout, only: string): Part => ({ name, pattern, spec, layout,
+      key: `${input.split}|${input.pixelMap}|${only}`, plays: !!spec || (!!PATTERN_FUNCS[pattern] && allowedPattern(input, pattern)) });
+    return {
+      pixelPattern, panelPattern,
+      pixel: pixel && part('pixels', pixelPattern!, input.pixelEffect ?? null, pixel.layout, pixel.only),
+      panel: panel && part('panels', panelPattern!, panelSpec, panel, 'panels'),
+    };
+  }
+
+  /** The units a playing layer paints over a main effect, which the base effect leaves to it; null without one. */
+  function layeredOf(parts: Parts): boolean[] | null {
+    if (layeredUnits) { layered.fill(false); layeredUnits = false; }
+    for (const part of [parts.pixel, parts.panel]) if (part?.plays) {
+      for (const u of part.layout.units.list) layered[u] = true;
+      layeredUnits = true;
+    }
+    return layeredUnits ? layered : null;
+  }
+
+  function keepParts(nowMs: number): void {
+    for (const launch of [partLaunch.pixels, partLaunch.panels]) if (launch) stepper.keep(launch.id, nowMs);
+  }
+
+  function forgetParts(parts: Parts): void {
+    for (const [name, part] of [['pixels', parts.pixel], ['panels', parts.panel]] as const) {
+      const launch = partLaunch[name];
+      if (launch && !part?.spec) { stepper.forget(launch.id); partLaunch[name] = null; }
+    }
+  }
+
+  // A layer's effect on its part's units, anchored as the base is, with an id, seed and state of its own.
+  function renderPart(input: FrameInput, rigNow: Rig<RenderFixture>, fb: FrameBase, part: Part, anchorStepNow: number, division: number): void {
+    let cells = partCells.get(part.layout);
+    if (!cells) { cells = effectCells(part.layout, rigNow, input.fixtures); partCells.set(part.layout, cells); }
+    const { launch, instance } = partInstance(stepper, partLaunch[part.name], `${part.name}:${part.pattern}:${anchorStepNow}`, part.spec!,
+      anchorStepNow / division, part.key, anchor?.epoch ?? null, fb.nowMs);
+    partLaunch[part.name] = launch;
+    const modulation = part.name === 'pixels' && input.pixelSpan ? { ...fb.modulation, spanProgress: fb.modulation?.sectionProgress } : fb.modulation;
+    const excluded = `${part.name}:excluded`;
+    baseKinds = partOwners = true;
+    renderEffectLayer(rigNow, cells.layout, { ...fb, modulation, fixtureIds: cells.ids, hardware: cellHardware(cells.layout, rigNow) }, instance, stepper,
+      (u, colour, dim, strobe, kind, owner, background) => {
+        setUnitColor(u, colour, dim, strobe, background);
+        baseKind[u] = kind;
+        partOwner[u] = owner ?? excluded;
+      });
+  }
+
+  // Derive pattern steps from musical position so timers and seeks cannot cause phase drift.
+  // Draws the classic main look, and the pixel and panel layers over either main look.
+  function renderPattern(input: FrameInput, rigNow: Rig<RenderFixture>, reading: MusicalTime, fb: FrameBase | null, hidden: boolean, parts: Parts): void {
+    if (!input.running) { if (fb) keepParts(fb.nowMs); return; }
+    forgetParts(parts);
+    const main = !input.effect;
+    if (!main && !parts.pixel && !parts.panel) return;
+    if (main && baseKinds) { baseKind.fill(null); baseKinds = false; }
+    const { pixelPattern, panelPattern, pixel, panel } = parts;
+    const allowed = (id: string) => allowedPattern(input, id);
+    const known = main && !!PATTERN_FUNCS[input.pattern] && allowed(input.pattern);
+    const knownPixel = !!pixel && !pixel.spec && pixel.plays;
+    const knownPanel = !!panel && !panel.spec && panel.plays;
+    const specs = !!pixel?.spec || !!panel?.spec;
     const colours = input.paletteOverride ?? fixedColours(input.basePalette, [input.colorA, input.colorB, input.colorC, input.colorD].map((i) => COLOR_PRESETS[i]));
     const look = {
       pattern: input.pattern,
@@ -677,14 +759,14 @@ function createRenderer({ profileOf, profilesRevision = () => 0, now = performan
       pixelFrom: input.pixelFrom ?? null,
       panelPattern,
     };
-    if (!known && !knownPixel && !(panelPattern && allowed(panelPattern))) {
-      if (!hidden) renderLayer(rigNow, look, null, setUnitColor, { skipPattern: true, skipPixelPattern: true, skipPanelPattern: true });
+    if (!known && !knownPixel && !knownPanel && !specs) {
+      if (main && !hidden) renderLayer(rigNow, look, null, setUnitColor, { skipPattern: true, skipPixelPattern: true, skipPanelPattern: true });
       return;
     }
 
     const fixtureCount = input.fixtures.length;
     const { step, anchor: from, division } = patternStep(input, reading);
-    if (hidden) return;
+    if (hidden) { if (fb) keepParts(fb.nowMs); return; }
     const lookKey = `${step}|${input.colorA},${input.colorB},${input.colorC},${input.colorD}|${input.split}|${fixtureCount}|${JSON.stringify([input.basePalette, input.overridePalette, input.paletteOverride])}`;
     const pixels = `|${rigNow.hasPixels ? rigNow.units.length : ''}|${input.pixelMap}|${panelPattern}`;
     let skipPattern = !known;
@@ -694,39 +776,50 @@ function createRenderer({ profileOf, profilesRevision = () => 0, now = performan
       lastRandomKey = key;
     }
     let skipPixelPattern = !knownPixel;
-    if (knownPixel && RANDOM_PATTERNS.has(pixelPattern)) {
+    if (knownPixel && RANDOM_PATTERNS.has(pixelPattern!)) {
       const key = `${pixelPattern}|${lookKey}${pixels}|${input.pattern}`;
       skipPixelPattern = key === lastPixelRandomKey;
       lastPixelRandomKey = key;
     }
-    let skipPanelPattern = !panelPattern || !allowed(panelPattern);
-    if (!skipPanelPattern && panelPattern && RANDOM_PATTERNS.has(panelPattern)) {
+    let skipPanelPattern = !knownPanel;
+    if (knownPanel && RANDOM_PATTERNS.has(panelPattern!)) {
       const key = `${lookKey}${pixels}|${input.pattern}|${pixelPattern}`;
       skipPanelPattern = key === lastPanelRandomKey;
       lastPanelRandomKey = key;
     }
 
-    renderLayer(rigNow, look, {
-      beatPos: reading.beatPos,
-      step,
-      anchor: from,
-      division,
-      phase: expressionPhase,
-      expression,
-      dynamicsOn: !!input.showDynamics,
-      pulse: input.pulse ?? null,
-      bpm: reading.bpm,
-      hueStrobe: input.hueStrobe,
-      hardware: capabilities, hardwareClock,
-      fixtureCount,
-      twinkle,
-      pixelTwinkle,
-      panelTwinkle,
-    }, setUnitColor, { skipPattern, skipPixelPattern, skipPanelPattern });
+    if (main || knownPixel || knownPanel) {
+      renderLayer(rigNow, look, {
+        beatPos: reading.beatPos,
+        step,
+        anchor: from,
+        division,
+        phase: expressionPhase,
+        expression,
+        dynamicsOn: !!input.showDynamics,
+        pulse: input.pulse ?? null,
+        bpm: reading.bpm,
+        hueStrobe: input.hueStrobe,
+        hardware: capabilities, hardwareClock,
+        fixtureCount,
+        twinkle,
+        pixelTwinkle,
+        panelTwinkle,
+      }, setUnitColor, { skipPattern, skipPixelPattern, skipPanelPattern });
+    }
+    for (const part of [pixel, panel]) {
+      if (part?.spec) renderPart(input, rigNow, fb!, part, from, division);
+      else if (!main && part?.plays) {
+        // Over a main effect a classic layer's units are its own, held between steps as over a classic look.
+        const owner = `legacy:${part.pattern}`;
+        for (const u of part.layout.units.list) { baseKind[u] = null; partOwner[u] = owner; }
+        partOwners = true;
+      }
+    }
   }
 
   function renderBaseEffect(input: FrameInput, rigNow: Rig<RenderFixture>, reading: MusicalTime, fb: FrameBase,
-    commands: ReturnType<typeof takeCommands>, hidden: boolean): void {
+    commands: ReturnType<typeof takeCommands>, hidden: boolean, layered: readonly boolean[] | null): void {
     const cells = baseCells!;
     const def = kindOf(input.effect!.kind);
     if (!input.running) {
@@ -765,6 +858,7 @@ function createRenderer({ profileOf, profilesRevision = () => 0, now = performan
     baseKinds = true;
     const modulation = input.pixelSpan ? { ...fb.modulation, spanProgress: fb.modulation?.sectionProgress } : fb.modulation;
     renderEffectLayer(rigNow, cells.layout, { ...fb, modulation, fixtureIds: cells.ids, hardware: cellHardware(cells.layout, rigNow) }, instance, stepper, (u, colour, dim, strobe, kind, owner, background) => {
+      if (layered?.[u]) return;
       setUnitColor(u, colour, dim, strobe, background);
       baseKind[u] = kind;
       baseOwner[u] = owner;
@@ -1022,7 +1116,8 @@ function createRenderer({ profileOf, profilesRevision = () => 0, now = performan
     outputGuard.setInterval(Number.isFinite(interval) && interval >= 0 ? interval : RENDER_SAFETY_DEFAULTS.hdFlashIntervalMs);
 
     const { voices, admitted } = playingVoices(given, input, reading, now, gridPhase!);
-    const effects = !!input.effect || voices.length > 0 || sequencePlays(input);
+    const parts = partsOf(input, rigNow);
+    const effects = !!input.effect || !!parts.pixel?.spec || !!parts.panel?.spec || voices.length > 0 || sequencePlays(input);
     let fb: FrameBase | null = null;
     if (effects) {
       cellsFor(input, rigNow);
@@ -1039,11 +1134,10 @@ function createRenderer({ profileOf, profilesRevision = () => 0, now = performan
     // Sequences still play: a one-shot activation missed under the picture would never fire.
     const hidden = !!art && !commands.due.length;
 
-    if (input.effect) renderBaseEffect(input, rigNow, reading, fb!, commands, hidden);
-    else {
-      commands.decide(false);
-      renderPattern(input, rigNow, reading, hidden);
-    }
+    if (partOwners) { partOwner.fill(undefined); partOwners = false; }
+    if (input.effect) renderBaseEffect(input, rigNow, reading, fb!, commands, hidden, layeredOf(parts));
+    else commands.decide(false);
+    renderPattern(input, rigNow, reading, fb, hidden, parts);
     renderSequence(input, rigNow, fb);
 
     let voiceTop: (EffectSlot | null)[] | null = null;
@@ -1124,7 +1218,7 @@ function createRenderer({ profileOf, profilesRevision = () => 0, now = performan
         const sequenceCell = input.programmePlaying !== false && seqUnits && seqLight[u];
         const override = overridden;
         const owner = sync ? 'sync' : voice?.owner ?? (override ? 'override' : pixelOwners[u] ?? (sequenceCell ? seqOwner[u] ?? 'sequence:black'
-          : input.programmePlaying === false ? 'background' : input.effect ? baseOwner[u] ?? 'base:excluded' : `legacy:${input.pattern}`));
+          : input.programmePlaying === false ? 'background' : partOwner[u] ?? (input.effect ? baseOwner[u] ?? 'base:excluded' : `legacy:${input.pattern}`)));
         const cut = kind === 'energy.kill' || !voice && !sync && (!!fix.override?.blackout
           || input.programmePlaying !== false && !pixelOwners[u] && (target?.level === 0 && !fix.override?.enabled || !!sequenceCell && input.sequenceTransport?.stop?.mode === 'black'));
         ownership[u] = { owner, kind: input.programmePlaying === false && !voice ? null : topKind[u], cut };

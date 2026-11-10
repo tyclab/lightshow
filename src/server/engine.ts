@@ -158,8 +158,13 @@ function resolveEffect(pattern: string): EffectSpec | null {
   }
 }
 
+// The main look and the pixel and panel layers resolve an id alike.
+function effectOf(pattern: string): EffectSpec | null {
+  return withEffectColours(pattern, resolveEffect(pattern), state.effectColours);
+}
+
 function currentEffect(): EffectSpec | null {
-  return withEffectColours(state.pattern, resolveEffect(state.pattern), state.effectColours);
+  return effectOf(state.pattern);
 }
 
 function setEffectSource(fn: ((pattern: string) => EffectSpec | null) | null | undefined): void {
@@ -268,6 +273,8 @@ function renderInput({ points = true }: { points?: boolean } = {}): RenderInput 
     pixelSpan: state.pixelSpan,
     pixelFrom: state.pixelFrom,
     panelPattern: state.panelPattern,
+    pixelEffect: state.pixelPattern ? effectOf(state.pixelPattern) : null,
+    panelEffect: state.panelPattern ? effectOf(state.panelPattern) : null,
     flashLimit: state.flashLimit,
     beatDivision: state.beatDivision,
     strobeSpeed: state.strobeSpeed,

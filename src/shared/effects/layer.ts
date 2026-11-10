@@ -1,6 +1,7 @@
 import { baseGap } from '../background.ts';
 import type { BackgroundField } from '../background.ts';
 import { renderEffect } from './render.ts';
+import { seedFrom } from './hash.ts';
 import { kindOf, revealsBase } from './registry.ts';
 import { roomOf } from '../room.ts';
 import { roomSpaceOf } from '../space.ts';
@@ -72,6 +73,20 @@ export function relaunchEffect(stepper: EffectStepper, previous: { id: string; k
     if (previous) stepper.forget(previous.id);
     stepper.forget(id);
   }
+}
+
+export interface PartLaunch { key: string; id: string; kind: string; seed: Seed; startedAtMs: number }
+
+/** A pixel or panel layer's own instance, launched as the base is: a new id (part, pattern or anchor step), spec, cells or epoch launches it again. */
+export function partInstance(stepper: EffectStepper, held: PartLaunch | null, id: string, spec: EffectSpec, anchorBeat: number,
+  cellsKey: string, epoch: number | null, nowMs: number): { launch: PartLaunch; instance: EffectInstance } {
+  const key = canonical([id, effectContentKey(spec), cellsKey, epoch]);
+  let launch = held;
+  if (!launch || launch.key !== key) {
+    relaunchEffect(stepper, launch, id, spec.kind);
+    launch = { key, id, kind: spec.kind, seed: seedFrom(id), startedAtMs: nowMs };
+  }
+  return { launch, instance: { id, spec, seed: launch.seed, anchorBeat, startedAtMs: launch.startedAtMs, targets: null } };
 }
 
 // Transfer permits across strobe handovers so replacing a voice cannot reset its flash rate.
