@@ -17,9 +17,14 @@ export interface UnitSpace {
   // 1 for a unit a room binding placed, 0 for the plot fallback.
   bound: Uint8Array;
   bounds: { width: number; depth: number; height: number };
+  // Where the looks play: the box round the rig once the room places a unit, the whole room before.
+  box: PlayBox;
   anchors: Readonly<Record<string, Vec3>>;
   listeners: Readonly<Record<string, Listener>>;
 }
+
+// A box in room metres: x and z are its middle on the floor plan, y its foot.
+export interface PlayBox extends Vec3 { width: number; depth: number; height: number }
 
 export interface SpaceReport { unbound: number[]; shared: number[]; far: { unit: number; metres: number }[] }
 
@@ -31,6 +36,8 @@ export interface RoomSpace {
   // 1 where a room binding places the entry (for a lamp, any of its cells), 0 for the plot fallback.
   bound?: Uint8Array;
   bounds: UnitSpace['bounds'];
+  // Absent on a space made by hand: the looks then play in `bounds`, centred on the origin.
+  box?: PlayBox;
   listener: Listener;
   anchors: Readonly<Record<string, Vec3>>;
 }
@@ -42,6 +49,8 @@ const PAR_SIZE = 0.1;
 const LAMP_SIZE = 0.15;
 const CELL_SIZE = 0.05;
 const FAR_METRES = 1;
+// A millimetre, the smallest dimension a room model may have: a rig with no extent along an axis still divides by its box.
+const MIN_BOX = 0.001;
 
 type Binding = RoomScene['bindings'][number];
 type FixtureWithId = Rig['fixtures'][number] & { id?: number | string };
@@ -121,6 +130,40 @@ function placements(rig: Rig, room: RoomScene): { sums: Vec3[]; counts: number[]
   return { sums, counts, pitch };
 }
 
+// A cell no binding names, on a fixture the room places, stands at the nearest cell it does place:
+// nearest on a panel's grid, else along the strip. A model that places every other row still places the whole panel.
+function fillUnplaced(rig: Rig, bound: Uint8Array, x: Float32Array, y: Float32Array, z: Float32Array): void {
+  rig.fixtures.forEach((_, i) => {
+    const { start, count } = rig.ranges[i], columns = rig.grids[i]?.columns ?? count;
+    const placed: number[] = [];
+    for (let k = 0; k < count; k++) if (bound[start + k]) placed.push(k);
+    if (!placed.length || placed.length === count) return;
+    for (let k = 0; k < count; k++) {
+      if (bound[start + k]) continue;
+      let nearest = placed[0], least = Infinity;
+      for (const other of placed) {
+        const across = other % columns - k % columns, down = Math.floor(other / columns) - Math.floor(k / columns);
+        if (across * across + down * down < least) { least = across * across + down * down; nearest = other; }
+      }
+      x[start + k] = x[start + nearest]; y[start + k] = y[start + nearest]; z[start + k] = z[start + nearest];
+    }
+  });
+}
+
+// The looks cross the box they play in. A room model may hold a whole home with the rig in one corner of it, so once
+// the room places a unit that box is the one round the rig's emitters; a room that places none says nothing about
+// where the rig stands, and the looks keep the whole room.
+function playBox(space: Pick<UnitSpace, 'n' | 'x' | 'y' | 'z' | 'size' | 'bound' | 'bounds'>): PlayBox {
+  if (!space.bound.includes(1)) return { x: 0, y: 0, z: 0, ...space.bounds };
+  const lo = { x: Infinity, y: Infinity, z: Infinity }, hi = { x: -Infinity, y: -Infinity, z: -Infinity };
+  for (let u = 0; u < space.n; u++) for (const axis of ['x', 'y', 'z'] as const) {
+    lo[axis] = Math.min(lo[axis], space[axis][u] - space.size[u]);
+    hi[axis] = Math.max(hi[axis], space[axis][u] + space.size[u]);
+  }
+  return { x: (lo.x + hi.x) / 2, y: lo.y, z: (lo.z + hi.z) / 2,
+    width: Math.max(MIN_BOX, hi.x - lo.x), depth: Math.max(MIN_BOX, hi.z - lo.z), height: Math.max(MIN_BOX, hi.y - lo.y) };
+}
+
 // FNV-1a over the bytes, in two lanes so equal content always gives the same revision.
 function hashBytes(parts: readonly Uint8Array[]): string {
   let a = 0x811c9dc5, b = 0x01000193 ^ 0x5bd1e995;
@@ -131,7 +174,7 @@ function hashBytes(parts: readonly Uint8Array[]): string {
   return a.toString(16).padStart(8, '0') + b.toString(16).padStart(8, '0');
 }
 
-/** Every rig unit in room metres: a room binding where one names it, else its plot position scaled into the room. */
+/** Every rig unit in room metres: a room binding where one names it, else beside its fixture's placed cells, else its plot position scaled into the room. */
 export function buildUnitSpace(rig: Rig, room: RoomScene | null): UnitSpace {
   const n = rig.units.length;
   const bounds = room ? { ...room.bounds } : { ...DEFAULT_BOUNDS };
@@ -143,6 +186,7 @@ export function buildUnitSpace(rig: Rig, room: RoomScene | null): UnitSpace {
     const p = count ? { x: placed!.sums[u].x / count, y: placed!.sums[u].y / count, z: placed!.sums[u].z / count } : plotPosition(rig, u, bounds);
     x[u] = p.x; y[u] = p.y; z[u] = p.z; bound[u] = count ? 1 : 0;
   }
+  fillUnplaced(rig, bound, x, y, z);
   rig.fixtures.forEach((_, i) => {
     const { start, count } = rig.ranges[i];
     if (!rig.cellMaps[i]) { size[start] = rig.hue[i] ? LAMP_SIZE : PAR_SIZE; return; }
@@ -157,7 +201,7 @@ export function buildUnitSpace(rig: Rig, room: RoomScene | null): UnitSpace {
   const listeners = Object.fromEntries((room?.listeners ?? []).map((l) => [l.id, { ...l.position, facingDeg: l.facingDeg }]));
   const meta = new TextEncoder().encode(JSON.stringify([bounds, anchors, listeners]));
   const revision = hashBytes([x, y, z, size].map((a) => new Uint8Array(a.buffer)).concat([bound, meta]));
-  return { revision, n, x, y, z, size, bound, bounds, anchors, listeners };
+  return { revision, n, x, y, z, size, bound, bounds, box: playBox({ n, x, y, z, size, bound, bounds }), anchors, listeners };
 }
 
 /** Read-only disagreement report: unbound units, units several bindings share, and bound units far from their plot position. */
@@ -196,7 +240,7 @@ export function roomSpaceOf(list: readonly number[], space: UnitSpace, listenerI
   });
   const named = listenerId !== null ? space.listeners[listenerId] : undefined;
   const listener = named ?? Object.values(space.listeners)[0] ?? { x: 0, y: SEATED, z: 0, facingDeg: 0 };
-  return { x, y, z, size, bound, bounds: space.bounds, listener: { ...listener }, anchors: space.anchors };
+  return { x, y, z, size, bound, bounds: space.bounds, box: space.box, listener: { ...listener }, anchors: space.anchors };
 }
 
 /** Standard deviations of points along their principal axes, widest first (eigenvalues of the covariance, closed form). */

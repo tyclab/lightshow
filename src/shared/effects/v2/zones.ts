@@ -60,10 +60,10 @@ function partitionOf(p: ZonesParams, room: Room, f: EffectFrame): Partition {
       case 'surround': return angle;
       case 'technology': return ['dmx', 'ddp', 'openrgb', 'hue'].indexOf(f.hardware?.[i]?.technology ?? (room.hue[i] ? 'hue' : 'dmx')) / 4;
       case 'role': return Math.max(0, groups.indexOf(room.group?.[i] ?? null)) / count;
-      case 'floorCeiling': return clamp(pos.plan ? 1 - pos.z[i] : pos.y[i] / pos.bounds.height);
+      case 'floorCeiling': return clamp(pos.plan ? 1 - pos.z[i] : (pos.y[i] - pos.origin.y) / pos.bounds.height);
       case 'nearFar': return clamp(distanceTo(pos, i, centre) / Math.max(0.001, p.radiusM / (pos.plan ? 4 : 1) * 2));
       case 'frontBack': return angle < 0.25 || angle >= 0.75 ? 0 : 0.75;
-      default: return clamp(pos.plan ? pos.x[i] : (pos.x[i] + pos.bounds.width / 2) / pos.bounds.width);
+      default: return clamp(pos.plan ? pos.x[i] : (pos.x[i] - pos.origin.x + pos.bounds.width / 2) / pos.bounds.width);
     }
   });
   return { order, count };
@@ -84,7 +84,7 @@ function stemsFrame(room: Room, pos: Positions, f: EffectFrame) {
 
 function renderStems(pos: Positions, frame: ReturnType<typeof stemsFrame>, i: number): { level: number; colour: number } {
   const { t, bass, drums, vocals, hats, speaker, other, listener, facing } = frame;
-  const height = clamp(pos.plan ? 1 - pos.z[i] : pos.y[i] / pos.bounds.height);
+  const height = clamp(pos.plan ? 1 - pos.z[i] : (pos.y[i] - pos.origin.y) / pos.bounds.height);
   const d = Math.min(distanceTo(pos, i, speaker), distanceTo(pos, i, other));
   const scale = pos.plan ? 0.25 : 1;
   const floor = Math.max(soft(height, 0.35, 0), soft(d, 1.1 * scale, pos.size[i]));
