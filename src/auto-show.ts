@@ -108,7 +108,7 @@ class AutoShow {
   declare startPending: symbol | null;
   declare _grid: BeatGrid | null;
   declare _pixels: boolean;
-  declare _particlePatterns: ReadonlySet<string> | undefined;
+  declare _usablePatterns: ReadonlySet<string> | undefined;
   declare _panels: boolean;
   declare _lamps: number | null;
   declare _pulse: PulseTrack | null;
@@ -165,7 +165,7 @@ class AutoShow {
     this.startPending = null;
     this._grid = null;
     this._pixels = false;
-    this._particlePatterns = undefined;
+    this._usablePatterns = undefined;
     this._panels = false;
     this._lamps = null;
     this._pulse = null;
@@ -718,7 +718,7 @@ class AutoShow {
       intensity: this.intensity,
       blackoutIndex: this._blackoutIdx,
       pixels: this._pixels,
-      particlePatterns: this._particlePatterns,
+      usablePatterns: this._usablePatterns,
       acknowledged: safety.acknowledged(),
       panels: this._panels,
       lamps: this._lamps,
@@ -869,17 +869,17 @@ class AutoShow {
     }
   }
 
-  setRig({ hasPixels = false, hasPanels = false, lamps = null, particlePatterns }:
-    { hasPixels?: boolean; hasPanels?: boolean; lamps?: number | null; particlePatterns?: ReadonlySet<string> } = {}): void {
+  setRig({ hasPixels = false, hasPanels = false, lamps = null, usablePatterns }:
+    { hasPixels?: boolean; hasPanels?: boolean; lamps?: number | null; usablePatterns?: ReadonlySet<string> } = {}): void {
     const pixels = !!hasPixels;
     const panels = pixels && !!hasPanels;
     const count = Number.isFinite(lamps) ? lamps : null;
     const kit = (n: number | null) => n === null || n >= 3;
-    if (pixels === this._pixels && panels === this._panels && kit(count) === kit(this._lamps) && particlePatterns === this._particlePatterns) {
+    if (pixels === this._pixels && panels === this._panels && kit(count) === kit(this._lamps) && usablePatterns === this._usablePatterns) {
       this._lamps = count;
       return;
     }
-    this._particlePatterns = particlePatterns;
+    this._usablePatterns = usablePatterns;
     this._pixels = pixels;
     this._panels = panels;
     this._lamps = count;

@@ -35,7 +35,7 @@ export interface DirectorOptions {
   intensity?: number;
   blackoutIndex?: number;
   pixels?: boolean;
-  particlePatterns?: ReadonlySet<string>;
+  usablePatterns?: ReadonlySet<string>;
   /** The photosensitivity acknowledgement: without it no Rapid flash row is planned. */
   acknowledged?: boolean;
   panels?: boolean;
@@ -133,7 +133,7 @@ class ShowDirector {
   declare intensity: number;
   declare blackoutIndex: number;
   declare pixels: boolean;
-  declare particlePatterns: ReadonlySet<string> | undefined;
+  declare usablePatterns: ReadonlySet<string> | undefined;
   declare acknowledged: boolean;
   declare panels: boolean;
   declare lamps: number | null;
@@ -150,7 +150,7 @@ class ShowDirector {
    * @param {number} options.blackoutIndex colour index that means "off"
    */
   constructor({ patterns = [], colorPresets = null, paletteSize = 4,
-    intensity = 50, blackoutIndex = 0, pixels = false, particlePatterns, acknowledged = true, panels = false, lamps = null, history = null,
+    intensity = 50, blackoutIndex = 0, pixels = false, usablePatterns, acknowledged = true, panels = false, lamps = null, history = null,
     overlay = null }: DirectorOptions = {}) {
     this.patterns = patterns;
     this.colorPresets = colorPresets;
@@ -158,7 +158,7 @@ class ShowDirector {
     this.intensity = intensity;
     this.blackoutIndex = blackoutIndex;
     this.pixels = !!pixels;
-    this.particlePatterns = particlePatterns;
+    this.usablePatterns = usablePatterns;
     this.acknowledged = acknowledged !== false;
     this.panels = !!panels;
     this.lamps = Number.isFinite(lamps) ? lamps : null;
@@ -454,7 +454,7 @@ class ShowDirector {
       trackSeed: trackSeedOf(analysis),
       finalReturns: lastReturns(sections),
       continuous: hasScore(analysis),
-      available: look.availableFor(this.patterns, analysis, { particles: this.particlePatterns, acknowledged: this.acknowledged }),
+      available: look.availableFor(this.patterns, analysis, { usable: this.usablePatterns, acknowledged: this.acknowledged }),
       pixels: this.pixels,
       panels: this.pixels && this.panels,
       pictures: this.pixels ? null
@@ -644,7 +644,7 @@ class ShowDirector {
     const pattern = look.pickPattern({
       character: section.character, available, score,
       seed: section.identity + trackSeed, drive: section.drive,
-      dance: unit(mood.danceability, 0.5), pixels: context.pixels, particles: this.particlePatterns, pictures: context.pictures, avoid,
+      dance: unit(mood.danceability, 0.5), pixels: context.pixels, usable: this.usablePatterns, pictures: context.pictures, avoid,
     });
     patternByIdentity.set(section.identity, pattern);
     return pattern;
@@ -698,7 +698,7 @@ class ShowDirector {
       const candidate = look.pickPattern({
         character: section.character, available, score,
         seed: section.identity * 7 + step * 13 + context.trackSeed, drive: section.drive,
-        dance: unit(mood.danceability, 0.5), pixels: context.pixels, particles: this.particlePatterns, pictures: context.pictures,
+        dance: unit(mood.danceability, 0.5), pixels: context.pixels, usable: this.usablePatterns, pictures: context.pictures,
       });
       if (!seen.has(candidate)) {
         alternates.push(candidate);

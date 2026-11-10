@@ -9,7 +9,7 @@ import { setHooks, applyPatch } from './patch.ts';
 import { conductor } from './conductor.ts';
 import { currentRig } from './rig.ts';
 import { currentSpace } from './unit-space.ts';
-import { ParticleCoverage } from './particle-coverage.ts';
+import { LookCoverage } from './look-coverage.ts';
 import { guarded } from './guard.ts';
 import { FRAME_MS } from './frame-clock.ts';
 import PlaybackClock from '../playback-clock.ts';
@@ -291,12 +291,12 @@ function setupIntegrations({ io, midi, spotify, nowPlaying, deezerSource, prolin
   setIdleSource(() => awake().length === 0);
   setAwakeProvider(awake);
 
-  const particleCoverage = new ParticleCoverage(() => broadcast());
+  const lookCoverage = new LookCoverage(() => broadcast());
   function broadcast(): void {
     if (typeof autoShow.setRig === 'function') {
       const rig = currentRig();
       autoShow.setRig({ hasPixels: rig.hasPixels, hasPanels: rig.hasPanels, lamps: rig.fixtures.length,
-        particlePatterns: particleCoverage.forRig(rig, currentSpace()) });
+        usablePatterns: lookCoverage.forRig(rig, currentSpace()) });
     }
     publisher.publishState(getLiveState(), rigSource);
     midi.sendFeedback();
@@ -404,7 +404,7 @@ function setupIntegrations({ io, midi, spotify, nowPlaying, deezerSource, prolin
     showWanted = true;
     showGeneration++;
     // A rig changed while the show was off is measured now; the show re-plans when its result lands.
-    particleCoverage.want(true);
+    lookCoverage.want(true);
     if (source === 'live') {
       syncLiveDirector();
       return source;
@@ -431,7 +431,7 @@ function setupIntegrations({ io, midi, spotify, nowPlaying, deezerSource, prolin
   function stopAutoShow(): void {
     showWanted = false;
     showGeneration++;
-    particleCoverage.want(false);
+    lookCoverage.want(false);
     autoShow.stop();
     syncLiveDirector();
   }
@@ -441,7 +441,7 @@ function setupIntegrations({ io, midi, spotify, nowPlaying, deezerSource, prolin
     applyPatch: (patch) => { if (!autoShow.running) applyPatch(patch); },
     patterns: [...PATTERNS, ...SPATIAL_AUTO_PATTERNS],
     pixels: () => currentRig().hasPixels,
-    particlePatterns: () => particleCoverage.allowed,
+    usablePatterns: () => lookCoverage.allowed,
   }) : null;
   if (liveInput && liveDirector) liveInput.onEvent((e) => liveDirector.onEvent(e));
 
@@ -1013,7 +1013,7 @@ function setupIntegrations({ io, midi, spotify, nowPlaying, deezerSource, prolin
     startAutoShow,
     stopAutoShow,
     resolveAutoSource,
-    particleCoverage,
+    lookCoverage,
     analyseCdjTrack,
     lockToPlayingTrack,
     onDeezerState(payload: DeezerState | null | undefined) {
