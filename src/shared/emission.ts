@@ -37,6 +37,33 @@ export function hueEmission(fixture: StageFixture, profile?: Profile | null): Em
   return fixture.group === 'floor' ? { kind: 'beam', beamAngle: rule[1].beamAngle } : { ...rule[1] };
 }
 
+// What a lamp gives at full white, in lumen: an E27 bulb's 806 unless the product its bridge names says
+// otherwise (maker's data at 4000 K, rounded). A strip also gives its lumen per metre of run.
+export const BULB_LUMEN = 806;
+export const STRIP_LUMEN_PER_METRE = 0.6 * BULB_LUMEN;
+export const PIXEL_LUMEN = 0.01 * BULB_LUMEN;
+const HUE_LUMEN: [RegExp, number, number?][] = [
+  [/gradient tube/i, 1840, 1470],
+  [/play gradient lightstrip/i, 1100, 700],
+  [/gradient lightstrip/i, 1800, 900],
+  [/lightstrip/i, 1600, 800],
+  [/centris ceiling/i, 1900],
+  [/spot|GU10/i, 350],
+  [/candle/i, 470],
+  [/\bplay\b/i, 530],
+  [/go table/i, 370],
+  [/\bgo\b/i, 300],
+];
+
+/** The lumen of a Hue lamp, all its lights together, and per metre when it is a strip; null for any other fixture. */
+export function hueLumen(profile?: Profile | null): { lumen: number; perMetre?: number } | null {
+  const lights = profile?.hue?.lights;
+  if (!lights?.length) return null;
+  const rows = lights.map((light) => HUE_LUMEN.find(([name]) => name.test(light.product)));
+  const lumen = rows.reduce((sum, row) => sum + (row?.[1] ?? BULB_LUMEN), 0);
+  return rows[0]?.[2] ? { lumen, perMetre: rows[0][2] } : { lumen };
+}
+
 // Degrees: pan 0 faces +z; tilt 0 is horizontal and +90 points upward.
 export function beamDirection(emission: Emission, floor = false): { x: number; y: number; z: number } {
   const pan = (emission.pan ?? (floor ? 180 : 0)) * Math.PI / 180;

@@ -4,10 +4,10 @@
 
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { emissionOf, hueEmission, beamDirection } from '../../src/shared/emission.ts';
+import { emissionOf, hueEmission, hueLumen, beamDirection, BULB_LUMEN } from '../../src/shared/emission.ts';
 import { hueProfile } from '../../src/server/hue-profile.ts';
 import { buildRig } from '../../src/shared/rig.ts';
-import { roomRig } from '../../public-src/stage3d/world.js';
+import { roomRig, emitterWeight, POOL_FULL } from '../../public-src/stage3d/world.js';
 import { areaLamp } from './hue-test-lamps.js';
 
 const light = (archetype, product = 'Hue color lamp') => ({ archetype, product });
@@ -139,4 +139,49 @@ test('a chosen shape always wins, and a par that is not Hue is unchanged', () =>
   assert.deepEqual(emissionOf(par, parProfile), { kind: 'beam' });
   assert.deepEqual(emissionOf({ ...par, group: 'room' }, parProfile), { kind: 'bulb' });
   assert.equal(hueEmission(par, parProfile), null);
+});
+
+test('a Hue lamp gives the lumen of the product its bridge names, a strip per metre, lights on one channel together', () => {
+  const of = (...products) => hueLumen(lamp(products.map((product) => light(null, product))).profile);
+  for (const [product, lumen] of [['Hue color lamp', 806], ['Hue color spot', 350], ['Hue Centris spot', 350], ['Hue color candle', 470],
+    ['Hue Play', 530], ['Hue go', 300], ['Go table lamp', 370], ['Hue Centris ceiling', 1900]]) assert.deepEqual(of(product), { lumen }, product);
+  assert.deepEqual(of('Hue lightstrip plus'), { lumen: 1600, perMetre: 800 });
+  assert.deepEqual(of('Hue gradient lightstrip'), { lumen: 1800, perMetre: 900 });
+  assert.deepEqual(of('Hue play gradient lightstrip'), { lumen: 1100, perMetre: 700 });
+  assert.deepEqual(of('Play gradient tube'), { lumen: 1840, perMetre: 1470 });
+  assert.deepEqual(of('Hue color spot', 'Hue color spot', 'Hue color spot'), { lumen: 1050 });
+  assert.equal(hueLumen({ id: 'par', channelMap: { red: 0 } }), null, 'a fixture that is not Hue states none');
+});
+
+test('a room lamp lights by its lumen: its share of the room light, and its pool by the area it spreads over', () => {
+  const placed = (product, binding, archetype = null) => {
+    const { profile, fixture } = lamp([light(archetype, product)]);
+    const room = { bounds: { width: 6, depth: 6, height: 2.6 }, objects: [], bindings: [{ id: 'lamp', fixtureId: 1, ...binding }] };
+    return roomRig([fixture], buildRig([fixture], () => profile), room, { [profile.id]: profile });
+  };
+  const spot = placed('Hue color spot', { position: { x: 0, y: 2.45, z: 0 } }, 'spot_bulb').lamps[0];
+  assert.ok(Math.abs(spot.lumen / (Math.PI * spot.pool.major * spot.pool.minor) - POOL_FULL) < 1, 'the reference: a 350 lm spot 2.45 m above the floor');
+  assert.ok(spot.pool.level > 0.98 && spot.pool.level <= 1);
+  assert.ok(Math.abs(emitterWeight(spot) - 350 / BULB_LUMEN) < 1e-9, 'and 0.43 of a bulb in the room light');
+  const wash = placed('Hue color lamp', { position: { x: 0, y: 1, z: 0 }, lightTarget: { x: 0, y: 1, z: 3 } }).lamps[0];
+  assert.ok(wash.pool.level > 0.05 && wash.pool.level < 0.2, `a bulb's 100 degree wash on a wall 3 m away is faint: ${wash.pool.level}`);
+  const candle = placed('Hue color candle', { position: { x: 0, y: 1, z: 0 } }).lamps[0];
+  assert.deepEqual([candle.kind, emitterWeight(candle)], ['bulb', 470 / BULB_LUMEN]);
+  const strip = placed('Hue lightstrip plus', { position: { x: -1, y: 2, z: 0 }, path: [{ x: -1, y: 2, z: 0 }, { x: 1, y: 2, z: 0 }] }).cells[0];
+  assert.ok(Math.abs(emitterWeight(strip) - 1600 / BULB_LUMEN) < 1e-9, 'two metres of an 800 lm/m strip');
+});
+
+test('a par of unknown lumen keeps a bulb\'s share and a full pool; a dense panel\'s pixels give less by their area', () => {
+  const par = { id: 2, label: 'Par', profileId: 'par', emission: { kind: 'beam', tilt: -90, beamAngle: 120 } }, parProfile = { id: 'par', channelMap: { red: 0 } };
+  const room = { bounds: { width: 6, depth: 6, height: 2.6 }, objects: [], bindings: [{ id: 'par', fixtureId: 2, position: { x: 0, y: 2.5, z: 0 } }] };
+  const lit = roomRig([par], buildRig([par], () => parProfile), room, { par: parProfile }).lamps[0];
+  assert.deepEqual([lit.pool.level, emitterWeight(lit)], [undefined, 1]);
+  const panel = { id: 3, label: 'Panel', profileId: 'panel' };
+  const cells = Array.from({ length: 16 }, (_, c) => ({ at: { x: c % 4, y: Math.floor(c / 4) } }));
+  const panelProfile = { id: 'panel', channelMap: { red: 0, green: 1, blue: 2 }, cells, grid: { columns: 4, rows: 4 } };
+  const rig = buildRig([panel], () => panelProfile);
+  const bindings = cells.map((cell, unit) => ({ id: `p${unit}`, fixtureId: 3, unit, position: { x: cell.at.x * 0.005, y: 1 + cell.at.y * 0.005, z: 0 } }));
+  const pixels = roomRig([panel], rig, { ...room, bindings }, { panel: panelProfile }).cells;
+  assert.equal(pixels.length, 16);
+  assert.ok(Math.abs(emitterWeight(pixels[0]) - 0.01 * 0.09) < 1e-9, `a 5 mm pitch is 0.3 of a strip's, so 0.09 of its pixel: ${emitterWeight(pixels[0])}`);
 });
