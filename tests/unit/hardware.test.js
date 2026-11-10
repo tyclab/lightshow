@@ -32,7 +32,7 @@ test('a product record cannot change another output technology', () => {
   assert.equal(hue.technology, 'hue');
   assert.equal(hue.source, 'technology');
   assert.equal(hue.maxFlashHz, 5);
-  assert.equal(hue.minTransitionMs, 40);
+  assert.equal(hue.minTransitionMs, 1000 / 44);
 });
 
 test('channels and pixel capability describe the fixture profile', () => {

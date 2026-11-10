@@ -33,7 +33,7 @@ export const TECHNOLOGY_LIMITS: Readonly<Record<OutputTechnology, RateLimits>> =
   dmx: { maxFlashHz: 20, minTransitionMs: 1000 / 44 },
   ddp: { maxFlashHz: 20, minTransitionMs: 1000 / 44 },
   openrgb: { maxFlashHz: 20, minTransitionMs: 1000 / 44 },
-  hue: { maxFlashHz: 5, minTransitionMs: 40 },
+  hue: { maxFlashHz: 5, minTransitionMs: 1000 / 44 },
 });
 export const DEFAULT_HARDWARE: HardwareSettings = { technologies: {}, products: {} };
 export const admissionPolicySchema = z.enum(['max', 'hold', 'exclude']);
