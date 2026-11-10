@@ -11,6 +11,7 @@ import { PATTERNS, ENERGY_EFFECT_IDS } from '../../src/server/presets.ts';
 import { SPATIAL_AUTO_PATTERNS } from '../../src/show/look.ts';
 import { setupIntegrations } from '../../src/server/integrations.ts';
 import { state } from '../../src/server/state.ts';
+import { applyPatch } from '../../src/server/patch.ts';
 
 function director({ refuse = () => null } = {}) {
   const patches = [];
@@ -95,6 +96,7 @@ test('a build doubles the pace, a drop lands a burst on a new look, and it clear
   t.run(4000);
   t.event('ENERGY_SPIKE');
   assert.ok(ENERGY_EFFECT_IDS.includes(t.last().energyOverride));
+  assert.notStrictEqual(t.last().energyOverride, 'kill', 'an accent never blacks the rig');
   t.run(150);
   assert.deepStrictEqual(t.last(), { energyOverride: null });
 });
@@ -126,6 +128,7 @@ test('silence is dark until the music comes back, with something new', () => {
   assert.strictEqual(t.d.status().silent, true);
   t.event('ENERGY_SPIKE');
   t.event('BUILDUP');
+  t.event('DROP');
   assert.deepStrictEqual(t.last(), { energyOverride: 'kill', beatDivision: 1 }, 'nothing lights the dark');
   t.hear({ energy: 0.002, seconds: 2 });
   assert.strictEqual(t.d.status().silent, true, 'still quiet');
@@ -152,6 +155,44 @@ test('live passages advance every sixteen bars and release on stop', () => {
   t.run(5000);
   t.event('TRANSITION', { to: 'high' });
   assert.strictEqual(t.patches.length, n, 'no timer or event reaches the rig after');
+});
+
+test('a look picked by hand holds for sixty-four bars: accents play on, another pick counts anew', () => {
+  const t = director();
+  t.hear({ seconds: 3 });
+  t.d.start();
+  const n = t.patches.length;
+  t.d.hold();
+  for (let i = 0; i < 40; i++) t.event('BAR');
+  t.event('TRANSITION', { to: 'high' });
+  t.event('BUILDUP');
+  assert.strictEqual(t.patches.length, n, 'no new look, build or section change over the hand\'s look');
+  t.event('DROP');
+  assert.deepStrictEqual([t.patches.length, Object.keys(t.last())], [n + 1, ['energyOverride']], 'a drop plays its gesture, not a look');
+  t.run(5000);
+  assert.deepStrictEqual(t.last(), { energyOverride: null });
+
+  // A pause in the hold: dark, and the hand's look is still the one that comes back.
+  t.event('SILENCE');
+  t.hear({ energy: 0.3, seconds: 0.1 });
+  assert.deepStrictEqual(t.last(), { energyOverride: null }, 'the music comes back to the hand\'s look');
+
+  t.d.hold();
+  const held = t.patches.length;
+  for (let i = 0; i < 63; i++) t.event('BAR');
+  assert.strictEqual(t.patches.length, held, 'the second pick started the count again');
+  t.event('BAR');
+  assert.ok(patternIds.has(t.last().pattern), 'after the last bar the director picks again');
+  assert.strictEqual(t.patches.length, held + 1);
+  for (let i = 0; i < 16; i++) t.event('BAR');
+  assert.strictEqual(t.patches.length, held + 2, 'and rotates as before');
+
+  t.d.stop();
+  t.d.hold();
+  t.d.start();
+  const started = t.patches.length;
+  for (let i = 0; i < 16; i++) t.event('BAR');
+  assert.strictEqual(t.patches.length, started + 1, 'a pick made while it did not play holds nothing');
 });
 
 // ── When it plays ────────────────────────────────────────────────────────────
@@ -204,6 +245,21 @@ test('with nothing to name the music, the show plays it by ear', () => {
   state.pattern = 'operator-choice';
   r.handlers.event(TRANSITION);
   assert.strictEqual(state.pattern, 'operator-choice', 'and lets go of it with the show');
+});
+
+test('a look set by hand while it plays is held, and its own looks are not', () => {
+  state.autoSource = 'auto';
+  const r = rig();
+  r.integrations.startAutoShow();
+  const first = state.pattern;
+  let moved = false;
+  for (let i = 0; i < 8 && !moved; i++) { r.handlers.event(TRANSITION); moved = state.pattern !== first; }
+  assert.ok(moved, 'its own look holds nothing: a section change still moves on');
+
+  applyPatch({ pattern: 'chase' });
+  for (let i = 0; i < 8; i++) r.handlers.event(TRANSITION);
+  assert.strictEqual(state.pattern, 'chase', 'the hand\'s look stays');
+  r.integrations.stopAutoShow();
 });
 
 test('while the next track is analysed it fills in, and never over a running timeline', (t) => {
