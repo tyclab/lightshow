@@ -175,7 +175,7 @@ test('GET /api/effects lists families, built-ins, user presets and both palette 
   assert.equal(res.body.builtin.length, CATALOGUE.length);
   assert.deepEqual(res.body.user, [preset]);
   assert.deepEqual(res.body.palettes, { builtin: json(ALL_PALETTES), user: [palette] });
-  assert.equal(res.body.palettes.builtin.length, 54);
+  assert.equal(res.body.palettes.builtin.length, 55);
   assert.deepEqual(res.body.palettes.user[0].colours, ['#FF0000', { random: true }]);
 
   // Indexed clients retain curated variants alongside the shared catalogue.
