@@ -320,7 +320,7 @@ const schema = z.object({
   }).strict(),
 }).strict();
 
-// Groups an earlier build stored and this one no longer reads. A file that still holds one loads as if it did not, and the next save leaves it out.
+// Groups an earlier build stored and this one no longer reads. A file that still holds one loads as if it did not and is written back without it.
 const RETIRED_GROUPS = ['setup'];
 
 const patchSchema = z.object(
@@ -391,7 +391,8 @@ class SettingsStore extends JsonStore {
       this.loadFailure = new Error('Invalid settings document; the file was left intact');
       throw this.loadFailure;
     }
-    for (const group of RETIRED_GROUPS) delete values[group];
+    const retired = RETIRED_GROUPS.filter((group) => group in values);
+    for (const group of retired) delete values[group];
     const result = schema.safeParse(merge(DEFAULTS, parsed));
     if (!result.success) {
       this.quarantine(result.error.issues.map(i => `${i.path.join('.')} ${i.message}`).join('; '));
@@ -407,6 +408,10 @@ class SettingsStore extends JsonStore {
         this.loadFailure = new Error(`Could not migrate settings: ${messageOf(err)}`, { cause: err });
         throw this.loadFailure;
       }
+    } else if (retired.length) {
+      // At once, not at the next save: whatever else reads the file (a configuration export) then meets only groups this build knows.
+      try { this.writeJson({ formatVersion: 1, values }); }
+      catch (err) { console.warn(`[settings] could not drop ${retired.join(', ')} from ${this.file}: ${messageOf(err)}`); }
     }
     this._values = result.data;
     this.loadFailure = null;

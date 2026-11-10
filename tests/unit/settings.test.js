@@ -239,7 +239,7 @@ test('live input settings: off by default, a source it knows, a latency in range
 });
 
 // A settings file written by a build that still had the first-run setup holds its `setup` group.
-test('a file that still holds a retired group loads as it is and is saved without it', (t) => {
+test('a file that still holds a retired group loads as it is and is written back without it', (t) => {
   const s = store();
   const warned = t.mock.method(console, 'warn', () => {});
   const failed = t.mock.method(console, 'error', () => {});
@@ -249,7 +249,8 @@ test('a file that still holds a retired group loads as it is and is saved withou
   assert.ok(!('setup' in s.all()));
   assert.deepStrictEqual(fs.readdirSync(path.dirname(s.file)), ['settings.json'], 'not moved aside, no backup');
   assert.deepStrictEqual([warned.mock.callCount(), failed.mock.callCount()], [0, 0], 'nothing logged');
-  assert.ok('setup' in JSON.parse(fs.readFileSync(s.file, 'utf8')).values, 'loading does not rewrite the file');
+  assert.deepStrictEqual(JSON.parse(fs.readFileSync(s.file, 'utf8')), { formatVersion: 1, values: { live: { latencyMs: 120 } } },
+    'the load writes the file back without the group, the rest as it stood');
 
   s.update({ live: { latencyMs: 80 } });
   const saved = JSON.parse(fs.readFileSync(s.file, 'utf8'));
