@@ -227,6 +227,25 @@ class Sections(unittest.TestCase):
 
 
 @needs_numpy
+class Bands(unittest.TestCase):
+    def test_a_band_the_sample_rate_cannot_carry_reads_none(self):
+        """At 22.05 kHz nothing above 11 kHz is heard: `air`, 12-20 kHz, is not
+        a band at level zero, and the reader falls back on another."""
+        analyzer, _events = run(synth.noise(2.0))
+        bands = analyzer.state().bands
+        self.assertIsNone(bands['air'])
+        self.assertEqual([name for name, level in bands.items() if level is not None and level > 0],
+                         ['sub', 'bass', 'lowmid', 'mid', 'presence', 'high'])
+
+    def test_air_is_read_at_a_rate_that_carries_it(self):
+        from analysis.realtime import StreamingAnalyzer
+        analyzer = StreamingAnalyzer(sample_rate=48000)
+        analyzer.push(synth.tone(15000.0, 1.0, sr=48000, harmonics=1))
+        bands = analyzer.state().bands
+        self.assertGreater(bands['air'], 10 * bands['high'])
+
+
+@needs_numpy
 class OctaveFolding(unittest.TestCase):
     def test_a_half_tempo_reading_folds_back_onto_the_running_grid(self):
         from analysis.realtime import _fold_octave

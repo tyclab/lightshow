@@ -23,6 +23,7 @@ each, and the Node server (src/live-input.ts) reads them:
 the line is written: the reader maps it onto its own clock. `beat` is the
 analyser's continuous beat position at stream time `t`. After 3 s under
 −80 dBFS states come a quarter second apart, with `"quiet": true`, until sound.
+In `bands`, one the sample rate cannot carry is null: `air`, 12-20 kHz, at 22.05 kHz.
 
 With `--bands lo-hi,...` (Hz) each state also carries the newest frame's
 `spectrum` for the party effects, on the party engine's scale — `|X|²` per bin of

@@ -97,10 +97,12 @@ class StreamingAnalyzer:
         self._rise_from = None
 
         freqs = np.fft.rfftfreq(self.n_fft, 1.0 / self.sample_rate)
-        self._band_masks = {
+        masks = {
             name: (freqs >= low) & (freqs < min(high, self.sample_rate / 2.0))
             for name, (low, high) in BANDS.items()
         }
+        # A band the sample rate cannot carry has no bins: it reads None, which is not a level of zero.
+        self._band_masks = {name: mask for name, mask in masks.items() if np.any(mask)}
 
 
     @property
@@ -116,7 +118,8 @@ class StreamingAnalyzer:
             energy=self._recent(self._energy_history),
             onset=self._recent(self._onset_history),
             tension=self._tension(),
-            bands={name: self._recent(hist) for name, hist in self._band_history.items()},
+            bands={name: self._recent(self._band_history[name]) if name in self._band_masks else None
+                   for name in BAND_ORDER},
             locked=self._locked,
         )
 
@@ -190,7 +193,7 @@ class StreamingAnalyzer:
 
         band_levels = {}
         for name, mask in self._band_masks.items():
-            level = float(np.sqrt(np.mean(spectrum[mask] ** 2))) if np.any(mask) else 0.0
+            level = float(np.sqrt(np.mean(spectrum[mask] ** 2)))
             band_levels[name] = level
             self._band_history[name].append(level)
 
