@@ -395,12 +395,11 @@ test('removed OpenRGB devices receive black before disconnect', () => {
   assert.deepStrictEqual(sent, [], 'and nothing after');
 });
 
-test('a device still being set up holds no frame back until it has taken one; a lit one still does', () => {
+test('a device that cannot take a frame holds none back while armed; disarm waits for one that has shown light', () => {
   const { sent, wires } = fakeWires();
-  let refuse = true, settingUp = true;
+  let refuse = true;
   const take = wires.openrgb;
   wires.openrgb = (target, rgb) => (refuse ? false : take(target, rgb));
-  wires.openrgbSettingUp = () => settingUp;
   const tx = createTransmitter({ wires });
   const paint = (config) => { tx.send(0, LIT, config); tx.send(5, LIT, config); tx.send(6, LIT, config); return tx.endFrame(config); };
 
@@ -413,18 +412,17 @@ test('a device still being set up holds no frame back until it has taken one; a 
   assert.strictEqual(paint(outputs(true)), true);
   assert.deepStrictEqual(sent.filter((p) => p.wire === 'openrgb').map((p) => [p.device, p.dark]), [[3, false], [6, false]]);
   refuse = true;
-  assert.strictEqual(paint(outputs(true)), false, 'a lit device whose session reopens holds the frame back');
-  settingUp = false;
-  assert.strictEqual(paint(outputs(true)), false, 'and so does a refusal on an open session');
+  assert.strictEqual(paint(outputs(true)), true, 'a lit device that drops out is passed over: the frame is applied for the others');
   assert.strictEqual(tx.endFrame(outputs(false)), false, 'Disarm waits for their darkness');
+  assert.strictEqual(paint(outputs(true)), true, 'armed again while they are away: frames go on');
+  assert.strictEqual(tx.endFrame(outputs(false)), false, 'and the darkness is still owed');
   refuse = false;
   sent.length = 0;
   assert.strictEqual(tx.endFrame(outputs(false)), true);
   assert.deepStrictEqual(sent.map((p) => [p.wire, p.device ?? p.host, p.dark]), [['openrgb', 3, true], ['openrgb', 6, true], ['close', '10.0.0.80:6742', undefined]]);
 
   refuse = true;
-  settingUp = true;
-  assert.strictEqual(paint(outputs(true)), true, 'darkened, then armed again: setting up holds nothing back');
+  assert.strictEqual(paint(outputs(true)), true, 'darkened, then armed again: a refusal holds nothing back');
   assert.strictEqual(paint(outputs(true, [ROUTES[0]])), true, 'a removed device that never took a frame needs no darkness');
 });
 
