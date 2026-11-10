@@ -132,13 +132,6 @@ export const DEFAULT_PADS: readonly PadEntry[] = deepFreeze(DEFAULTS.map(([conte
   accent, content, launch, quantise: startsAtOnce(content) ? 0 : DEFAULT_QUANTISE, targets: 'shared',
 })));
 
-/** A default pad saved when every default sat on the quarter beat is today's default; a pad the user changed keeps its grid. */
-function mended(entry: PadEntry): PadEntry {
-  const shipped = DEFAULT_PADS[entry.bank * PAD_SLOTS + entry.slot];
-  if (shipped.quantise === DEFAULT_QUANTISE) return entry;
-  return canonical(entry) === canonical({ ...shipped, quantise: DEFAULT_QUANTISE }) ? shipped : entry;
-}
-
 /** A refusal in the form validate() gives one: each issue under its path. */
 function refusal(label: string, issues: PadIssue[]): ValidationError {
   return new ValidationError(`${label}: ${issues.map((i) => `${i.path.join('.')} ${i.message}`).join('; ')}`,
@@ -170,7 +163,7 @@ export class PadStore extends JsonStore {
   load(): this {
     const saved = this.readValid(fileSchema);
     if (saved) {
-      this._layout = deepFreeze(ordered(saved.pads).map(mended));
+      this._layout = deepFreeze(ordered(saved.pads));
       this._activeLayoutId = saved.activeLayoutId ?? null;
     }
     return this;

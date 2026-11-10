@@ -174,38 +174,14 @@ test('loaded pad layouts retain unknown preset references', (t) => {
   assert.deepEqual(kept.get(1, 1).content, preset('user.0123456789abcdef'));
 });
 
-const quarterBeatLayout = () => defaults().map((p) => ({ ...p, quantise: 0.25 }));
-
-test('pads.json: a strobe pad still as shipped on 0.25 is read at 0', (t) => {
+// A pads.json from a build whose default pads all sat on the quarter beat.
+test('pads.json saved with every default pad on the quarter beat loads as it was saved', (t) => {
   const { file } = rig(t);
-  const before = quarterBeatLayout();
-  fs.writeFileSync(file, JSON.stringify({ pads: before }));
-  assert.deepEqual(new PadStore(file).load().layout(), defaults());
-  assert.deepEqual(onDisk(file), { pads: before }, 'read, not written');
-});
-
-test('pads.json: a strobe pad the user changed keeps its quarter beat', (t) => {
-  const { file } = rig(t);
-  const before = quarterBeatLayout();
-  before[6] = { ...before[6], targets: [1] };
-  fs.writeFileSync(file, JSON.stringify({ pads: before }));
-  assert.deepEqual(new PadStore(file).load().get(0, 6), before[6]);
-});
-
-test("legacy energy pad migration preserves customized quantization", (t) => {
-  const { file } = rig(t);
-  // What that build wrote: every default pad on 0.25, the Blinder relabelled, the Kill on a beat, a look moved to 0.5.
   const before = defaults().map((p) => ({ ...p, quantise: 0.25 }));
-  before[2] = { ...before[2], label: 'Flash' };
-  before[4] = { ...before[4], quantise: 1 };
-  before[9] = { ...before[9], quantise: 0.5 };
   fs.writeFileSync(file, JSON.stringify({ pads: before }));
-  const loaded = new PadStore(file).load().layout();
-  assert.deepEqual(loaded.map((p) => p.quantise), [0, 0, 0.25, 0, 1, 0, 0, 0.25, 0.25, 0.5, 0.25, 0.25, 0.25, 0.25, 0.25, 0.25]);
-  assert.deepEqual(loaded[2], before[2], 'the relabelled Blinder is the user\'s, its grid with it');
-  assert.deepEqual(loaded[0], defaults()[0], 'the White Strobe as shipped is today\'s');
-  // Read, not written: the file is as that build left it until something changes.
-  assert.deepEqual(onDisk(file), { pads: before });
+  assert.deepEqual(new PadStore(file).load().layout(), before);
+  assert.deepEqual(fs.readdirSync(path.dirname(file)).filter((name) => name.startsWith('pads.json')), ['pads.json'], 'not moved aside');
+  assert.deepEqual(onDisk(file), { pads: before }, 'read, not written');
 });
 
 // ── Launching ───────────────────────────────────────────────────────────────
