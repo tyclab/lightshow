@@ -32,7 +32,7 @@ for (const [id, name] of [['party.fire', 'Fire'], ['party.ice', 'Ice']]) {
       await pad.click();
       await until(request, (current) => !current.voices.some((voice) => voice.source === 'pad' && voice.label === name));
     } finally {
-      await request.post('/api/pads/0/0/release', { data: {} });
+      await request.delete('/api/voices');
       const { bank: _bank, slot: _slot, ...original } = before;
       await request.put('/api/pads/0/0', { data: original });
       await reset(request);

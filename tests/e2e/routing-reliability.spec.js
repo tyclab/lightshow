@@ -28,27 +28,6 @@ test('Art-Net Apply waits for acknowledgement and shows a saved-but-unapplied er
   await expect(section.getByText('Saved', { exact: true })).toHaveCount(0);
 });
 
-test('Wizard does not advance or save sACN when Art-Net did not apply', async ({ page, request }) => {
-  await request.put('/api/settings', { data: { setup: { completed: false } } });
-  const writes = [];
-  await page.route('**/api/settings', async route => {
-    if (route.request().method() !== 'PUT') return route.continue();
-    const body = route.request().postDataJSON();
-    writes.push(body);
-    await route.fulfill({ status: 500, json: { ok: false, error: 'Rig disk is unavailable' } });
-  });
-  try {
-    await page.goto('/#effects');
-    const dialog = page.getByRole('dialog', { name: /Set up the rig/ });
-    await dialog.getByRole('button', { name: 'Start', exact: true }).click();
-    await dialog.getByRole('button', { name: 'Next', exact: true }).click();
-    await expect(dialog.getByText('Rig disk is unavailable', { exact: true })).toBeVisible();
-    await expect(dialog.locator('#wizard-title')).toContainText('Outputs');
-    expect(writes.length).toBe(1);
-    expect(writes[0].artnet).toBeDefined();
-    expect(writes[0].sacn).toBeUndefined();
-  } finally { await request.put('/api/settings', { data: { setup: { completed: true } } }); }
-});
 
 test('node Send and Undo use acknowledged routing saves', async ({ page, request }) => {
   const before = (await state(request)).artnet.host;

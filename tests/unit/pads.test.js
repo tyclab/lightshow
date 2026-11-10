@@ -15,7 +15,7 @@ import express from 'express';
 import { Server } from 'socket.io';
 import { io as connect } from 'socket.io-client';
 
-import { Pads, PadStore, PAD_COUNT, REST_TOKEN, patternPlayer } from '../../src/server/pads.ts';
+import { Pads, PadStore, PAD_COUNT, patternPlayer } from '../../src/server/pads.ts';
 import { SequenceStore } from '../../src/server/sequence-store.ts';
 import { VoiceManager, HOLD_TIMEOUT_MS, builtinPresets, launchOf } from '../../src/server/voices.ts';
 import { presetById } from '../../src/shared/effects/index.ts';
@@ -174,38 +174,14 @@ test('loaded pad layouts retain unknown preset references', (t) => {
   assert.deepEqual(kept.get(1, 1).content, preset('user.0123456789abcdef'));
 });
 
-const quarterBeatLayout = () => defaults().map((p) => ({ ...p, quantise: 0.25 }));
-
-test('pads.json: a strobe pad still as shipped on 0.25 is read at 0', (t) => {
+// A pads.json from a build whose default pads all sat on the quarter beat.
+test('pads.json saved with every default pad on the quarter beat loads as it was saved', (t) => {
   const { file } = rig(t);
-  const before = quarterBeatLayout();
-  fs.writeFileSync(file, JSON.stringify({ pads: before }));
-  assert.deepEqual(new PadStore(file).load().layout(), defaults());
-  assert.deepEqual(onDisk(file), { pads: before }, 'read, not written');
-});
-
-test('pads.json: a strobe pad the user changed keeps its quarter beat', (t) => {
-  const { file } = rig(t);
-  const before = quarterBeatLayout();
-  before[6] = { ...before[6], targets: [1] };
-  fs.writeFileSync(file, JSON.stringify({ pads: before }));
-  assert.deepEqual(new PadStore(file).load().get(0, 6), before[6]);
-});
-
-test("legacy energy pad migration preserves customized quantization", (t) => {
-  const { file } = rig(t);
-  // What that build wrote: every default pad on 0.25, the Blinder relabelled, the Kill on a beat, a look moved to 0.5.
   const before = defaults().map((p) => ({ ...p, quantise: 0.25 }));
-  before[2] = { ...before[2], label: 'Flash' };
-  before[4] = { ...before[4], quantise: 1 };
-  before[9] = { ...before[9], quantise: 0.5 };
   fs.writeFileSync(file, JSON.stringify({ pads: before }));
-  const loaded = new PadStore(file).load().layout();
-  assert.deepEqual(loaded.map((p) => p.quantise), [0, 0, 0.25, 0, 1, 0, 0, 0.25, 0.25, 0.5, 0.25, 0.25, 0.25, 0.25, 0.25, 0.25]);
-  assert.deepEqual(loaded[2], before[2], 'the relabelled Blinder is the user\'s, its grid with it');
-  assert.deepEqual(loaded[0], defaults()[0], 'the White Strobe as shipped is today\'s');
-  // Read, not written: the file is as that build left it until something changes.
-  assert.deepEqual(onDisk(file), { pads: before });
+  assert.deepEqual(new PadStore(file).load().layout(), before);
+  assert.deepEqual(fs.readdirSync(path.dirname(file)).filter((name) => name.startsWith('pads.json')), ['pads.json'], 'not moved aside');
+  assert.deepEqual(onDisk(file), { pads: before }, 'read, not written');
 });
 
 // ── Launching ───────────────────────────────────────────────────────────────
@@ -739,7 +715,7 @@ const lamp = (fixture) => {
 };
 const onlyClip = (id, play) => ({ ...GROOVE, id, lanes: [{ kind: 'shared', slot: 0, clips: [{ startBeat: 0, lengthBeats: 6, ...play, targets: 'lane', mute: false }] }] });
 
-test("REST pattern pads render only their targeted fixtures", async (t) => {
+test("pattern pads render only their targeted fixtures", async (t) => {
   const s = await serve(t);
   const [a, b] = state.fixtures;
   applyPatch({ pattern: 'solid', colorA: 0, running: true, masterDimmer: 255, masterBlackout: false, paletteOverride: null });
@@ -749,31 +725,31 @@ test("REST pattern pads render only their targeted fixtures", async (t) => {
   assert.ok(saved.status < 300, JSON.stringify(saved.body));
   assert.equal((await s.call('PUT', '/api/pads/1/5', pad({ kind: 'pattern', id: 'fade' }, { quantise: 0, targets: [a.id] }))).status, 200);
   assert.equal((await s.call('PUT', '/api/pads/1/4', pad({ kind: 'sequencePattern', id: 'fade' }))).status, 200);
-  assert.equal((await s.call('POST', '/api/pads/1/5/press')).status, 200);
+  assert.equal((await s.call('POST', '/api/pads/1/5/toggle')).status, 200);
   const id = s.integrations.pads.lit()[13];
   assert.deepEqual(renderInput().voices.filter((v) => v.id === id).map((v) => v.spec.kind), ['pattern.bundle'], 'one bundle voice');
   renderFrame();
   assert.notDeepEqual(lamp(a), look[0], 'its fixture lights');
   assert.deepEqual(lamp(b), look[1], 'the other keeps the look');
-  assert.equal((await s.call('POST', '/api/pads/1/5/release')).status, 200);
+  assert.equal((await s.call('POST', '/api/pads/1/5/toggle')).status, 200);
   assert.equal(s.integrations.pads.lit()[13], null);
   assert.ok(!ids().includes(id));
   await s.call('DELETE', '/api/sequence/patterns/fade');
-  const gone = await s.call('POST', '/api/pads/1/5/press');
+  const gone = await s.call('POST', '/api/pads/1/5/toggle');
   assert.deepEqual([gone.status, gone.body.ok], [404, false]);
 });
 
-test("REST rapid pattern pads require acknowledgement", async (t) => {
+test("rapid pattern pads require acknowledgement over REST", async (t) => {
   const s = await serve(t);
   armOutputs(t);
   await s.call('POST', '/api/sequence/patterns', onlyClip('rapid', { effect: { kind: 'energy.whiteStrobe', params: {} } }));
   await s.call('PUT', '/api/pads/1/6', pad({ kind: 'pattern', id: 'rapid' }, { quantise: 0 }));
-  assert.equal((await s.call('POST', '/api/pads/1/6/press')).status, 409);
+  assert.equal((await s.call('POST', '/api/pads/1/6/toggle')).status, 409);
   assert.equal(s.integrations.pads.lit()[14], null);
   await s.call('POST', '/api/safety/acknowledge');
-  assert.equal((await s.call('POST', '/api/pads/1/6/press')).status, 200);
+  assert.equal((await s.call('POST', '/api/pads/1/6/toggle')).status, 200);
   assert.ok(s.integrations.pads.lit()[14]);
-  await s.call('POST', '/api/pads/1/6/release');
+  await s.call('POST', '/api/pads/1/6/toggle');
 });
 
 test('PUT a pad entry persists and validates (unknown preset or pattern → 400)', async (t) => {
@@ -837,7 +813,7 @@ test('PUT a pad entry persists and validates (unknown preset or pattern → 400)
   await s.call('DELETE', `/api/effects/${mine.id}`);
   const kept = (await s.call('GET', '/api/pads')).body.layout;
   assert.deepEqual(kept[7].content, preset(mine.id));
-  res = await s.call('POST', '/api/pads/0/7/press');
+  res = await s.call('POST', '/api/pads/0/7/toggle');
   assert.deepEqual([res.status, res.body.ok], [400, false]);
   assert.equal((await s.call('PUT', '/api/pads', { pads: kept.map((p) => ({ ...p, label: 'Kept' })) })).status, 200);
 });
@@ -847,7 +823,7 @@ test('an empty pad does nothing (204)', async (t) => {
   const { socket, heard } = await s.page();
   await s.call('PUT', '/api/pads/0/7', pad(null, { label: '' }));
   const before = voices.list();
-  for (const action of ['press', 'release', 'toggle', 'once', 'once?ms=200']) {
+  for (const action of ['toggle', 'once', 'once?ms=200']) {
     const res = await s.call('POST', `/api/pads/0/7/${action}`);
     assert.deepEqual([res.status, res.body], [204, null], action);
   }
@@ -905,61 +881,6 @@ test('voice-hold with pad goes through Pads.press and release through the socket
   await until(() => !ids().length, 'the hold gone with its page', HOLD_TIMEOUT_MS / 2);
 });
 
-test('a REST press and a socket press of the same pad do not share a lease', async (t) => {
-  const s = await serve(t);
-  const { socket } = await s.page();
-  await s.call('PUT', '/api/pads/0/3', pad(FADE, { quantise: 0 }));
-  // The socket's hold, under the very token the REST fallback uses.
-  socket.emit('voice-hold', { action: 'press', token: REST_TOKEN, pad: { bank: 0, slot: 3 } });
-  const [fromSocket] = await until(() => voices.list().length === 1 && voices.list(), 'the socket\'s hold');
-  let res = await s.call('POST', '/api/pads/0/3/release');
-  assert.deepEqual([res.status, res.body], [200, { ok: true, released: false }]);
-  assert.deepEqual(ids(), [fromSocket.id], 'a bare REST release is not the socket\'s');
-
-  // A REST press: a lease of its own, and the pad's voice (a pad plays one at a time).
-  res = await s.call('POST', '/api/pads/0/3/press');
-  assert.equal(res.body.token, REST_TOKEN);
-  const fromRest = res.body.id;
-  assert.notEqual(fromRest, fromSocket.id);
-  assert.notEqual(voices.get(fromRest).owner, socket.id);
-  socket.emit('voice-hold', { action: 'release', token: REST_TOKEN, pad: { bank: 0, slot: 3 } });
-  socket.emit('voice-hold', { action: 'release', token: REST_TOKEN });
-  await wait(100);
-  assert.deepEqual(ids(), [fromRest], 'nor is the socket\'s release the REST press\'s');
-  // Pressed again in time: renewed, the same launch.
-  res = await s.call('POST', '/api/pads/0/3/press');
-  assert.equal(res.body.id, fromRest);
-  res = await s.call('POST', '/api/pads/0/3/release');
-  assert.deepEqual(res.body, { ok: true, released: true });
-  assert.deepEqual(ids(), []);
-
-  // A token of the caller's own is its own lease: the bare release leaves it.
-  res = await s.call('POST', '/api/pads/0/3/press', { token: 'deck-a' });
-  assert.equal(res.body.token, 'deck-a');
-  assert.equal((await s.call('POST', '/api/pads/0/3/release')).body.released, false);
-  assert.deepEqual(ids(), [res.body.id]);
-  assert.equal((await s.call('POST', '/api/pads/0/3/release?token=deck-a')).body.released, true);
-  assert.deepEqual(ids(), []);
-  for (const token of ['', 'x'.repeat(65), 7]) {
-    const r = await s.call('POST', '/api/pads/0/3/press', { token });
-    assert.equal(r.status, 400, JSON.stringify(token));
-    assert.equal(typeof r.body.error, 'string');
-  }
-
-  // Each pad has a REST owner of its own: a bare press on one is no other pad's lease.
-  await s.call('PUT', '/api/pads/0/4', pad(FADE, { quantise: 0 }));
-  const three = (await s.call('POST', '/api/pads/0/3/press')).body.id;
-  const four = (await s.call('POST', '/api/pads/0/4/press')).body.id;
-  assert.deepEqual(ids().sort(), [three, four].sort());
-  assert.equal((await s.call('POST', '/api/pads/0/3/release')).body.released, true);
-  assert.deepEqual(ids(), [four]);
-  await s.call('POST', '/api/pads/0/4/release');
-
-  // A REST hold is renewed only by pressing again: left alone, it dies with its lease.
-  res = await s.call('POST', '/api/pads/0/3/press');
-  await until(() => !voices.get(res.body.id), 'the REST hold\'s lease running out', HOLD_TIMEOUT_MS + 1000);
-});
-
 test("energy pad voices mirror into live energy state", async (t) => {
   const s = await serve(t);
   settings._values.safety.photosensitivityAcknowledged = true;
@@ -998,16 +919,18 @@ test("energy pad voices mirror into live energy state", async (t) => {
   await s.call('DELETE', `/api/voices/${id}`);
   assert.equal(await live(), null);
   await s.call('PUT', '/api/pads/1/0', pad(preset('palette-strobe'), { quantise: 0 }));
-  await s.call('POST', '/api/pads/1/0/press');
+  await s.call('POST', '/api/pads/1/0/toggle');
   assert.equal(await live(), 'palette-strobe');
-  await s.call('POST', '/api/pads/1/0/release');
+  await s.call('POST', '/api/pads/1/0/toggle');
   assert.equal(await live(), null);
 
   // The manual strobe (the strobe pad, A7) is no energy effect: the live state's strobe says it plays.
-  await s.call('POST', '/api/pads/0/6/press');
+  socket.emit('voice-hold', { action: 'press', token: 's', pad: { bank: 0, slot: 6 } });
+  await until(() => ids().length === 1, 'the strobe pad held');
   assert.equal((await s.call('GET', '/api/state')).body.strobe.mode, 'hold');
   assert.equal(await live(), null);
-  await s.call('POST', '/api/pads/0/6/release');
+  socket.emit('voice-hold', { action: 'release', token: 's', pad: { bank: 0, slot: 6 } });
+  await until(() => !ids().length, 'the strobe pad let go');
 });
 
 test('disarm stops a pad voice and the pads key shows it unlit', async (t) => {
@@ -1033,42 +956,6 @@ test('disarm stops a pad voice and the pads key shows it unlit', async (t) => {
   res = await s.call('POST', '/api/pads/1/2/toggle');
   assert.deepEqual(res.body, { ok: true, id: null });
   assert.deepEqual(ids(), []);
-});
-
-test("REST renew extends only a current hold", async (t) => {
-  const s = await serve(t);
-  await s.call('PUT', '/api/pads/0/3', pad(FADE, { quantise: 0 }));
-  const held = (await s.call('POST', '/api/pads/0/3/press', { token: 'deck-a' })).body.id;
-  const res = await s.call('POST', '/api/pads/0/3/renew', { token: 'deck-a' });
-  assert.deepEqual([res.status, res.body], [200, { ok: true, renewed: true }]);
-  assert.deepEqual(ids(), [held]);
-  assert.equal((await s.call('POST', '/api/pads/0/3/renew')).body.renewed, false);
-  await s.call('DELETE', '/api/voices');
-  assert.equal((await s.call('POST', '/api/pads/0/3/renew', { token: 'deck-a' })).body.renewed, false);
-  assert.equal((await s.call('POST', '/api/pads/0/3/press', { token: 'deck-a' })).status, 409);
-  assert.deepEqual(ids(), []);
-  await s.call('POST', '/api/pads/0/3/release', { token: 'deck-a' });
-  assert.equal((await s.call('POST', '/api/pads/0/3/press', { token: 'deck-a' })).status, 200, 'let go: a fresh press');
-  await s.call('POST', '/api/pads/0/3/release', { token: 'deck-a' });
-});
-
-test("REST renew does not relaunch loop or once pads", async (t) => {
-  const s = await serve(t);
-  await s.call('PUT', '/api/pads/0/4', pad(FADE, { quantise: 0, launch: 'loop' }));
-  await s.call('PUT', '/api/pads/0/5', pad(FADE, { quantise: 0, launch: 'once' }));
-  const loop = (await s.call('POST', '/api/pads/0/4/press', { token: 'deck-b' })).body.id;
-  const once = (await s.call('POST', '/api/pads/0/5/press', { token: 'deck-c' })).body.id;
-  const seqOf = (id) => voices.get(id)?.launchSeq;
-  const before = [seqOf(loop), seqOf(once)];
-  assert.equal((await s.call('POST', '/api/pads/0/4/renew', { token: 'deck-b' })).body.renewed, false);
-  assert.equal((await s.call('POST', '/api/pads/0/5/renew', { token: 'deck-c' })).body.renewed, false);
-  assert.deepEqual([seqOf(loop), seqOf(once)], before, 'nothing launched again');
-  assert.ok(voices.get(loop), 'the loop still on');
-});
-
-test("REST renew rejects an invalid pad slot", async (t) => {
-  const s = await serve(t);
-  assert.equal((await s.call('POST', '/api/pads/0/9/renew')).status, 400);
 });
 
 test('Show setup recalls audio and pads without changing global defaults', async (t) => {
@@ -1124,7 +1011,7 @@ test('A show whose pad names a since-deleted preset still loads, replays and ref
   await call('DELETE', '/api/sequence');
   assert.equal((await call('PUT', '/api/sequence', show)).status, 200, 'the show loads again');
   assert.equal(integrations.pads.entry(0, 0).content.id, mine.id);
-  assert.notEqual((await call('POST', '/api/pads/0/0/press', {})).status, 200, 'the pad itself is refused at launch');
+  assert.notEqual((await call('POST', '/api/pads/0/0/toggle', {})).status, 200, 'the pad itself is refused at launch');
 });
 
 test('Editing one pad of a show deck leaves the other pad voices playing; another deck stops them', async (t) => {
@@ -1185,7 +1072,7 @@ test('Changing show pad setup stops old pad voices but keeps API voices', async 
   const { call, integrations } = await serve(t);
   const setup = (await call('GET', '/api/show-setup')).body.performance;
   assert.equal((await call('PUT', '/api/sequence', { id: 'deck-a', name: 'Deck A', mode: 'arrangement', performance: setup })).status, 200);
-  const pad = await call('POST', '/api/pads/0/5/press', { token: 'old-deck' });
+  const pad = await call('POST', '/api/pads/0/5/toggle');
   const api = await call('POST', '/api/voices', { preset: 'energy.glow', mode: 'latched' });
   assert.equal(pad.status, 200);
   assert.equal(api.status, 200);

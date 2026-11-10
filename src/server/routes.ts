@@ -21,7 +21,6 @@ import { attachRoomSceneRoutes } from './routes/room-scene.ts';
 import { attachShowSetupRoutes } from './routes/show-setup.ts';
 import { attachPerformanceRoutes } from './routes/performance.ts';
 import { attachControlRoutes } from './routes/control.ts';
-import { attachAbRoutes } from './routes/ab.ts';
 
 export type { RouteDeps, RouteContext } from './routes/common.ts';
 export type { AnalyzeSource } from './routes/auto.ts';
@@ -42,7 +41,6 @@ function attachRoutes(app: Express, deps: RouteDeps): void {
   attachIdentifyRoutes(app, { wled: ctx.wled, hueAreas: ctx.hueAreas, broadcast: () => ctx.integrations.broadcast() });
   attachAudioRoutes(app, ctx);
   attachEffectRoutes(app, ctx);
-  attachAbRoutes(app, { resolve: (pattern) => ctx.integrations.library.effects.resolve(pattern) });
   attachVoiceRoutes(app, ctx);
   attachSequenceRoutes(app, ctx);
   attachShowSetupRoutes(app, ctx);

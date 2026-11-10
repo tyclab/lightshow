@@ -2,7 +2,7 @@ import { z } from 'zod';
 import { state, voices, strobe, matrix } from '../state.ts';
 import { matrixPressSchema, matrixReleaseSchema } from '../matrix.ts';
 import { builtinPresets, launchOf, targetsOf } from '../voices.ts';
-import { padIndex, restOwner, REST_TOKEN } from '../pads.ts';
+import { padIndex } from '../pads.ts';
 import { validate } from '../validation.ts';
 import { HttpError } from '../../errors.ts';
 import type { Express, Request } from 'express';
@@ -41,19 +41,12 @@ const startSchema = z.object({
   }
 });
 
-const holdSchema = z.object({ token: z.string().min(1).max(64).optional() }).strict();
 const layoutBody = z.object({ pads: z.unknown() }).strict();
 
 function padAt(req: Request): { bank: number; slot: number; index: number } {
   const bank = Number(req.params.bank);
   const slot = Number(req.params.slot);
   return { bank, slot, index: padIndex(bank, slot) };
-}
-
-function tokenOf(req: Request): string {
-  const body = validate(holdSchema, req.body ?? {}, 'pad');
-  const query = typeof req.query.token === 'string' ? req.query.token : undefined;
-  return validate(holdSchema, { token: body.token ?? query }, 'pad').token ?? REST_TOKEN;
 }
 
 function msOf(req: Request): number | undefined {
@@ -91,7 +84,6 @@ export function attachVoiceRoutes(app: Express, ctx: RouteContext): void {
     res.json({ ok: true, stopped: voices.stopAll() });
   });
 
-  // Renew REST leases without relaunching so holds cannot restart once or loop playback.
   const pads = () => {
     if (!ctx.integrations.pads) throw new HttpError(409, 'No pads on this server');
     return ctx.integrations.pads;
@@ -109,29 +101,6 @@ export function attachVoiceRoutes(app: Express, ctx: RouteContext): void {
   app.put('/api/pads/:bank/:slot', (req, res) => {
     const { bank, slot } = padAt(req);
     res.json({ ok: true, pad: pads().store.set(bank, slot, req.body ?? {}) });
-  });
-
-  app.post('/api/pads/:bank/:slot/press', (req, res) => {
-    const { bank, slot } = padAt(req);
-    const token = tokenOf(req);
-    if (!pads().entry(bank, slot).content) return res.status(204).end();
-    const voice = pads().press(bank, slot, restOwner(bank, slot), token);
-    res.json({ ok: true, id: voice?.id ?? null, token });
-  });
-
-  app.post('/api/pads/:bank/:slot/renew', (req, res) => {
-    const { bank, slot } = padAt(req);
-    pads();
-    res.json({ ok: true, renewed: voices.renew(restOwner(bank, slot), tokenOf(req)) });
-  });
-
-  app.post('/api/pads/:bank/:slot/release', (req, res) => {
-    const { bank, slot } = padAt(req);
-    const token = tokenOf(req);
-    const released = pads().release(bank, slot, restOwner(bank, slot), token);
-    voices.release(restOwner(bank, slot), token);
-    if (!released && !pads().entry(bank, slot).content) return res.status(204).end();
-    res.json({ ok: true, released });
   });
 
   app.post('/api/pads/:bank/:slot/toggle', (req, res) => {

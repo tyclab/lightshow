@@ -26,7 +26,7 @@ const deps = {
 };
 
 // Use a real builtin rather than coupling the fixture shape to a particular catalog name.
-const { BUILTIN_PROFILE_ID } = await import('../../src/server/profiles.ts');
+const { BUILTIN_PROFILE_ID, listProfiles } = await import('../../src/server/profiles.ts');
 const draft = (host, universe) => { const value = show(host, universe); value.fixtures[0].profileId = BUILTIN_PROFILE_ID; return value; };
 
 function legacyConfig({ armed = false, omitShowRoute = false } = {}) {
@@ -180,6 +180,26 @@ test('unknown rig versions refuse all writes without quarantine', () => {
   assert.throws(() => store.commitArtnet({ host: '192.0.2.71' }), /Unsupported rig format/);
   assert.throws(() => store.save(), /Unsupported rig format/);
   assert.equal(fs.readFileSync(store.file, 'utf8'), bytes);
+});
+
+// A profile an earlier build read from a fixture file: it carries a channel list, a held default and a strobe range.
+test('a saved rig whose profile came from a fixture file still loads whole', () => {
+  const store = fresh();
+  const profile = {
+    id: 'acme-par-7ch', name: 'Par', manufacturer: 'Acme', modeName: '7ch', channelCount: 7,
+    channelMap: { dimmer: 0, red: 1, green: 2, blue: 3, strobe: 5 },
+    strobeHz: { min: 1, max: 25 },
+    channelList: [{ offset: 0, name: 'Dimmer', attribute: 'dimmer' }, { offset: 6, name: 'Macro', attribute: 'macro' }],
+    defaults: [{ offset: 6, value: 12 }],
+  };
+  const saved = { ...draft('192.0.2.80', 4), profiles: [profile] };
+  saved.fixtures[0].profileId = profile.id;
+  fs.writeFileSync(store.file, JSON.stringify({ formatVersion: 1, revision: 3, show: saved }));
+  assert.equal(store.restore(), true);
+  const name = path.basename(store.file);
+  assert.deepEqual(fs.readdirSync(dir).filter((entry) => entry.startsWith(name)), [name], 'not moved aside');
+  assert.deepEqual(listProfiles()[profile.id], profile);
+  assert.equal(state.fixtures[0].profileId, profile.id);
 });
 
 test('process death after rename recovers the entire imported document', () => {

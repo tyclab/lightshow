@@ -1,7 +1,7 @@
 # TycStation Lightshow
 
 Lighting controller for Art-Net, sACN, WLED/DDP, OpenRGB and Philips Hue
-Entertainment. Control it from the browser, MIDI, Bitfocus Companion or REST.
+Entertainment. Control it from the browser, MIDI or REST.
 Manual looks, effects, pads and sequences work without Python; analysed shows
 and live audio use the optional analysis environment.
 
@@ -14,7 +14,7 @@ longer tracked; an upstream release is not a TycStation Lightshow release.
 
 ```mermaid
 flowchart LR
-  Controls[Browser / MIDI / Companion / REST] --> Server[Server state and validation]
+  Controls[Browser / MIDI / REST] --> Server[Server state and validation]
   Playback[Playback sources] --> Clock[Musical clock]
   Audio[Audio file or live input] --> Analysis[Python analysis / live features]
   Analysis --> Show[Auto show and effect inputs]
@@ -48,37 +48,19 @@ npm start
 ```
 
 Open **http://localhost:3000**. `npm start` builds the browser client and starts
-the server under its supervisor. Complete or skip the first-run wizard; its
-controls remain available in Rig, Sources and Settings.
+the server under its supervisor. Set the rig up in Rig, Sources and Settings.
 
 The server always starts **disarmed**, including after a crash or restart.
 It also starts with the programme stopped and no held picture or pad leases. A saved
 Blackout stays active. Use the global header on any tab or the versioned
 `/api/control` endpoint when the rig should transmit. Arming does not start the programme.
 
-### Packaged builds
-
-TycStation Lightshow has no published release packages yet. Use a pinned source checkout,
-or build a package on the target operating system with `npm run package`.
-The [CI workflows](https://github.com/tyclab/lightshow/actions) test Windows
-and Linux packaging. Packages include Node; install the analysis environment
-separately from the app when needed.
-
-| Package | Start and data location |
-|---------|-------------------------|
-| Windows installer, `*-win32-x64-setup.exe` | Start menu → TycStation Lightshow; new installs in `%LOCALAPPDATA%\Programs\TycStation Lightshow`, data in `%LOCALAPPDATA%\TycStation Lightshow` |
-| Windows portable, `*-win32-x64.zip` | Run `TycStation Lightshow.exe`; data in the adjacent `data` folder while the `portable` marker exists |
-| Linux archive, `*-linux-x64.tar.gz` | Run `./tycstation-lightshow`; portable data as above, otherwise `~/.local/share/tycstation-lightshow` |
-
-Closing the server console stops the show. `--version` prints the version.
 `--no-supervisor` disables the built-in process supervisor.
-`LIGHTSHOW_DATA_DIR` overrides the data location. Updating or uninstalling the
-Windows installer leaves the data directory in place. Existing Windows installs
-keep their installation directory when upgraded.
+`LIGHTSHOW_DATA_DIR` overrides the data location.
 
 The rebrand preserves existing data and model-cache paths, `ARTNET_*` and
 `LIGHTSHOW_*` environment variables, browser storage keys, API/authentication
-headers, analysis schema identifiers, Hue registration names and Companion and
+headers, analysis schema identifiers, Hue registration names and
 browser-extension IDs. The Python package remains `tycstation-lightshow-analysis`.
 Existing shows, pairings and integrations continue to
 use those identifiers; no manual data migration is required.
@@ -112,8 +94,8 @@ sequences. For the default source-checkout location:
 cp -a config config.pre-engine
 ```
 
-Use the actual `LIGHTSHOW_CONFIG_DIR` or packaged data directory when it differs.
-Preserve the matching application revision or package as well. Update through
+Use the actual `LIGHTSHOW_CONFIG_DIR` or `LIGHTSHOW_DATA_DIR` when it differs.
+Preserve the matching application revision as well. Update through
 the installation's normal release/service path; for a checkout, install the
 locked dependencies with `npm ci` and rebuild with `npm run build:client`.
 Restart, run preflight, check `/api/health`, and verify the preview while
@@ -378,17 +360,9 @@ tags, so a saved preset or an edited copy is tagged by what it now does (a Wash 
 a bass beat accent becomes Bands & drums, live); the 59 classic patterns have no spec
 and take theirs from a table in the same module. The server sends them on every
 catalogue row and saved-preset summary as `tags` and, for a reaction, `via`.
-MIDI's **Browse patterns** and **Browse effects** and Companion's pattern and effect
+MIDI's **Browse patterns** and **Browse effects**
 lists are built from them: effects are the Energy looks, the bars' picture the Bars &
 panels looks, patterns every other look; retired ids are in none.
-
-**Compare A/B**, beside the Effects card's title while pairs wait for a decision (it is hidden when there are none), opens the pairs of looks waiting for your decision:
-two looks that may be one look twice, or a classic look against the v2 preset it would
-move onto. Each pair shows its frame diff; Play A and Play B (or the keys A and B, and
-Space to swap) set the main effect as a tap in the list does, and Keep A, Keep B, Keep
-both or Neither records the decision, which can be changed later. A side given as a
-kind and parameters plays without being saved as a preset. Disarmed, the panel says the
-rig must be armed to see the looks and plays nothing; it never arms the rig.
 
 ### Spatial effects
 
@@ -694,7 +668,7 @@ saved, and an acknowledgement that arrives later clears the error. A superseded
 request cannot claim that its older rig was applied.
 
 Save Art-Net separately from other settings: mixed requests are rejected before
-any changes with `mixed_settings_domains`. Outputs, the setup wizard, node
+any changes with `mixed_settings_domains`. Outputs, node
 **Send only here** and **Undo** all wait for this result. Old physical destinations
 receive dark frames and their required ArtSync on their original ports before new
 destinations receive light. Failed retirement is retried and withholds application.
@@ -720,7 +694,6 @@ New mapping revisions discard delayed and partially staged colours.
 | `midi` | `input: ''`, `output: ''`, `clockOutput: ''`, `controlFeedback: true` |
 | `engine` | `thread: 'worker'`; `'main'` is available for diagnosis |
 | `analysis` | `analyzerTimeoutMs: 600000`, `analyzerTimeoutMsPerSec: 1500`, `downloadTimeoutMs: 300000`, `localRoot: ''`, `pythonPath: ''`, `separator: 'demucs'`, `structureModel: 'auto'`, `gpuMemory: 'auto'`, `localWorker: 'standby'` (`'resident'` keeps this machine's analyser loaded from start-up); `workerToken: ''` (write-only; blank turns [remote GPU workers](#remote-gpu-analysis) off), `remoteWaitMs: 120000` |
-| `setup` | `completed: false` until the first-run wizard is completed or skipped |
 
 `server.host`, `server.port`, `server.token`, engine thread and the first Deezer
 ARL require a restart.
@@ -738,7 +711,6 @@ Other settings apply immediately. The UI lists pending restart keys.
 | `config/sequence-workspace.json` | Recovery copy of the loaded sequence, playhead and pending take |
 | `config/look.json` | Saved look content and Blackout; playback restarts stopped |
 | `config/stage-room.json` | Optional private Stage geometry and light bindings; mode 0600 |
-| `config/ab-decisions.json` | The A/B compare decisions by pair key |
 | `cache/` | Analysis cache |
 | `logs/` | Structured logs |
 | `.venv/` | Managed analysis environment |
@@ -804,8 +776,8 @@ masters; it is not a temporary override. A fixture override can set colour,
 dimmer, strobe or blackout. Clear removes the override. Cues capture looks,
 not patch changes.
 
-Import GDTF `.gdtf` or Open Fixture Library `.json` profiles through Rig →
-Profiles. OFL search can fetch a fixture online. Profiles in use cannot be
+Rig → Profiles lists the profiles and builds an LED bar's from its manual; any
+other DMX profile is added as JSON with `POST /api/profiles`. Profiles in use cannot be
 deleted. LED profiles use `cells`; `grid` describes a panel. An undriven
 channel's nonzero default belongs in `defaults: [{ offset, value }]`.
 Use `/api/profiles/bar` to build a bar profile from cell count, channel order,
@@ -1459,7 +1431,7 @@ preset. Pattern voices map shared lanes to the pad targets and track lanes to
 target fixtures in patch order. Hold and loop repeat the bundle; once plays it
 once. Strobe content permits only hold, not once/toggle.
 
-REST, Socket.IO, MIDI `padPress` and Companion share these launch semantics.
+REST, Socket.IO and MIDI `padPress` share these launch semantics.
 Renewal extends only an existing hold. Explicit stop revokes the old token;
 it cannot relaunch until released or absent for 1.2 seconds. MIDI holds also
 end on port loss; a missing note-off is bounded by the strobe cap for a strobe
@@ -1608,7 +1580,7 @@ It holds until the disarm; a disarm and a server start end it, so the next arm
 asks again. While the outputs are disarmed nothing reaches the rig and nothing
 waits for it: there is no notice and no question, previews play, rapid effects
 are accepted, and `GET /api/safety` and the state report
-`photosensitivityAcknowledged: true`. A remote that arms (Companion, MIDI, the
+`photosensitivityAcknowledged: true`. A remote that arms (MIDI, the
 API) gives it with `POST /api/safety/acknowledge` before or after its arm.
 Armed without it, rapid-flash presets/voices,
 strobes, rapid sequence content and rapid Matrix modes are refused, and so are
@@ -1619,7 +1591,7 @@ picture, a track edit) they render and preview dark, and the automatic show
 plans none of them until the acknowledgement, re-planning when it is given and
 when the outputs arm or disarm. REST
 returns `409 photosensitivity acknowledgement required`; socket commands
-return `error-msg`; MIDI/Companion report the refusal. Stop/release remains
+return `error-msg`; MIDI reports the refusal. Stop/release remains
 available. Armed without it, the **Strobes locked** indicator in the header's status
 details and in Perform opens the warning.
 
@@ -1640,8 +1612,8 @@ Hue flash/pulse adaptation preserves the exemptions described under
 ### Analysis environment
 
 Sources → Analysis environment installs the locked Python environment using
-uv and Python 3.12. Select CPU, CUDA (`cu128`) or ROCm. In a checkout, uv must
-be on `PATH`; packaged builds include it.
+uv and Python 3.12. Select CPU, CUDA (`cu128`) or ROCm. uv must
+be on `PATH`.
 
 ```bash
 npm run setup:python
@@ -1816,9 +1788,7 @@ threshold, reactive depth and brightness. `ldjTrigger` defaults to 0.3.
 The highest applicable voice, then sequence clip, then base owns each detector;
 otherwise configured defaults apply. `/api/audio` reports detector ownership.
 
-## MIDI and Companion
-
-### MIDI
+## MIDI
 
 Select input/output ports in Settings → MIDI. Only the selected ports open;
 **none** leaves that direction disconnected, and an unavailable port is never
@@ -1880,25 +1850,6 @@ encoders configured to send relative steps. The actions remain the same.
 | Button row 1 | Notes 16–23 | Patterns |
 | Button row 2 | Notes 24–31 | 2 patterns + Colour A presets 1–6 |
 
-### Bitfocus Companion
-
-Use Companion 4.3+ and the module in `companion-module/`. Install its dependencies,
-then place or symlink the module inside the configured Developer modules folder.
-Add a TycStation Lightshow connection with host, port and access token.
-
-The **Busk** page browses and randomises patterns and effects, toggles palettes
-over the running show, launches pads, follows or taps tempo, and stops live
-effects. Pattern browsing covers every current look but the bars' pictures and the
-energy looks (Fire and Ice included), effect browsing the energy holds and strobes;
-rapid effects require the server's photosensitivity acknowledgement. **Auto Show** and **Sequence** have
-their own preset pages. Preset variable references use the connection's label.
-
-Presets also cover energy holds, transport, cues, strobe bursts and fixture
-controls. Hold buttons renew until release; once and loop pads launch once per press. Server catalogs populate
-actions and feedback. The module uses Socket.IO protocol 2. See
-[installation](companion-module/INSTALL.md) and
-[action/feedback reference](companion-module/companion/HELP.md).
-
 ## Global control contract
 
 `GET /api/control` returns `{ ok, control }`. Send a deliberate action with the
@@ -1943,7 +1894,7 @@ from POST/PUT/DELETE actions.
 | Programme and picture | `/api/control` actions `select`, `start`, `stop`, `freeze`, `resume`; state `control` |
 | Master | `/api/master/:value`; `/api/control` actions `blackout` / `restore`; `masterDimmer`, `control.blackout` |
 | Palette | `PUT /api/palette-override` with `{ paletteId }`; clear with DELETE; feedback `paletteOverrideId` plus materialised `paletteOverride` |
-| Pads | Press/renew/release, toggle or once; `pads.layout`, `pads.lit` |
+| Pads | Toggle or once; `pads.layout`, `pads.lit` |
 | Voices | GET/POST/DELETE `/api/voices`; state `voices` |
 | Strobe | PUT settings, POST on/off/burst; state `strobe`; burst 100–30,000 ms |
 | Sequence | Load/unload and transport routes; state `sequence`, shelf `sequences` |
@@ -1963,12 +1914,11 @@ an acknowledgement.
 
 Each arm or disarm that changes the state logs one info line under
 `component=outputs` with `armed` and `via`: `rest` (the three
-`/api/outputs/*` routes or `PUT /api/settings`), `companion` (a request that
-sends `X-Lightshow-Client: companion`, as the Companion module does),
+`/api/outputs/*` routes or `PUT /api/settings`),
 `schedule` (the idle disarm, with its `reason`) or `boot` (the forced disarm
 at start). A request also gives its `route` (method and path, without the
 query string), `remote` address and, when sent, `forwardedFor`, `userAgent`
-and `client`. Tokens, the query string and other headers are never logged.
+and `client` (its `X-Lightshow-Client` header). Tokens, the query string and other headers are never logged.
 
 ## REST API
 
@@ -2013,8 +1963,6 @@ All endpoints return JSON. When a token is configured, send it as an
 | DELETE | `/api/palette-override` | Remove it |
 | GET | `/api/safety` | `{ photosensitivityAcknowledged, hdFlashIntervalMs, strobeMaxLatchSec }`; the first is true while disarmed |
 | POST | `/api/safety/acknowledge` | Give the photosensitivity acknowledgement; it holds until the next disarm |
-| GET | `/api/ab` | `{ candidates, decisions }` — the A/B pairs (`src/shared/effects/ab-candidates.ts`), each with `play.a`/`play.b` `{ pattern, name, rapidFlash }`, and the decisions so far by key |
-| POST | `/api/ab/decision` | `{ key, choice: 'a' \| 'b' \| 'both' \| 'neither', note? }`: store a decision in `ab-decisions.json` in the config directory (a later one replaces it; 404 for an unknown key) and log it as one `ab` line, `A/B decision` with `key`, `choice` and `note` |
 
 ### Voices, pads, strobe and the matrix board
 
@@ -2028,7 +1976,6 @@ A refused effect for want of the acknowledgement answers
 | DELETE | `/api/voices/:id` · `/api/voices` | Stop one (404 `No such voice`) · all (`{ ok, stopped }`) |
 | GET · PUT | `/api/pads` | The layout and the lit pads (`{ layout, lit }`) · a whole layout (`{ pads }`) |
 | PUT | `/api/pads/:bank/:slot` | One pad's fields (bank 0–1, slot 0–7) |
-| POST | `/api/pads/:bank/:slot/press` · `/renew` · `/release` | Press a pad from REST (`{ token? }` or `?token=`, default `rest`), keep its hold, let it go. `renew` within 1.2 s extends a live hold and never launches (`{ renewed }`, false for a `once`, a `loop` or a hold ended); the same press within 1.2 s also renews a hold |
 | POST | `/api/pads/:bank/:slot/toggle` | Start or stop a pad as a loop |
 | POST | `/api/pads/:bank/:slot/once` | Fire it once (`?ms=` for a length) |
 | GET | `/api/show-setup` | The effective audio response and pads, whether the loaded show owns them, the fixture order and the layout names, with an `expected` revision token |
@@ -2092,10 +2039,6 @@ Transport routes answer `{ ok, status }`; with no sequence loaded they answer
 | POST | `/api/fixture/:id/max/:value` | Fixture maximum brightness (0–255) — scales the fixture's output; not an override |
 | POST | `/api/fixtures` · DELETE `/api/fixtures/:id` | Add / remove fixtures. With no body, one generic par behind whatever is on the default universe; with `{ profileId?, count?, universe?, address?, label? }`, `count` (up to 64) of that profile one after another, on into the next universe when one fills (a strip on universes of its own); answers `{ fixtures: [ids], placed: [{ universe, address }] }`. A Hue lamp profile is refused: Hue lamps are added with `POST /api/hue/:bridge/add`. DELETE answers with the fixture and its index |
 | POST | `/api/fixtures/restore` | Put a deleted fixture back (`{ index, fixture }`) |
-| POST | `/api/gdtf/parse` | Parse an uploaded `.gdtf` (multipart `gdtf`) |
-| POST | `/api/ofl/parse` | Parse an uploaded Open Fixture Library `.json` (multipart `ofl`, optional `manufacturer`) |
-| GET | `/api/ofl/search?q=` | Search the Open Fixture Library online: `{ results: [{ manufacturerKey, fixtureKey, manufacturer, name, categories }] }` |
-| GET | `/api/ofl/fixture/:manufacturer/:fixture` | Fetch a fixture from the Open Fixture Library and parse it, as `/api/ofl/parse` answers |
 | POST | `/api/profiles` · DELETE `/api/profiles/:id` | Register / remove a fixture profile (`cells` makes it an LED bar, `grid` a panel; `defaults: [{ offset, value }]` holds undriven channels off 0) |
 | POST | `/api/profiles/bar` | Build and register an LED bar profile from `{ id, name, cells, firstChannel, order, stride?, dimmer?, strobe? }`; `?dryRun=1` answers with it without registering |
 | GET · POST | `/api/show` | Export / import the patch |
@@ -2278,7 +2221,7 @@ an effect or `{ preset }` (`{ preset: 'strobe' }` holds the strobe), and the
 holder sends `renew` within 1.2 s or the voice dies, as it does when the socket
 disconnects. A refusal comes back as `error-msg` with `source: 'voice-hold'`.
 `energy-hold` (`{ action, token, effect }`, `effect` an energy override id) is
-kept for the Companion module.
+the older form of the same hold for an energy effect; the pages send `voice-hold`.
 
 The `fixture` message carries
 `{ id, address?, universe?, label?, profileId?, maxBrightness?, position?, group?, geometry?, emission?, output? }`.
@@ -2405,12 +2348,10 @@ npm run watch:client       # rebuild browser assets on changes
 npm run dev                # watch the server, without supervisor
 npm run lint
 npm run typecheck
-npm ci --prefix companion-module # dependency used by Companion tests
 node --test --test-concurrency=3 tests/unit/*.test.js
 npm run test:performance   # serial render budgets, after other tests finish
 npm run test:e2e
 npm run gen:analysis-types # after changing the analysis document schema
-npm run package            # package this platform into dist/
 ```
 
 Server TypeScript runs directly through Node's type stripping. Browser sources
@@ -2456,9 +2397,7 @@ or presentation. Without the parameter nothing is recorded or observed.
 `tests/e2e/browser-performance.spec.js` holds a steady stage to a 200 ms main-thread
 budget and checks that an injected 250 ms renderer stall fails it.
 
-Build packages with Node 24 on the target platform. Package/release workflows
-are in `.github/workflows/`; a version tag matching `package.json` drafts the
-release. Preserve repository hooks, CI checks and normal release policies.
+Preserve repository hooks and CI checks.
 
 Python validation uses the analysis environment:
 `python -m unittest discover -s tests/python -v`. Optional model and audio
@@ -2485,10 +2424,9 @@ Preflight reports unverified limits.
 
 Capabilities include the profile's colour channels, pixel count and hardware
 strobe range. RGB outputs approximate missing white, amber and UV with visible
-RGB. White-only cells continue to respond to their white channels. OFL and
-GDTF imports retain numeric physical strobe rates when the driven standard
-range has a supported increasing mapping. Unknown or nonnumeric mappings retain
-the unverified 1–20 Hz fallback. Software strobes cannot exceed half the render
+RGB. White-only cells continue to respond to their white channels. A profile's
+`strobeHz` gives its physical strobe range; without one the
+unverified 1–20 Hz fallback applies. Software strobes cannot exceed half the render
 frame rate. They use whole render-frame periods with timing headroom so rate
 guards do not periodically drop flashes. Slower fixtures join an integer subset
 of the requested pulse grid: at full speed the default 20 Hz RGB cap runs at

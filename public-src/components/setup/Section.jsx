@@ -100,8 +100,8 @@ export function SettingsSection({ id, title, desc, fields, ctx = {}, collect, di
   const generate = async (field) => {
     const res = await post('/api/settings/token/suggest', {});
     if (!res.ok) return;
-    // In the clear: it has to be copied into Companion and the extension. It
-    // is not stored until Apply.
+    // In the clear: it has to be copied into the extension. It is not stored
+    // until Apply.
     setShown({ ...shown, [field.path]: true });
     edit(field, res.token);
   };

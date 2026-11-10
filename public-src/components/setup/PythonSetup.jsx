@@ -126,7 +126,7 @@ export function PythonSetup() {
             <pre class="python-log" role="log" aria-label="The setup's output" tabIndex={0}>{job.lines.slice(-40).join('\n')}</pre>
           </details>
         )}
-        <p class="setting-help python-where">In {info.environment.dir}{info.uv ? `, by ${info.uv.version || 'uv'} (${info.uv.from === 'bundled' ? 'the one that came with the app' : info.uv.command})` : ''}.</p>
+        <p class="setting-help python-where">In {info.environment.dir}{info.uv ? `, by ${info.uv.version || 'uv'} (${info.uv.command})` : ''}.</p>
       </>
     );
   }

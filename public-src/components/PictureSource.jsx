@@ -14,7 +14,7 @@ effect(() => { if (!namesEffect(pictureSourceSig.value)) pickerOpenSig.value = f
 
 const typing = (target) => ['INPUT', 'TEXTAREA', 'SELECT'].includes(target?.tagName) || target?.isContentEditable;
 
-/** E opens the effect picker, except in a field, under a modal dialog (the inspector, the wizard) or with the Visualizer chosen. */
+/** E opens the effect picker, except in a field, under a modal dialog (the inspector) or with the Visualizer chosen. */
 export function pickerKey(e) {
   if (e.repeat || e.defaultPrevented || e.ctrlKey || e.altKey || e.metaKey || typing(e.target) || e.key?.toLowerCase() !== 'e') return;
   if (!namesEffect(pictureSourceSig.value) || document.querySelector('[aria-modal="true"]')) return;

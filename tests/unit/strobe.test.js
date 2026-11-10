@@ -812,13 +812,6 @@ test("strobe pads and voice holds use the strobe lifecycle", async (t) => {
   socket.emit('voice-hold', { action: 'release', token: 'q' });
   await until(() => !ids().length, 'the release with no pad named');
 
-  // Over REST: the pad's own owner and token.
-  let res = await s.call('POST', '/api/pads/0/6/press');
-  assert.deepEqual([res.status, res.body.id], [200, STROBE_VOICE_ID]);
-  assert.equal((await s.call('GET', '/api/strobe')).body.mode, 'hold');
-  res = await s.call('POST', '/api/pads/0/6/release');
-  assert.deepEqual([res.status, res.body.released, ids()], [200, true, []]);
-
   // A page that goes takes its hold with it, before its lease could end.
   socket.emit('voice-hold', { action: 'press', token: 'r', pad: { bank: 0, slot: 6 } });
   await until(() => ids().length === 1, 'held again');
@@ -860,18 +853,25 @@ async function acknowledged(t) {
   return s;
 }
 
+// The strobe pad's holder in these tests: a deck that holds it down, and lets it go as a page's release does (sockets.ts).
+const DECK = ['deck', 'hold'];
+const letGo = (s) => {
+  s.integrations.pads.release(0, 6, ...DECK);
+  voices.release(...DECK);
+};
+
 /** The strobe latched and the strobe pad held over it. */
 async function holdOverLatch(s) {
   await s.call('POST', '/api/strobe/on');
-  const res = await s.call('POST', '/api/pads/0/6/press');
-  assert.deepEqual([res.status, voices.get(STROBE_VOICE_ID)?.mode], [200, 'hold']);
+  s.integrations.pads.press(0, 6, ...DECK);
+  assert.equal(voices.get(STROBE_VOICE_ID)?.mode, 'hold');
   return s;
 }
 
 /** Nothing plays, nor once the pad is let go. */
 async function gone(s) {
   assert.deepEqual([ids(), playing()], [[], []]);
-  await s.call('POST', '/api/pads/0/6/release');
+  letGo(s);
   assert.deepEqual(ids(), [], 'nor after the pad\'s release');
   assert.equal((await s.call('GET', '/api/strobe')).body.active, null);
 }
@@ -913,7 +913,7 @@ test('POST /api/outputs/disarm from armed ends a latch kept under a strobe hold'
 test('a latched palette strobe replaces a latch kept under a strobe hold', async (t) => {
   const s = await holdOverLatch(await acknowledged(t));
   await s.call('POST', '/api/energy/palette-strobe');
-  await s.call('POST', '/api/pads/0/6/release');
+  letGo(s);
   assert.deepEqual([ids(), state.energyOverride], [['energy:palette-strobe'], 'palette-strobe']);
   await s.call('POST', '/api/energy/off');
 });
@@ -927,7 +927,7 @@ test('the strobe pad plays on its own fixtures and leaves the rest to the look',
   assert.deepEqual([lamp(0).r, lamp(1).r], [255, 255], 'the look: red');
   const entry = { label: 'Strobe', accent: '#E2E8F0', content: { kind: 'strobe', id: 'strobe' }, launch: 'hold', quantise: 0, targets: [first] };
   assert.equal((await s.call('PUT', '/api/pads/0/6', entry)).status, 200);
-  await s.call('POST', '/api/pads/0/6/press');
+  s.integrations.pads.press(0, 6, ...DECK);
   assert.deepEqual(renderInput().voices.map((v) => [v.id, v.targets]), [[STROBE_VOICE_ID, [first]]]);
   let elsewhere = false;
   await flashes((l) => {
@@ -935,7 +935,7 @@ test('the strobe pad plays on its own fixtures and leaves the rest to the look',
     return l.r === 0 && l.b === 255;
   }, 'a blue flash on the pad\'s fixture');
   assert.equal(elsewhere, false, 'the other fixtures keep the look');
-  await s.call('POST', '/api/pads/0/6/release');
+  letGo(s);
 });
 
 test('voice-hold { preset: "strobe" } plays on the fixtures it names', async (t) => {

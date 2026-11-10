@@ -1,5 +1,4 @@
 node_modules/
-companion-module/node_modules/
 .env
 
 # Local settings include secrets.
@@ -10,7 +9,6 @@ logs/
 # Downloaded audio. A glob, not a directory: git cannot re-include paths under an excluded directory.
 tests/fixtures/*
 !tests/fixtures/tracks/
-!tests/fixtures/ofl/
 !tests/fixtures/golden/
 !tests/fixtures/rigs/
 # Encoder output of a synthetic tone or silence, a few KB, for the duration probes.
@@ -29,4 +27,3 @@ public/chunks/
 test-results/
 playwright-report/
 
-dist/

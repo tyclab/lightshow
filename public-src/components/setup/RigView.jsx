@@ -10,7 +10,7 @@ import { Outputs, ShowFile } from './Outputs.jsx';
  * The rig: what is hung where and what it is, and where its DMX goes.
  *
  *   plan      the pixel map and the patch, one selection between them
- *   profiles  the fixture library
+ *   profiles  the fixture profiles
  *   outputs   Art-Net, sACN, WLED and Hue, and finding them on the network
  */
 const TABS = [
