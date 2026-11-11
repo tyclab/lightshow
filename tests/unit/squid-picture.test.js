@@ -16,12 +16,12 @@ import { allocateShared, createUniverseStore } from '../../src/server/universes.
 import { channelReader } from '../../src/shared/placement.ts';
 
 const ASSETS = path.join(import.meta.dirname, '..', '..', 'assets', 'squid');
-const LOOPS = ['breathing', 'ink', 'deepsea', 'eyes', 'skin'];
+const LOOPS = ['breathing', 'ink', 'deepsea', 'eyes', 'skin', 'skin-water'];
 test.after(() => stopEngine());
 
 // The frames ImageMagick decodes from the same files (`magick f.gif -coalesce -depth 8 rgb:-`), hashed.
 const DECODED = { breathing: [200, 80, '8c194e2545ece88a'], ink: [120, 80, '4cfe0802b36f044d'], deepsea: [200, 80, 'da75e4d3604140a1'],
-  eyes: [200, 80, 'f8c2f4461f27a796'], skin: [120, 100, 'e9f9d24972c57032'] };
+  eyes: [200, 80, 'f8c2f4461f27a796'], skin: [120, 100, 'e9f9d24972c57032'], 'skin-water': [128, 120, '988695544a66e489'] };
 const decoded = Object.fromEntries(LOOPS.map((name) => [name, decodeGif(fs.readFileSync(path.join(ASSETS, `squid-${name}.gif`)))]));
 
 test('the squid GIFs decode to the frames a reference decoder gives', () => {
@@ -81,6 +81,17 @@ test('the panel gets the frame at the beat, decoded once off the frame loop; lea
   assert.equal(squid.frame({ beatPos: 16, bpm: 120 }), null, 'stopped: decoded again when chosen again');
   panel = null;
   assert.equal(await settle(squid, { beatPos: 16, bpm: 120 }), null, 'no panel, no frame');
+});
+
+test('the six loops play in turn, the water last, each from its first frame on its bar line', async () => {
+  const squid = new SquidPicture({ now: () => 0, panel: () => ({ fixtureId: 53, columns: 68, rows: 42 }) });
+  await settle(squid, { beatPos: 0, bpm: 120 });
+  // At 120 BPM the drawn lengths (16, 9.6, 16, 16, 12 and 15.36 s) are 8, 5, 8, 8, 6 and 8 bars.
+  const starts = { 0: 'breathing', 32: 'ink', 52: 'deepsea', 84: 'eyes', 116: 'skin', 140: 'skin-water', 172: 'breathing' };
+  for (let beat = 0; beat <= 172; beat += 4) {
+    const { data } = squid.frame({ beatPos: beat, bpm: 120 });
+    if (starts[beat]) assert.deepEqual(data, decoded[starts[beat]].frames[0], `beat ${beat}: ${starts[beat]}`);
+  }
 });
 
 test('a failed load warns once and paints nothing until the source is chosen again', async (t) => {
