@@ -123,8 +123,7 @@ sounddevice>=0.5
 #
 # 2025.11.12 or newer: YouTube now needs an external JavaScript runtime to
 # solve its challenges. The server passes its own Node to yt-dlp; the `deno`
-# extra installs Deno beside yt-dlp too, where yt-dlp looks first — the
-# runtime the packaged build uses, whose executable is no Node yt-dlp can run.
+# extra installs Deno beside yt-dlp too, where yt-dlp looks first.
 # The `default` extra brings the challenge-solver scripts (yt-dlp-ejs).
 yt-dlp[default,deno]>=2025.11.12
 # An ffmpeg binary, for when there is none on PATH (see ffmpeg, above).

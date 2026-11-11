@@ -3,7 +3,7 @@
 // switching; blackout; palettes; the faders.
 
 import { test, expect } from '@playwright/test';
-import { open, reset, state, until } from './helpers.js';
+import { control, open, reset, state, until } from './helpers.js';
 
 test.beforeEach(async ({ request, page }) => {
   await reset(request);
@@ -47,7 +47,7 @@ test('an energy pad runs its effect while held, and stops when let go', async ({
   const button = cell(page, blinder);
   await button.scrollIntoViewIfNeeded();
   await hold(page, button);
-  // What Companion, MIDI, Home Assistant and the header read.
+  // What MIDI, Home Assistant and the header read.
   await until(request, (s) => s.energyOverride === 'blinder');
   await expect(button).toHaveAttribute('aria-pressed', 'true');
   await page.mouse.up();
@@ -104,7 +104,9 @@ test('a hold pad lets go when the bank switches under it, and the finger\'s up s
   await expect(under).toHaveAttribute('aria-pressed', 'false');
 });
 
-test('a rapid preset pad asks before the acknowledgement on the deck and on the command bar strip', async ({ page, request }) => {
+test('armed, a rapid preset pad asks before the acknowledgement on the deck and on the command bar strip', async ({ page, request }) => {
+  // Armed without the acknowledgement, as a remote leaves it; disarmed nothing asks.
+  await control(request, 'arm');
   await request.put('/api/settings', { data: { safety: { photosensitivityAcknowledged: false } } });
   // A1 as a fresh install has it: another spec may have changed it.
   const { bank: _b, slot: _s, ...before } = (await state(request)).pads.layout.find((p) => p.bank === 0 && p.slot === 0);
@@ -136,7 +138,7 @@ test('a rapid preset pad asks before the acknowledgement on the deck and on the 
     expect(s.safety.photosensitivityAcknowledged).toBe(false);
   } finally {
     await request.put('/api/pads/0/0', { data: before });
-    await request.put('/api/settings', { data: { safety: { photosensitivityAcknowledged: false } } });
+    await control(request, 'disarm');
   }
 });
 
@@ -210,11 +212,13 @@ test('every target on the view is at least 44 px on a touch screen', async ({ pa
   expect(small).toEqual([]);
 });
 
-test('the strobe asks once before the acknowledgement, and never after it', async ({ page, request }) => {
-  await request.put('/api/settings', { data: { safety: { photosensitivityAcknowledged: false } } });
+test('armed, the strobe asks once before the acknowledgement, never after it, and again at the next arm', async ({ page, request }) => {
   try {
     await open(page, 'perform');
     const strobe = page.locator('.strobe-pad .strobe-hold');
+    // Disarmed, nothing waits and nothing asks.
+    await expect(strobe).not.toHaveAttribute('data-safety', 'ask');
+    await control(request, 'arm');
     await expect(strobe).toHaveAttribute('data-safety', 'ask');
     await strobe.click();
     const dialog = page.getByRole('alertdialog', { name: 'Rapid flashing' });
@@ -225,8 +229,14 @@ test('the strobe asks once before the acknowledgement, and never after it', asyn
     await expect(strobe).not.toHaveAttribute('data-safety', 'ask');
     await strobe.click();
     await expect(page.getByRole('alertdialog')).toHaveCount(0);
+    await request.post('/api/strobe/off');
+    await control(request, 'disarm');
+    await until(request, (s) => s.armed === false);
+    await control(request, 'arm');
+    await expect(strobe, 'this page gave it for the last arm only').toHaveAttribute('data-safety', 'ask');
   } finally {
-    await request.put('/api/settings', { data: { safety: { photosensitivityAcknowledged: false } } });
+    await request.post('/api/strobe/off');
+    await control(request, 'disarm');
   }
 });
 

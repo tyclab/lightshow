@@ -36,10 +36,10 @@ import { createAuth, configError, hostOfUrl, sourceMapsForLoopback } from './ser
 import { isLoopback } from './server/loopback.ts';
 import { settings, CONFIG_FILE } from './server/settings.ts';
 import { cacheDir, dataDir } from './server/config-dir.ts';
-import { openBrowser, shouldOpenBrowser } from './server/open-browser.ts';
 import { createApplier } from './server/apply.ts';
 import { createIdleDisarm } from './server/idle-disarm.ts';
 import { isArmed, onDisarm } from './server/armed.ts';
+import { safety } from './server/safety.ts';
 import { startWledWatch, wledBoards } from './server/wled-watch.ts';
 import { pixelInputs } from './server/pixel-input-live.ts';
 import { midiMap } from './server/midi-map.ts';
@@ -134,9 +134,10 @@ const autoShow = new AutoShow((patch) => {
 autoShow.useRemoteAnalysis(remoteAnalysis);
 settings.onChange((changed) => {
   if (changed.includes('analysis.workerToken')) remoteAnalysis.disconnectAll('the worker token changed');
-  // The plan holds Rapid flash rows only while the acknowledgement stands.
-  if (changed.includes('safety.photosensitivityAcknowledged') && autoShow.analysis) autoShow.buildTimeline();
 });
+// The plan holds Rapid flash rows only while the acknowledgement stands.
+// It stands while disarmed and from the acknowledgement at an arm until the disarm.
+safety.onChange(() => { if (autoShow.analysis) autoShow.buildTimeline(); });
 // A standby analyser that had to wait for the disarm loads now.
 onDisarm(() => autoShow.settleLocalAnalysis());
 
@@ -313,8 +314,6 @@ server.listen(PORT, HOST, () => {
   console.log(`  Now Playing       →  ${npStatus}`);
   console.log(`  Python            →  ${pythonEnv.describe()}`);
   console.log(`  Auto Show         →  Essentia + Spotify integration\n`);
-
-  if (shouldOpenBrowser({ restarts: supervised.restarts })) openBrowser(`http://${shownHost}:${PORT}/`);
 
   restoreSpotifySession();
 

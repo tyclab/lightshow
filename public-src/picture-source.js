@@ -6,12 +6,14 @@ export const PICTURE_SOURCES = [
   { id: 'effects', label: 'Effects', short: 'Effects' },
   { id: 'inspired', label: 'Colour + motion', short: 'C+M' },
   { id: 'visualizer', label: 'Visualizer', short: 'Visualizer' },
+  { id: 'squid', label: 'Squid', short: 'Squid' },
 ];
 
 export const chooseSource = (source) => api('/api/picture/source', { method: 'POST', body: JSON.stringify({ source }) });
 
 /** One line on what the chosen source paints the room with right now. */
 export function pictureHint(source, input, armed) {
+  if (source === 'squid') return 'The squid plays on the largest LED panel; the effects paint the rest';
   if (source === 'inspired') return input?.receiving ? 'Picture colours and motion drive spatial effects' : 'Waiting for picture colours and motion';
   if (source !== 'visualizer') return 'The show\'s effects paint the room';
   if (!armed) return 'Arm the outputs; the picture needs a live rig';

@@ -85,6 +85,19 @@ test('a frame that did not fully go out sends Hue nothing', () => {
   assert.deepEqual(hue(log).map((p) => p.channels), [[[0, 50]], [[3, 0]]]);
 });
 
+// A PC's RGB parts are an output whose machine sleeps or is switched off in the middle of a show.
+test('an OpenRGB device that drops out after it was lit does not stop Hue', () => {
+  let away = false;
+  const { log, wires } = fakeWires();
+  wires.openrgb = () => !away;
+  const pc = { openrgb: [{ host: '192.0.2.30', port: 6742, device: 1, leds: 1, parts: [{ universe: 0, from: 0, bytes: 3 }], width: 3, rgb: [0, 1, 2] }] };
+  const tx = createTransmitter({ wires });
+  assert.equal(frame(tx, outputs(pc), lit(10)), true, 'the device took a frame: it is lit');
+  away = true;
+  assert.equal(frame(tx, outputs(pc), lit(60)), true, 'the frame it cannot take is applied for the others');
+  assert.deepEqual(hue(log).filter((p) => p.bridge === 'b1').map((p) => p.channels), [[[0, 10]], [[0, 60]]]);
+});
+
 test('a bridge with no lamp left is still handed its empty frame, so it can release its area', () => {
   const { log, wires } = fakeWires();
   const tx = createTransmitter({ wires });

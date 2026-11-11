@@ -126,8 +126,10 @@ const SPATIAL_MATCH: Record<string, string[]> = {
 const INPUT_ONLY = new Set(V2_PRESETS.filter((p) => ['v2.neural', 'v2.visualizer'].includes(p.spec.kind)).map((p) => p.id));
 const PARTICLE_PATHS = new Set(V2_PRESETS.filter((p) => p.spec.kind === 'v2.particles').map((p) => p.id));
 
-// Particle eligibility comes from sampled room coverage, independently of fixture count or pixel capability.
-export const automaticPattern = (id: string, particles?: ReadonlySet<string>): boolean => !INPUT_ONLY.has(id) && (!PARTICLE_PATHS.has(id) || !!particles?.has(id));
+// A measured rig plays the looks that light a real share of its fixtures (look-coverage.ts), independently of fixture
+// count or pixel capability; until one is measured (no set, or an empty one), every look but the particle paths.
+export const automaticPattern = (id: string, usable?: ReadonlySet<string>): boolean => !INPUT_ONLY.has(id)
+  && (!!usable?.has(id) || !(PARTICLE_PATHS.has(id) || (!!usable?.size && MEASURED_LOOKS.has(id))));
 // A show plays a wall once over its own length by scheduling that span; picked by hand it repeats.
 export const fillBeats = (id: string): number | null => {
   const spec = V2_PRESETS.find((p) => p.id === id)?.spec;
@@ -135,6 +137,8 @@ export const fillBeats = (id: string): number | null => {
 };
 export const SPATIAL_AUTO_PATTERNS = V2_PRESETS.filter((p) => !p.id.endsWith('.2d') && !INPUT_ONLY.has(p.id) && !requiresAcknowledgement(p.spec))
   .map(({ id, name, desc }) => ({ id, name, desc }));
+/** The looks coverage measures on a rig: every spatial look an automatic show may pick. */
+export const MEASURED_LOOKS: ReadonlySet<string> = new Set(SPATIAL_AUTO_PATTERNS.map((p) => p.id));
 for (const id of [...RHYTHMIC]) for (const spatial of SPATIAL_MATCH[id] ?? []) RHYTHMIC.add(spatial);
 for (const id of [...FLOWY]) for (const spatial of SPATIAL_MATCH[id] ?? []) FLOWY.add(spatial);
 
@@ -285,7 +289,7 @@ function goldenStep(index: number, length: number): number {
 }
 
 function pickPattern({ character, available, score = null, seed = 0, drive = 0.5,
-  dance = 0.5, pixels = false, particles, pictures = null, avoid = null }: {
+  dance = 0.5, pixels = false, usable, pictures = null, avoid = null }: {
   character?: Character | null;
   available: ReadonlySet<string>;
   score?: Score | null;
@@ -293,11 +297,11 @@ function pickPattern({ character, available, score = null, seed = 0, drive = 0.5
   drive?: number;
   dance?: number;
   pixels?: boolean;
-  particles?: ReadonlySet<string>;
+  usable?: ReadonlySet<string>;
   pictures?: ReadonlySet<string> | null;
   avoid?: ReadonlySet<string> | null;
 }): string {
-  available = new Set([...available].filter((id) => automaticPattern(id, particles)));
+  available = new Set([...available].filter((id) => automaticPattern(id, usable)));
   const c: Character = character || {};
   const low = unit(c.kick) * 0.6 + unit(c.bassline) * 0.4;
   const voice = unit(c.vocal);
@@ -369,9 +373,9 @@ const PAR_PICTURES: ReadonlySet<string> = new Set(['gradient', 'plasma', 'comet'
 const PAR_PICTURES_WITH_DRUMS: ReadonlySet<string> = new Set([...PAR_PICTURES, 'drums']);
 
 function availableFor(patterns: readonly { id: string; rapidFlash?: unknown }[], analysis: { pulse?: unknown } | null | undefined,
-  { particles, acknowledged = true }: { particles?: ReadonlySet<string>; acknowledged?: boolean } = {}): Set<string> {
+  { usable, acknowledged = true }: { usable?: ReadonlySet<string>; acknowledged?: boolean } = {}): Set<string> {
   // A Rapid flash row is planned only once the photosensitivity acknowledgement is given; the renderer holds it dark before.
-  const ids = new Set(patterns.filter((p) => acknowledged || !p.rapidFlash).map((p) => p.id).filter((id) => automaticPattern(id, particles)));
+  const ids = new Set(patterns.filter((p) => acknowledged || !p.rapidFlash).map((p) => p.id).filter((id) => automaticPattern(id, usable)));
   if (!analysis || !analysis.pulse) for (const id of PULSE_PATTERNS) ids.delete(id);
   return ids;
 }

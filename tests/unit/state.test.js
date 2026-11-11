@@ -18,21 +18,21 @@ test('the live payload carries no static catalogues and no DMX snapshot', () => 
   }
   // But everything the other socket clients read must still be there.
   for (const key of ['bpm', 'energyOverride', 'masterBlackout', 'pattern', 'running']) {
-    assert.ok(key in live, `Companion reads ${key}`);
+    assert.ok(key in live, `an integration reads ${key}`);
   }
   for (const key of ['artnet', 'universes']) {
     assert.ok(key in live, `the settings page reads ${key}`);
   }
 });
 
-// The fixtures and profiles were 98 % of the live state; the pages, Companion and the helper
+// The fixtures and profiles were 98 % of the live state; the pages and the helper
 // get them from the full state and the rig patches, which rigRevision tells them to expect.
 test('the rig rides the full state and its own getter; the live state carries its revision', () => {
   const live = getLiveState(), rig = getRigState(), full = getClientState();
   assert.ok(!('fixtures' in live) && !('profiles' in live));
   assert.ok(Number.isFinite(live.rigRevision));
   assert.deepStrictEqual(Object.keys(rig).sort(), ['fixtures', 'profiles']);
-  assert.deepStrictEqual(full.fixtures, rig.fixtures, 'Companion reads fixtures from the full state');
+  assert.deepStrictEqual(full.fixtures, rig.fixtures, 'the full state carries the fixtures');
   assert.deepStrictEqual(Object.keys(full.profiles), Object.keys(rig.profiles), 'the settings page reads profiles');
   assert.strictEqual(full.rigRevision, live.rigRevision);
   assert.strictEqual(getLiveState().rigRevision, live.rigRevision, 'nothing moved, nor does the revision');

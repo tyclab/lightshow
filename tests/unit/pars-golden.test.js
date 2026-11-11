@@ -32,7 +32,7 @@ import { acknowledgeFlashes } from '../helpers/acknowledged.js';
 //    The renderer and preview digests are unchanged; planned content no longer starts the programme.
 // 6. Aligned software strobes change 41/2,908 frames only at Hue offsets 48–57; every PAR byte stays unchanged.
 const GOLDEN = {
-  engine: '70fa65b31f1f644b4e9a1244f2f7387b403adf4059a382872dfdf550c45e5b97',
+  engine: 'ea626b365ae6d70791a448fb139bcea5bfb911cdf091726d0696041093ff44a3',
   pars: 'f09adeceba236949a3dbf0326a7f37186921a63d97fc0ec33c90bc3e0920db51',
   preview: '65bd25548046cbe773dba9b0fee279aa99c3fc922498d7cfb965724057119178',
   director: '463425690b4323485a4bb383870bbb785f58c2100af9f3cfc61d837c4833e965',

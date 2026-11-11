@@ -1,6 +1,5 @@
 import { fork as nodeFork } from 'node:child_process';
 import fs from 'node:fs';
-import { isSea } from 'node:sea';
 import type { ChildProcess, ForkOptions } from 'node:child_process';
 import { configFile } from './server/config-dir.ts';
 import { EXIT_CONFIG, EXIT_RESTART } from './server/supervised.ts';
@@ -23,7 +22,6 @@ export interface SupervisorOptions {
   startupFailures?: number;
   checkMs?: number;
   forwardSignals?: boolean;
-  sea?: boolean;
 }
 
 export interface Supervisor {
@@ -68,7 +66,6 @@ export function supervise(options: SupervisorOptions): Supervisor {
     startupFailures = 3,
     checkMs = 1000,
     forwardSignals = process.platform !== 'win32',
-    sea = isSea(),
   } = options;
 
   let child: ChildProcess | null = null;
@@ -84,9 +81,6 @@ export function supervise(options: SupervisorOptions): Supervisor {
     if (stopping) return;
     const flags = [...execArgv.filter((f) => f !== '--openssl-legacy-provider')];
     if (legacyProvider()) flags.push('--openssl-legacy-provider');
-    const nodeOptions = sea
-      ? [...String(env.NODE_OPTIONS || '').split(/\s+/).filter((f) => f && f !== '--openssl-legacy-provider'), ...flags].join(' ')
-      : env.NODE_OPTIONS;
     const spawnedAt = now();
     let ready = false;
     let readyAt = 0;
@@ -95,11 +89,10 @@ export function supervise(options: SupervisorOptions): Supervisor {
     let requested: string | null = null;
 
     const c = fork(script, args, {
-      execArgv: sea ? [] : flags,
+      execArgv: flags,
       stdio: ['inherit', 'inherit', 'inherit', 'ipc'],
       env: {
         ...env,
-        ...(nodeOptions ? { NODE_OPTIONS: nodeOptions } : {}),
         LIGHTSHOW_SUPERVISED: '1',
         LIGHTSHOW_RESTARTS: String(restarts),
         LIGHTSHOW_RECOVER: restarts > 0 ? '1' : '',
@@ -200,10 +193,5 @@ export async function runSupervisor(script: string): Promise<never> {
   for (const signal of ['SIGINT', 'SIGTERM', 'SIGHUP'] as const) {
     process.on(signal, () => supervisor.stop(signal === 'SIGHUP' ? 'SIGTERM' : signal));
   }
-  const code = await supervisor.done;
-  if (code !== 0 && process.env.LIGHTSHOW_PACKAGED === '1' && process.stdin.isTTY) {
-    process.stderr.write('\nThe lightshow has stopped. Press Enter to close this window.\n');
-    await new Promise((resolve) => process.stdin.once('data', resolve));
-  }
-  process.exit(code);
+  process.exit(await supervisor.done);
 }

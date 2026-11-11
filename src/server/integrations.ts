@@ -9,7 +9,7 @@ import { setHooks, applyPatch } from './patch.ts';
 import { conductor } from './conductor.ts';
 import { currentRig } from './rig.ts';
 import { currentSpace } from './unit-space.ts';
-import { ParticleCoverage } from './particle-coverage.ts';
+import { LookCoverage } from './look-coverage.ts';
 import { guarded } from './guard.ts';
 import { FRAME_MS } from './frame-clock.ts';
 import PlaybackClock from '../playback-clock.ts';
@@ -291,12 +291,12 @@ function setupIntegrations({ io, midi, spotify, nowPlaying, deezerSource, prolin
   setIdleSource(() => awake().length === 0);
   setAwakeProvider(awake);
 
-  const particleCoverage = new ParticleCoverage(() => broadcast());
+  const lookCoverage = new LookCoverage(() => broadcast());
   function broadcast(): void {
     if (typeof autoShow.setRig === 'function') {
       const rig = currentRig();
       autoShow.setRig({ hasPixels: rig.hasPixels, hasPanels: rig.hasPanels, lamps: rig.fixtures.length,
-        particlePatterns: particleCoverage.forRig(rig, currentSpace()) });
+        usablePatterns: lookCoverage.forRig(rig, currentSpace()) });
     }
     publisher.publishState(getLiveState(), rigSource);
     midi.sendFeedback();
@@ -343,10 +343,15 @@ function setupIntegrations({ io, midi, spotify, nowPlaying, deezerSource, prolin
   }
   setExtrasProvider(extras);
 
+  // The live director's own looks arrive as patches like a hand's: `directing` tells them apart, and a hand's look
+  // is the director's to hold once it exists (below).
+  let directing = false;
+  let holdLook: () => void = () => {};
   setHooks({
     palette: (id) => library.palettes.materializeBody(id),
     broadcast,
     handEdit: (edit) => { sequence.sequencer.handEdit(edit); liveAutomation.handEdit(edit); },
+    handLook: () => { if (!directing) holdLook(); },
     prolinkEnable: () => {
       prolink.enable().catch((err) => {
         console.error('PRO DJ LINK enable failed:', messageOf(err));
@@ -404,7 +409,7 @@ function setupIntegrations({ io, midi, spotify, nowPlaying, deezerSource, prolin
     showWanted = true;
     showGeneration++;
     // A rig changed while the show was off is measured now; the show re-plans when its result lands.
-    particleCoverage.want(true);
+    lookCoverage.want(true);
     if (source === 'live') {
       syncLiveDirector();
       return source;
@@ -431,19 +436,24 @@ function setupIntegrations({ io, midi, spotify, nowPlaying, deezerSource, prolin
   function stopAutoShow(): void {
     showWanted = false;
     showGeneration++;
-    particleCoverage.want(false);
+    lookCoverage.want(false);
     autoShow.stop();
     syncLiveDirector();
   }
 
   // Suppress live-director patches while a timeline plays so the two cannot fight over the look.
   const liveDirector = liveInput ? new LiveDirector({
-    applyPatch: (patch) => { if (!autoShow.running) applyPatch(patch); },
+    applyPatch: (patch) => {
+      if (autoShow.running) return;
+      directing = true;
+      try { applyPatch(patch); } finally { directing = false; }
+    },
     patterns: [...PATTERNS, ...SPATIAL_AUTO_PATTERNS],
     pixels: () => currentRig().hasPixels,
-    particlePatterns: () => particleCoverage.allowed,
+    usablePatterns: () => lookCoverage.allowed,
   }) : null;
   if (liveInput && liveDirector) liveInput.onEvent((e) => liveDirector.onEvent(e));
+  if (liveDirector) holdLook = () => liveDirector.hold();
 
   function syncLiveDirector(): void {
     if (!liveDirector) return;
@@ -473,7 +483,7 @@ function setupIntegrations({ io, midi, spotify, nowPlaying, deezerSource, prolin
       base: baseEffect(), clips: sequence.sequencer.playing(fixtureIds), voices: voices.frames(nowMs), nowMs,
       beatPos: sequence.sequencer.lastBeat(),
       fixtureIds, ldjTrigger: settings.get('audio.ldjTrigger'),
-      acknowledged: settings.get('safety.photosensitivityAcknowledged'),
+      acknowledged: safety.acknowledged(),
     });
   }
   const audioFeatures = new AudioFeatures({
@@ -1013,7 +1023,7 @@ function setupIntegrations({ io, midi, spotify, nowPlaying, deezerSource, prolin
     startAutoShow,
     stopAutoShow,
     resolveAutoSource,
-    particleCoverage,
+    lookCoverage,
     analyseCdjTrack,
     lockToPlayingTrack,
     onDeezerState(payload: DeezerState | null | undefined) {

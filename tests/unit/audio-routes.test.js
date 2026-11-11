@@ -27,6 +27,7 @@ import { createRenderer, withInputDefaults } from '../../src/server/renderer.ts'
 import * as universes from '../../src/server/universes.ts';
 import { getProfile, profilesRevision, BUILTIN_PROFILE_ID } from '../../src/server/profiles.ts';
 import LiveInput, { bandsArg } from '../../src/live-input.ts';
+import { armOutputs } from '../helpers/armed.js';
 
 showStore.scheduleSave = () => {};   // never the real show file
 
@@ -311,8 +312,9 @@ test('increased latency delays delivery without repeating hops', async () => {
 
 // The detectors run on the settings of the Visualizer or Disco that plays: the
 // base look's own effect counts, once the room may see what the Visualizer flashes.
-test('admitted base effects configure the audio detectors', async () => {
+test('admitted base effects configure the audio detectors', async (t) => {
   const s = await serve();
+  armOutputs(t);
   const pattern = state.pattern;
   try {
     const visualizer = { kind: 'ldj.visualizer', params: { trigger: 0.1 } };
@@ -339,11 +341,12 @@ test('admitted base effects configure the audio detectors', async () => {
 
 // What the operator sets to see the strobes and to keep Hue lamps pulsing:
 // the engine reads both from the settings on every frame.
-test('engine safety and Hue mode follow saved settings', async () => {
+test('engine safety and Hue mode follow saved settings', async (t) => {
   const s = await serve();
+  armOutputs(t);
   try {
     const flashLimit = settings.get('safety.flashLimit');
-    assert.deepStrictEqual([renderInput().safety, renderInput().hueStrobe], [{ hdFlashIntervalMs: 350, acknowledged: false }, 'flash'], 'the defaults');
+    assert.deepStrictEqual([renderInput().safety, renderInput().hueStrobe], [{ hdFlashIntervalMs: 350, acknowledged: false }, 'flash'], 'the defaults, armed');
     const res = await s.call('PUT', '/api/settings', { safety: { photosensitivityAcknowledged: true }, hue: { strobe: 'pulse' } });
     assert.strictEqual(res.status, 200, res.body.error);
     assert.deepStrictEqual(res.body.changed.sort(), ['hue.strobe', 'safety.photosensitivityAcknowledged']);

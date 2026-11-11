@@ -37,6 +37,9 @@ const PEAK_DECAY_PER_SEC = 0.988;
 // of memory, so a single hit does not decide the look.
 const CHARACTER_SMOOTHING = 0.15;
 const ROTATE_BARS = 16;
+// A look picked by hand stays this long before the director changes looks again: about one of its own rotations at
+// dance tempo (16 bars at 128 BPM), long enough to be seen as the host's choice without taking the automatic show away.
+const HAND_HOLD_MS = 30_000;
 const ACCENT_COOLDOWN_MS = 4000;
 
 type Patch = Record<string, unknown>;
@@ -47,7 +50,7 @@ export interface LiveDirectorOptions {
   patterns: readonly { id: string }[];
   /** Whether a rig with LED bars can take the pixel patterns. */
   pixels?: () => boolean;
-  particlePatterns?: () => ReadonlySet<string> | undefined;
+  usablePatterns?: () => ReadonlySet<string> | undefined;
   now?: () => number;
   setTimer?: (fn: () => void, ms: number) => unknown;
   clearTimer?: (timer: unknown) => void;
@@ -57,7 +60,7 @@ class LiveDirector {
   declare _apply: (patch: Patch) => unknown;
   declare _available: Set<string>;
   declare _pixels: () => boolean;
-  declare _particlePatterns: () => ReadonlySet<string> | undefined;
+  declare _usablePatterns: () => ReadonlySet<string> | undefined;
   declare _now: () => number;
   declare _setTimer: (fn: () => void, ms: number) => unknown;
   declare _clearTimer: (timer: unknown) => void;
@@ -70,12 +73,14 @@ class LiveDirector {
   declare _hue: number;
   declare _look: Patch | null;
   declare _bars: number;
+  /** When the hand's look may end (the director's clock), 0 while none is held. */
+  declare _heldUntil: number;
   declare _silent: boolean;
   declare _building: boolean;
   declare _lastAccentAt: number;
   declare _timers: Set<unknown>;
 
-  constructor({ applyPatch, patterns, pixels = () => false, particlePatterns = () => undefined, now = () => performance.now(),
+  constructor({ applyPatch, patterns, pixels = () => false, usablePatterns = () => undefined, now = () => performance.now(),
     setTimer = (fn, ms) => setTimeout(fn, ms), clearTimer = (t) => clearTimeout(t as ReturnType<typeof setTimeout>) }: LiveDirectorOptions) {
     // Called from the live input's events, where a throw would end the server:
     // a patch refused (a strobe burst before the photosensitivity
@@ -90,7 +95,7 @@ class LiveDirector {
     };
     this._available = new Set(patterns.map((p) => p.id));
     this._pixels = pixels;
-    this._particlePatterns = particlePatterns;
+    this._usablePatterns = usablePatterns;
     this._now = now;
     this._setTimer = setTimer;
     this._clearTimer = clearTimer;
@@ -103,6 +108,7 @@ class LiveDirector {
     this._hue = 0;
     this._look = null;
     this._bars = 0;
+    this._heldUntil = 0;
     this._silent = false;
     this._building = false;
     this._lastAccentAt = -Infinity;
@@ -114,6 +120,7 @@ class LiveDirector {
     if (this.active) return;
     this.active = true;
     this._bars = 0;
+    this._heldUntil = 0;
     this._newLook({ fadeMs: 1000 });
   }
 
@@ -126,6 +133,17 @@ class LiveDirector {
     this._silent = false;
     this._building = false;
     this._apply({ energyOverride: null, beatDivision: 1 });
+  }
+
+  /**
+   * A look was picked by hand while this plays (the page, a remote, a cue): it stays for HAND_HOLD_MS, counted
+   * anew from each pick. Accents keep playing over it; looks, builds and section changes wait.
+   */
+  hold(): void {
+    if (!this.active) return;
+    this._heldUntil = this._now() + HAND_HOLD_MS;
+    this._look = null;
+    this._building = false;
   }
 
   /** What the rig is showing, for the UI. */
@@ -169,7 +187,8 @@ class LiveDirector {
     if (this.active && this._silent && energy > 0.2) {
       this._silent = false;
       this._apply({ energyOverride: null });
-      this._newLook({ fadeMs: 0 });
+      if (this._heldUntil && now >= this._heldUntil) this._heldUntil = 0;
+      if (!this._heldUntil) this._newLook({ fadeMs: 0 });
     }
   }
 
@@ -190,13 +209,18 @@ class LiveDirector {
     this._seed++;
     // Well apart from the last few, round the wheel.
     this._hue = goldenStep(this._seed, WHEEL.length);
-    const character: Character = rise ? { ...this._character, energy: Math.max(0.8, this._character.energy) } : this._character;
+    // A rise is picked as the hard passage it starts: the meters still read the quiet before it.
+    const hard = (v: number) => Math.max(0.8, v);
+    const c = this._character;
+    const character: Character = rise ? { ...c, energy: hard(c.energy), kick: hard(c.kick), pulse: hard(c.pulse) } : c;
     const drive = rise ? Math.max(0.8, this._drive()) : this._drive();
     const dropLooks = ['v2.speakerShockwave', 'v2.fireworks', 'v2.orbCollision']
-      .filter((id) => this._available.has(id) && automaticPattern(id, this._particlePatterns()));
-    const pattern = rise && dropLooks.length ? dropLooks[this._seed % dropLooks.length] : pickPattern({
+      .filter((id) => this._available.has(id) && automaticPattern(id, this._usablePatterns()));
+    // A drop takes turns through its own looks while the rig has two of them to alternate; with one left every drop
+    // would land on the same look, so the pick for a hard passage chooses instead.
+    const pattern = rise && dropLooks.length > 1 ? dropLooks[this._seed % dropLooks.length] : pickPattern({
       character, available: this._available, seed: this._seed, drive,
-      dance: this._character.pulse, pixels: this._pixels(), particles: this._particlePatterns(),
+      dance: character.pulse, pixels: this._pixels(), usable: this._usablePatterns(),
     });
     const at = (k: number) => WHEEL[(this._hue + k) % WHEEL.length];
     const look: Patch = {
@@ -227,9 +251,15 @@ class LiveDirector {
     const now = this._now();
     switch (e.type) {
       case 'BAR':
+        // The hand's look ends on the first bar after its time is up, so the change lands on the bar line.
+        if (this._heldUntil) {
+          if (now >= this._heldUntil && !this._silent) { this._heldUntil = 0; this._newLook({ fadeMs: this._barMs() / 2 }); }
+          break;
+        }
         if (++this._bars >= ROTATE_BARS && !this._silent) this._newLook({ fadeMs: this._barMs() / 2 });
         break;
       case 'TRANSITION': {
+        if (this._heldUntil) break;
         const rising = !!(e.data && e.data.to === 'high');
         // Into a quieter passage the room is settling, and a cut would jar;
         // into a louder one the change is the moment.
@@ -237,16 +267,18 @@ class LiveDirector {
         break;
       }
       case 'BUILDUP':
-        if (this._building || this._silent) break;
+        if (this._building || this._silent || this._heldUntil) break;
         this._building = true;
-        if (this._available.has('v2.risingWall')) {
+        if (this._available.has('v2.risingWall') && automaticPattern('v2.risingWall', this._usablePatterns())) {
           this._look = { ...this._look, pattern: 'v2.risingWall', beatDivision: 2, pixelPattern: null, panelPattern: null,
             pixelMap: 'stage', pixelSpan: fillBeats('v2.risingWall'), pixelFrom: null, split: null };
           this._apply(this._look);
         } else this._apply({ beatDivision: 2 });
         break;
       case 'DROP': {
-        this._newLook({ rise: true });
+        // A drop heard in a pause is not one: its gesture would light the dark and stay, as no timer ends a burst in silence.
+        if (this._silent) break;
+        if (!this._heldUntil) this._newLook({ rise: true });
         const kind = burstFor({ moment: 'drop', character: this._character, score: null, drive: this._drive() });
         this._burst(kind, Math.max(800, Math.min(2500, this._barMs())));
         this._lastAccentAt = now;
@@ -257,7 +289,9 @@ class LiveDirector {
         const drive = this._drive();
         if (drive < 0.45) break;
         this._lastAccentAt = now;
-        this._burst(burstFor({ moment: 'accent', character: this._character, score: null, drive }), 150);
+        // An accent marks a loud moment and never blacks the rig: darkness is silence's. Where the pick is a blackout the glow plays.
+        const kind = burstFor({ moment: 'accent', character: this._character, score: null, drive });
+        this._burst(kind === 'kill' ? 'glow' : kind, 150);
         break;
       }
       case 'SILENCE':

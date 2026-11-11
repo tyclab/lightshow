@@ -1201,6 +1201,25 @@ test('Effects and Colour + motion still name the main effect, and a click or E o
   } finally { ui.pickerOpenSig.value = false; }
 });
 
+test('Squid is offered once the rig has an LED panel, and like Effects it names the main effect and opens its picker', () => {
+  const splotch = ui.CATALOGUE.find((row) => row.name === 'Audio-reactive Splotch').id;
+  const panel = { fixtures: [{ id: 53, label: 'Panel', profileId: 'panel', output: { protocol: 'ddp' } }], profiles: { panel: { id: 'panel', grid: { columns: 68, rows: 42 } } } };
+  const sources = () => [...pictureSource().html.matchAll(/data-source="(\w+)"/g)].map((m) => m[1]);
+  try {
+    givenLibrary({ pattern: splotch, picture: { source: 'effects', input: null } });
+    assert.deepStrictEqual(sources(), ['effects', 'inspired', 'visualizer'], 'no panel, no Squid');
+    givenLibrary({ pattern: splotch, picture: { source: 'effects', input: null }, ...panel });
+    assert.deepStrictEqual(sources(), ['effects', 'inspired', 'visualizer', 'squid']);
+    givenLibrary({ pattern: splotch, picture: { source: 'squid', input: null } });
+    ui.pickerOpenSig.value = false;
+    const { chosen, props } = pictureSource();
+    assert.match(chosen, /aria-haspopup="dialog" aria-expanded="false" aria-label="Squid: Audio-reactive Splotch" title="The squid plays on the largest LED panel; the effects paint the rest\. Choose the main effect \(E\)\."/,
+      'chosen, it stays in view even with no panel to paint');
+    props.onClick();
+    assert.strictEqual(ui.pickerOpenSig.value, true);
+  } finally { ui.pickerOpenSig.value = false; }
+});
+
 test('an open picker closes when the source becomes the Visualizer, from this page, another client or Home Assistant alike', () => {
   try {
     givenLibrary({ picture: { source: 'effects', input: null } });

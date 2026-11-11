@@ -17,9 +17,14 @@ export interface UnitSpace {
   // 1 for a unit a room binding placed, 0 for the plot fallback.
   bound: Uint8Array;
   bounds: { width: number; depth: number; height: number };
+  // The floor the looks play over: the area the rig stands on once the room places a unit, the whole room before.
+  box: PlayBox;
   anchors: Readonly<Record<string, Vec3>>;
   listeners: Readonly<Record<string, Listener>>;
 }
+
+// A floor area in room metres: its middle (x, z) and its size. Floor and ceiling stay the room's.
+export interface PlayBox { x: number; z: number; width: number; depth: number }
 
 export interface SpaceReport { unbound: number[]; shared: number[]; far: { unit: number; metres: number }[] }
 
@@ -31,6 +36,8 @@ export interface RoomSpace {
   // 1 where a room binding places the entry (for a lamp, any of its cells), 0 for the plot fallback.
   bound?: Uint8Array;
   bounds: UnitSpace['bounds'];
+  // Absent on a space made by hand: the looks then play over `bounds`, centred on the origin.
+  box?: PlayBox;
   listener: Listener;
   anchors: Readonly<Record<string, Vec3>>;
 }
@@ -42,6 +49,8 @@ const PAR_SIZE = 0.1;
 const LAMP_SIZE = 0.15;
 const CELL_SIZE = 0.05;
 const FAR_METRES = 1;
+// A millimetre, the smallest dimension a room model may have: a rig in one line still has a floor area to divide by.
+const MIN_BOX = 0.001;
 
 type Binding = RoomScene['bindings'][number];
 type FixtureWithId = Rig['fixtures'][number] & { id?: number | string };
@@ -121,6 +130,43 @@ function placements(rig: Rig, room: RoomScene): { sums: Vec3[]; counts: number[]
   return { sums, counts, pitch };
 }
 
+// A cell no binding names, on a fixture the room places, stands at the nearest cell it does place:
+// nearest on a panel's grid, else along the strip. A model that places every other row still places the whole panel.
+function fillUnplaced(rig: Rig, bound: Uint8Array, x: Float32Array, y: Float32Array, z: Float32Array): void {
+  rig.fixtures.forEach((_, i) => {
+    const { start, count } = rig.ranges[i], grid = rig.grids[i];
+    // The rig knows each cell's place on its fixture as fractions across and down: in whole cell steps here, so of two
+    // cells as near the first in cell order wins, whatever the fractions round to.
+    const across = (grid ? grid.columns : count) - 1, down = grid ? grid.rows - 1 : 0;
+    const placed: number[] = [];
+    for (let u = start; u < start + count; u++) if (bound[u]) placed.push(u);
+    if (!placed.length || placed.length === count) return;
+    for (let u = start; u < start + count; u++) {
+      if (bound[u]) continue;
+      let nearest = placed[0], least = Infinity;
+      for (const other of placed) {
+        const dx = Math.round((rig.local[other] - rig.local[u]) * across), dy = Math.round((rig.localY[other] - rig.localY[u]) * down);
+        if (dx * dx + dy * dy < least) { least = dx * dx + dy * dy; nearest = other; }
+      }
+      x[u] = x[nearest]; y[u] = y[nearest]; z[u] = z[nearest];
+    }
+  });
+}
+
+// The looks cross the floor they play over. A room model may hold a whole home with the rig in one corner of it, so
+// once the room places a unit that floor is the area the rig stands on: a sweep starts on the first unit and ends on
+// the last. Floor and ceiling stay the room's: a wall still rises from the floor. A room that places no unit says
+// nothing about where the rig stands, and the looks keep the whole room.
+function playBox(space: Pick<UnitSpace, 'n' | 'x' | 'z' | 'bound' | 'bounds'>): PlayBox {
+  if (!space.bound.includes(1)) return { x: 0, z: 0, width: space.bounds.width, depth: space.bounds.depth };
+  let left = Infinity, right = -Infinity, front = Infinity, back = -Infinity;
+  for (let u = 0; u < space.n; u++) {
+    left = Math.min(left, space.x[u]); right = Math.max(right, space.x[u]);
+    front = Math.min(front, space.z[u]); back = Math.max(back, space.z[u]);
+  }
+  return { x: (left + right) / 2, z: (front + back) / 2, width: Math.max(MIN_BOX, right - left), depth: Math.max(MIN_BOX, back - front) };
+}
+
 // FNV-1a over the bytes, in two lanes so equal content always gives the same revision.
 function hashBytes(parts: readonly Uint8Array[]): string {
   let a = 0x811c9dc5, b = 0x01000193 ^ 0x5bd1e995;
@@ -131,7 +177,7 @@ function hashBytes(parts: readonly Uint8Array[]): string {
   return a.toString(16).padStart(8, '0') + b.toString(16).padStart(8, '0');
 }
 
-/** Every rig unit in room metres: a room binding where one names it, else its plot position scaled into the room. */
+/** Every rig unit in room metres: a room binding where one names it, else beside its fixture's placed cells, else its plot position scaled into the room. */
 export function buildUnitSpace(rig: Rig, room: RoomScene | null): UnitSpace {
   const n = rig.units.length;
   const bounds = room ? { ...room.bounds } : { ...DEFAULT_BOUNDS };
@@ -143,6 +189,7 @@ export function buildUnitSpace(rig: Rig, room: RoomScene | null): UnitSpace {
     const p = count ? { x: placed!.sums[u].x / count, y: placed!.sums[u].y / count, z: placed!.sums[u].z / count } : plotPosition(rig, u, bounds);
     x[u] = p.x; y[u] = p.y; z[u] = p.z; bound[u] = count ? 1 : 0;
   }
+  fillUnplaced(rig, bound, x, y, z);
   rig.fixtures.forEach((_, i) => {
     const { start, count } = rig.ranges[i];
     if (!rig.cellMaps[i]) { size[start] = rig.hue[i] ? LAMP_SIZE : PAR_SIZE; return; }
@@ -157,7 +204,7 @@ export function buildUnitSpace(rig: Rig, room: RoomScene | null): UnitSpace {
   const listeners = Object.fromEntries((room?.listeners ?? []).map((l) => [l.id, { ...l.position, facingDeg: l.facingDeg }]));
   const meta = new TextEncoder().encode(JSON.stringify([bounds, anchors, listeners]));
   const revision = hashBytes([x, y, z, size].map((a) => new Uint8Array(a.buffer)).concat([bound, meta]));
-  return { revision, n, x, y, z, size, bound, bounds, anchors, listeners };
+  return { revision, n, x, y, z, size, bound, bounds, box: playBox({ n, x, z, bound, bounds }), anchors, listeners };
 }
 
 /** Read-only disagreement report: unbound units, units several bindings share, and bound units far from their plot position. */
@@ -196,7 +243,7 @@ export function roomSpaceOf(list: readonly number[], space: UnitSpace, listenerI
   });
   const named = listenerId !== null ? space.listeners[listenerId] : undefined;
   const listener = named ?? Object.values(space.listeners)[0] ?? { x: 0, y: SEATED, z: 0, facingDeg: 0 };
-  return { x, y, z, size, bound, bounds: space.bounds, listener: { ...listener }, anchors: space.anchors };
+  return { x, y, z, size, bound, bounds: space.bounds, box: space.box, listener: { ...listener }, anchors: space.anchors };
 }
 
 /** Standard deviations of points along their principal axes, widest first (eigenvalues of the covariance, closed form). */

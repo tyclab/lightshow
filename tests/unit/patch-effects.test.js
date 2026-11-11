@@ -14,6 +14,7 @@ import { applyPatch } from '../../src/server/patch.ts';
 import { state, getLiveState } from '../../src/server/state.ts';
 import { conductor } from '../../src/server/conductor.ts';
 import { renderInput, setEffectSource, stopEngine } from '../../src/server/engine.ts';
+import { armOutputs } from '../helpers/armed.js';
 import { settings } from '../../src/server/settings.ts';
 import { EffectLibrary } from '../../src/server/effect-library.ts';
 
@@ -68,6 +69,7 @@ test('palette overrides accept one to eight colours or null', (t) => {
 
 test('an effect that flashes too fast is refused before anything in the patch moves', (t) => {
   const library = stage(t);
+  armOutputs(t);
   applyPatch({ pattern: 'ldj.FadeCycle', bpm: 120, masterDimmer: 255, colorA: 0, running: true });
   const before = {
     pattern: state.pattern, bpm: state.bpm, masterDimmer: state.masterDimmer, colorA: state.colorA,
@@ -99,6 +101,7 @@ test('an effect that flashes too fast is refused before anything in the patch mo
 
 test('revoked acknowledgement refuses rapid effects without freezing the look', (t) => {
   stage(t, true);
+  armOutputs(t);
   applyPatch({ pattern: 'ldj.visualizer.flash' });
   assert.equal(state.pattern, 'ldj.visualizer.flash');
   assert.equal(renderInput().effect.kind, 'ldj.visualizer');

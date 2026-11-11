@@ -4,7 +4,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { buildRig } from '../../src/shared/rig.ts';
 import { roomSceneSchema } from '../../src/shared/room-scene.ts';
-import { buildUnitSpace, spaceReport, roomSpaceOf, DEFAULT_BOUNDS } from '../../src/shared/space.ts';
+import { buildUnitSpace, plotPosition, spaceReport, roomSpaceOf, DEFAULT_BOUNDS } from '../../src/shared/space.ts';
 import { syntheticRig } from '../../scripts/golden-frames.js';
 
 const profiles = {
@@ -88,6 +88,65 @@ test('without a room every unit takes the plot fallback in the generic venue', (
   near(space.y[3], DEFAULT_BOUNDS.height);
   assert.deepEqual(spaceReport(rig, null, space), { unbound: [0, 1, 2, 3], shared: [], far: [] });
   assert.deepEqual([space.anchors, space.listeners], [{}, {}]);
+});
+
+test('until the room places a unit the looks play in the whole room', () => {
+  for (const model of [null, roomOf([])]) {
+    const space = buildUnitSpace(rig, model);
+    assert.deepEqual(space.box, { x: 0, z: 0, width: space.bounds.width, depth: space.bounds.depth });
+    assert.equal(roomSpaceOf([0, 1, 2, 3], space).box, space.box);
+  }
+});
+
+const wide = (bindings) => roomSceneSchema.parse({ version: 1, name: 'A whole building', bounds: { width: 40, depth: 30, height: 6 }, bindings });
+const corner = [point('a', 10, { x: 12, y: 0.5, z: -9 }), point('c', 30, { x: 14, y: 3, z: -11 }),
+  { ...point('s', 20, { x: 14, y: 2, z: -8 }), path: [{ x: 13, y: 2, z: -8 }, { x: 15, y: 2, z: -8 }] }];
+
+test('once the room places the rig the looks play over the floor it stands on, wherever that is in the model', () => {
+  const { box } = buildUnitSpace(rig, wide(corner));
+  // The strip's two cells stand at 13.5 and 14.5 on its path.
+  near(box.width, 14.5 - 12, 'width'); near(box.x, (14.5 + 12) / 2, 'middle across');
+  near(box.depth, -8 + 11, 'depth'); near(box.z, (-8 - 11) / 2, 'middle along');
+  assert.deepEqual(Object.keys(box).sort(), ['depth', 'width', 'x', 'z'], 'floor and ceiling stay the room\'s');
+});
+
+test('a rig in one line still has a floor area to divide by', () => {
+  const { box } = buildUnitSpace(rig, roomOf([point('a', 10, { x: 1, y: 2, z: 0 }), point('c', 30, { x: -1, y: 1, z: 0 }),
+    { ...point('s', 20, { x: 0, y: 2, z: 0 }), path: [{ x: -0.5, y: 2, z: 0 }, { x: 0.5, y: 2, z: 0 }] }]));
+  assert.deepEqual([box.width, box.depth], [2, 0.001]);
+});
+
+test('a fixture the room does not place keeps its plot position and stretches the box to it', () => {
+  const space = buildUnitSpace(rig, wide(corner.slice(0, 2)));
+  for (const u of [1, 2]) { const plot = plotPosition(rig, u, space.bounds); at(space, u, [plot.x, plot.y, plot.z]); }
+  assert.ok(Math.max(space.x[1], space.x[2]) < 6, 'the strip stands by the plot in the middle of the model, metres from the placed lamps');
+  near(space.box.x - space.box.width / 2, Math.min(space.x[1], space.x[2]), 'the box reaches the strip');
+  near(space.box.x + space.box.width / 2, 14, 'and the lamp the room places');
+});
+
+test('a cell no binding names stands at the nearest cell of its fixture the room places', () => {
+  const { fixtures: synthetic, profileOf } = syntheticRig();
+  const sRig = buildRig(synthetic, profileOf);
+  const first = (id) => sRig.ranges[synthetic.findIndex((f) => f.id === id)].start;
+  // The panel is 12 columns by 8 rows: three of its cells placed, and two cells of the strip of 30.
+  const places = { 0: { x: 1, y: 2, z: 1 }, 11: { x: 2, y: 2, z: 1 }, 84: { x: 1, y: 1, z: 1 } };
+  const model = roomOf([...Object.entries(places).map(([k, position]) => point(`p${k}`, 10, position, Number(k))),
+    point('s0', 9, { x: -1, y: 2.4, z: -1 }, 0), point('s20', 9, { x: 1, y: 2.4, z: -1 }, 20)]);
+  const space = buildUnitSpace(sRig, model);
+  const panel = first(10), strip = first(9);
+  for (const [k, from] of [[1, 0], [5, 0], [6, 11], [13, 0], [23, 11], [47, 11], [48, 84], [60, 84], [85, 84], [95, 11]]) {
+    at(space, panel + k, Object.values(places[from]));
+    assert.equal(space.bound[panel + k], 0, `cell ${k} is still without a binding`);
+  }
+  at(space, strip + 9, [-1, 2.4, -1]); at(space, strip + 11, [1, 2.4, -1]); at(space, strip + 29, [1, 2.4, -1]);
+  // A panel wired back and forth names each cell's grid place: the nearest cell is the one beside it, not the next in the wire.
+  const wired = { cells: Array.from({ length: 8 }, (_, c) => ({ channelMap: { red: c }, at: { x: c < 4 ? c : 7 - c, y: c < 4 ? 0 : 1 } })), grid: { columns: 4, rows: 2 } };
+  const wRig = buildRig([{ id: 1, profileId: 'wired', position: { x: 50, y: 50, height: 50 }, geometry: { length: 10, angle: 0 } }], () => wired);
+  const wSpace = buildUnitSpace(wRig, roomOf([point('left', 1, { x: -1, y: 1, z: 0 }, 0), point('right', 1, { x: 1, y: 1, z: 0 }, 3)]));
+  at(wSpace, 7, [-1, 1, 0]); at(wSpace, 4, [1, 1, 0]);
+  assert.equal(spaceReport(sRig, model, space).unbound.length, sRig.units.length - 5);
+  // The lamps no binding names stay on the plot.
+  at(space, first(1), [(0.375 - 0.5) * 4, 0.385 * 2.6, (0.125 - 0.5) * 4]);
 });
 
 test('the report lists unbound, shared and far units', () => {

@@ -34,7 +34,7 @@ test('a non-loopback bind without a token is refused at startup', () => {
 test('origin check rejects other websites but allows same-origin and extensions', () => {
   const req = (origin) => ({ headers: { host: 'localhost:3000', origin } });
 
-  assert.strictEqual(originAllowed(req(undefined)), true, 'no Origin (curl, Companion)');
+  assert.strictEqual(originAllowed(req(undefined)), true, 'no Origin (curl)');
   assert.strictEqual(originAllowed(req('http://localhost:3000')), true, 'same origin');
   assert.strictEqual(originAllowed(req('moz-extension://abc')), true, 'firefox extension');
   assert.strictEqual(originAllowed(req('chrome-extension://abc')), true, 'chrome extension');
@@ -156,7 +156,7 @@ test('socket handshake refuses other origins and unknown hosts, token or not', a
     const allow = (headers) => new Promise((resolve) => {
       auth.allowSocketRequest({ headers }, (err, ok) => resolve({ err, ok }));
     });
-    assert.strictEqual((await allow({ host: 'localhost:3000' })).ok, true, 'no Origin (Companion)');
+    assert.strictEqual((await allow({ host: 'localhost:3000' })).ok, true, 'no Origin (a client that is no browser)');
     assert.strictEqual((await allow({ host: 'localhost:3000', origin: 'http://localhost:3000' })).ok, true);
     assert.strictEqual((await allow({ host: 'localhost:3000', origin: 'https://evil.example' })).ok, false);
     assert.strictEqual((await allow({ host: 'evil.example:3000', origin: 'http://evil.example:3000' })).ok, false);

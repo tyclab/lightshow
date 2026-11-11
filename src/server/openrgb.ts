@@ -728,16 +728,6 @@ export class OpenRgbConnection {
     return true;
   }
 
-  /**
-   * Whether device `ref` is still being set up: connecting, shaking hands,
-   * being found or put in Direct mode, or waiting out a back-off to try again.
-   */
-  settingUp(ref: OpenRgbDeviceRef): boolean {
-    if (this.ended || !this.socket || !this.ready || this.refreshing) return true;
-    const index = this.live.get(deviceKey(ref));
-    return index === undefined || !this.devices.has(index);
-  }
-
   /** Put device `ref` back as it was found: its colours, and the mode it was in. */
   restore(ref: OpenRgbDeviceRef): void {
     if (this.refreshing) return;
@@ -773,12 +763,6 @@ function sendOpenRgb(target: OpenRgbTarget, rgb: Uint8Array): boolean {
     connections.set(key, connection);
   }
   return connection.send(target, rgb, target.leds);
-}
-
-/** Whether device `target` cannot take frames yet because its session is still being set up. */
-function settingUpOpenRgb(target: OpenRgbTarget): boolean {
-  const connection = connections.get(keyOf(target.host, target.port));
-  return !connection || connection.settingUp(target);
 }
 
 /** Close the connection to a server, once what was written has gone. */
@@ -848,7 +832,6 @@ export {
   directMode,
   matchSameName,
   sendOpenRgb,
-  settingUpOpenRgb,
   closeOpenRgb,
   openrgbClient,
   asHttpError as openrgbHttpError,

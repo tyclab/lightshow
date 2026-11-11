@@ -22,9 +22,8 @@ import { messageOf } from '../errors.ts';
  *     uv sync --locked --extra <build> --python 3.12
  *
  * — in the app's folder, into the analysis environment (config-dir.ts: the
- * checkout's .venv, as `uv sync` by hand makes, or the packaged build's data
- * folder), with the progress on the page. The packaged build carries uv in
- * its `tools` folder; a checkout uses the uv on PATH or where uv's installer
+ * checkout's .venv, as `uv sync` by hand makes, or the data folder's), with
+ * the progress on the page. It uses the uv on PATH or where uv's installer
  * puts it.
  *
  * Only uv's own Python is used (UV_PYTHON_PREFERENCE=only-managed): a Python
@@ -58,29 +57,25 @@ export function buildsFor(platform: NodeJS.Platform = process.platform): Build[]
 
 export interface Uv {
   command: string;
-  from: 'bundled' | 'path' | 'home';
+  from: 'path' | 'home';
 }
 
 export interface FindUvOptions {
   platform?: NodeJS.Platform;
   env?: NodeJS.ProcessEnv;
   home?: string;
-  app?: string;
   exists?: (file: string) => boolean;
 }
 
 /**
- * uv: the packaged build's own (its `tools` folder, beside `app`), else the
- * one on PATH, else where uv's installer puts it — a server started from a
- * shortcut may not have the PATH a terminal has.
+ * uv: the one on PATH, else where uv's installer puts it — a server started
+ * from a shortcut may not have the PATH a terminal has.
  */
 export function findUv({
-  platform = process.platform, env = process.env, home = os.homedir(), app = appDir(), exists = fs.existsSync,
+  platform = process.platform, env = process.env, home = os.homedir(), exists = fs.existsSync,
 }: FindUvOptions = {}): Uv | null {
   const p = platform === 'win32' ? path.win32 : path.posix;
   const exe = platform === 'win32' ? 'uv.exe' : 'uv';
-  const bundled = p.join(app, '..', 'tools', exe);
-  if (exists(bundled)) return { command: bundled, from: 'bundled' };
   const found = tools.onPath('uv', { env, platform, exists });
   if (found) return { command: found, from: 'path' };
   for (const dir of [p.join(home, '.local', 'bin'), p.join(home, '.cargo', 'bin')]) {

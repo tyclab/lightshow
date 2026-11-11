@@ -471,7 +471,7 @@ function getLiveState() {
     autoSource: state.autoSource,
     autoPrefetchDepth: state.autoPrefetchDepth,
     universes: wireUniverses(),
-    // Companion lights its arm button by this.
+    // A remote lights its arm button by this.
     armed: isArmed(),
     picture: { ...settings.group('picture'), input: pictureInput.status() },
     rigRevision: rigRevision(),

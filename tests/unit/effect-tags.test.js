@@ -299,7 +299,7 @@ test('the Strobe pattern is Static by default and its badge says the drawn funct
   assert.match(TAG_NOTES.strobe.static, /Ramp.*Random.*Burst.*beat/);
 });
 
-test('one rule sorts a row into the MIDI and Companion browse lists', () => {
+test('one rule sorts a row into the MIDI browse lists', () => {
   const rows = [...PATTERNS, ...PRESET_ROWS];
   const lists = (rapid) => rows.filter((r) => !r.retired && (rapid || !r.rapidFlash)).reduce((acc, r) => { acc[browseListOf(r)]++; return acc; }, { pattern: 0, effect: 0, bars: 0 });
   assert.deepEqual(lists(true), { pattern: 81, effect: 11, bars: 21 });

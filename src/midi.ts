@@ -4,6 +4,7 @@
 
 import { DEFAULT_MAP, ACTIONS, defaultTypeFor } from './server/midi-map.ts';
 import { createRequire } from 'node:module';
+import { existsSync } from 'node:fs';
 
 import { COLOR_PRESETS, ENERGY_EFFECT_IDS, STROBE_FUNCTION_IDS, SYNC_OFFSET_LIMIT_MS } from './server/presets.ts';
 import { messageOf } from './errors.ts';
@@ -111,6 +112,13 @@ function relDelta(value: number, mode: RelMode): number {
 const clamp = (v: number, lo: number, hi: number): number => Math.max(lo, Math.min(hi, v));
 
 const OWN_PORT = /^RtMidi (Input|Output) Client:/;
+
+// On Linux every port goes through the ALSA sequencer. Where its device is
+// missing (a container without sound devices) there is no port to list, and
+// asking makes the native library write its own lines to stderr.
+export const sequencer = {
+  present: (): boolean => process.platform !== 'linux' || existsSync('/dev/snd/seq'),
+};
 type EncoderMode = 'position' | 'steps';
 const STEP_REACH = 15;
 const fromLandmark = (value: number): number => Math.min(value, Math.abs(value - 64), 127 - value);
@@ -339,6 +347,7 @@ class MidiController {
     // Cache the result — enumerate once, refresh only on explicit connect/close
     // or when the Settings picker asks (refreshPorts).
     if (this._cachedPorts) return this._cachedPorts;
+    if (!sequencer.present()) return (this._cachedPorts = { inputs: [], outputs: [] });
     try {
       // On ALSA every open port brings an "RtMidi … Client" of ours into the
       // list, and it outlives close(). Picking one wires our feedback back in.
@@ -1056,6 +1065,7 @@ class MidiController {
 
   _portGone(): boolean {
     if (!easymidi || !this._inputName) return false;
+    if (!sequencer.present()) return true;
     try {
       return !easymidi.getInputs().includes(this._inputName);
     } catch (_) {
@@ -1096,7 +1106,7 @@ class MidiController {
 }
 
 function openMidiOutput(name: string): MidiOutput | null {
-  if (!easymidi || !name) return null;
+  if (!easymidi || !name || !sequencer.present()) return null;
   if (!easymidi.getOutputs().includes(name)) return null;
   return new easymidi.Output(name);
 }

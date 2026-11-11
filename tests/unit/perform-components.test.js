@@ -75,12 +75,22 @@ test('the photosensitivity dialog names what flashes and both answers', () => {
   assert.match(html, />Cancel</);
 });
 
-test('strobe notice opens a server-wide acknowledgement dialog', () => {
+test('strobe notice opens an acknowledgement dialog for every fast-flashing effect', () => {
   const html = ui.html(ui.h(ui.Photosensitivity, { allow: true, onConfirm: () => {}, onCancel: () => {} }));
   assert.match(html, /<strong>The strobe and every fast-flashing effect<\/strong> flash the lamps/);
-  assert.match(html, /Allowing them acknowledges this for the whole server, once/);
+  assert.match(html, /Allowing them acknowledges this until the outputs are disarmed\./);
+  assert.doesNotMatch(html, /once/);
   assert.match(html, />I understand — allow them</);
   assert.doesNotMatch(html, /play it/);
+});
+
+test('the Arm button asks through the same dialog, for this arm', () => {
+  const html = ui.html(ui.h(ui.Photosensitivity, { arm: true, onConfirm: () => {}, onCancel: () => {} }));
+  assert.match(html, /<strong>The strobe and every fast-flashing effect<\/strong> flash the lamps/);
+  assert.match(html, /Arming acknowledges this until the outputs are disarmed\./);
+  assert.match(html, />I understand — arm</);
+  assert.match(html, />Cancel</);
+  assert.doesNotMatch(html, /play it|allow them/);
 });
 
 test('the Effects view asks through the same dialog', () => {

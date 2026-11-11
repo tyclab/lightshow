@@ -5,7 +5,7 @@
 import { test, expect } from '@playwright/test';
 import { createRequire } from 'node:module';
 import { io } from 'socket.io-client';
-import { chooseProgramme, control, loadTrack, open, playButton, reset, set, state, unloadTrack, until } from './helpers.js';
+import { armFromHeader, chooseProgramme, control, loadTrack, open, playButton, reset, set, state, unloadTrack, until } from './helpers.js';
 
 const AXE = createRequire(import.meta.url).resolve('axe-core/axe.min.js');
 const WIDTHS = [[1915, 1367], [1024, 768], [390, 844]];
@@ -239,7 +239,7 @@ test('armed is unmistakable on the Arm button itself', async ({ page, request })
   const look = (locator) => locator.evaluate((e) => ({ background: getComputedStyle(e).backgroundColor, text: e.textContent }));
   const disarmed = await look(arm);
   expect(disarmed.text).toBe('Arm');
-  await arm.click();
+  await armFromHeader(page);
   await until(request, (s) => s.armed === true);
   const button = controls(page).getByRole('button', { name: 'Disarm', exact: true });
   await expect(button).toHaveAttribute('aria-pressed', 'true');

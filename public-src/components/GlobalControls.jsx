@@ -3,6 +3,7 @@ import { connectedSig, pick, send } from '../state.js';
 import { controlPending, settleFault, showFault, takeControl } from '../control.js';
 import { useDraft } from '../draft.js';
 import { useDismiss } from '../popover.js';
+import { Photosensitivity, acknowledgeThen } from './Photosensitivity.jsx';
 
 const PROGRAMMES = [['look', 'Look'], ['auto', 'Auto show'], ['sequence', 'Sequence']];
 const programmeName = (id) => PROGRAMMES.find(([key]) => key === id)?.[1] ?? 'Look';
@@ -84,6 +85,8 @@ export function GlobalControls() {
   const pending = controlPending.value > 0 || c?.pending;
   const [dim, onDim, commitDim] = useDraft(masterDimmer ?? 255, (value) => send({ masterDimmer: value }));
   const pct = Math.round(dim / 255 * 100);
+  // Every arm asks for the photosensitivity acknowledgement; it holds until the disarm.
+  const [arming, setArming] = useState(false);
   // A fault or a lost held picture is said once, as a toast with Refresh; a later applied revision clears it.
   useEffect(() => {
     if (!c) return;
@@ -107,9 +110,11 @@ export function GlobalControls() {
       aria-pressed={!!c?.armed} aria-label={c?.armed ? 'Disarm' : 'Arm'}
       title={c?.armed ? 'Armed: the picture goes to the rig. Disarm ends output streams without changing playback, Freeze or Blackout.'
         : 'Disarmed: nothing goes to the rig. Arm sends the picture to the rig. Disarm ends output streams without changing playback, Freeze or Blackout.'}
-      onClick={() => takeControl(c?.armed ? 'disarm' : 'arm')}>
+      onClick={() => (c?.armed ? takeControl('disarm') : setArming(true))}>
       {c?.armed ? <><span class="global-arm-state" aria-hidden="true">● Armed</span><span>Disarm</span></> : 'Arm'}
     </button>
+    {arming && <Photosensitivity arm onCancel={() => setArming(false)}
+      onConfirm={() => { setArming(false); acknowledgeThen(() => takeControl('arm')); }} />}
     <label class="global-master" title="Master dimmer">
       <span class="global-master-label">Master</span>
       <input type="range" min="0" max="255" value={dim} aria-label="Master dimmer" aria-valuetext={`${pct} percent`} disabled={!ready}

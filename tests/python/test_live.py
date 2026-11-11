@@ -86,6 +86,12 @@ class Grid(unittest.TestCase):
             for key in ('energy', 'onset', 'flux', 'rms', 'tension', 'bands', 'phase'):
                 self.assertIn(key, s)
 
+    def test_a_band_the_rate_cannot_carry_is_null_on_the_line(self):
+        states = [s for s in run_service(tone_track(440.0, 1.0)) if s['type'] == 'state']
+        self.assertTrue(states)
+        self.assertTrue(all('air' in s['bands'] and s['bands']['air'] is None for s in states))
+        self.assertTrue(all(s['bands']['mid'] is not None for s in states))
+
     def test_events_carry_the_offline_vocabulary(self):
         from analysis import events as events_module
         lines = run_service(synth.four_on_the_floor(bpm=128, bars=16))

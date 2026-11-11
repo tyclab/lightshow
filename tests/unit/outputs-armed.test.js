@@ -262,6 +262,51 @@ test('startup ignores stored arming and subsequent saves toggle output', (t) => 
   }
 }));
 
+test('a start ends a stored photosensitivity acknowledgement', (t) => withSettings(() => {
+  settings._values.safety.photosensitivityAcknowledged = true;
+  const log = t.mock.method(console, 'log', () => {});
+  try {
+    createApplier(subsystems([])).applyAll();
+    assert.equal(isArmed(), false);
+    assert.equal(settings.get('safety.photosensitivityAcknowledged'), false, 'the next arm asks again');
+  } finally {
+    log.mock.restore();
+  }
+}));
+
+test('the acknowledgement is asked at every arm: it holds from the arm to the disarm', (t) => withSettings(async () => {
+  const app = express();
+  app.use(express.json());
+  const deps = controlDeps(createApplier(subsystems([])));
+  installControlRuntime(t, deps);
+  attachRoutes(app, deps);
+  const server = await new Promise((r) => { const s = app.listen(0, '127.0.0.1', () => r(s)); });
+  t.after(() => new Promise((r) => server.close(r)));
+  const call = (method, path, body) => fetch(`http://127.0.0.1:${server.address().port}${path}`, {
+    method, headers: { 'Content-Type': 'application/json' }, body: body === undefined ? undefined : JSON.stringify(body),
+  })
+    .then(async (res) => ({ status: res.status, body: await res.json() }));
+  const told = async () => [(await call('GET', '/api/safety')).body.photosensitivityAcknowledged, settings.get('safety.photosensitivityAcknowledged')];
+
+  assert.deepEqual(await told(), [true, false], 'disarmed: nothing waits, nothing is stored');
+  // A remote that arms and acknowledges nothing.
+  assert.equal((await sendControl(call, 'arm')).body.control.armed, true);
+  assert.deepEqual(await told(), [false, false], 'armed without it: the strobes are locked');
+  assert.equal((await call('POST', '/api/safety/acknowledge')).body.photosensitivityAcknowledged, true);
+  assert.deepEqual(await told(), [true, true]);
+  assert.equal((await sendControl(call, 'disarm')).body.control.armed, false);
+  assert.deepEqual(await told(), [true, false], 'the disarm ended it');
+
+  // The Arm button, and a party start from home automation: acknowledge, then arm.
+  await call('POST', '/api/safety/acknowledge');
+  assert.equal((await sendControl(call, 'arm')).body.control.armed, true);
+  assert.deepEqual(await told(), [true, true], 'given for this arm, it holds through it');
+  assert.equal((await call('POST', '/api/outputs/disarm')).body.armed, false);
+  assert.deepEqual(await told(), [true, false], 'the protective Disarm ends it too');
+  assert.equal((await sendControl(call, 'arm')).body.control.armed, true);
+  assert.deepEqual(await told(), [false, false], 'the next arm asks again');
+}));
+
 test('explicit controls arm and disarm; legacy arm/toggle/settings writes are rejected', (t) => withSettings(async () => {
   const applied = [];
   const app = express();
@@ -322,7 +367,7 @@ test('each arm and disarm is logged once, with where it came from and never a to
 
   await explicit('arm', { 'user-agent': 'HomeAssistant/2026.10.1 aiohttp/3.12', 'x-forwarded-for': '192.0.2.140' }, '?token=query-secret');
   await explicit('arm', { 'user-agent': 'HomeAssistant/2026.10.1 aiohttp/3.12' });
-  await call('POST', '/api/outputs/disarm', { 'user-agent': 'node', 'x-lightshow-client': 'companion/2.1.0' });
+  await call('POST', '/api/outputs/disarm', { 'user-agent': 'node', 'x-lightshow-client': 'deck/2.1.0' });
   await explicit('arm', { 'user-agent': 'Mozilla/5.0 (Windows NT 10.0)' });
   await explicit('disarm', { 'user-agent': 'curl/8.9' });
   applier.applyChanged(settings.update({ outputs: { armed: true } }), { via: 'schedule', reason: 'a test' });
@@ -331,7 +376,7 @@ test('each arm and disarm is logged once, with where it came from and never a to
   const lines = armingLines(mark);
   assert.deepEqual(lines.map((l) => [l.armed, l.via, l.route ?? null]), [
     [true, 'rest', 'POST /api/control'],
-    [false, 'companion', 'POST /api/outputs/disarm'],
+    [false, 'rest', 'POST /api/outputs/disarm'],
     [true, 'rest', 'POST /api/control'],
     [false, 'rest', 'POST /api/control'],
     [true, 'schedule', null],
@@ -342,7 +387,7 @@ test('each arm and disarm is logged once, with where it came from and never a to
   assert.equal(lines[0].remote, '127.0.0.1');
   assert.equal(lines[0].userAgent, 'HomeAssistant/2026.10.1 aiohttp/3.12');
   assert.equal(lines[0].forwardedFor, '192.0.2.140');
-  assert.equal(lines[1].client, 'companion/2.1.0');
+  assert.equal(lines[1].client, 'deck/2.1.0');
   assert.equal(lines[2].userAgent, 'Mozilla/5.0 (Windows NT 10.0)');
   assert.equal(lines[4].reason, 'a test');
   assert.doesNotMatch(JSON.stringify(lines), /secret/, 'no token, query string or auth header');

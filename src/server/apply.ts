@@ -1,5 +1,6 @@
 import { state, voices as liveVoices } from './state.ts';
 import { settings } from './settings.ts';
+import { safety } from './safety.ts';
 import * as output from './output.ts';
 import { generateCid } from './sacn.ts';
 import * as pythonEnv from '../python-env.ts';
@@ -8,7 +9,7 @@ import { logger } from './log.ts';
 
 /** Where an arm or disarm came from, for its log line: never a token, query string or other header. */
 export interface ArmOrigin {
-  via: 'rest' | 'companion' | 'schedule' | 'boot' | 'control';
+  via: 'rest' | 'schedule' | 'boot' | 'control';
   route?: string;
   remote?: string;
   forwardedFor?: string;
@@ -202,6 +203,7 @@ function createApplier({ midi, spotify, smtc, live = null, midiClock = null, dee
   function applyOutputs({ boot = false, origin }: { boot?: boolean; origin?: ArmOrigin } = {}) {
     let wanted = !!settings.get('outputs.armed');
     if (boot) {
+      safety.reset();
       if (wanted) {
         try { settings.update({ outputs: { armed: false } }); }
         catch (err) { console.warn(`[outputs] could not store the disarmed state: ${messageOf(err)}`); }

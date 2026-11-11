@@ -136,7 +136,9 @@ const alternateOutputs = {
 };
 
 for (const [wire, output] of Object.entries(alternateOutputs)) {
-  test(`${wire}: local enqueue refusal withholds application, and failed Disarm darkness is retried`, () => {
+  // OpenRGB's device is a machine that may be away: while armed its refusal is passed over, so the others play on.
+  const withholds = wire !== 'openrgb';
+  test(`${wire}: local enqueue refusal ${withholds ? 'withholds application' : 'is passed over while armed'}, and failed Disarm darkness is retried`, () => {
     const { wires } = recorder();
     let refuse = true;
     const sent = [];
@@ -148,7 +150,7 @@ for (const [wire, output] of Object.entries(alternateOutputs)) {
     const tx = createTransmitter({ wires });
     const armed = config('192.0.2.10', { artnet: { enabled: false }, ...output });
     tx.send(0, Buffer.alloc(512, 100), armed);
-    assert.equal(tx.endFrame(armed), false, 'a locally refused frame is not applied');
+    assert.equal(tx.endFrame(armed), !withholds, 'a locally refused frame is not applied');
     refuse = false;
     tx.send(0, Buffer.alloc(512, 100), armed);
     assert.equal(tx.endFrame(armed), true);

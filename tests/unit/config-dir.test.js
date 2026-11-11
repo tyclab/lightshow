@@ -1,5 +1,5 @@
 // Where the server keeps what it writes (src/server/config-dir.ts): the
-// checkout by default, a data directory of its own when the packaged build
+// checkout by default, a data directory of its own when LIGHTSHOW_DATA_DIR
 // names one, and each part movable on its own.
 
 import test from 'node:test';

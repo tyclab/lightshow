@@ -1,8 +1,6 @@
 // Since 2025.11.12 yt-dlp needs a JavaScript runtime for YouTube. The server
 // hands it its own Node — but only to a version that knows the option, since
-// an older one refuses to run at all with an unknown flag — and, as the
-// packaged single executable, which is no Node yt-dlp can run, the Deno the
-// analysis environment installs.
+// an older one refuses to run at all with an unknown flag.
 
 import test from 'node:test';
 import assert from 'node:assert';
@@ -18,7 +16,7 @@ test('versions are compared as dates', () => {
 });
 
 test('only a yt-dlp that understands --js-runtimes is given one', () => {
-  const node = { execPath: '/usr/bin/node', sea: false };
+  const node = { execPath: '/usr/bin/node' };
   assert.deepStrictEqual(ytdlp.runtimeArgs('2025.11.12', node), ['--js-runtimes', 'node:/usr/bin/node']);
   assert.deepStrictEqual(ytdlp.runtimeArgs('2026.03.01.232512', node), ['--js-runtimes', 'node:/usr/bin/node']);
   assert.deepStrictEqual(ytdlp.runtimeArgs('2025.10.22', node), []);
@@ -26,17 +24,9 @@ test('only a yt-dlp that understands --js-runtimes is given one', () => {
 });
 
 test('the runtime handed over is the Node running this server', () => {
-  const [, value] = ytdlp.runtimeArgs('2025.11.12', { sea: false });
+  const [, value] = ytdlp.runtimeArgs('2025.11.12');
   assert.strictEqual(value, `node:${process.execPath}`);
-  assert.match(ytdlp.runtimeName({ sea: false }), /^Node \d+\.\d+\.\d+ \(this server\)$/);
-});
-
-test('packaged builds use environment Deno without launching themselves', () => {
-  assert.deepStrictEqual(ytdlp.runtimeArgs('2025.11.12', { sea: true, deno: '/data/.venv/bin/deno' }),
-    ['--js-runtimes', 'deno:/data/.venv/bin/deno']);
-  assert.deepStrictEqual(ytdlp.runtimeArgs('2025.11.12', { sea: true, deno: null }), []);
-  assert.strictEqual(ytdlp.runtimeName({ sea: true, deno: '/data/.venv/bin/deno' }), 'Deno, from the analysis environment');
-  assert.strictEqual(ytdlp.runtimeName({ sea: true, deno: null }), null);
+  assert.match(ytdlp.runtimeName(), /^Node \d+\.\d+\.\d+ \(this server\)$/);
 });
 
 test('yt-dlp is found on PATH first, then in the analysis environment',

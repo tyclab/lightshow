@@ -4,6 +4,7 @@ import { Worker } from 'node:worker_threads';
 
 import { state, universeOf, maxBrightnessOf, activeUniverses, voices, freeClockRuns } from './state.ts';
 import { settings } from './settings.ts';
+import { safety } from './safety.ts';
 import { getProfile, profilesRevision, listProfiles, isBuiltinProfile } from './profiles.ts';
 import * as output from './output.ts';
 import * as universes from './universes.ts';
@@ -28,6 +29,7 @@ import { validateSpec } from '../shared/effects/registry.ts';
 import { effectContentKey } from '../shared/effects/layer.ts';
 import { pixelInputs } from './pixel-input-live.ts';
 import { pictureInput } from './picture-live.ts';
+import { squidPicture } from './squid-picture.ts';
 import { PictureFeatureExtractor } from '../shared/picture-features.ts';
 import { FrameBarrier } from './frame-barrier.ts';
 import { control } from './control.ts';
@@ -252,6 +254,8 @@ function renderInput({ points = true }: { points?: boolean } = {}): RenderInput 
   const picture = pictureInput.current(thread === 'worker' ? WORKER_CLOCK_SHIFT : 0);
   const features = pictureFeatures.update(pictureSource === 'inspired' ? picture : null, pictureInput.image(true),
     clock() + (thread === 'worker' ? WORKER_CLOCK_SHIFT : 0));
+  // The Squid feeds the largest panel by the pixel path; outside feeds wait meanwhile, as under Colour + motion.
+  const squid = pictureSource === 'squid' ? squidPicture.frame(conductor.peek(), thread === 'worker' ? WORKER_CLOCK_SHIFT : 0) : squidPicture.stop();
   return {
     running: state.running,
     programmePlaying: state.running,
@@ -290,14 +294,15 @@ function renderInput({ points = true }: { points?: boolean } = {}): RenderInput 
     // Always include safety settings so live output cannot use legacy absent-safety admission.
     safety: {
       hdFlashIntervalMs: settings.get('safety.hdFlashIntervalMs'),
-      acknowledged: settings.get('safety.photosensitivityAcknowledged'),
+      acknowledged: safety.acknowledged(),
     },
     hueStrobe: settings.get('hue.strobe'),
     hardware: settings.group('hardware'),
     effect,
     effectRevision,
     voices: voiceFrames(),
-    pixelInputs: pictureSource === 'inspired' ? [] : pixelInputs.frames(thread === 'worker' ? WORKER_CLOCK_SHIFT : 0),
+    pixelInputs: pictureSource === 'squid' ? (squid ? [squid] : []) : pictureSource === 'inspired' ? []
+      : pixelInputs.frames(thread === 'worker' ? WORKER_CLOCK_SHIFT : 0),
     picture: pictureSource === 'visualizer' ? picture : null,
     pictureFeatures: features,
     pictureGrade: settings.get('picture.grade'),
@@ -640,7 +645,7 @@ function spawnWorker(epochMs: number): void {
   ready = false;
   let started = false;
   const w = new Worker(workerFile, {
-    workerData: { shared: universes.shared, epochMs, periodMs: FRAME_MS, retire: routes.outstanding(), hueReclaim: hueBridges.size > 0 },
+    workerData: { shared: universes.shared, epochMs, periodMs: FRAME_MS, retire: routes.outstanding(), hueReclaim: hueBridges.size > 0, log: true },
   });
   worker = w;
   postedRevision = -1;
@@ -648,6 +653,8 @@ function spawnWorker(epochMs: number): void {
   postedSpace = undefined;
   postedRig = undefined;
   w.on('message', (msg: FromWorker | null) => {
+    // Its console lines, said here so the logger files them; a replaced worker's last words count too.
+    if (msg?.type === 'log') { console[msg.method](msg.text); return; }
     if (worker !== w && msg?.type !== 'stopped') return;
     if (msg && msg.type === 'ready') { started = true; markReady(); }
     if (msg && msg.type === 'commands' && worker !== w) return;
