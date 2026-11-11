@@ -56,7 +56,24 @@ jobs:
       - run: npm ci
 
       - name: Install Chromium for Playwright
-        run: npx playwright install --with-deps chromium
+        # Measured on 2026-11-11: the runner's resolver timed out for Ubuntu's
+        # package mirrors for over an hour while public resolvers answered.
+        # When the mirror does not resolve, public resolvers go in front of the
+        # runner's; the install is retried for shorter faults.
+        run: |
+          link=$(ip route show default | awk '{print $5; exit}')
+          for attempt in 1 2 3; do
+            if ! timeout 15 getent hosts azure.archive.ubuntu.com >/dev/null; then
+              echo "::warning::the runner's resolver does not answer for the package mirror; adding public resolvers"
+              sudo resolvectl dns "$link" 1.1.1.1 9.9.9.9 168.63.129.16
+              sudo resolvectl flush-caches
+            fi
+            if npx playwright install --with-deps chromium; then
+              exit 0
+            fi
+            sleep 15
+          done
+          exit 1
 
       - name: End-to-end tests
         run: npm run test:e2e
