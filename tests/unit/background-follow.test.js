@@ -97,6 +97,33 @@ test('explicit dark cues stay dark with the fill on: strobe rests and the Blacko
   }
 });
 
+test('a black Follow colour leaves dimmer-only gaps dark, from the effect palette or a palette override', () => {
+  const dimmer = { id: 'dimmer-follow', channelCount: 1, channelMap: { dimmer: 0 } };
+  const rigFixtures = fixtures.map((fixture, i) => ({ ...fixture, profileId: dimmer.id, address: i + 1 }));
+  const black = { r: 0, g: 0, b: 0, w: 0, a: 0, uv: 0 };
+  const draw = (patch, fill, stopped = false) => {
+    const renderer = createRenderer({ profileOf: () => dimmer, now: 0 });
+    const store = createUniverseStore();
+    const input = { ...look, ...patch, fixtures: rigFixtures, background: follow(fill) };
+    renderer.frame(withInputDefaults(input), { beatPos: 0, bpm: 120, epoch: 0 }, 0, store);
+    if (stopped) renderer.frame(withInputDefaults({ ...input, running: false, programmePlaying: false }),
+      { beatPos: 0, bpm: 120, epoch: 0 }, 25, store);
+    return [...store.getBuffer(0).slice(0, rigFixtures.length)];
+  };
+  for (const patch of [
+    { effect: validateSpec({ kind: 'ldj.FadeCycle', palette: ['#000000', '#000000'] }) },
+    { effect: chase, paletteOverride: [black] },
+  ]) {
+    const authored = draw(patch, 'off');
+    assert.ok(authored.some((value) => value === 0), 'negative control: the chase leaves gaps');
+    for (const fill of ['glow', 'full']) {
+      assert.deepEqual(draw(patch, fill), authored, `${fill}: black adds no light`);
+      assert.ok(draw(patch, fill, true).every((value) => value === 0), `${fill}: stopped black remains dark`);
+    }
+  }
+  assert.ok(draw({ effect: chase }, 'glow').some((value) => value === 25), 'a coloured fill still lights dimmer-only gaps');
+});
+
 test('a pad keeps its own black over the main effect with the fill on; only the main effect\'s gaps take its colour', () => {
   const pad = { id: 'pad', spec: chase, targets: null, tier: 'voice', launchSeq: 1, startedAtMs: 0, untilMs: null, anchorBeat: 0, seed: [1, 2, 3, 4] };
   const solid = { pattern: 'solid', effect: null, colorA: 0 };

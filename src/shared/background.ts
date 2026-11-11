@@ -108,7 +108,7 @@ export function backgroundLight(field: BackgroundField | undefined, settings: Ba
   if (settings.mode === 'fixed') return { colour: settings.colour, level: unlit(settings.colour) ? 0 : settings.level * (stopped ? 1 : field?.coverage ?? 0) };
   if (followFills(field, settings)) {
     const share = settings.followFill === 'glow' ? FOLLOW_FLOOR : 1;
-    return { colour: settings.followColour!, level: share * settings.level * (stopped ? 1 : field!.coverage) };
+    return { colour: settings.followColour!, level: unlit(settings.followColour!) ? 0 : share * settings.level * (stopped ? 1 : field!.coverage) };
   }
   return { colour: field?.colour ?? DARK_BACKGROUND, level: (stopped ? field?.fullLevel ?? field?.level ?? 0 : field?.level ?? 0) * settings.level };
 }
