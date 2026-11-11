@@ -6,7 +6,7 @@
 name = "tycstation-lightshow-analysis"
 version = "1.0.0"
 description = "Audio analysis and live input for TycStation Lightshow."
-requires-python = ">=3.10,<3.14"
+requires-python = ">=3.11,<3.14"
 dependencies = [
     # Core analysis.
     "librosa>=0.10",
