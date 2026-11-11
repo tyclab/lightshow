@@ -1,0 +1,24 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": ["config:best-practices"],
+  "labels": ["dependencies"],
+  "timezone": "Europe/Berlin",
+  "minimumReleaseAge": "3 days",
+  "prHourlyLimit": 2,
+  "prConcurrentLimit": 3,
+  "platformAutomerge": false,
+  "forkProcessing": "enabled",
+  "osvVulnerabilityAlerts": true,
+  "lockFileMaintenance": {
+    "description": "Refreshes package-lock.json and uv.lock. Transitive pins move only here, and an aged transitive pin is how a package with a known advisory stays installed.",
+    "enabled": true
+  },
+  "packageRules": [
+    {
+      "description": "MuQ calls the Conformer encoder directly and needs the v4 hidden states (pyproject.toml), so a transformers major is a port, never a bump.",
+      "matchPackageNames": ["transformers"],
+      "matchUpdateTypes": ["major"],
+      "enabled": false
+    }
+  ]
+}
