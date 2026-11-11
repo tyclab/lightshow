@@ -1173,9 +1173,9 @@ export marks `role: screen` (the TV and the monitors in a house-model export).
 panel: the DDP grid with the most cells, the first patched on a tie (a grid one cell
 high or wide is a strip, not a panel). Every other lamp keeps the main effect, so
 with the **TycStation** palette as the global override the room takes the mark's
-colours around it. The picture is five loops, 68 × 42 frames rendered from the
+colours around it. The picture is six loops, 68 × 42 frames rendered from the
 squid drawings (`assets/squid`, from tyclab/tycwled `curtain/squid`), played in
-turn: breathing, ink, deep sea, eyes, skin. A panel of another size gets the whole
+turn: breathing, ink, deep sea, eyes, skin, water. A panel of another size gets the whole
 picture, centred, each cell the mean of the pixels it covers.
 
 The loops follow the show's beat clock (the live input's beat at a party). Each
@@ -1194,8 +1194,8 @@ with its ledmap (fewer cells than its grid) takes each cell's pixel at its colum
 row. They need the photosensitivity acknowledgement as any picture does, and the
 programme playing. While Squid is chosen, outside pixel feeds and the room picture
 wait, and the browser helper releases its leases as under **Effects**. The files are
-decoded once (60 ms on a desktop CPU) after Squid is chosen and outside the frame loop (the
-panel shows its effect meanwhile); choosing another source frees the 7 MB of frames.
+decoded once (65 ms on a desktop CPU) after Squid is chosen and outside the frame loop (the
+panel shows its effect meanwhile); choosing another source frees the 8 MB of frames.
 A settings file holding `picture.source: 'squid'` is refused by builds from before
 it: choose another source before rolling back.
 

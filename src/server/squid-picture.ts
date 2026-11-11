@@ -9,9 +9,9 @@ import { SquidPlayhead, squidPanel } from '../shared/squid.ts';
 import type { SquidPanel } from '../shared/squid.ts';
 import type { PixelInputFrame } from '../types/pixel-input.ts';
 
-// The TycStation squid's five loops, rendered from its drawings (tyclab/tycwled curtain/squid), in the order they play.
+// The TycStation squid's six loops, rendered from its drawings (tyclab/tycwled curtain/squid), in the order they play.
 const DIR = path.join(import.meta.dirname, '..', '..', 'assets', 'squid');
-const LOOPS = ['breathing', 'ink', 'deepsea', 'eyes', 'skin'];
+const LOOPS = ['breathing', 'ink', 'deepsea', 'eyes', 'skin', 'skin-water'];
 
 interface Loop { width: number; height: number; frames: Uint8Array[]; seconds: number }
 
