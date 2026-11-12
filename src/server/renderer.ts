@@ -826,7 +826,7 @@ function createRenderer({ profileOf, profilesRevision = () => 0, now = performan
     const raw = unitColors[u];
     const unchanged = !background || background.mode === 'follow' && background.level === 1;
     // The main effect's gaps take its colour under Follow; clips, voices and pictures keep their own black.
-    const resolved = unchanged && !followFills(baseBackground[u], main) ? null : composeBackground(raw, raw.dim / 255, baseBackground[u], main ?? background);
+    const resolved = unchanged && (!main || !followFills(baseBackground[u], main)) ? null : composeBackground(raw, raw.dim / 255, baseBackground[u], main ?? background);
     const current = resolved ? { ...resolved.colour, dim: 255 * resolved.level, strobe: raw.strobe } : raw;
     const layer = fade && fade.from[u] ? blendFixture(fade.from[u], current, fadeT) : current;
     shown[u] = layer;
@@ -1086,7 +1086,7 @@ function createRenderer({ profileOf, profilesRevision = () => 0, now = performan
     const scope = backgroundScope(input.background, rigNow.cellMaps, (i) => fixtures[i].id);
     // With its fill on, Follow fills the main effect's gaps with its colour; outside the scope the effect plays as authored.
     const scoped = followFilling(input.background) ? withFollow(input.background, followColourOf(input.effect, input.paletteOverride,
-      fixedColours(input.basePalette, [input.colorA, input.colorB, input.colorC, input.colorD].map((i) => COLOR_PRESETS[i]))[0])) : input.background;
+      fixedColours(input.basePalette, [input.colorA, input.colorB, input.colorC, input.colorD].map((i) => COLOR_PRESETS[i]))[0])) : undefined;
     const ownership: CellOwnership[] = [];
     const logical: LightValue[] = [];
     for (let i = 0; i < fixtures.length; i++) {
