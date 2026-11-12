@@ -15,6 +15,12 @@
   },
   "packageRules": [
     {
+      "description": "Patch, minor, digest and pin updates merge themselves once the branch is green and up to date with main, after the 3-day minimumReleaseAge, as in the sibling repos. Majors and the lock file refresh stay PRs: the refresh takes transitive releases of any age. platformAutomerge is off: main has no branch protection and the repository does not allow auto-merge, so Renovate merges a green, up-to-date branch itself, with a merge commit like every other PR here.",
+      "matchUpdateTypes": ["patch", "minor", "digest", "pin", "pinDigest"],
+      "automerge": true,
+      "automergeStrategy": "merge-commit"
+    },
+    {
       "description": "MuQ calls the Conformer encoder directly and needs the v4 hidden states (pyproject.toml), so a transformers major is a port, never a bump.",
       "matchPackageNames": ["transformers"],
       "matchUpdateTypes": ["major"],
