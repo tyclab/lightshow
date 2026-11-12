@@ -1,7 +1,7 @@
 import { PictureHold } from './picture-hold.ts';
 import type { CellOwnership } from './picture-hold.ts';
-import { ambient, backgroundScope, blendBackground, composeBackground, underPicture } from '../shared/background.ts';
-import type { BackgroundField, BackgroundSettings } from '../shared/background.ts';
+import { ambient, backgroundScope, blendBackground, composeBackground, followColourOf, followFilling, followFills, underPicture, withFollow } from '../shared/background.ts';
+import type { BackgroundField, BackgroundSettings, BackgroundUse } from '../shared/background.ts';
 import { fixedColours, colourSlots, resolveGradient } from '../shared/palette-model.ts';
 import type { UnitSpace } from '../shared/space.ts';
 import type { PaletteBody } from '../shared/palette-model.ts';
@@ -821,11 +821,12 @@ function createRenderer({ profileOf, profilesRevision = () => 0, now = performan
   }
 
   function lightOf(u: number, fix: RenderFixture, energy: EnergyLook | null, fadeT: number,
-    target: ShowDynamics | null, pixel: Colour | null = null, background?: BackgroundSettings, stopped = false): LightValue {
+    target: ShowDynamics | null, pixel: Colour | null = null, background?: BackgroundSettings, stopped = false, main?: BackgroundUse): LightValue {
     // Keep the shown base under bursts so later fades do not capture the burst.
     const raw = unitColors[u];
     const unchanged = !background || background.mode === 'follow' && background.level === 1;
-    const resolved = unchanged ? null : composeBackground(raw, raw.dim / 255, baseBackground[u], background);
+    // The main effect's gaps take its colour under Follow; clips, voices and pictures keep their own black.
+    const resolved = unchanged && (!main || !followFills(baseBackground[u], main)) ? null : composeBackground(raw, raw.dim / 255, baseBackground[u], main ?? background);
     const current = resolved ? { ...resolved.colour, dim: 255 * resolved.level, strobe: raw.strobe } : raw;
     const layer = fade && fade.from[u] ? blendFixture(fade.from[u], current, fadeT) : current;
     shown[u] = layer;
@@ -833,7 +834,7 @@ function createRenderer({ profileOf, profilesRevision = () => 0, now = performan
     const clip = seqUnits ? seqLight[u] : null;
     const selected = clip && !unchanged ? composeBackground(clip, clip.dim / 255, seqBackground[u], background) : null;
     if (!stopped || !lastBackground[u]) lastBackground[u] = clip ? seqBackground[u] : shownBackground[u];
-    const resting = stopped ? composeBackground(raw, 0, lastBackground[u], background, true) : null;
+    const resting = stopped ? composeBackground(raw, 0, lastBackground[u], clip ? background : main ?? background, true) : null;
     const picture = pixel && !resting ? underPicture(pixel, background) : null;
     const below = resting ? { ...resting.colour, dim: resting.level * 255, strobe: 0 }
       : picture ? { ...picture.colour, dim: picture.level * 255, strobe: 0 } : selected ? { ...selected.colour, dim: selected.level * 255, strobe: clip!.strobe } : clip ?? layer;
@@ -1083,11 +1084,14 @@ function createRenderer({ profileOf, profilesRevision = () => 0, now = performan
     const { levels, gains } = liftFor(input);
     const watch = !!voiceTop || baseKinds || seqUnits;
     const scope = backgroundScope(input.background, rigNow.cellMaps, (i) => fixtures[i].id);
+    // With its fill on, Follow fills the main effect's gaps with its colour; outside the scope the effect plays as authored.
+    const scoped = followFilling(input.background) ? withFollow(input.background, followColourOf(input.effect, input.paletteOverride,
+      fixedColours(input.basePalette, [input.colorA, input.colorB, input.colorC, input.colorD].map((i) => COLOR_PRESETS[i]))[0])) : undefined;
     const ownership: CellOwnership[] = [];
     const logical: LightValue[] = [];
     for (let i = 0; i < fixtures.length; i++) {
       const fix = fixtures[i];
-      const background = !scope || scope[i] ? input.background : undefined;
+      const background = !scope || scope[i] ? input.background : undefined, main = !scope || scope[i] ? scoped : undefined;
       const { start, count } = rigNow.ranges[i];
       const overridden = !!fix.override && (fix.override.enabled || fix.override.blackout);
       const lights: LightValue[] = [];
@@ -1119,7 +1123,7 @@ function createRenderer({ profileOf, profilesRevision = () => 0, now = performan
           colour = { r, g, b, w: 0, a: 0, uv: 0 };
           pixelOwners[u] = `picture:${painted.leaseId}`;
         }
-        lights.push(lightOf(u, fix, top, fadeT, target, colour, background, input.programmePlaying === false));
+        lights.push(lightOf(u, fix, top, fadeT, target, colour, background, input.programmePlaying === false, main));
         const kind = top ? (voice ? voice.kind ?? null : null) : overridden || pixelOwners[u] ? null : seqUnits && seqLight[u] ? seqKind[u] : baseKind[u];
         topKind[u] = watch ? kind : null;
         const sequenceCell = input.programmePlaying !== false && seqUnits && seqLight[u];

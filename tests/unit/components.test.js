@@ -760,8 +760,19 @@ test('the Background card offers Fixed colour by hue, saturation and brightness,
   assert.deepStrictEqual(['hue', 'saturation', 'brightness'].map((name) => Math.round(Number(slider(name)))), [30, 100, 100]);
   for (const name of ['White', 'Amber', 'UV']) assert.ok(card.includes(`>${name}`), name);
   assert.match(card, /under every effect, pad and the visualizer picture/);
+  assert.doesNotMatch(card, /Follow between notes/, 'the fill is Follow\'s alone');
   givenLibrary({ background: { version: 1, mode: 'follow', level: 1, colour: { r: 255, g: 128, b: 0, w: 0, a: 0, uv: 0 } } });
-  assert.doesNotMatch(ui.html(ui.h(ui.Show)), /Background colour sliders/, 'Follow effect takes its colours from the effect');
+  const followed = /<section class="card background-controls"[^>]*>(.*?)<\/section>/s.exec(ui.html(ui.h(ui.Show)))[1];
+  assert.doesNotMatch(followed, /Background colour sliders/, 'Follow effect takes its colours from the effect');
+  // The operator, asked how brightly Follow should fill an effect's gaps: "i must see it to decide".
+  const between = /<select aria-label="Follow between notes"[^>]*>(.*?)<\/select>/s.exec(followed)?.[1] ?? '';
+  assert.deepStrictEqual([...between.matchAll(/<option[^>]*>([^<]*)</g)].map((m) => m[1]), ['Off', 'Glow', 'Full']);
+  assert.match(between, /<option selected value="off">/, 'Off by default');
+  assert.match(followed, /stay dark between notes/);
+  givenLibrary({ background: { version: 1, mode: 'follow', level: 1, colour: { r: 255, g: 128, b: 0, w: 0, a: 0, uv: 0 }, followFill: 'glow' } });
+  const glowing = /<section class="card background-controls"[^>]*>(.*?)<\/section>/s.exec(ui.html(ui.h(ui.Show)))[1];
+  assert.match(glowing, /<option selected value="glow">/);
+  assert.match(glowing, /faint glow/);
 });
 
 test('Show stacks Background, the effect, then Bands; a Disco shows its bands, another effect its own palette', () => {
