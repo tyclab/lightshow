@@ -775,11 +775,11 @@ test('the Background card offers Fixed colour by hue, saturation and brightness,
   assert.match(glowing, /faint glow/);
 });
 
-test('Show stacks Background, the effect, then Bands; a Disco shows its bands, another effect its own palette', () => {
+test('Show stacks Background then Bands; a Disco shows its bands, another effect its own palette', () => {
   givenLibrary({ pattern: 'hd.disco.ambient', audio: { mode: 'reactive' } });
   const show = ui.html(ui.h(ui.Show));
   const order = [...show.matchAll(/<(?:section|div) class="card ([a-z-]+)/g)].map((m) => m[1]).filter((c) => ['background-controls', 'effects', 'bands'].includes(c));
-  assert.deepStrictEqual(order, ['background-controls', 'effects', 'bands']);
+  assert.deepStrictEqual(order, ['background-controls', 'bands']);
   const card = /<section class="card bands"[^>]*>(.*?)<\/section>/s.exec(show)[1];
   // The operator, 2026-11-07: "what does the rotation button do in clolours? doesnt seem make sense?": the card title names no effect.
   assert.match(card, /<div class="card-title band-title"><span>Bands<\/span><\/div>/);
@@ -803,7 +803,10 @@ test('Show stacks Background, the effect, then Bands; a Disco shows its bands, a
   assert.ok(ambient.params.channels[1].enabled, 'the library preset is untouched');
   // Any other effect: its palette as one bar and the same list, with its distribution.
   givenLibrary({ pattern: 'v2.scatterStrobe' });
-  const own = /<section class="card bands" aria-label="Colours"[^>]*>(.*?)<\/section>/s.exec(ui.html(ui.h(ui.Show)))[1];
+  const compact = ui.html(ui.h(ui.Show));
+  assert.match(compact, /aria-expanded="false"[^>]*aria-label="Edit effect colours"/);
+  assert.doesNotMatch(compact, /colour-wheel-disc|band-palette-list/, 'Show opens colour editing on demand');
+  const own = /<section class="card bands" aria-label="Colours"[^>]*>(.*?)<\/section>/s.exec(ui.html(ui.h(ui.Bands)))[1];
   assert.match(own, /aria-label="Effect palette"/);
   assert.match(own, /class="colour-wheel-disc adds"/, 'its palette sits on the wheel, and a tap there adds a colour');
   assert.match(own, /aria-label="Palette colour order"/);
@@ -1114,7 +1117,8 @@ test('one header row: the picture source and its effect first, then play, Freeze
   assert.doesNotMatch(header, /now-playing|header-now|stat-pill/, 'the main effect line and the pills are gone from the row');
   assert.doesNotMatch(header, /aria-label="Theme"|Keep awake|Full screen/, 'this device\'s tools are behind ⋮');
   const show = ui.html(ui.h(ui.Show));
-  for (const text of ['stage3d-host', 'effects-deck']) assert.ok(show.includes(text), text);
+  assert.ok(show.includes('stage3d-host'));
+  assert.doesNotMatch(show, /effects-deck|effects-catalogue|All effects|Search effects/, 'effect selection stays in the header picker');
   assert.strictEqual(count(show, 'role="switch"'), 0, 'global controls stay in the header');
   assert.doesNotMatch(show, /Global show controls|Master dimmer|Picture source/);
   assert.ok(!show.includes('stage-room-panel'), 'the room panel stays in Stage');

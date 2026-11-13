@@ -72,7 +72,7 @@ test('the chip reads Main effect and the picture layers follow the Background ca
   await control(request, 'resume');
 });
 
-for (const view of ['show', 'effects']) {
+for (const view of ['effects']) {
   test(`at phone width the ${view} view keeps the chip, its pencil and the picture layers inside the Effects card`, async ({ page, request }) => {
     const { fixtures, patterns } = await state(request);
     // The longest wording the background layer has.

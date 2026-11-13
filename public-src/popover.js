@@ -1,8 +1,8 @@
-import { useEffect } from 'preact/hooks';
+import { useLayoutEffect } from 'preact/hooks';
 
 /** A header popover closes on Escape, giving focus back to its button, and on a press outside `trigger` and `refs`. */
 export function useDismiss(open, close, trigger, ...refs) {
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!open) return undefined;
     const inside = (target) => [trigger, ...refs].some((ref) => ref.current?.contains(target));
     const down = (e) => { if (!inside(e.target)) close(); };

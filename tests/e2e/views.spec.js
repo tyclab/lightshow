@@ -27,7 +27,9 @@ test('the app opens on Show: the room, the looks and global controls', async ({ 
   }
   await expect(page.getByRole('group', { name: 'Picture source' })).toBeVisible();
   await expect(page.locator('.show-room .stage3d-canvas')).toBeVisible();
-  await expect(page.locator('.show-looks .effects-deck')).toBeVisible();
+  await expect(page.locator('.show-looks .background-controls')).toBeVisible();
+  await expect(page.locator('.show-looks .bands')).toBeVisible();
+  await expect(page.locator('.show-looks .effects')).toHaveCount(0);
   await expect(page.locator('.command-bar')).toHaveCount(0);
 });
 

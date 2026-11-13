@@ -46,3 +46,6 @@ revised in #113 and #126); its full text is in git history. The rulings below st
   under Effects or Colour + motion.
 - Freeze, Blackout and Arm keep their own buttons at fixed positions with 44 px touch targets.
   Keep every current label reachable, and never name the apps the lightshow was ported from.
+- Show selects effects through the header picker, without an inline effects deck or catalogue
+  (2026-11-13). Keep the room, Background and Bands/Colours visible; open colour editing on demand
+  so the control column does not become a long catalogue. Detailed effect controls stay in Effects.
