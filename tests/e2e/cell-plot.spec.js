@@ -24,7 +24,7 @@ test('explicit cell maps reach picture sampling and a mounted preview, and incom
     await open(page, 'stage');
     const canvas = page.locator('.stage3d-canvas');
     const mounted = await canvas.elementHandle();
-    await expect(page.locator('.stage3d-note')).toHaveCount(0);
+    await expect(page.locator('.stage3d-note:not(.stage-dark)')).toHaveCount(0);
     const next = structuredClone(geometry);
     next.points[0].height = -5;
     socket.emit('fixture', { id, geometry: next });

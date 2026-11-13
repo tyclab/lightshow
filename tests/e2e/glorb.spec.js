@@ -58,7 +58,7 @@ test('two balls of 80 cells: the Stage counts and places every cell, the plot la
     await expect(status).toContainText('160 light positions');
     await expect(status).toContainText('0 partly positioned');
     await expect(status).toContainText('0 unmatched bindings');
-    await expect(page.locator('.stage3d-note')).toHaveCount(0);
+    await expect(page.locator('.stage3d-note:not(.stage-dark)')).toHaveCount(0);
 
     const units = await socket.timeout(5000).emitWithAck('picture:units');
     expect(units.signature).toMatch(/\|room:/);

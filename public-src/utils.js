@@ -157,13 +157,18 @@ export function fixtureOutputColor(fix, state, dmxSnapshot) {
   return light ? colorToCss(light) : '#111';
 }
 
+const BLACKOUT_NOTE = 'Blackout is on: every light is dark. Restore, in the header, shows the picture again.';
+const OUTPUTS_OFF_NOTE = 'Outputs off: nothing is transmitted to the rig, so its lights are drawn off. Preview look shows what arming would send.';
+
 /** What a stage drawing shows. Disarmed, nothing reaches the rig, so its lights draw off;
- * the engine's idle look appears only when the operator asks to preview it. */
-export function stageMode({ rehearsing, connected, armed, preview }) {
+ * the engine's idle look appears only when the operator asks to preview it. A stage dark
+ * for a reason carries a `note` naming it and what ends it; Blackout outranks the rest. */
+export function stageMode({ rehearsing, connected, armed, preview, blackout }) {
   if (rehearsing) return { tag: 'Rehearsal', lit: true };
   if (!connected) return { tag: 'Offline', lit: true };
+  if (blackout) return { tag: 'Blackout', lit: !!(armed || preview), note: BLACKOUT_NOTE };
   if (armed) return { tag: 'Live output', lit: true };
-  return preview ? { tag: 'Preview (disarmed)', lit: true } : { tag: 'Outputs off', lit: false };
+  return preview ? { tag: 'Preview (disarmed)', lit: true } : { tag: 'Outputs off', lit: false, note: OUTPUTS_OFF_NOTE };
 }
 
 export function rigLights(fixtures, state, dmxSnapshot, rig) {

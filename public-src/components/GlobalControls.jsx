@@ -94,17 +94,19 @@ export function GlobalControls() {
     else if (c.heldUnavailable) showFault(c.heldUnavailable, c.session);
     settleFault(c);
   }, [c?.session, c?.fault, c?.heldUnavailable, c?.appliedRevision]);
-  const button = (label, action, active, protective, title, extra = '') => (
+  const button = (label, action, active, protective, title, extra = '', name = undefined) => (
     <button type="button" class={`btn global-control global-${extra}${active ? ' active' : ''}${protective ? ' protective' : ''}`}
-      disabled={!ready || !protective && (pending || c?.ready === false)} aria-pressed={!!active} title={title}
+      disabled={!ready || !protective && (pending || c?.ready === false)} aria-pressed={!!active} aria-label={name} title={title}
       onClick={() => takeControl(action)}>{label}</button>
   );
   return <div class="global-controls" role="group" aria-label="Global show controls">
     <PlayControl c={c} ready={ready} pending={pending} />
     {button(c?.frozen ? 'Resume' : 'Freeze', c?.frozen ? 'resume' : 'freeze', c?.frozen, false,
       'Freeze holds the whole picture. Resume releases the hold; it does not start a stopped programme.', 'freeze')}
-    {button(c?.blackout ? 'Restore' : 'Blackout', c?.blackout ? 'restore' : 'blackout', c?.blackout, !c?.blackout,
-      'Blackout darkens every output. Restore reveals the current picture without changing playback or Freeze.', `blackout${c?.blackout ? ' blackout-active' : ''}`)}
+    {button(c?.blackout ? <><span class="global-blackout-state" aria-hidden="true"><span class="global-blackout-dot">● </span>Blackout</span><span>Restore</span></> : 'Blackout',
+      c?.blackout ? 'restore' : 'blackout', c?.blackout, !c?.blackout,
+      'Blackout darkens every output. Restore reveals the current picture without changing playback or Freeze.',
+      `blackout${c?.blackout ? ' blackout-active' : ''}`, c?.blackout ? 'Restore' : undefined)}
     <button type="button" class={`btn global-control global-arm${c?.armed ? ' armed active protective' : ''}`}
       disabled={!ready || (!c?.armed && (pending || c?.ready === false))}
       aria-pressed={!!c?.armed} aria-label={c?.armed ? 'Disarm' : 'Arm'}

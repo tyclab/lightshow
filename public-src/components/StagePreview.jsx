@@ -86,7 +86,7 @@ export function StagePreview({ controls = true } = {}) {
   // flag in an effect keeps the panel honest the moment the analysis goes away,
   // and means losing it does not cost the operator their scrub position.
   const rehearsal = !auditioning && stagePreviewSig.value.rehearsal && !!data;
-  const mode = stageMode({ rehearsing: rehearsal, connected, armed: s.armed, preview: previewLook });
+  const mode = stageMode({ rehearsing: rehearsal, connected, armed: s.armed, preview: previewLook, blackout: s.masterBlackout });
   // Disarmed and not previewing, the lights draw as the blackout draws them: off.
   const shown = mode.lit ? s : { ...s, masterBlackout: true };
   // The timeline data carries the analysed beats, so the chase steps here on
@@ -170,7 +170,7 @@ export function StagePreview({ controls = true } = {}) {
   return <section class="panel stage-panel">
     <header class="panel-head">
       <h2 class="panel-title">Stage preview</h2>
-      <span class="panel-tag">{auditioning ? 'Audition · browser only' : mode.tag}</span>
+      <span class={`panel-tag${!auditioning && mode.tag === 'Blackout' ? ' blackout' : ''}`}>{auditioning ? 'Audition · browser only' : mode.tag}</span>
       {connected && !s.armed && !rehearsal && !auditioning && <button class={`btn sm ${previewLook ? 'active' : ''}`} aria-pressed={!!previewLook}
         title="Draw what arming would send; nothing goes out" onClick={() => setUi({ preview: !previewLook })}>Preview look</button>}
       <button class={`btn sm ${edit ? 'active' : ''}`} disabled={!connected || auditioning} aria-pressed={edit}
@@ -247,6 +247,7 @@ export function StagePreview({ controls = true } = {}) {
     <p class="look-note">{edit
       ? `Drag fixtures or use arrow keys.${rig.hasPixels ? ' Drag a bar\'s end handle to turn or stretch it.' : ''} Positions are saved with the show.`
       : 'Numbers are patch order. Patterns travel across the stage as placed here, left to right. Colours approximate the output.'}</p>
+    {!auditioning && mode.note && <p class={`look-note stage-dark${mode.tag === 'Blackout' ? ' blackout' : ''}`} role="status">{mode.note}</p>}
     <p class="stage-now" aria-live="polite"><strong>{auditioning ? 'Audition' : 'Now playing'}</strong> {auditioning ? audition.name || audition.id : <NowPlaying />}</p>
     {data && !auditioning && <div class="stage-rehearsal">
       <button class={`btn sm ${rehearsal ? 'active' : ''}`} aria-pressed={rehearsal}

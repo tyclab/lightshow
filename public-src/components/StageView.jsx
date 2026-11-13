@@ -39,7 +39,7 @@ const readHaze = () => {
 
 /** `compact`: the stage alone, for the Show view — the room loads here, its panel and the notes stay in Stage. */
 export function StageView({ compact = false } = {}) {
-  const s = pick(['fixtures', 'profiles', 'colorPresets', 'autoShow', 'armed']);
+  const s = pick(['fixtures', 'profiles', 'colorPresets', 'autoShow', 'armed', 'masterBlackout']);
   const connected = connectedSig.value;
   const fixtures = s.fixtures || [];
   const profiles = s.profiles || {};
@@ -49,7 +49,9 @@ export function StageView({ compact = false } = {}) {
   const auditioning = audition.active && !s.armed;
   const rehearsing = !auditioning && ui.rehearsal && !!data;
   const [format, setFormat] = useState('3d');
-  const mode = stageMode({ rehearsing, connected, armed: s.armed, preview: ui.preview });
+  const mode = stageMode({ rehearsing, connected, armed: s.armed, preview: ui.preview, blackout: s.masterBlackout });
+  const dark = auditioning ? null : mode.note;
+  const tagClass = `panel-tag${!auditioning && mode.tag === 'Blackout' ? ' blackout' : ''}`;
   const durationMs = data && data.duration ? data.duration * 1000 : 0;
   const [status, setStatus] = useState('loading');   // loading | ready | nowebgl | error
   const [view, setView] = useState('audience');
@@ -274,8 +276,8 @@ export function StageView({ compact = false } = {}) {
   const bars = rig.cellMaps.filter(Boolean).length;
   const description = `The rig in 3D from ${VIEW_NAMES[view]}: `
     + `${fixtures.length} fixtures${bars ? `, ${bars} of them bars` : ''}, ${parts} lights, `
-    + `${auditioning ? `auditioning ${audition.name || audition.id}; browser only, outputs disarmed` : rehearsing ? `rehearsing the track at ${fmtTime(ui.position)}` : !connected ? 'offline' : s.armed ? 'showing the live output'
-      : mode.lit ? 'previewing with outputs disarmed; nothing is transmitted' : 'outputs disarmed, lights drawn off; nothing is transmitted'}.`;
+    + `${auditioning ? `auditioning ${audition.name || audition.id}; browser only, outputs disarmed` : rehearsing ? `rehearsing the track at ${fmtTime(ui.position)}` : !connected ? 'offline' : s.masterBlackout ? 'Blackout is on, every light is dark'
+      : s.armed ? 'showing the live output' : mode.lit ? 'previewing with outputs disarmed; nothing is transmitted' : 'outputs disarmed, lights drawn off; nothing is transmitted'}.`;
   keys.current = onKeyDown;
   useLayoutEffect(() => { if (canvas.current) canvas.current.setAttribute('aria-label', description); });
 
@@ -285,7 +287,7 @@ export function StageView({ compact = false } = {}) {
       {!compact && <StageRoomPanel snapshot={roomState} coverage={room ? placed : null} fixtures={fixtures} rig={rig} onChange={setRoomState} />}
       {!compact && <Audition />}
       <div class="stage3d-tools" role="toolbar" aria-label="Stage view">
-        <span class="panel-tag">{auditioning ? 'Audition · browser only' : mode.tag}</span>
+        <span class={tagClass}>{auditioning ? 'Audition · browser only' : mode.tag}</span>
         <div class="segmented" role="group" aria-label="Stage format">
           <button type="button" class="btn sm" aria-pressed={format === '3d'} onClick={() => setFormat('3d')}>3D room</button>
           <button type="button" class="btn sm" aria-pressed={format === 'plot'} onClick={() => setFormat('plot')}>2D plot</button>
@@ -329,6 +331,7 @@ export function StageView({ compact = false } = {}) {
         )}
         {status === 'error' && <p class="stage3d-note" role="alert">The 3D stage could not be loaded. Reload the page to try again.</p>}
         {status === 'ready' && !fixtures.length && <p class="stage3d-note">Nothing is patched yet: add fixtures in the Rig view.</p>}
+        {status === 'ready' && fixtures.length > 0 && dark && <p class={`stage3d-note stage-dark${mode.tag === 'Blackout' ? ' blackout' : ''}`} role="status">{dark}</p>}
         {status === 'ready' && room && fixtures.length > 0 && !placed.lamps.length && !placed.cells.length && <p class="stage3d-note">This room has no positions for the current fixtures. Review its bindings above.</p>}
       </div>
       {!compact && <p class="look-note">
@@ -338,10 +341,9 @@ export function StageView({ compact = false } = {}) {
           : 'Generic venue: fixture heights follow the plan when set; otherwise groups supply approximate mounting heights. '}{auditioning
           ? 'Audition: the demo track drives this effect locally. No commands are sent to the rig.' : rehearsing
           ? 'Rehearsing: the planned show, as the timeline has it; nothing goes out to the rig.'
-          : !connected ? 'Offline: the live output is unavailable.' : s.armed
+          : !connected ? 'Offline: the live output is unavailable.' : mode.note ? mode.note : s.armed
             ? 'Live: what is going out to the rig now.'
-            : mode.lit ? 'Preview: outputs are disarmed; nothing is transmitted to the rig.'
-              : 'Outputs off: nothing is transmitted to the rig, so its lights are drawn off. Preview look shows what arming would send.'}
+            : 'Preview: outputs are disarmed; nothing is transmitted to the rig.'}
       </p>}
     </div>
   );

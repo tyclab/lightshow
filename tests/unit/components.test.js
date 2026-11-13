@@ -230,9 +230,9 @@ test('global blackout and a running voice\'s pad show their independent pressed 
   lit[4] = 'v7';
   given({ masterBlackout: true, control: { version: 1, programme: 'look', playing: true, frozen: false, blackout: true, armed: false }, pads: { layout: LAYOUT, lit } });
   const header = ui.html(ui.h(ui.Header, {}));
-  assert.match(header, /<button[^>]*aria-pressed="true"[^>]*>Restore<\/button>/);
+  assert.match(header, /<button[^>]*aria-pressed="true"[^>]*aria-label="Restore"[^>]*>.*?● .*?Blackout.*?<span>Restore<\/span><\/button>/);
   assert.match(header, /Restore reveals the current picture without changing playback or Freeze/);
-  assert.strictEqual(count(header, '>Restore</button>'), 1, 'one Restore');
+  assert.strictEqual(count(header, 'aria-label="Restore"'), 1, 'one Restore');
   assert.match(ui.html(ui.h(ui.Perform, {})), /class="pad-cell lit"[^>]*data-slot="4"[^>]*aria-pressed="true"/);
 });
 
