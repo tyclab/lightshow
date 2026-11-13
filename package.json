@@ -51,7 +51,7 @@
     "@preact/signals": "2.11.4",
     "@types/compression": "1.8.1",
     "@types/express": "5.0.6",
-    "@types/multer": "2.2.0",
+    "@types/multer": "2.3.0",
     "@types/node": "24.19.2",
     "axe-core": "4.11.0",
     "esbuild": "0.28.2",
