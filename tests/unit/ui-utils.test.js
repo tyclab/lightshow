@@ -68,13 +68,32 @@ test('a par reads exactly as it always did', () => {
 });
 
 test('a disarmed stage draws its lights off unless the look is previewed', () => {
-  const at = (patch) => utils.stageMode({ rehearsing: false, connected: true, armed: false, preview: false, ...patch });
+  const at = (patch) => {
+    const { tag, lit } = utils.stageMode({ rehearsing: false, connected: true, armed: false, preview: false, ...patch });
+    return { tag, lit };
+  };
   assert.deepEqual(at({}), { tag: 'Outputs off', lit: false }, 'nothing goes out, so nothing is drawn lit');
   assert.deepEqual(at({ preview: true }), { tag: 'Preview (disarmed)', lit: true });
   assert.deepEqual(at({ armed: true }), { tag: 'Live output', lit: true });
   assert.deepEqual(at({ armed: true, preview: true }), { tag: 'Live output', lit: true }, 'armed, the wire is the picture');
   assert.deepEqual(at({ rehearsing: true }), { tag: 'Rehearsal', lit: true }, 'a rehearsal draws the planned show');
   assert.deepEqual(at({ connected: false }), { tag: 'Offline', lit: true });
+});
+
+test('a stage that is dark for a reason names it, and what ends it', () => {
+  const at = (patch) => utils.stageMode({ rehearsing: false, connected: true, armed: false, preview: false, blackout: false, ...patch });
+  assert.match(at({}).note, /^Outputs off: .*Preview look/, 'disarmed and not previewing');
+  assert.equal(at({ preview: true }).note, undefined, 'a previewed look is lit: nothing to explain');
+  assert.equal(at({ armed: true }).note, undefined);
+  for (const patch of [{ armed: true }, { preview: true }, {}]) {
+    const mode = at({ blackout: true, ...patch });
+    assert.equal(mode.tag, 'Blackout', 'Blackout outranks every other reason: it stays dark through an arm');
+    assert.match(mode.note, /^Blackout is on: .*Restore/);
+  }
+  assert.equal(at({ blackout: true, armed: true }).lit, true, 'the feed already carries the Blackout');
+  assert.equal(at({ blackout: true }).lit, false);
+  assert.deepEqual(at({ blackout: true, rehearsing: true }), { tag: 'Rehearsal', lit: true }, 'a rehearsal draws the planned show');
+  assert.deepEqual(at({ blackout: true, connected: false }), { tag: 'Offline', lit: true });
 });
 
 test('the blackout state a dark stage draws with turns a lit par off', () => {

@@ -29,6 +29,76 @@ for (const width of [1280, 390]) {
   });
 }
 
+// The operator, 2026-11-13: an active Blackout read only "Restore", so nothing said why the stage was dark.
+// 1100 px is the laptop breakpoint, where the safety buttons narrow.
+for (const width of [1280, 1100, 390]) {
+  test(`an active Blackout names itself on its button at ${width}px, in the same box`, async ({ page, request }) => {
+    await page.setViewportSize({ width, height: 844 });
+    await open(page, 'show');
+    const header = page.locator('.app-header');
+    const boxes = () => page.evaluate(() => Object.fromEntries(['.app-header', '.global-freeze', '.global-blackout', '.global-arm']
+      .map((selector) => { const r = document.querySelector(selector).getBoundingClientRect(); return [selector, { x: r.x, w: r.width, h: r.height }]; })));
+    const before = await boxes();
+    await header.getByRole('button', { name: 'Blackout', exact: true }).click();
+    await until(request, s => s.masterBlackout === true);
+    const restore = header.getByRole('button', { name: 'Restore', exact: true });
+    await expect(restore).toHaveAttribute('aria-pressed', 'true');
+    await expect(restore.locator('.global-blackout-state')).toBeVisible();
+    await expect(restore).toContainText('Blackout');
+    await expect(restore).toContainText('Restore');
+    const fit = await restore.evaluate((button) => {
+      const box = button.getBoundingClientRect(), left = box.left + button.clientLeft, right = left + button.clientWidth;
+      const [state, action] = [...button.children].map((part) => part.getBoundingClientRect());
+      return { scroll: button.scrollWidth, client: button.clientWidth, stacked: state.bottom <= action.top + 1,
+        inside: [state, action].every((r) => r.left >= left - 0.5 && r.right <= right + 0.5) };
+    });
+    expect(fit.scroll, 'nothing overflows the button').toBeLessThanOrEqual(fit.client);
+    expect(fit.inside, 'both lines inside its border').toBe(true);
+    expect(fit.stacked, 'the state over the action').toBe(true);
+    const after = await boxes();
+    for (const [selector, was] of Object.entries(before)) {
+      for (const key of ['x', 'w', 'h']) expect(Math.abs(after[selector][key] - was[key]), `${selector} ${key}`).toBeLessThanOrEqual(0.5);
+    }
+    await restore.click();
+    await until(request, s => s.masterBlackout === false);
+    await expect(header.getByRole('button', { name: 'Blackout', exact: true })).toHaveText('Blackout');
+  });
+}
+
+// The operator, 2026-11-13: "make blackout button bright red if active", filled as the armed Arm button is.
+test('an active Blackout is filled as the armed Arm button is, hovered or not', async ({ page, request }) => {
+  await open(page, 'show');
+  const header = page.locator('.app-header');
+  const fill = (locator) => locator.evaluate((e) => {
+    const s = getComputedStyle(e);
+    return { background: s.backgroundColor, border: s.borderTopColor, color: s.color, shadow: s.boxShadow };
+  });
+  const off = await fill(page.locator('.global-blackout'));
+  try {
+    await armFromHeader(page);
+    await until(request, s => s.armed === true);
+    const disarm = header.getByRole('button', { name: 'Disarm', exact: true });
+    await page.mouse.move(0, 0);
+    const armed = await fill(disarm);
+    await header.getByRole('button', { name: 'Blackout', exact: true }).click();
+    await until(request, s => s.masterBlackout === true);
+    const restore = header.getByRole('button', { name: 'Restore', exact: true });
+    await page.mouse.move(0, 0);
+    await expect.poll(() => fill(restore)).toEqual(armed);
+    expect(off.background, 'Blackout off is not filled').not.toBe(armed.background);
+    await disarm.hover();
+    const hovered = await fill(disarm);
+    await restore.hover();
+    await expect.poll(() => fill(restore), { message: 'hovered, still filled' }).toEqual(hovered);
+    await restore.click();
+    await until(request, s => s.masterBlackout === false);
+    await page.mouse.move(0, 0);
+    await expect.poll(() => fill(page.locator('.global-blackout'))).toEqual(off);
+  } finally {
+    await control(request, 'disarm');
+  }
+});
+
 // The operator, 2026-11-10: the photosensitivity acknowledgement is asked at every arm, and at no other moment.
 test('Arm asks for the photosensitivity acknowledgement every time; Cancel arms nothing, Disarm asks nothing', async ({ page, request }) => {
   await open(page, 'effects');

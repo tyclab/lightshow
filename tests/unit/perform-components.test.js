@@ -93,6 +93,22 @@ test('the Arm button asks through the same dialog, for this arm', () => {
   assert.doesNotMatch(html, /play it|allow them/);
 });
 
+// As Armed is: the state over the action, on the button itself.
+test('an active Blackout names itself on its button; the action stays Restore', () => {
+  const button = (control) => {
+    given({ control: { version: 1, programme: 'look', ...control }, masterDimmer: 255 });
+    const [tag, inner] = /<button[^>]*global-blackout[^>]*>(.*?)<\/button>/s.exec(ui.html(ui.h(ui.GlobalControls)));
+    return { tag, text: inner.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim() };
+  };
+  const on = button({ blackout: true });
+  assert.equal(on.text, '● Blackout Restore');
+  assert.match(on.tag, /aria-label="Restore"/, 'the name a screen reader and the tests press');
+  assert.match(on.tag, /aria-pressed="true"/);
+  const off = button({ blackout: false });
+  assert.equal(off.text, 'Blackout');
+  assert.doesNotMatch(off.tag, /blackout-active/);
+});
+
 test('the Effects view asks through the same dialog', () => {
   assert.strictEqual(ui.PhotosensitivityConfirm, ui.Photosensitivity);
 });

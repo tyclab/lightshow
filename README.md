@@ -51,8 +51,8 @@ Open **http://localhost:3000**. `npm start` builds the browser client and starts
 the server under its supervisor. Set the rig up in Rig, Sources and Settings.
 
 The server always starts **disarmed**, including after a crash or restart.
-It also starts with the programme stopped and no held picture or pad leases. A saved
-Blackout stays active. Use the global header on any tab or the versioned
+It also starts with the programme stopped, Blackout off and no held picture or pad
+leases: a disarmed start is already dark. Use the global header on any tab or the versioned
 `/api/control` endpoint when the rig should transmit. Arming does not start the programme.
 
 `--no-supervisor` disables the built-in process supervisor.
@@ -114,7 +114,7 @@ backoff is 0.5, 1, 2, 5 and 10 seconds; three failures before startup complete
 stop retries. Configuration failures exit 78; requested restarts exit 75.
 
 Every start, supervised or not, restores the saved look from `config/look.json`
-(written when the look changes). Active energy effects are not restored, the
+(written when the look changes). Active energy effects and Blackout are not restored, the
 programme comes back stopped, and every start remains disarmed.
 
 For an external service manager that owns restarts, run:
@@ -143,7 +143,9 @@ from preparing or previewing a look. Stage and the fixture plot say **Outputs of
 while outputs are disarmed and draw every light off, because nothing is transmitted. **Preview look**
 draws the rendered look that arming would send and the label becomes **Preview (disarmed)**; the choice
 is saved in this browser across reloads and shared by both views.
-They say **Live output** once outputs are armed.
+They say **Live output** once outputs are armed, and **Blackout** while Blackout is on, armed or not.
+A dark stage says why, over the 3D stage and under the plot: Outputs off points to **Preview look**,
+Blackout to **Restore** in the header.
 
 The sticky header is one row on a desktop (two on a phone, 1000 px and narrower) and
 the same on every view, including while scrolling through Show:
@@ -177,7 +179,8 @@ the same on every view, including while scrolling through Show:
   one playing carries on.
 - **Freeze/Resume**, **Blackout/Restore** and **Arm/Disarm** keep their own 44 px
   buttons at fixed places. Armed shows on the button itself: filled red, **● Armed**
-  over **Disarm**. **Arm** asks for the photosensitivity acknowledgement every time
+  over **Disarm**; so does Blackout, filled red as well: **● Blackout** over **Restore**.
+  **Arm** asks for the photosensitivity acknowledgement every time
   (see [Safety](#safety)); **Disarm** asks nothing.
 - **Master** is the slider and its value.
 - The **status chip** shows the BPM and the connection without a tap (on a phone
@@ -728,7 +731,7 @@ Other settings apply immediately. The UI lists pending restart keys.
 | `config/midi-map.json` | Custom MIDI map |
 | `config/effects.json`, `palettes.json`, `pads.json`, `sequences.json` | Effect library, palettes, global pad deck, sequences, reusable patterns and named pad layouts |
 | `config/sequence-workspace.json` | Recovery copy of the loaded sequence, playhead and pending take |
-| `config/look.json` | Saved look content and Blackout; playback restarts stopped |
+| `config/look.json` | Saved look content; playback restarts stopped, Blackout off |
 | `config/stage-room.json` | Optional private Stage geometry and light bindings; mode 0600 |
 | `cache/` | Analysis cache |
 | `logs/` | Structured logs |

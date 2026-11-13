@@ -43,7 +43,7 @@ export class LookStore extends JsonStore {
   }
 }
 
-// Retain the legacy field for file compatibility; startup restores content and Blackout, never transport.
+// Retain the legacy field for file compatibility; startup restores content, never transport or Blackout.
 export function currentLook(): Unsaved {
   return { look: lookSchema.parse({ ...captureLook(), running: state.running }) };
 }
@@ -59,7 +59,8 @@ export function putBack(saved: SavedLook): boolean {
       console.warn(`[look] the look from ${saved.savedAt} comes back without ${look.pattern}: ${messageOf(err)}`);
       recallLook({ ...look, pattern: state.pattern, effectColours: null, energyOverride: null }, true);
     }
-    applyPatch({ running: false, masterBlackout: look.masterBlackout });
+    // Outputs start disarmed, so a restart is dark without a Blackout that would hide the picture later.
+    applyPatch({ running: false, masterBlackout: false });
     return true;
   } catch (err) {
     console.warn(`[look] could not put back the look from ${saved.savedAt}: ${messageOf(err)}`);

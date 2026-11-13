@@ -91,6 +91,19 @@ test('put back: a show frozen at save time comes back frozen', () => {
   applyPatch({ running: true });
 });
 
+// Outputs start disarmed, so a restart is dark without it; a Blackout kept across
+// restarts only hid the picture from whoever opened the page days later.
+test('put back: a Blackout on at save time does not come back', () => {
+  applyPatch({ pattern: 'chase', masterBlackout: true });
+  const saved = { savedAt: new Date().toISOString(), ...currentLook() };
+  assert.equal(saved.look.masterBlackout, true);
+
+  applyPatch({ pattern: 'solid', masterBlackout: false });
+  assert.equal(putBack(saved), true);
+  assert.equal(state.pattern, 'chase', 'the look itself comes back');
+  assert.equal(state.masterBlackout, false);
+});
+
 // The settings are settings.json's: a look saved a moment before a change to
 // them must not take the change back on a restart.
 test('put back leaves the audio mode and the strobe\'s settings as they are saved', (t) => {
@@ -111,7 +124,7 @@ test('put back leaves the audio mode and the strobe\'s settings as they are save
 // A restart must come up whatever it finds. An effect that waits for the
 // photosensitivity acknowledgement (taken back after the look was saved)
 // stays off, as an energy effect does, and the rest of the look comes back:
-// its colours, its masters and its overrides.
+// its colours and its overrides. A saved Blackout stays off, as on every restart.
 test('restoring a look leaves guarded effects off', (t) => {
   const values = settings._values;
   settings._values = { ...values, safety: { ...values.safety, photosensitivityAcknowledged: false } };
@@ -136,7 +149,7 @@ test('restoring a look leaves guarded effects off', (t) => {
 
   assert.equal(putBack(saved), true);
   assert.equal(state.pattern, 'chase', 'the pattern it started on');
-  assert.deepEqual([state.colorB, state.masterBlackout], [6, true], 'the colours and the masters');
+  assert.deepEqual([state.colorB, state.masterBlackout], [6, false], 'the colours, without the saved Blackout');
   assert.equal(state.fixtures.find((f) => f.id === id).override.blackout, true, 'and the overrides');
   assert.ok(warn.mock.calls[0].arguments.join(' '));
 
@@ -147,7 +160,7 @@ test('restoring a look leaves guarded effects off', (t) => {
   assert.ok(warn.mock.calls.at(-1).arguments.join(' '));
 });
 
-test('a guarded saved effect drops its colour edit while restoring Blackout and background', (t) => {
+test('a guarded saved effect drops its colour edit while restoring the background, never Blackout', (t) => {
   const values = settings._values;
   const before = { pattern: state.pattern, masterBlackout: state.masterBlackout,
     background: state.background, running: state.running };
@@ -170,7 +183,7 @@ test('a guarded saved effect drops its colour edit while restoring Blackout and 
   assert.equal(putBack(saved), true);
   assert.equal(state.pattern, 'chase');
   assert.equal(state.effectColours, null, 'the refused effect cannot recolour the fallback');
-  assert.equal(state.masterBlackout, true);
+  assert.equal(state.masterBlackout, false);
   assert.deepEqual(state.background, background);
   assert.equal(state.running, false);
 });

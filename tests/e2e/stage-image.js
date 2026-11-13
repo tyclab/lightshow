@@ -1,6 +1,6 @@
 // Read the presented canvas; an idle WebGL drawing buffer may already have been discarded.
-// Only whole pixels inside the canvas: at a fractional offset an element screenshot rounds
-// outward and takes in a row of the frame's border.
+// Only whole pixels inside the canvas: at a fractional offset an element screenshot rounds outward
+// and takes in a row of the frame's border. The note over a dark stage is no light: it is left out.
 // `remember` keeps this frame's luminance in the page under that name; `against` adds `changed`, the
 // number of pixels whose luminance differs by more than 1 from the frame kept under that name. The
 // Stage redraws only when a light changes, so two frames of a still scene are identical: `changed`
@@ -11,7 +11,7 @@ export async function stageImage(page, { remember = null, against = null } = {})
   const box = await canvas.boundingBox();
   const x = Math.ceil(box.x), y = Math.ceil(box.y);
   const clip = { x, y, width: Math.floor(box.x + box.width) - x, height: Math.floor(box.y + box.height) - y };
-  const png = await page.screenshot({ clip });
+  const png = await page.screenshot({ clip, style: '.stage3d-note.stage-dark { visibility: hidden !important; }' });
   return page.evaluate(([base64, remember, against]) => new Promise((resolve, reject) => {
     const image = new window.Image();
     image.onerror = reject;

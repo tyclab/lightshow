@@ -74,8 +74,33 @@ test('rehearsing on the Stage view: the planned show at any moment, whatever the
   await expect(page.locator('.stage3d-time')).not.toHaveText(pausedAt);
   await page.getByRole('button', { name: 'Pause' }).click();
   await page.getByRole('button', { name: 'Back to live' }).click();
-  await expect(page.locator('.stage3d-tools .panel-tag')).toHaveText('Outputs off');
+  await expect(page.locator('.stage3d-tools .panel-tag')).toHaveText('Blackout');
   await expect.poll(() => litShare(page), { message: 'live, the blackout holds' }).toBeLessThan(0.001);
+});
+
+// The operator, 2026-11-13: the Show stage stayed black, and only a header button read "Restore".
+test('on Show, a dark stage says why: Outputs off names Preview look, Blackout names itself and Restore', async ({ page }) => {
+  await open(page, 'show');
+  const tag = page.locator('.stage3d-tools .panel-tag');
+  const note = page.locator('.stage3d-note.stage-dark');
+  const header = page.locator('.app-header');
+  await expect(tag).toHaveText('Outputs off');
+  await expect(note).toContainText('Outputs off');
+  await expect(note).toContainText('Preview look');
+
+  await header.getByRole('button', { name: 'Blackout', exact: true }).click();
+  await expect(tag).toHaveText('Blackout');
+  await expect(note).toContainText('Blackout is on');
+  await expect(note).toContainText('Restore');
+  const under = await note.evaluate((n) => { const r = n.getBoundingClientRect(); return document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2).className; });
+  expect(under, 'a drag on the note turns the stage').toContain('stage3d-canvas');
+
+  await header.getByRole('button', { name: 'Restore', exact: true }).click();
+  await expect(tag).toHaveText('Outputs off');
+  await expect(note).toContainText('Preview look');
+  await previewLook(page);
+  await expect(tag).toHaveText('Preview (disarmed)');
+  await expect(note, 'a previewed look is drawn: nothing to explain').toHaveCount(0);
 });
 
 test('without WebGL the Stage view says so', async ({ page }) => {
@@ -173,10 +198,20 @@ test('Stage and the fixture plot distinguish disarmed preview from armed output'
     await expect(label).toHaveText('Live output');
     await expect(stage).toHaveAttribute('aria-label', /showing the live output/);
     await expect(page.locator('.look-note')).toContainText('what is going out to the rig now');
+    await control(request, 'blackout');
+    await expect(label, 'armed, Blackout still names itself').toHaveText('Blackout');
+    await expect(stage).toHaveAttribute('aria-label', /Blackout is on, every light is dark/);
+    await control(request, 'restore');
+    await expect(label).toHaveText('Live output');
     await open(page, 'effects');
     const plot = page.locator('.stage-panel .panel-tag');
     await expect(plot).toHaveText('Live output');
     await control(request, 'disarm');
+    await expect(plot).toHaveText('Outputs off');
+    await control(request, 'blackout');
+    await expect(plot).toHaveText('Blackout');
+    await expect(page.locator('.stage-panel .stage-dark')).toContainText('Blackout is on');
+    await control(request, 'restore');
     await expect(plot).toHaveText('Outputs off');
     await previewLook(page);
     await expect(plot).toHaveText('Preview (disarmed)');

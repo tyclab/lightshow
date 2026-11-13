@@ -2998,6 +2998,11 @@ input[type=range]::-moz-range-thumb {
 .section-desc code { font-family: var(--mono); font-size: 11px; }
 .mono { font-family: var(--mono); }
 .panel-tag.warn { color: var(--text-amber); border-color: currentColor; }
+.panel-tag.blackout { background: var(--red); border-color: var(--red); color: #07070e; }
+/* Why the stage is dark, on the stage: Blackout in the header button's red. A drag goes through to the stage. */
+.stage3d-note.stage-dark { pointer-events: none; }
+.stage-dark.blackout { border-color: var(--red); color: var(--text-red); font-weight: 700; }
+.stage3d-note.stage-dark.blackout { inset: 50% 12px auto 12px; transform: translateY(-50%); width: fit-content; max-width: calc(100% - 24px); margin: 0 auto; font-size: 14px; text-align: center; color: var(--red); }
 .panel-tag.ok { color: var(--text-green); border-color: currentColor; }
 
 /* Form controls in the setup views. */
@@ -3973,7 +3978,7 @@ input[type=range]::-moz-range-thumb {
 .global-control { justify-content: center; min-height: 44px; padding: 6px 10px; border-radius: var(--radius-sm); font-size: 13px; }
 .global-control.active { box-shadow: inset 0 -3px currentColor; }
 .global-control.protective { border-color: var(--border-hi); }
-.global-control.blackout-active { background: var(--amber); border-color: var(--amber); color: var(--bg); }
+.global-control.blackout-active { background: var(--red); border-color: var(--red); color: #07070e; }
 .global-play { position: relative; display: flex; }
 .global-play-main { width: 9.5rem; justify-content: flex-start; overflow: hidden; border-radius: var(--radius-sm) 0 0 var(--radius-sm); }
 .global-play-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
@@ -3991,11 +3996,14 @@ input[type=range]::-moz-range-thumb {
 .global-play-list .protective { border-top: 1px solid var(--border); border-radius: 0; margin-top: 4px; }
 .global-freeze { width: 5.5rem; }
 .global-blackout { width: 6.25rem; }
+/* Blackout is unmistakable on the button itself, as Armed is: filled red, the state over the action. */
+.global-blackout.blackout-active { flex-direction: column; gap: 0; line-height: 1.1; box-shadow: var(--glow-red); }
+.global-blackout.blackout-active:hover { background: var(--red); border-color: var(--ink); }
 .global-arm { width: 6rem; flex-direction: column; gap: 0; line-height: 1.1; }
 /* Armed is unmistakable on the button itself: filled red, the state over the action. */
 .global-arm.armed { background: var(--red); border-color: var(--red); color: #07070e; box-shadow: var(--glow-red); }
 .global-arm.armed:hover { background: var(--red); border-color: var(--ink); }
-.global-arm-state { font-size: 10px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
+.global-arm-state, .global-blackout-state { font-size: 10px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; white-space: nowrap; }
 .global-master { display: flex; align-items: center; gap: 6px; min-height: 44px; font-size: 12px; color: var(--text-2); }
 .global-master input { width: 7rem; min-height: 44px; }
 .global-master-value { min-width: 4ch; font-variant-numeric: tabular-nums; text-align: right; color: var(--text); }
@@ -4047,6 +4055,7 @@ input[type=range]::-moz-range-thumb {
   .global-play-main { width: 7.5rem; }
   .global-freeze { width: 4.5rem; }
   .global-blackout { width: 5.25rem; }
+  .global-blackout-state { font-size: 9px; letter-spacing: 0; }
   .global-arm { width: 4.75rem; }
   .global-master input { width: 4rem; }
   .picture-segment.active { min-width: 7rem; }
