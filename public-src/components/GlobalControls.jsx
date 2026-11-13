@@ -103,7 +103,7 @@ export function GlobalControls() {
     <PlayControl c={c} ready={ready} pending={pending} />
     {button(c?.frozen ? 'Resume' : 'Freeze', c?.frozen ? 'resume' : 'freeze', c?.frozen, false,
       'Freeze holds the whole picture. Resume releases the hold; it does not start a stopped programme.', 'freeze')}
-    {button(c?.blackout ? <><span class="global-blackout-state" aria-hidden="true">● Blackout</span><span>Restore</span></> : 'Blackout',
+    {button(c?.blackout ? <><span class="global-blackout-state" aria-hidden="true"><span class="global-blackout-dot">● </span>Blackout</span><span>Restore</span></> : 'Blackout',
       c?.blackout ? 'restore' : 'blackout', c?.blackout, !c?.blackout,
       'Blackout darkens every output. Restore reveals the current picture without changing playback or Freeze.',
       `blackout${c?.blackout ? ' blackout-active' : ''}`, c?.blackout ? 'Restore' : undefined)}

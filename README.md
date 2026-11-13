@@ -179,7 +179,8 @@ the same on every view, including while scrolling through Show:
   one playing carries on.
 - **Freeze/Resume**, **Blackout/Restore** and **Arm/Disarm** keep their own 44 px
   buttons at fixed places. Armed shows on the button itself: filled red, **● Armed**
-  over **Disarm**; so does Blackout, filled red as well: **● Blackout** over **Restore**.
+  over **Disarm**; so does Blackout, filled red as well: **● Blackout** over **Restore**
+  (below 1280 px wide the dot drops, so the word fits).
   **Arm** asks for the photosensitivity acknowledgement every time
   (see [Safety](#safety)); **Disarm** asks nothing.
 - **Master** is the slider and its value.

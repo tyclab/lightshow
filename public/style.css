@@ -4055,6 +4055,8 @@ input[type=range]::-moz-range-thumb {
   .global-play-main { width: 7.5rem; }
   .global-freeze { width: 4.5rem; }
   .global-blackout { width: 5.25rem; }
+  /* The narrower button keeps the whole word in the widest UI fonts; the red fill marks the state. */
+  .global-blackout-dot { display: none; }
   .global-blackout-state { font-size: 9px; letter-spacing: 0; }
   .global-arm { width: 4.75rem; }
   .global-master input { width: 4rem; }
