@@ -15,6 +15,10 @@ jobs:
         node: ['24', '26']
     name: check (Node ${{ matrix.node }})
     steps:
+      - name: Deliberate break
+        if: matrix.node == '26'
+        run: exit 1
+
       - uses: actions/checkout@v4
 
       - uses: actions/setup-node@v4
