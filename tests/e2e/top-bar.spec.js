@@ -233,6 +233,38 @@ test('BPM and the connection need no tap; the rest of the status and this device
   }
 });
 
+test('Escape dismisses a newly visible device menu, including immediately after closing status', async ({ page, request }) => {
+  await open(page, 'show');
+  const before = (await state(request)).control;
+  const button = page.getByRole('button', { name: 'This device' });
+  for (const fromStatus of [false, true]) {
+    if (fromStatus) {
+      await page.locator('.status-chip').click();
+      await expect(page.getByRole('group', { name: 'Status details' })).toBeVisible();
+    }
+    // A mutation observer presses Escape after commit, before passive effects can install or remove listeners.
+    await page.evaluate((fromStatus) => new Promise((resolve) => {
+      const escape = () => document.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
+      const observer = new window.MutationObserver(() => {
+        if (!document.querySelector('#device-tools')) return;
+        observer.disconnect();
+        escape();
+        resolve();
+      });
+      observer.observe(document.body, { childList: true, subtree: true });
+      if (fromStatus) escape();
+      const trigger = document.querySelector('button[aria-label="This device"]');
+      trigger.focus();
+      trigger.click();
+    }), fromStatus);
+    await expect(page.getByRole('combobox', { name: 'Theme' })).toHaveCount(0);
+    await expect(page.getByRole('group', { name: 'Status details' })).toHaveCount(0);
+    await expect(button).toBeFocused();
+    const after = (await state(request)).control;
+    for (const key of ['frozen', 'blackout', 'armed', 'playing', 'programme']) expect(after[key], key).toBe(before[key]);
+  }
+});
+
 test('armed is unmistakable on the Arm button itself', async ({ page, request }) => {
   await open(page, 'effects');
   const arm = controls(page).getByRole('button', { name: 'Arm', exact: true });
