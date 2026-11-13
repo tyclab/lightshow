@@ -160,3 +160,19 @@ jobs:
       # Runtime dependencies only: a dev-only advisory should not fail a show tool's CI.
       - name: Audit runtime dependencies
         run: npm audit --omit=dev
+
+  # The one check the ruleset on main requires, so its name survives a change of
+  # the Node matrix. A job that is not in `needs` does not hold a merge back
+  # (tests/unit/ci-gate.test.js). `always()`: a failed job would otherwise leave
+  # this one skipped, and a skipped required check counts as passed.
+  gate:
+    if: always()
+    needs: [check, e2e, python, audit]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Every job succeeded
+        env:
+          NEEDS: ${{ toJSON(needs) }}
+        run: |
+          jq -r 'to_entries[] | "\(.key): \(.value.result)"' <<<"$NEEDS"
+          jq -e 'all(.[]; .result == "success")' <<<"$NEEDS" >/dev/null

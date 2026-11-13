@@ -6,7 +6,7 @@
   "minimumReleaseAge": "3 days",
   "prHourlyLimit": 2,
   "prConcurrentLimit": 3,
-  "platformAutomerge": false,
+  "platformAutomerge": true,
   "forkProcessing": "enabled",
   "osvVulnerabilityAlerts": true,
   "lockFileMaintenance": {
@@ -15,7 +15,7 @@
   },
   "packageRules": [
     {
-      "description": "Patch, minor, digest and pin updates merge themselves once the branch is green and up to date with main, after the 3-day minimumReleaseAge, as in the sibling repos. Majors and the lock file refresh stay PRs: the refresh takes transitive releases of any age. platformAutomerge is off: main has no branch protection and the repository does not allow auto-merge, so Renovate merges a green, up-to-date branch itself, with a merge commit like every other PR here.",
+      "description": "Patch, minor, digest and pin updates merge themselves once the branch is green and up to date with main, after the 3-day minimumReleaseAge, as in the sibling repos. Majors and the lock file refresh stay PRs: the refresh takes transitive releases of any age. platformAutomerge arms GitHub auto-merge, which main's ruleset holds until the gate job, and with it every CI job, passes on an up-to-date branch; the merge is a merge commit like every other PR here.",
       "matchUpdateTypes": ["patch", "minor", "digest", "pin", "pinDigest"],
       "automerge": true,
       "automergeStrategy": "merge-commit"
