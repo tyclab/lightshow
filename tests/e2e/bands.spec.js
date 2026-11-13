@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test';
 import { open, reset, set, until } from './helpers.js';
 
-// The Bands card: the main effect's colours under Background and the effect, on Show and Effects.
+// The Bands card edits the main effect's colours on Show and Effects.
 const DISCO = 'hd.disco.ambient';
 
 test.beforeEach(async ({ request }) => {
@@ -29,12 +29,12 @@ async function drag(page, from, to) {
 const centre = async (locator) => { const b = await locator.boundingBox(); return { x: b.x + b.width / 2, y: b.y + b.height / 2 }; };
 
 for (const [width, height] of [[1915, 1000], [1024, 768], [390, 844]]) {
-  test(`Show reads Background, Effect, Bands with every band control in reach at ${width} px`, async ({ page }) => {
+  test(`Show reads Background, Bands with every band control in reach at ${width} px`, async ({ page }) => {
     await page.setViewportSize({ width, height });
     await open(page, 'show');
     const order = await page.locator('.show-looks > .card').evaluateAll((cards) => cards.map((card) => card.getAttribute('aria-label')
       || card.querySelector('.card-title')?.textContent));
-    expect(order).toEqual(['Background lighting', 'Effects', 'Bands']);
+    expect(order).toEqual(['Background lighting', 'Bands']);
     const card = page.getByRole('region', { name: 'Bands', exact: true });
     await expect(card.locator('.band-title')).toHaveText(/^Bands(Reset)?$/);
     for (const name of ['Bass', 'Voice', 'Treble']) {
@@ -81,7 +81,8 @@ test('a hue range is two points on the rim: drag one past red and the path wraps
   await bass.getByRole('button', { name: 'Bass colours', exact: true }).click();
   const disc = bass.locator('.colour-wheel-disc');
   const end = bass.getByRole('button', { name: /^Bass colour 2 of 2/ });
-  await drag(page, await centre(end), await wheelAt(disc, 10, 0.6));
+  const destination = await wheelAt(disc, 10, 0.6);
+  await drag(page, await centre(end), destination);
   const dragged = await until(request, (s) => s.effectColours?.bands?.[0]?.maxHue < 2500);
   expect(dragged.effectColours.bands[0].minHue).toBe(43000);
   expect(dragged.effectColours.bands[0].maxHue).toBeGreaterThan(1200);
@@ -116,7 +117,8 @@ test('a band sequence: a palette loads its points, a tap adds, a drag never adds
   await page.waitForTimeout(300);
   expect(await colours()).toHaveLength(3);
   // Dragging the third point out to the rim makes it full cyan.
-  await drag(page, await centre(bass.getByRole('button', { name: /^Bass colour 3 of 3/ })), await wheelAt(disc, 180, 1.1));
+  const outside = await wheelAt(disc, 180, 1.1);
+  await drag(page, await centre(bass.getByRole('button', { name: /^Bass colour 3 of 3/ })), outside);
   await until(request, (s) => s.effectColours?.bands?.[0]?.palette?.join(',') === '#FF0000,#00BFFF,#00FFFF');
   await expect(bass.locator('.colour-wheel-path path')).toHaveAttribute('d', /^M [\d.]+ [\d.]+ L [\d.]+ [\d.]+ L [\d.]+ [\d.]+$/);
   // The list: drag the 3rd above the 1st, then Down on a handle, then remove.
@@ -149,6 +151,12 @@ test('another effect keeps its own palette, chosen from the same list and the sa
       await open(page, view);
       const card = page.getByRole('region', { name: 'Colours', exact: true });
       await expect(card.getByRole('group', { name: 'Bass band' })).toHaveCount(0);
+      if (view === 'show') {
+        const edit = card.getByRole('button', { name: 'Edit effect colours', exact: true });
+        await expect(edit).toHaveAttribute('aria-expanded', 'false');
+        await expect(card.getByLabel('Search Effect palettes')).toHaveCount(0);
+        await edit.click();
+      }
       await card.getByLabel('Search Effect palettes').fill('red');
       await card.locator('[data-palette="redCyan"]').click();
       await until(request, (s) => s.effectColours?.palette?.colours.join(',') === '#FF0000,#00BFFF');

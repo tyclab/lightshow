@@ -4144,6 +4144,8 @@ input[type=range]::-moz-range-thumb {
 }
 .band-strip.open { box-shadow: 0 0 0 2px #5b45e0, inset 0 0 12px rgba(0, 0, 0, .45); }
 .band-strip:focus-visible { outline: .125rem solid var(--accent); outline-offset: .1875rem; }
+.band-palette-toggle { display: flex; align-items: center; justify-content: space-between; }
+.band-strip-label { padding: 3px 8px; border-radius: 12px; background: rgba(0, 0, 0, .75); }
 .band-editor { display: grid; gap: 12px; padding: 12px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface);
   container-type: inline-size; }
 .band-sequence { display: grid; grid-template-columns: minmax(0, 1fr) minmax(200px, 250px); gap: 14px; align-items: start; }

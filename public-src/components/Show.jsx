@@ -1,18 +1,17 @@
 import { StrobesOff } from './Photosensitivity.jsx';
 import { StageView } from './StageView.jsx';
-import { Effects } from './Effects.jsx';
+import { PlayingVoices } from './NowPlaying.jsx';
 import { Bands } from './Bands.jsx';
 import { Background } from './Background.jsx';
 
-// The room and looks share the header's global controls, the picture source among them.
-// The looks read top down as they layer: the Background, the main effect over it, then its colours.
+// The header picker chooses the effect; Show keeps the room and its colour controls.
 export function Show() {
   return (
     <div class="show-view">
       <StrobesOff perform />
       <div class="show-body">
         <div class="show-room"><StageView compact /></div>
-        <div class="show-looks"><Background /><Effects /><Bands /></div>
+        <div class="show-looks"><PlayingVoices stopAll /><Background /><Bands compact /></div>
       </div>
     </div>
   );

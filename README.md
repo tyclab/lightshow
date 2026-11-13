@@ -131,11 +131,15 @@ returns 409. If a Deezer ARL is configured, an unsupervised Node process needs
 ## Views and controls
 
 For a live session, configure the fixtures and their positions in Rig, then
-run the night from Show: the room in 3D as the rig paints it, the looks beside
+run the night from Show: the room in 3D as the rig paints it, the colour controls beside
 it, and the switches that matter along the top — armed or not, what paints the
 room (the effects or the visualizer picture), the auto show on or off,
-blackout and the master. Show stacks the looks as they layer: Background, the
-main effect, then its colours in the Bands card. Effects holds the full catalogue,
+blackout and the master. Choose the main effect through the header picker (or **E**),
+then search and select a look. Show keeps Background and the effect's colours in
+the Bands card beside the room, with stop controls when pads are playing.
+The colour strip opens the wheel and palette choices when needed; effect selection
+and colour editing do not add a permanent catalogue to Show.
+Effects holds the full catalogue, effect editing and mapping controls,
 the same Bands card and fixture overrides; Perform is the tablet surface for pads, strobes, the Matrix board
 and tempo tools; Sequence arranges clips or runs a playlist; Stage shows the
 rig in 3D with its room bindings or a rehearsal. Arming is a separate action

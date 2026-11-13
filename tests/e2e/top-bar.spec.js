@@ -122,8 +122,8 @@ test('switching effects takes two taps from any view, leaves the picker open for
   await expect(segment).toBeFocused();
 });
 
-test('E opens the picker with the search ready, and the search narrows the list', async ({ page, request }) => {
-  await open(page, 'effects');
+test('on Show, E opens the picker with the search ready, and the search narrows the list', async ({ page, request }) => {
+  await open(page, 'show');
   await page.locator('body').press('e');
   const picker = page.getByRole('dialog', { name: 'Main effect' });
   await expect(picker.getByRole('searchbox', { name: 'Find an effect' })).toBeFocused();
