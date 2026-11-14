@@ -107,11 +107,11 @@ const STROBE = {
 };
 const padLabels = (html) => [...html.matchAll(/class="pad-label">([^<]*)</g)].map((m) => m[1]);
 
-test('the Perform view has the bank, the strobe, tap and stop all, and leaves the masters to the header', () => {
+test('the Perform view has the bank, the strobe, tap and Stop pads, and leaves the masters to the header', () => {
   given({});
   const html = ui.html(ui.h(ui.Perform, {}));
   const names = [...html.matchAll(/class="perform-pad-name">([^<]+)</g)].map((m) => m[1]);
-  assert.deepStrictEqual(names, ['Tap', 'Stop all voices']);
+  assert.deepStrictEqual(names, ['Tap', 'Stop pads']);
   assert.deepStrictEqual(padLabels(html), ['Kill', 'Blinder', 'Strobe', 'Colour strobe', 'UV', 'Glow', 'Domino', 'Empty']);
   assert.match(html, /class="strobe-hold"/);
   assert.strictEqual(count(html, 'aria-pressed="true"'), 2, 'the Override destination and Off are pressed');

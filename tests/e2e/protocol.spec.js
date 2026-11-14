@@ -2,7 +2,7 @@
 // changed, and DMX as bytes only while something on screen shows it.
 
 import { test, expect } from '@playwright/test';
-import { open, reset, set, until } from './helpers.js';
+import { open, openFromSetup, reset, set, until } from './helpers.js';
 
 test.beforeEach(async ({ request }) => { await reset(request); });
 
@@ -38,7 +38,7 @@ test('DMX flows only while a view that draws it is on screen', async ({ page }) 
   await open(page, 'perform');
   await page.waitForTimeout(600);
   expect(seen.frames, 'Perform draws no DMX').toBe(0);
-  await page.getByRole('tab', { name: /Effects/ }).click();
+  await openFromSetup(page, 'Effect settings');
   await expect.poll(() => seen.frames, { timeout: 3000 }).toBeGreaterThan(0);
 });
 

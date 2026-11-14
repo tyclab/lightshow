@@ -29,7 +29,8 @@ import { SourcesView } from './components/setup/SourcesView.jsx';
 import { SettingsView } from './components/setup/SettingsView.jsx';
 import { PreflightView } from './components/setup/PreflightView.jsx';
 
-import { VIEWS, VIEW_IDS, viewShortcut, resolveRoute } from './views.js';
+import { VIEWS, VIEW_IDS, STRIP_VIEWS, SETUP_VIEWS, viewShortcut, resolveRoute } from './views.js';
+import { useDismiss } from './popover.js';
 import { pageTitle } from './brand.js';
 
 const viewOfHash = () => resolveRoute(window.location.hash)?.view;
@@ -53,41 +54,30 @@ function rememberView(mode) {
   if (window.location.hash !== `#${path}`) window.history.replaceState(null, '', `#${path}`);
 }
 
+// The tabs are one stop in the tab order: the arrow keys, Home and End move between
+// them (the ARIA tabs pattern). With a Setup view open no tab is selected and the first is the stop.
 function ModeTabs({ mode, setMode }) {
   // Subscribes here rather than in Root, so an auto-show status change re-renders
-  // this tab strip alone instead of the whole tree.
-  const strip = useRef(null);
-  // Measured in the next frame, whose layout is due anyway: read here, offsetLeft
-  // forced layout of the view that had just mounted.
-  useEffect(() => {
-    const frame = requestAnimationFrame(() => {
-      const tab = document.getElementById(`tab-${mode}`);
-      if (tab && strip.current) strip.current.scrollLeft = tab.offsetLeft - strip.current.offsetLeft;
-    });
-    return () => cancelAnimationFrame(frame);
-  }, [mode]);
+  // this strip alone instead of the whole tree.
   const autoShow = field('autoShow').value;
   const autoActive = !!(autoShow && autoShow.status && autoShow.status !== 'idle');
+  const stop = STRIP_VIEWS.some((v) => v.id === mode) ? mode : STRIP_VIEWS[0].id;
 
-  // A tab strip is one stop in the tab order: the arrow keys, Home and End
-  // move between its tabs (the ARIA tabs pattern).
   const onKeyDown = (e) => {
-    const at = VIEW_IDS.indexOf(mode);
-    const to = e.key === 'ArrowRight' ? (at + 1) % VIEWS.length
-      : e.key === 'ArrowLeft' ? (at - 1 + VIEWS.length) % VIEWS.length
-        : e.key === 'Home' ? 0 : e.key === 'End' ? VIEWS.length - 1 : -1;
-    if (to < 0) return;
+    const at = STRIP_VIEWS.findIndex((v) => `tab-${v.id}` === e.target.id);
+    const n = STRIP_VIEWS.length;
+    const to = e.key === 'ArrowRight' ? (at + 1) % n : e.key === 'ArrowLeft' ? (at - 1 + n) % n
+      : e.key === 'Home' ? 0 : e.key === 'End' ? n - 1 : -1;
+    if (at < 0 || to < 0) return;
     e.preventDefault();
-    setMode(VIEW_IDS[to]);
-    document.getElementById(`tab-${VIEW_IDS[to]}`)?.focus();
+    setMode(STRIP_VIEWS[to].id);
+    document.getElementById(`tab-${STRIP_VIEWS[to].id}`)?.focus();
   };
 
   return (
     <>
-      <button class="mode-scroll" type="button" aria-label="Scroll views left" onClick={() => strip.current.scrollBy({ left: -strip.current.clientWidth })}>‹</button>
-      <div ref={strip} class={`mode-tabs in-${mode}`} role="tablist" aria-label="Views" onKeyDown={onKeyDown}>
-        {VIEWS.map((v, i) => [
-          i > 0 && VIEWS[i - 1].group !== v.group && <span key={`sep-${v.id}`} class="mode-tab-sep" role="presentation" />,
+      <div class="mode-tabs" role="tablist" aria-label="Views" onKeyDown={onKeyDown}>
+        {STRIP_VIEWS.map((v) => (
           <button
             key={v.id}
             id={`tab-${v.id}`}
@@ -95,20 +85,95 @@ function ModeTabs({ mode, setMode }) {
             type="button"
             aria-selected={mode === v.id}
             aria-controls={`panel-${v.id}`}
-            tabIndex={mode === v.id ? 0 : -1}
+            tabIndex={stop === v.id ? 0 : -1}
             class={`mode-tab ${mode === v.id ? 'active' : ''}`}
             onClick={() => setMode(v.id)}
           >
             <span class="mode-tab-icon" aria-hidden="true">{v.icon}</span>
             <span class="mode-tab-label">{v.label}</span>
-            <span class="mode-tab-hint">{v.id === 'auto' && autoActive ? 'Running' : v.hint}</span>
-            {v.id === 'auto' && autoActive && <span class="mode-tab-dot" aria-hidden="true" />}
-            {v.key && <kbd class="mode-tab-key" aria-hidden="true">{v.shift ? '⇧' : ''}{v.key}</kbd>}
-          </button>,
-        ])}
+          </button>
+        ))}
       </div>
-      <button class="mode-scroll" type="button" aria-label="Scroll views right" onClick={() => strip.current.scrollBy({ left: strip.current.clientWidth })}>›</button>
+      <SetupMenu mode={mode} setMode={setMode} autoActive={autoActive} />
     </>
+  );
+}
+
+// A menu button (the ARIA menu button pattern): Enter, Space and ArrowDown open it on its
+// first entry, ArrowUp on its last; the arrows, Home and End move; Escape and a choice give focus back.
+function SetupMenu({ mode, setMode, autoActive }) {
+  const [open, setOpen] = useState(false);
+  const [focusAt, setFocusAt] = useState(0);
+  const trigger = useRef(null);
+  const menu = useRef(null);
+  useDismiss(open, () => setOpen(false), trigger, menu);
+  useEffect(() => { setOpen(false); }, [mode]);
+  useEffect(() => {
+    if (open) menu.current?.querySelectorAll('[role="menuitem"]')[focusAt]?.focus();
+  }, [open]);
+  const current = SETUP_VIEWS.find((v) => v.id === mode);
+  const show = (at) => { setFocusAt(at); setOpen(true); };
+  const onButtonKey = (e) => {
+    if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
+    e.preventDefault();
+    show(e.key === 'ArrowUp' ? SETUP_VIEWS.length - 1 : 0);
+  };
+  const onMenuKey = (e) => {
+    const items = [...menu.current.querySelectorAll('[role="menuitem"]')];
+    const at = items.indexOf(document.activeElement);
+    const to = e.key === 'ArrowDown' ? (at + 1) % items.length : e.key === 'ArrowUp' ? (at <= 0 ? items.length - 1 : at - 1)
+      : e.key === 'Home' ? 0 : e.key === 'End' ? items.length - 1 : -1;
+    if (e.key === 'Tab') setOpen(false);
+    if (to < 0) return;
+    e.preventDefault();
+    items[to].focus();
+  };
+  const choose = (id) => { setOpen(false); trigger.current?.focus(); setMode(id); };
+
+  return (
+    <div class="mode-setup">
+      <button
+        ref={trigger}
+        type="button"
+        class={`mode-tab mode-setup-button ${current ? 'active' : ''}`}
+        aria-haspopup="menu"
+        aria-expanded={open}
+        title={autoActive ? 'Auto Show: Running' : undefined}
+        onClick={() => (open ? setOpen(false) : show(0))}
+        onKeyDown={onButtonKey}
+      >
+        <span class="mode-tab-label">Setup</span>
+        {current && <>{' '}<span class="mode-setup-current"><span aria-hidden="true">· </span>{current.label}</span></>}
+        {autoActive && <span class="mode-tab-dot" aria-hidden="true" />}
+        <span class="mode-setup-caret" aria-hidden="true">▾</span>
+      </button>
+      {open && (
+        <div ref={menu} class="mode-setup-menu" role="menu" aria-label="Setup" onKeyDown={onMenuKey}>
+          {SETUP_VIEWS.map((v, i) => [
+            i > 0 && SETUP_VIEWS[i - 1].group !== v.group && <div key={`sep-${v.id}`} class="mode-setup-sep" role="separator" />,
+            <button
+              key={v.id}
+              type="button"
+              role="menuitem"
+              tabIndex={-1}
+              class="mode-setup-item"
+              aria-current={mode === v.id ? 'page' : undefined}
+              aria-describedby={`setup-hint-${v.id}`}
+              aria-keyshortcuts={v.key}
+              onClick={() => choose(v.id)}
+            >
+              <span class="mode-tab-icon" aria-hidden="true">{v.icon}</span>
+              <span class="mode-setup-name">{v.label}</span>
+              <span id={`setup-hint-${v.id}`} class="mode-setup-hint" aria-hidden="true">
+                {v.id === 'auto' && autoActive ? 'Running' : v.hint}
+                {v.id === 'auto' && autoActive && <span class="mode-tab-dot" />}
+              </span>
+              <kbd class="mode-setup-key" aria-hidden="true">{v.key}</kbd>
+            </button>,
+          ])}
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -224,7 +289,11 @@ function Root() {
         <ModeTabs mode={mode} setMode={setMode} />
       </nav>
       <main id="main" class={`mode-${mode}`}>
-        <div id={`panel-${mode}`} class="view-panel" role="tabpanel" aria-labelledby={`tab-${mode}`} tabIndex={-1}>
+        {/* A view behind the Setup menu has no tab to name its panel, so it names itself; a group,
+            not a landmark, so its own landmarks stay top-level and unique. */}
+        <div id={`panel-${mode}`} class="view-panel" tabIndex={-1} {...(STRIP_VIEWS.some((v) => v.id === mode)
+          ? { role: 'tabpanel', 'aria-labelledby': `tab-${mode}` }
+          : { role: 'group', 'aria-label': VIEWS.find((v) => v.id === mode)?.label })}>
           <Panel />
         </div>
       </main>

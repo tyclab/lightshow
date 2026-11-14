@@ -28,6 +28,12 @@ export async function armFromHeader(page) {
   await page.getByRole('alertdialog', { name: 'Rapid flashing' }).getByRole('button', { name: 'I understand — arm' }).click();
 }
 
+/** A view that is not Show or Perform, opened from the Setup menu by the name it lists. */
+export async function openFromSetup(page, name) {
+  await page.getByRole('navigation', { name: 'Views' }).getByRole('button', { name: /^Setup/ }).click();
+  await page.getByRole('menu', { name: 'Setup' }).getByRole('menuitem', { name, exact: true }).click();
+}
+
 /** The look every spec starts from. */
 export async function reset(request) {
   await control(request, 'stop');

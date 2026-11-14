@@ -191,12 +191,12 @@ test('blackout, palettes and the master', async ({ page, request }) => {
   expect(chosen.palette).toBeTruthy();
 });
 
-test('stop all voices ends every voice and the look plays on', async ({ page, request }) => {
+test('Stop pads ends every voice and the look plays on', async ({ page, request }) => {
   await open(page, 'perform');
   const res = await request.post('/api/voices', { data: { preset: 'hd.auroraDrift', mode: 'latched' } });
   expect(res.ok()).toBe(true);
   await until(request, (s) => s.voices.length === 1);
-  await page.getByRole('button', { name: 'Stop all voices' }).click();
+  await page.getByRole('button', { name: 'Stop pads', exact: true }).click();
   const after = await until(request, (s) => s.voices.length === 0);
   expect([after.running, after.pattern]).toEqual([true, 'chase']);
 });

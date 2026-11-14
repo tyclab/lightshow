@@ -1,9 +1,9 @@
-// Show first: the room, the looks and the switches a party needs. The digits
-// follow the strip, the tenth view on 0.
+// Show and Perform are the strip's tabs; every other view is an entry of its Setup menu.
+// The digits keep the order of the ten views, the tenth on 0.
 export const VIEWS = [
-  { id: 'show', key: '1', icon: '◉', label: 'Show', hint: 'Room · Looks · Arm', group: 'live' },
-  { id: 'effects', key: '2', icon: '◧', label: 'Effects', hint: 'Look · Colours · Fixtures', group: 'live' },
-  { id: 'perform', key: '3', icon: '⊞', label: 'Perform', hint: 'Pads · Strobe · Matrix', group: 'live' },
+  { id: 'show', key: '1', icon: '◉', label: 'Show', hint: 'Room · Looks · Arm', group: 'live', strip: true },
+  { id: 'effects', key: '2', icon: '◧', label: 'Effect settings', hint: 'Look · Colours · Fixtures', group: 'live' },
+  { id: 'perform', key: '3', icon: '⊞', label: 'Perform', hint: 'Pads · Strobe · Matrix', group: 'live', strip: true },
   { id: 'stage', key: '4', icon: '◭', label: 'Stage', hint: 'The rig in 3D · Room', group: 'live' },
   { id: 'auto', key: '5', icon: '✦', label: 'Auto Show', hint: 'Music · Timeline · Rehearse', group: 'live' },
   { id: 'sequence', key: '6', icon: '▤', label: 'Sequence', hint: 'Lanes · Patterns · Record', group: 'live' },
@@ -13,6 +13,8 @@ export const VIEWS = [
   { id: 'preflight', key: '0', icon: '✓', label: 'Preflight', hint: 'Pre-show check', group: 'setup' },
 ];
 export const VIEW_IDS = VIEWS.map((v) => v.id);
+export const STRIP_VIEWS = VIEWS.filter((v) => v.strip);
+export const SETUP_VIEWS = VIEWS.filter((v) => !v.strip);
 
 export function viewShortcut(event) {
   if (event.repeat || event.defaultPrevented || event.ctrlKey || event.altKey || event.metaKey) return null;
