@@ -12,6 +12,11 @@ import { BUILTIN_PROFILE_ID } from '../../src/server/profiles.ts';
 import AutoShow from '../../src/auto-show.ts';
 import { COLOR_PRESETS, PATTERNS } from '../../src/server/presets.ts';
 
+// The integrations a test builds, their timers stopped after it.
+const built = [];
+const remember = (integrations) => { built.push(integrations); return integrations; };
+test.afterEach(() => { for (const integrations of built.splice(0)) integrations.stopTimers(); });
+
 function source(extra = {}) {
   return {
     authenticated: false, configured: true,
@@ -25,14 +30,14 @@ function build(autoShow) {
     getNumPeers: () => 0, getFollowed: () => null, getTrack: () => null, getLoadedTracks: () => [], getTempo: () => 0, getPositionMs: () => 0,
     onTempoChange() {}, onPeersChange() {}, onFollowChange() {}, onTrackChange() {}, onLoadedTracksChange() {}, onAnyTrackLoaded() {},
   };
-  return setupIntegrations({
+  return remember(setupIntegrations({
     io: { emit() {} },
     midi: { enabled: false, sendFeedback() {}, listPorts: () => [] },
     spotify: source({ startPolling() {}, async getQueue() { return []; } }),
     nowPlaying: source(),
     deezerSource: source({ getQueue: () => [], updatePlayback() {}, updateQueue() {}, disconnect() {} }),
     prolink, autoShow,
-  });
+  }));
 }
 
 /** Thirty-two lamps around the room at three heights: the particle presets cover them. */

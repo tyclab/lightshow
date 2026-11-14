@@ -13,6 +13,11 @@ import { setupIntegrations } from '../../src/server/integrations.ts';
 import { state } from '../../src/server/state.ts';
 import { applyPatch } from '../../src/server/patch.ts';
 
+// The integrations a test builds, their timers stopped after it.
+const built = [];
+const remember = (integrations) => { built.push(integrations); return integrations; };
+test.afterEach(() => { for (const integrations of built.splice(0)) integrations.stopTimers(); });
+
 function director({ refuse = () => null } = {}) {
   const patches = [];
   const timers = [];
@@ -223,13 +228,13 @@ function rig({ listening = true } = {}) {
     getLoadedTracks: () => [], getTempo: () => 0, getPositionMs: () => 0,
     onTempoChange() {}, onPeersChange() {}, onFollowChange() {}, onTrackChange() {}, onLoadedTracksChange() {}, onAnyTrackLoaded() {},
   };
-  const integrations = setupIntegrations({
+  const integrations = remember(setupIntegrations({
     io: { emit() {} }, midi: { enabled: false, sendFeedback() {}, listPorts: () => [] },
     spotify: { ...idle, startPolling() {}, async getQueue() { return []; } },
     nowPlaying: idle,
     deezerSource: { ...idle, getQueue: () => [], updatePlayback() {}, updateQueue() {}, disconnect() {} },
     prolink, autoShow, liveInput,
-  });
+  }));
   return { integrations, autoShow, handlers };
 }
 

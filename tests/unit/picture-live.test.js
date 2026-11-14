@@ -12,6 +12,11 @@ import { isArmed } from '../../src/server/armed.ts';
 import { setArmed } from '../../src/server/output.ts';
 import { acknowledgeFlashes } from '../helpers/acknowledged.js';
 
+// The integrations a test builds, their timers stopped after it.
+const built = [];
+const remember = (integrations) => { built.push(integrations); return integrations; };
+test.afterEach(() => { for (const integrations of built.splice(0)) integrations.stopTimers(); });
+
 test('cached picture geometry follows placement and profile edits and revokes stale leases', () => {
   const fixtures = state.fixtures, armed = isArmed(), restoreSafety = acknowledgeFlashes();
   const profile = (cells) => barProfile({ id: 'picture-cache-bar', name: 'Picture bar', cells, firstChannel: 1, order: 'RGB' });
@@ -70,7 +75,7 @@ test('cached picture geometry follows placement and profile edits and revokes st
 });
 
 const idle = { onPlaybackUpdate() {}, onTrackChange() {}, getStatus: () => ({}), authenticated: false };
-const integrations = () => setupIntegrations({
+const integrations = () => remember(setupIntegrations({
   io: new Server(),
   midi: { enabled: false, sendFeedback() {}, listPorts: () => [], onLearn() {}, close() {}, connect() { return true; }, setControlFeedback() {} },
   spotify: { ...idle, startPolling() {}, async getQueue() { return []; } },
@@ -87,7 +92,7 @@ const integrations = () => setupIntegrations({
     isCached: () => false, gridFor: () => null, isPrefetching: () => false,
     applyQueueOrder() {}, setPaletteSize() {}, setIntensity() {}, setSyncOffsetMs() {}, adjustAutoSync() {},
   },
-});
+}));
 
 // The sender paints at up to 44 fps; the Stage's screens need far fewer, and
 // every relay is a 7 KB write to each page on the picture topic.

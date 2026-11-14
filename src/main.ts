@@ -343,6 +343,7 @@ function shutdown(signal: string, exitCode = 0): void {
     ['midi', () => midi.close()],
     ['show', () => showStore.save()],
     ['sequence workspace', () => integrations.sequence.workspace?.close()],
+    ['integration timers', () => integrations.stopTimers()],
     ['settings', () => flushPendingPersist()],
   ] as [string, () => unknown][]) {
     try { fn(); } catch (err) { console.warn(`[shutdown] ${what}: ${messageOf(err)}`); }

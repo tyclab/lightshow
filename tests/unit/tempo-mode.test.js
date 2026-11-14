@@ -726,7 +726,7 @@ test('deck reports cannot alter a manually held readout', () => {
     gridFor: () => null, isPrefetching: () => false, applyQueueOrder() {}, setPaletteSize() {}, setIntensity() {},
     setSyncOffsetMs() {}, setExactAudio() {},
   };
-  setupIntegrations({
+  const integrations = setupIntegrations({
     io: { emit() {} }, midi: { enabled: false, sendFeedback() {}, listPorts: () => [] },
     spotify: { ...idle, startPolling() {}, async getQueue() { return []; } }, nowPlaying: idle,
     deezerSource: { ...idle, getQueue: () => [], updatePlayback() {}, updateQueue() {}, disconnect() {} },
@@ -759,6 +759,7 @@ test('deck reports cannot alter a manually held readout', () => {
     reportTempo(124);
     assert.deepStrictEqual([state.bpm, conductor.now().source, conductor.now().bpm], [124, 'tap', 124]);
   } finally {
+    integrations.stopTimers();
     conductor.setProlinkSource(null);
     conductor.onTempo(null);
     state.prolinkEnabled = was.prolinkEnabled;

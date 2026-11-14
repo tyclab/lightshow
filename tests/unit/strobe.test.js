@@ -6,6 +6,7 @@
 
 import test from 'node:test';
 import { installControlRuntime, sendControl } from './control-runtime-helpers.js';
+import { liveIntervals } from '../helpers/live-intervals.js';
 import { armOutputs } from '../helpers/armed.js';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -535,6 +536,7 @@ async function serve(t) {
     settings._values = values;
     if (ownSave) settings.save = ownSave;
     else delete settings.save;
+    integrations.stopTimers();
     io.close();
     await new Promise((r) => server.close(r));
     fs.rmSync(dir, { recursive: true, force: true });
@@ -967,3 +969,14 @@ for (const fn of ['ramp-up', 'random', 'break']) {
     await gone(s);
   });
 }
+
+// Each server's integrations run interval timers (the feeds, the status broadcast); its teardown stops them.
+test('a server runs its integrations\' interval timers while it is up', async (t) => {
+  assert.equal(liveIntervals(), 0, 'none left over from the tests before');
+  await serve(t);
+  assert.equal(liveIntervals(), 6, 'five from the integrations, one from Node\'s HTTP server checking its connections');
+});
+
+test('no interval timer outlives the server torn down before it', () => {
+  assert.equal(liveIntervals(), 0);
+});

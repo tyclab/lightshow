@@ -15,6 +15,11 @@ import { audioToTempWav } from '../../src/audio-file.ts';
 import { setupIntegrations } from '../../src/server/integrations.ts';
 import ProLink from '../../src/prolink.ts';
 
+// The integrations a test builds, their timers stopped after it.
+const built = [];
+const remember = (integrations) => { built.push(integrations); return integrations; };
+test.afterEach(() => { for (const integrations of built.splice(0)) integrations.stopTimers(); });
+
 const TRACK = { trackId: 7, deviceId: 2, slot: 3, trackType: 1, title: 'Song', artist: 'Artist', durationMs: 301400, fileName: 'Song.aiff' };
 
 test('the file\'s analysis has a key of its own, and needs a name to have one', () => {
@@ -135,13 +140,13 @@ function rig({ canFetch = true, fetched = { data: Buffer.from('audio'), fileName
       return { skipped: false };
     },
   };
-  const integrations = setupIntegrations({
+  const integrations = remember(setupIntegrations({
     io: { emit() {} }, midi: { enabled: false, sendFeedback() {}, listPorts: () => [] },
     spotify: { ...idle, startPolling() {}, async getQueue() { return []; } },
     nowPlaying: idle,
     deezerSource: { ...idle, getQueue: () => [], updatePlayback() {}, updateQueue() {}, disconnect() {} },
     prolink, autoShow,
-  });
+  }));
   return { integrations, prolink, calls };
 }
 

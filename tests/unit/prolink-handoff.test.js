@@ -10,6 +10,11 @@ import AutoShow from '../../src/auto-show.ts';
 import { setupIntegrations } from '../../src/server/integrations.ts';
 import { state } from '../../src/server/state.ts';
 
+// The integrations a test builds, their timers stopped after it.
+const built = [];
+const remember = (integrations) => { built.push(integrations); return integrations; };
+test.afterEach(() => { for (const integrations of built.splice(0)) integrations.stopTimers(); });
+
 state.autoSource = 'prolink';
 
 test('a show started to crossfade fades into its first scene, once', () => {
@@ -82,13 +87,13 @@ function rig() {
       return { analysis: {}, cached: true };
     },
   };
-  const integrations = setupIntegrations({
+  const integrations = remember(setupIntegrations({
     io: { emit() {} }, midi: { enabled: false, sendFeedback() {}, listPorts: () => [] },
     spotify: { ...idle, startPolling() {}, async getQueue() { return []; } },
     nowPlaying: idle,
     deezerSource: { ...idle, getQueue: () => [], updatePlayback() {}, updateQueue() {}, disconnect() {} },
     prolink, autoShow,
-  });
+  }));
   const track = (id, title) => ({ trackId: id, deviceId: id, slot: 3, title, artist: 'DJ', durationMs: 300000 });
   const release = async (key) => {
     for (let i = 0; i < 20 && !gates.has(key); i++) await new Promise((r) => setImmediate(r));

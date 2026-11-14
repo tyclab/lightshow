@@ -97,6 +97,7 @@ async function serve(t, { cues } = {}) {
     if (ownSave) settings.save = ownSave;
     else delete settings.save;
     applyPatch({ pattern, energyOverride: null, paletteOverride: null });
+    integrations.stopTimers();
     io.close();
     await new Promise((r) => server.close(r));
     fs.rmSync(dir, { recursive: true, force: true });
