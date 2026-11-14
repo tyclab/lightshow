@@ -135,7 +135,11 @@ run the night from Show: the room in 3D as the rig paints it, the effects beside
 it, and the switches that matter along the top — armed or not, what paints the
 room (the effects or the visualizer picture), the auto show on or off,
 blackout and the master. Choose the main effect from the searchable, scrolling box
-beside the stage, with the current effect always shown above the search. The header
+beside the stage, with the chosen effect always shown above the search: **Current effect**
+while the show plays and is not frozen, otherwise **Selected effect** with a line saying when it
+plays (after Resume, or when the show plays). While the **Visualizer** source has a picture
+arriving the box says so in one sentence instead; the list returns when the picture stops or
+when **Effects** is chosen in the header. The header
 picker (or **E**) remains available on every view. Colours sits under the stage:
 the wheel, colour order and palette list stay visible, and **Colour wheel** at the
 card's top right folds only the wheel. Background ends the right column beside

@@ -22,6 +22,7 @@ async function load() {
         export { store } from './public-src/state.js';
         export { Perform, sourceHealth } from './public-src/components/Perform.jsx';
         export { Show } from './public-src/components/Show.jsx';
+        export { effectsBox } from './public-src/components/ShowEffects.jsx';
         export { Header, StatusDetails } from './public-src/components/Header.jsx';
         export { PictureSource, pickerKey, pickerOpenSig } from './public-src/components/PictureSource.jsx';
         export { EffectPicker } from './public-src/components/EffectPicker.jsx';
@@ -1304,6 +1305,42 @@ test('the Colours card gives way to one line while the picture sets the colours'
   assert.doesNotMatch(card, /Colour order|Effect palette|palette-list/, 'no colour controls that change nothing');
   givenLibrary({ picture: { source: 'effects', input: receiving } });
   assert.doesNotMatch(ui.html(ui.h(ui.Bands)), /Colours follow the picture/);
+});
+
+test('Show\'s Effects box names the main effect as current only while it plays, and gives way to one sentence while the Visualizer picture arrives', () => {
+  const picture = 'the Visualizer picture paints the room; the main effect shows again when the picture stops or when Effects is chosen in the header.';
+  const rows = [
+    // running, frozen, source, receiving → what the box says
+    [true, false, 'effects', false, { picture: false, label: 'Current effect', hint: null }],
+    [true, false, 'visualizer', false, { picture: false, label: 'Current effect', hint: null }],
+    [true, false, 'inspired', true, { picture: false, label: 'Current effect', hint: null }],
+    [true, false, 'squid', true, { picture: false, label: 'Current effect', hint: null }],
+    [true, true, 'effects', false, { picture: false, label: 'Selected effect', hint: 'The picture is frozen. The selected effect plays after Resume.' }],
+    [false, false, 'effects', false, { picture: false, label: 'Selected effect', hint: 'The show is stopped. The selected effect plays when the show plays.' }],
+    [false, true, 'inspired', true, { picture: false, label: 'Selected effect',
+      hint: 'The picture is frozen and the show is stopped. The selected effect plays after Resume and play.' }],
+    [true, false, 'visualizer', true, { picture: true, text: `T${picture.slice(1)}` }],
+    [true, true, 'visualizer', true, { picture: true, text: `The picture is frozen. After Resume, ${picture}` }],
+    [false, false, 'visualizer', true, { picture: true, text: `The show is stopped. When the show plays, ${picture}` }],
+    [false, true, 'visualizer', true, { picture: true, text: `The picture is frozen and the show is stopped. After Resume and play, ${picture}` }],
+  ];
+  for (const [running, frozen, source, receiving, want] of rows) {
+    assert.deepStrictEqual(ui.effectsBox({ running, frozen, source, receiving }), want, JSON.stringify({ running, frozen, source, receiving }));
+  }
+
+  const effects = (html) => /<section class="card contained-effects[^"]*"[^>]*>(.*?)<\/section>/s.exec(html)[1];
+  givenLibrary({ running: true, picture: { source: 'visualizer', input: { units: 4, receiving: true } }, armed: true });
+  const painting = ui.html(ui.h(ui.Show));
+  assert.match(painting, /class="show-body picture"/);
+  assert.strictEqual(effects(painting).replace(/<[^>]+>/g, ''), `EffectsT${picture.slice(1)}`, 'the title and one sentence: no list, search or switch');
+  givenLibrary({ running: true, picture: { source: 'inspired', input: { units: 4, receiving: true } }, armed: true });
+  const listed = ui.html(ui.h(ui.Show));
+  assert.match(listed, /class="show-body"/);
+  assert.match(effects(listed), /Current effect.*Search effects.*class="contained-row"/s);
+  assert.doesNotMatch(effects(listed), /picture paints the room|class="hint/);
+  givenLibrary({ running: false, control: { version: 1, frozen: true, blackout: false, armed: false }, picture: { source: 'effects', input: null } });
+  assert.match(effects(ui.html(ui.h(ui.Show))),
+    /<p class="hint contained-hint" role="status">The picture is frozen and the show is stopped\. The selected effect plays after Resume and play\.<\/p>.*Selected effect/s);
 });
 
 test('Perform lifts and grades the visualizer picture while it paints the room, and only then', () => {

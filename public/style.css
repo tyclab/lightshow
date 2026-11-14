@@ -814,6 +814,7 @@ button.cb-bpm-num:focus-visible { outline: .125rem solid var(--accent); outline-
 .contained-empty { padding: 36px 18px; text-align: center; color: var(--muted); font-size: 12px; line-height: 1.7; }
 .contained-empty strong { display: block; color: var(--text); font-weight: 600; }
 .contained-help { margin: 8px 0 0; font-size: 10px; line-height: 1.5; color: var(--muted); }
+.contained-hint { margin-bottom: .86rem; }
 @media (max-width: 600px) {
   .contained-scroll { height: 234px; }
   .contained-current-context { max-width: 85px; }
@@ -849,6 +850,9 @@ main.mode-show { padding-bottom: 24px; }
   .show-body > .contained-effects { grid-area: effects; min-height: 350px; display: flex; flex-direction: column; }
   .show-body .contained-scroll { flex: 1 1 0; height: auto; min-height: 120px; }
   .show-body > .background-controls { grid-area: background; }
+  /* The Visualizer picture paints: the one-line cards keep their height, Background follows the Effects line. */
+  .show-body.picture { grid-template-rows: auto auto 1fr auto; grid-template-areas: "stage effects" "stage background" "stage ." "colours ."; }
+  .show-body.picture > .contained-effects { min-height: 0; }
 }
 
 /* =============================================================
