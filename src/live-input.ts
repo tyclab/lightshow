@@ -68,6 +68,17 @@ export interface LiveEvent {
   data?: Record<string, unknown>;
 }
 
+/** A block of the live input as heard: mono 16-bit little-endian, `end` the stream's sample count after its newest. */
+export interface LiveSamples {
+  generation: number;
+  end: number;
+  rate: number;
+  data: Buffer;
+}
+
+// A quiet capture reads eight hops at a time; anything far past that is not a block of this service's.
+const MAX_SAMPLES_BASE64 = 65536;
+
 export interface LiveStatus {
   running: boolean;
   listening: boolean;
@@ -133,6 +144,8 @@ class LiveInput {
   declare _carried: LiveCause | null;
   declare _layout: string;
   declare _quiet: boolean;
+  declare _samplesWanted: boolean;
+  declare _onSamples: ((block: LiveSamples) => void) | null;
 
   constructor({ spawner, now, scriptPath }: { spawner?: Spawner; now?: () => number; scriptPath?: string } = {}) {
     this._now = now || (() => performance.now());
@@ -161,11 +174,26 @@ class LiveInput {
     this._carried = null;
     this._layout = '';
     this._quiet = false;
+    this._samplesWanted = false;
+    this._onSamples = null;
   }
 
   onEvent(fn: LiveInput['_onEvent']): void { this._onEvent = fn; }
   onReading(fn: LiveInput['_onReading']): void { this._onReading = fn; }
   onStatus(fn: LiveInput['_onStatus']): void { this._onStatus = fn; }
+  onSamples(fn: LiveInput['_onSamples']): void { this._onSamples = fn; }
+
+  /** The process sends the samples it hears only while asked, and the ask outlives a restart. */
+  wantSamples(on: boolean): void {
+    if (this._samplesWanted === on) return;
+    this._samplesWanted = on;
+    this._askSamples();
+  }
+
+  _askSamples(): void {
+    const stdin = this._proc?.stdin;
+    if (stdin && stdin.writable) stdin.write(`${JSON.stringify({ type: 'pcm', on: this._samplesWanted })}\n`);
+  }
 
   useBands(source: (() => [number, number][]) | null): void { this._bandSource = source; }
 
@@ -251,6 +279,7 @@ class LiveInput {
     this._rl = rl;
     rl.on('line', (line) => { if (this._proc === proc) this.handleLine(line); });
     proc.stdin?.on('error', () => {});
+    if (this._samplesWanted) this._askSamples();
     let stderr = '';
     proc.stderr.on('data', (d: Buffer) => { if (stderr.length < 4096) stderr += d.toString(); });
     proc.on('error', (err) => { if (this._proc === proc) this._fail(`live input: ${err.message}`); });
@@ -316,6 +345,9 @@ class LiveInput {
       case 'bands':
         if (typeof msg.bands === 'string') this._layout = msg.bands;
         break;
+      case 'pcm':
+        if (this._samplesWanted && this._onSamples && typeof msg.data === 'string') this._takeSamples(msg);
+        break;
       case 'error':
         this._error = typeof msg.message === 'string' ? msg.message : 'live input error';
         console.warn(`[live] ${this._error}`);
@@ -329,6 +361,14 @@ class LiveInput {
       default:
         break;
     }
+  }
+
+  _takeSamples(msg: Record<string, unknown>): void {
+    const { end, rate, data } = msg as { end: unknown; rate: unknown; data: string };
+    if (!Number.isSafeInteger(end) || !Number.isInteger(rate) || (rate as number) <= 0 || data.length > MAX_SAMPLES_BASE64) return;
+    const bytes = Buffer.from(data, 'base64');
+    if (!bytes.length || bytes.length % 2 || bytes.length / 2 > (end as number)) return;
+    this._onSamples!({ generation: this._generation, end: end as number, rate: rate as number, data: bytes });
   }
 
   _takeReading(r: LiveReading): void {

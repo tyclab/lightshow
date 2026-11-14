@@ -732,5 +732,71 @@ class BandsRequest(unittest.TestCase):
         self.assertEqual(len([m for m in lines if m['type'] == 'ready']), 1, 'one capture throughout')
 
 
+@needs_numpy
+class SamplesRequest(unittest.TestCase):
+    """The samples as heard, for a visualizer page: only while the server asks, and the analysis unchanged."""
+
+    def run_asking(self, track, requests_at):
+        from analysis.live import LiveService, Emitter, HOP
+        out = io.StringIO()
+        service = LiveService(Emitter(out), sample_rate=track.sr)
+        for start in range(0, len(track.samples), HOP):
+            for request in requests_at.get(start, ()):
+                service.ask(json.dumps(request))
+            service.push(track.samples[start:start + HOP])
+        return lines_of(out.getvalue())
+
+    def test_no_samples_until_the_server_asks(self):
+        track = synth.four_on_the_floor(bpm=128, bars=2)
+        self.assertFalse(any(m['type'] == 'pcm' for m in run_service(track)))
+
+    def test_asked_every_block_goes_out_as_heard_ahead_of_its_analysis(self):
+        import base64
+        import numpy as np
+        from analysis.live import HOP
+        track = synth.four_on_the_floor(bpm=128, bars=2)
+        on_at = 40 * HOP
+        lines = self.run_asking(track, {on_at: [{'type': 'pcm', 'on': True}]})
+        [said] = [i for i, m in enumerate(lines) if m.get('on') is not None]
+        self.assertEqual(lines[said], {'type': 'pcm', 'on': True})
+        self.assertFalse(any(m['type'] == 'pcm' for m in lines[:said]))
+        blocks = [m for m in lines if m['type'] == 'pcm' and 'data' in m]
+        self.assertEqual([m['end'] for m in blocks], [min(len(track.samples), s + HOP) for s in range(on_at, len(track.samples), HOP)])
+        heard = np.concatenate([np.frombuffer(base64.b64decode(m['data']), dtype='<i2') for m in blocks])
+        sent = np.round(np.clip(track.samples[on_at:], -1, 1) * 32767).astype(np.int16)
+        self.assertTrue(np.array_equal(heard, sent), 'every sample, in order, none twice')
+        self.assertTrue(all(m['rate'] == track.sr for m in blocks))
+        states = [i for i, m in enumerate(lines) if m['type'] == 'state']
+        for block in (i for i, m in enumerate(lines) if m['type'] == 'pcm' and 'data' in m):
+            later = [i for i in states if i > block]
+            if later:
+                self.assertEqual(lines[later[0]]['captured'], round(lines[block]['end'] / track.sr, 4), 'a block goes out before its state')
+        self.assertEqual([m for m in lines if m['type'] == 'state'], [m for m in run_service(track) if m['type'] == 'state'],
+                         'the analysis the lights read is the same')
+
+    def test_off_stops_them_and_a_bad_word_is_an_error(self):
+        from analysis.live import HOP
+        track = synth.four_on_the_floor(bpm=128, bars=2)
+        lines = self.run_asking(track, {10 * HOP: [{'type': 'pcm', 'on': True}],
+                                        20 * HOP: [{'type': 'pcm', 'on': False}, {'type': 'pcm', 'on': 'yes'}]})
+        [off] = [i for i, m in enumerate(lines) if m.get('on') is False]
+        self.assertEqual(len([m for m in lines[:off] if m['type'] == 'pcm' and 'data' in m]), 10)
+        self.assertFalse(any(m['type'] == 'pcm' for m in lines[off + 1:]))
+        [error] = [m for m in lines if m['type'] == 'error']
+        self.assertIs(error['fatal'], False)
+
+    def test_a_block_costs_a_small_part_of_its_hop(self):
+        import time
+        from analysis.live import LiveService, Emitter, HOP
+        track = synth.four_on_the_floor(bpm=128, bars=2)
+        service = LiveService(Emitter(io.StringIO()), sample_rate=track.sr)
+        blocks = [track.samples[s:s + HOP] for s in range(0, HOP * 500, HOP)]
+        started = time.process_time()
+        for block in blocks:
+            service.pcm_line(block)
+        per_block = (time.process_time() - started) / len(blocks)
+        self.assertLess(per_block, 0.1 * HOP / track.sr, f'{per_block * 1e6:.0f} µs of CPU a block')
+
+
 if __name__ == '__main__':
     unittest.main()

@@ -518,6 +518,52 @@ test('a device is found the way soundcard finds it: by id, then within a name, t
   assert.strictEqual(findLiveDevice('Line In', names, ids), null);
 });
 
+// ── The samples for a visualizer page ─────────────────────────────────────────
+
+const pcm = (end, samples, rate = 22050) => JSON.stringify({ type: 'pcm', end, rate, data: Buffer.from(Int16Array.from(samples).buffer).toString('base64') });
+
+test('the process is asked for its samples only while someone wants them, and again after a restart', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const procs = [];
+  const live = new LiveInput({ spawner: () => { const p = fakeProcess(); procs.push(p); return p; }, now: () => 0 });
+  live.start({ source: 'loopback' });
+  live.wantSamples(false);
+  await settle();
+  assert.deepStrictEqual(procs[0].asked, [], 'never asked: nothing to stop');
+  live.wantSamples(true);
+  live.wantSamples(true);
+  await settle();
+  assert.deepStrictEqual(procs[0].asked, [{ type: 'pcm', on: true }], 'asked once');
+  procs[0].emit('close', 1);
+  t.mock.timers.tick(2000);
+  await settle();
+  assert.deepStrictEqual(procs[1].asked, [{ type: 'pcm', on: true }], 'the new process is asked as it starts');
+  live.wantSamples(false);
+  await settle();
+  assert.deepStrictEqual(procs[1].asked, [{ type: 'pcm', on: true }, { type: 'pcm', on: false }]);
+  live.stop();
+});
+
+test('sample lines reach the listener as bytes with their process, and nothing else does', () => {
+  const live = new LiveInput({ spawner: () => fakeProcess(), now: () => 0 });
+  const heard = [];
+  live.onSamples((block) => heard.push(block));
+  live.start({ source: 'loopback' });
+  live.handleLine(pcm(256, [1, -2, 3]));
+  assert.deepStrictEqual(heard, [], 'not asked for: not passed on');
+  live.wantSamples(true);
+  live.handleLine(JSON.stringify({ type: 'pcm', on: true }));
+  live.handleLine(pcm(259, [1, -2, 32767]));
+  for (const bad of [pcm(2, [1, 2, 3]), pcm(1.5, [1]), pcm(300, [1], 0), JSON.stringify({ type: 'pcm', end: 9, rate: 22050, data: 'AA' }),
+    JSON.stringify({ type: 'pcm', end: 1e6, rate: 22050, data: 'A'.repeat(70000) })]) live.handleLine(bad);
+  assert.strictEqual(heard.length, 1);
+  const [block] = heard;
+  assert.deepStrictEqual({ generation: block.generation, end: block.end, rate: block.rate }, { generation: 1, end: 259, rate: 22050 });
+  assert.deepStrictEqual([...new Int16Array(block.data.buffer, block.data.byteOffset, block.data.length / 2)], [1, -2, 32767]);
+  assert.strictEqual(live.getReading(), null, 'samples are no reading');
+  live.stop();
+});
+
 // ── The pattern clock ─────────────────────────────────────────────────────────
 
 test('the pattern clock follows the live beat when nothing better knows the music', () => {

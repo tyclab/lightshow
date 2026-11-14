@@ -49,11 +49,18 @@ first state over them, with the list as it was sent:
 
 A list it cannot take is an error that is not fatal, and the bands stay.
 
+`{"type": "pcm", "on": true}` (answered with the same line) has every block
+read go out as heard, before its analysis, until `"on": false`: mono 16-bit
+little-endian in base64, `end` the stream's sample count after its newest:
+
+    {"type": "pcm", "end": ..., "rate": 22050, "data": "..."}
+
 Capture uses `soundcard` (loopback on Windows and Linux); `sounddevice` is the line-in fallback.
 Neither is needed for a file, which is what the tests use.
 """
 
 import argparse
+import base64
 import collections
 import json
 import math
@@ -181,6 +188,7 @@ class LiveService:
         self.analyzer = StreamingAnalyzer(live_config(), sample_rate=sample_rate)
         self.captured = 0
         self.quiet = False
+        self.pcm = False
         self._silent_samples = 0
         self._next_quiet_state = 0.0
         self._requests = collections.deque()
@@ -194,8 +202,12 @@ class LiveService:
             line = self._requests.popleft()
             try:
                 msg = json.loads(line)
+                if isinstance(msg, dict) and msg.get('type') == 'pcm' and isinstance(msg.get('on'), bool):
+                    self.pcm = msg['on']
+                    self.emitter.send({'type': 'pcm', 'on': self.pcm})
+                    continue
                 if not isinstance(msg, dict) or msg.get('type') != 'bands' or not isinstance(msg.get('bands'), str):
-                    raise ValueError('not {"type": "bands", "bands": "lo-hi,..."}')
+                    raise ValueError('not {"type": "bands", "bands": "lo-hi,..."} nor {"type": "pcm", "on": true|false}')
                 text = msg['bands']
                 bands = check_bands(parse_bands(text), self.top_hz) if text else []
             except ValueError as err:
@@ -211,6 +223,8 @@ class LiveService:
         if block.ndim > 1:
             block = block.mean(axis=1)
         self.captured += block.size
+        if self.pcm and block.size:
+            self.emitter.send(self.pcm_line(block))
         self._listen(block)
         before = self.analyzer._frame_index
         events = self.analyzer.push(block)
@@ -220,6 +234,11 @@ class LiveService:
             self.emitter.send({'type': 'event', 'event': out})
         if self.analyzer._frame_index != before and self._state_due():
             self.emitter.send(self.state())
+
+    def pcm_line(self, block):
+        pcm = np.round(np.clip(block, -1.0, 1.0) * 32767.0).astype('<i2')
+        return {'type': 'pcm', 'end': self.captured, 'rate': self.sample_rate,
+                'data': base64.b64encode(pcm.tobytes()).decode('ascii')}
 
     def _listen(self, block):
         if not block.size:
