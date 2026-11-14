@@ -45,6 +45,14 @@ revised in #113 and #126); its full text is in git history. The rulings below st
   clear something: a programme playing or paused, or pads over a stopped programme (the control's
   `layers`). Play's name says what it starts. A sequence is selected on Perform; no Look button,
   no programme menu.
+- A stage previews by itself (2026-11-14): "also what is the reasdon to have the preview look bnutton
+  and the look play button?" and "so to preview i need to klick look an preview? why? also preview runs
+  local in browser right?". No view has a Preview look button. Disarmed and stopped, with no layer and
+  no Freeze, the stage draws the selected look in the browser on the built-in demo beat, tagged
+  "Preview · demo beat", with the look's own flash limit; it sends nothing and never gives the
+  photosensitivity acknowledgement. Playing, a layer or Freeze shows the server's feed as "Preview
+  (disarmed)"; armed, only the feed, and arming drops the demo beat at once, in 3D and 2D. Blackout
+  outranks both; an idle page draws nothing until Resume preview.
 - A disarmed show nobody attends stops after 60 minutes (2026-11-14): "if not we should make sure it
   stops automatically, lets say 60min or somethign?? i mean if show is not arm and page is idel or
   closed". `outputs.idleStopMin` (60, 0 never) without a control action or page input ends it with the

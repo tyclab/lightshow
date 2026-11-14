@@ -137,7 +137,8 @@ room (the effects or the visualizer picture), the auto show on or off,
 blackout and the master. Choose the main effect from the searchable, scrolling box
 beside the stage, with the chosen effect always shown above the search: **Current effect**
 while the show plays and is not frozen, otherwise **Selected effect** with a line saying when it
-plays (after Resume, or when the show plays). While the **Visualizer** source has a picture
+plays (after Resume, or when the show plays; stopped and disarmed, that the preview shows it and Play
+sends it). While the **Visualizer** source has a picture
 arriving the box says so in one sentence instead; the list returns when the picture stops or
 when **Effects** is chosen in the header. The header
 picker (or **E**) remains available on every view. Colours sits under the stage:
@@ -154,17 +155,19 @@ Effect settings holds the full catalogue, effect editing and mapping controls,
 the same Bands card and fixture overrides; Perform is the tablet surface for pads, strobes, the Matrix board
 and tempo tools; Sequence arranges clips or runs a playlist; Stage shows the
 rig in 3D with its room bindings or a rehearsal. Arming is a separate action
-from preparing or previewing a look. Stage and the fixture plot say **Outputs off**
-while outputs are disarmed and draw every light off, because nothing is transmitted. **Preview look**
-draws the rendered look that arming would send and the label becomes **Preview (disarmed)**; the choice
-is saved in this browser across reloads and shared by both views.
-They say **Live output** once outputs are armed, and **Blackout** while Blackout is on, armed or not.
-A dark stage says why, over the 3D stage and under the plot: Outputs off points to **Preview look**,
-Blackout to **Restore** in the header.
+from preparing or previewing a look, and a stage previews by itself. Disarmed and stopped, with no pad,
+held energy effect, Identify or Freeze, Stage and the fixture plot draw the selected look (its effect and
+colours, the palette and its override, the band colours, the master and Background) on the built-in demo
+beat, sampled in this browser with the look's own flash limit, and say **Preview · demo beat**. It sends
+nothing to the server, so it starts nothing, and never gives the photosensitivity acknowledgement.
+Disarmed while something plays, they draw the server's feed, what arming would send, under **Preview
+(disarmed)**. Armed they say **Live output** and draw only the feed: arming drops the demo-beat preview at
+once. **Blackout** outranks the rest, armed or not, with a note over the 3D stage and under the plot that
+points to **Restore** in the header.
 A disarmed page nobody touches for `outputs.idleStopMin` minutes (60; Settings → Show, **Stop an
 Unattended Show**) lets its DMX and picture feeds go: every view that draws a stage says **Preview paused
-after 60 minutes without input.**, the stage draws its lights off under **Preview paused**, and **Resume
-preview** brings the feeds back and starts nothing. Arming resumes it too; armed, a page never pauses. The
+after 60 minutes without input.**, the stage draws its lights off under **Preview paused**, the demo-beat
+preview included, and **Resume preview** brings the feeds back and starts nothing. Arming resumes it too; armed, a page never pauses. The
 server stops a disarmed show nobody attends after the same minutes (see
 [Home Assistant integration surface](#home-assistant-integration-surface)).
 
@@ -231,12 +234,13 @@ uses its own palette and transport. It sends no look, engine, room or output
 commands. It runs only while the outputs are disarmed, so rapid effects audition
 without a question. Arming ends the audition. In the
 inspector, **Audition on Stage** previews an edited draft; **Hold on live rig**
-is the separate live voice control.
+is the separate live voice control. The stopped, disarmed stage's own preview runs on the same demo
+beat with the live look in place of the audition's demo palette.
 
 ```mermaid
 flowchart LR
   Demo[Local demo timeline] --> Audio[Typed audio and section source]
-  Draft[Selected effect or edited draft] --> Preview[Browser preview sampler]
+  Draft[Audition effect, edited draft or the stopped live look] --> Preview[Browser preview sampler]
   Audio --> Preview
   Rig[Read-only patch and room] --> Preview
   Preview --> Room[3D room]
