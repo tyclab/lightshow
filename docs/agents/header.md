@@ -46,8 +46,12 @@ revised in #113 and #126); its full text is in git history. The rulings below st
   under Effects or Colour + motion.
 - Freeze, Blackout and Arm keep their own buttons at fixed positions with 44 px touch targets.
   Keep every current label reachable, and never name the apps the lightshow was ported from.
-- Show also selects effects from a contained, searchable list beside the stage, with the current
-  effect pinned above it (approved Draft 2, 2026-11-14). Colours sits under the stage; only its
+- Show also selects effects from a contained, searchable list beside the stage, with the chosen
+  effect pinned above it (approved 2026-11-14). It says Current effect only
+  while the show plays unfrozen, Selected effect otherwise. While the Visualizer source has a
+  picture arriving, the card shows one sentence about it and nothing to choose. Colours sits under the stage; only its
   wheel folds, from the card's top-right button. Background ends the right column. On a phone
   the order is Stage, Effects, Colours, Background. The stage opens in 3D; 2D remains selectable.
-  Detailed effect controls stay in Effects.
+  Detailed effect controls stay in Effects. Show scales with the window, no fixed pixel sizes
+  (2026-11-14): its block in style.css has no px, the columns follow the view's own width at
+  35em and 68.75em, and the page scrolls when the minimums do not fit.

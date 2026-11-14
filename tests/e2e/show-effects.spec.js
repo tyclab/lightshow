@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { io } from 'socket.io-client';
 import { control, open, reset, set, state, until } from './helpers.js';
 
 const box = (page) => page.locator('.contained-effects');
@@ -139,4 +140,125 @@ test('saved presets appear live in Show and are selectable without reloading', a
   await expect(effects.locator('.contained-empty')).toBeVisible();
   await effects.getByRole('button', { name: 'Clear', exact: true }).click();
   await expect(effects.locator('.contained-count')).toHaveText(`${total} effects`);
+});
+
+/** A picture sender on the isolated server's socket, as tests/e2e/top-bar.spec.js feeds one. */
+async function pictureFeed(baseURL) {
+  const socket = io(baseURL, { auth: { protocol: 2 }, transports: ['websocket'] });
+  await new Promise((resolve, reject) => { socket.once('connect', resolve); socket.once('connect_error', reject); });
+  const ask = (event, payload) => (payload === undefined ? socket.timeout(5000).emitWithAck(event) : socket.timeout(5000).emitWithAck(event, payload));
+  const units = await ask('picture:units');
+  let lease = null, timer = null;
+  const feed = {
+    async start() {
+      lease = await ask('picture:claim', { signature: units.signature });
+      expect(lease.ok, JSON.stringify(lease)).toBe(true);
+      const send = () => ask('picture:frame', { leaseId: lease.leaseId, data: new Uint8Array(units.units * 3).fill(200) });
+      await send();
+      timer = setInterval(() => send().catch(() => {}), 250);
+    },
+    /** No more frames: the lease runs out after its two seconds. */
+    pause() { clearInterval(timer); timer = null; },
+    async release() { feed.pause(); await ask('picture:release', { leaseId: lease.leaseId }); },
+    close() { feed.pause(); socket.close(); },
+  };
+  return feed;
+}
+
+test('the Effects box follows the picture source, the picture, Stop and Freeze, and never names a held pick as current', async ({ page, request, baseURL }) => {
+  const { settings } = await (await request.get('/api/settings')).json();
+  const feed = await pictureFeed(baseURL);
+  const effects = box(page), sentence = page.locator('.contained-picture p');
+  const label = effects.locator('.contained-current-label'), hint = effects.locator('.contained-hint');
+  const picture = 'the Visualizer picture paints the room; the main effect shows again when the picture stops or when Effects is chosen in the header.';
+  const painting = `T${picture.slice(1)}`;
+  try {
+    // A picture lease needs armed outputs: this server has none.
+    expect((await request.put('/api/settings', { data: { safety: { photosensitivityAcknowledged: true } } })).ok()).toBe(true);
+    await control(request, 'arm');
+    await request.post('/api/picture/source', { data: { source: 'visualizer' } });
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await open(page, 'show');
+    await expect(label).toHaveText('Current effect');
+    await expect(hint).toHaveCount(0);
+
+    await feed.start();
+    await expect(sentence).toHaveText(painting);
+    await expect(effects.locator('.contained-row, input, button, [role="switch"], .contained-current')).toHaveCount(0);
+    const card = await effects.boundingBox(), background = await page.locator('.background-controls').boundingBox();
+    const colours = await page.locator('.show-colours').boundingBox(), stage = await page.locator('.show-room').boundingBox();
+    expect(card.height).toBeLessThan(150);
+    expect(colours.height).toBeLessThan(150);
+    expect(background.y - card.y - card.height).toBeGreaterThan(0);
+    expect(background.y - card.y - card.height).toBeLessThan(20);
+    expect(colours.y).toBeGreaterThanOrEqual(stage.y + stage.height);
+
+    await feed.release();
+    await expect(label).toHaveText('Current effect');
+    await expect(row(page, 'chase')).toBeVisible();
+
+    await feed.start();
+    await expect(sentence).toHaveText(painting);
+    feed.pause();
+    await expect(label, 'the lease expired').toHaveText('Current effect', { timeout: 8000 });
+
+    await feed.start();
+    await expect(sentence).toHaveText(painting);
+    await request.post('/api/picture/source', { data: { source: 'effects' } });
+    await expect(label).toHaveText('Current effect');
+    await request.post('/api/picture/source', { data: { source: 'inspired' } });
+    await expect(effects.getByRole('searchbox', { name: 'Search effects' })).toBeVisible();
+    await expect(label, 'Colour + motion still draws the main effect').toHaveText('Current effect');
+    await expect(sentence).toHaveCount(0);
+
+    await request.post('/api/picture/source', { data: { source: 'visualizer' } });
+    await expect(sentence).toHaveText(painting);
+    await control(request, 'stop');
+    await expect(sentence).toHaveText(`The show is stopped. When the show plays, ${picture}`);
+    await control(request, 'start', 'look');
+    await expect(sentence).toHaveText(painting);
+
+    // Freeze while the picture arrives, then let it expire: Freeze still holds the picture, so no pick is named as playing.
+    await control(request, 'freeze');
+    await expect(sentence).toHaveText(`The picture is frozen. After Resume, ${picture}`);
+    feed.pause();
+    await expect(label).toHaveText('Selected effect', { timeout: 8000 });
+    await expect(hint).toHaveText('The picture is frozen. The selected effect plays after Resume.');
+    const before = await state(request);
+    await row(page, 'v2.aurora').click();
+    const after = await until(request, (s) => s.pattern === 'v2.aurora');
+    for (const key of ['armed', 'running', 'masterBlackout', 'masterDimmer']) expect(after[key]).toEqual(before[key]);
+    expect(after.control.frozen).toBe(true);
+    expect(after.control.blackout).toBe(before.control.blackout);
+    await expect(effects.locator('.contained-current-name')).toHaveText('Aurora');
+    await expect(label).toHaveText('Selected effect');
+    await expect(hint).toHaveText('The picture is frozen. The selected effect plays after Resume.');
+
+    // Frozen before the picture arrives.
+    await feed.start();
+    await expect(sentence).toHaveText(`The picture is frozen. After Resume, ${picture}`);
+    await control(request, 'resume');
+    await expect(sentence).toHaveText(painting);
+  } finally {
+    feed.close();
+    await control(request, 'disarm');
+    await request.post('/api/picture/source', { data: { source: 'effects' } });
+    await request.put('/api/settings', { data: { safety: { photosensitivityAcknowledged: !!settings.safety.photosensitivityAcknowledged } } });
+  }
+});
+
+test('a pick while stopped is named as selected, with when it plays', async ({ page, request }) => {
+  await control(request, 'stop');
+  await open(page, 'show');
+  const effects = box(page);
+  await expect(effects.locator('.contained-current-label')).toHaveText('Selected effect');
+  await expect(effects.locator('.contained-hint')).toHaveText('The show is stopped. The selected effect plays when the show plays.');
+  await row(page, 'v2.aurora').click();
+  const after = await until(request, (s) => s.pattern === 'v2.aurora');
+  expect(after.running).toBe(false);
+  await expect(effects.locator('.contained-current-name')).toHaveText('Aurora');
+  await expect(effects.locator('.contained-current-label')).toHaveText('Selected effect');
+  await control(request, 'start', 'look');
+  await expect(effects.locator('.contained-current-label')).toHaveText('Current effect');
+  await expect(effects.locator('.contained-hint')).toHaveCount(0);
 });

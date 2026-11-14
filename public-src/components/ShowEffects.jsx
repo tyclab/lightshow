@@ -1,10 +1,28 @@
 import { useId, useLayoutEffect, useRef, useState } from 'preact/hooks';
 import { librarySig, pick, send } from '../state.js';
+import { pictureReceivingSig, pictureSourceSig } from '../picture-source.js';
 import { byName, catalogueOf, matchesSearch, tapRow } from './Effects.jsx';
 import { Photosensitivity, acknowledgeThen } from './Photosensitivity.jsx';
 
+/** The one-sentence form: the Visualizer source with a picture arriving. Colour + motion keeps the list, as it still draws the main effect. */
+export const pictureForm = (source, receiving) => source === 'visualizer' && !!receiving;
+
+const HELD = { frozen: ['The picture is frozen.', 'after Resume'], stopped: ['The show is stopped.', 'when the show plays'],
+  both: ['The picture is frozen and the show is stopped.', 'after Resume and play'] };
+const PICTURE = 'the Visualizer picture paints the room; the main effect shows again when the picture stops or when Effects is chosen in the header.';
+
+/** What the Effects box says, from the show, Freeze and the picture source: it never names as playing what Freeze or a stop holds back. */
+export function effectsBox({ running, frozen, source, receiving }) {
+  const [held, when] = HELD[frozen && !running ? 'both' : frozen ? 'frozen' : running ? '' : 'stopped'] ?? [];
+  if (pictureForm(source, receiving)) {
+    return { picture: true, text: held ? `${held} ${when[0].toUpperCase()}${when.slice(1)}, ${PICTURE}` : `${PICTURE[0].toUpperCase()}${PICTURE.slice(1)}` };
+  }
+  return { picture: false, label: held ? 'Selected effect' : 'Current effect', hint: held ? `${held} The selected effect plays ${when}.` : null };
+}
+
 export function ShowEffects() {
-  const s = pick(['pattern', 'patterns', 'effects', 'families', 'safety']);
+  const s = pick(['pattern', 'patterns', 'effects', 'families', 'safety', 'running', 'control']);
+  const box = effectsBox({ running: !!s.running, frozen: !!s.control?.frozen, source: pictureSourceSig.value, receiving: pictureReceivingSig.value });
   const lib = librarySig.value;
   const families = s.families || lib.families || [];
   const { allRows, rows, playingId } = catalogueOf(s, lib, families, []);
@@ -57,11 +75,15 @@ export function ShowEffects() {
   };
 
   return <>
-    <section class="card contained-effects" aria-labelledby={`${id}-title`}>
+    {box.picture ? <section class="card contained-effects contained-picture" aria-labelledby={`${id}-title`}>
       <h2 class="card-title" id={`${id}-title`}>Effects</h2>
+      <p role="status">{box.text}</p>
+    </section> : <section class="card contained-effects" aria-labelledby={`${id}-title`}>
+      <h2 class="card-title" id={`${id}-title`}>Effects</h2>
+      {box.hint && <p class="hint contained-hint" role="status">{box.hint}</p>}
       <div class="contained-current" role="status" aria-live="polite" aria-atomic="true">
         <div class="contained-current-text">
-          <span class="contained-current-label">Current effect</span>
+          <span class="contained-current-label">{box.label}</span>
           <span class="contained-current-name">{currentName}</span>
         </div>
         <span class="contained-current-context">{s.pattern && !found.some((row) => row.id === playingId) ? 'Outside these results' : ''}</span>
@@ -94,7 +116,7 @@ export function ShowEffects() {
         {!found.length && <div class="contained-empty"><strong>No matching effects.</strong>Try another name or clear the search.</div>}
       </div>
       <p class="contained-help" id={`${id}-help`}>↑ ↓ to browse · Enter or Space to select. Enter in search moves into the list.</p>
-    </section>
+    </section>}
     {confirm && <Photosensitivity preset={confirm} onCancel={() => setConfirm(null)}
       onConfirm={async () => { const row = confirm; setConfirm(null); await acknowledgeThen(() => send({ pattern: row.id })); }} />}
   </>;
