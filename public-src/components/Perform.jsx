@@ -164,14 +164,15 @@ export const stopAllVoices = () => api('/api/voices', { method: 'DELETE' });
 
 function Utility() {
   return (
-    <section class="perform-utility" aria-label="Tap and stop all voices">
+    <section class="perform-utility" aria-label="Tap and stop pads">
       <button type="button" class="perform-pad pad-tap" onPointerDown={(e) => { if (e.button === 0) emitTap(); }}
         onKeyDown={(e) => { if ((e.key === 'Enter' || e.key === ' ') && !e.repeat) { e.preventDefault(); emitTap(); } }}>
         <span class="perform-pad-name">Tap</span>
         <span class="perform-pad-hint">tempo</span>
       </button>
-      <button type="button" class="perform-pad pad-stop-voices" onClick={stopAllVoices}>
-        <span class="perform-pad-name">Stop all voices</span>
+      <button type="button" class="perform-pad pad-stop-voices" onClick={stopAllVoices}
+        title="Ends every pad and voice, latched and off-bank ones too; the programme plays on">
+        <span class="perform-pad-name">Stop pads</span>
       </button>
     </section>
   );

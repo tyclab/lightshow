@@ -3,7 +3,7 @@
 // pre-show check, and the old settings page's links.
 
 import { test, expect } from '@playwright/test';
-import { open, reset, state, until } from './helpers.js';
+import { open, openFromSetup, reset, state, until } from './helpers.js';
 
 const BAR = { id: 'e2e-bar-8', name: 'E2E Bar', cells: 8, firstChannel: 3, order: 'RGB', dimmer: 1, strobe: 2 };
 
@@ -140,7 +140,7 @@ test('a setting is applied, and a secret is set and cleared without ever being s
   await flash.setChecked(was);
   await section.getByRole('button', { name: 'Apply' }).click();
 
-  await page.getByRole('tab', { name: /Sources/ }).click();
+  await openFromSetup(page, 'Sources');
   const deezer = page.locator('[data-section="deezer"]');
   const arl = deezer.getByRole('textbox', { name: 'ARL Cookie' });
   await arl.fill('a-secret-cookie');
@@ -167,8 +167,8 @@ test('the pre-show check runs and says what it found', async ({ page }) => {
   await expect(page.locator('.preflight-summary')).toBeVisible({ timeout: 45_000 });
   await expect(page.locator('.preflight-row').first()).toBeVisible();
   // Kept when looking elsewhere and coming back.
-  await page.getByRole('tab', { name: /Rig/ }).click();
-  await page.getByRole('tab', { name: /Preflight/ }).click();
+  await openFromSetup(page, 'Rig');
+  await openFromSetup(page, 'Preflight');
   await expect(page.locator('.preflight-summary')).toBeVisible();
 });
 

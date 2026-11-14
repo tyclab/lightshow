@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { chooseDriver, driverOf, playlistRowRequests, transportButtons, transportState } from '../../public-src/transport-model.js';
-import { resolveRoute, VIEWS, viewShortcut } from '../../public-src/views.js';
+import { resolveRoute, SETUP_VIEWS, STRIP_VIEWS, VIEWS, viewShortcut } from '../../public-src/views.js';
 
 test('legacy bookmarks retain their instrument', () => {
   for (const [hash, expected] of [['#manual', 'effects'], ['#timeline', 'auto/timeline'], ['#matrix', 'perform/matrix'], ['#rig/outputs', 'rig/outputs']]) {
@@ -20,6 +20,15 @@ test('digit shortcuts follow the ten views, the tenth on 0, and leave typing alo
       assert.equal(viewShortcut({ key, ...patch }), null);
     }
   }
+});
+
+test('the strip holds Show and Perform, and the Setup menu lists every other view by its present name', () => {
+  assert.deepEqual(STRIP_VIEWS.map((v) => v.id), ['show', 'perform']);
+  assert.deepEqual(SETUP_VIEWS.map((v) => [v.id, v.label, v.key]), [
+    ['effects', 'Effect settings', '2'], ['stage', 'Stage', '4'], ['auto', 'Auto Show', '5'], ['sequence', 'Sequence', '6'],
+    ['rig', 'Rig', '7'], ['sources', 'Sources', '8'], ['settings', 'Settings', '9'], ['preflight', 'Preflight', '0'],
+  ]);
+  assert.equal(resolveRoute('#effects').view, 'effects');
 });
 
 test('look transport has no secondary global playback controls', () => {
