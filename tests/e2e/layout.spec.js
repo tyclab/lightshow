@@ -72,10 +72,14 @@ for (const [width, height, holds] of SHOW_SIZES) {
     if (holds === 'card') for (const card of [room, effects, colours, background]) expect(card.h, 'no card taller than the window').toBeLessThanOrEqual(height);
     await page.getByRole('region', { name: 'Background lighting' }).getByRole('button', { name: 'Fixed colour', exact: true }).click();
     await expect(page.getByRole('group', { name: 'Background colour sliders' })).toBeVisible();
+    // The taller Background reaches Show.jsx through a ResizeObserver, a render after the sliders appear.
+    if (m.twoColumns) {
+      await expect.poll(async () => { const now = await showLayout(page); return Math.abs(now.background.bottom - now.colours.bottom); },
+        { message: 'Colours keeps its height beside a taller Background' }).toBeLessThan(1);
+    }
     const fixed = await showLayout(page);
     expect(fixed.outside).toEqual([]);
     expect(fixed.effects.bottom).toBeLessThanOrEqual(fixed.background.y);
-    if (fixed.twoColumns) expect(Math.abs(fixed.background.bottom - fixed.colours.bottom), 'Colours keeps its height beside a taller Background').toBeLessThan(1);
     await page.getByRole('region', { name: 'Background lighting' }).getByRole('button', { name: 'Follow effect', exact: true }).click();
   });
 }
