@@ -45,9 +45,11 @@ function initialView() {
   return route?.view || 'show';
 }
 
+const storeView = (mode) => { try { localStorage.setItem('lightshow.mode', mode); } catch { /* private mode */ } };
+
 // Stored when chosen, not after the view renders: a reload during a slow first render keeps it.
 function rememberView(mode) {
-  try { localStorage.setItem('lightshow.mode', mode); } catch { /* private mode */ }
+  storeView(mode);
   // A view with tabs of its own keeps its part of the hash (/#rig/outputs).
   const route = resolveRoute(window.location.hash);
   const path = route?.view === mode ? route.canonical : mode;
@@ -255,9 +257,10 @@ function Root() {
     return () => observer.disconnect();
   }, [mode]);
 
+  // setMode has written the hash of every later view; after a frame it may already name the next one.
+  useEffect(() => storeView(mode), []);
   useEffect(() => {
     document.title = pageTitle(VIEWS.find((view) => view.id === mode)?.label);
-    rememberView(mode);
   }, [mode]);
 
   useEffect(() => {

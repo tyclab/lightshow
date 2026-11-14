@@ -16,6 +16,47 @@ test('the hash opens a view, and switching views writes it back', async ({ page 
   await expect(page.locator('#panel-effects')).toBeVisible();
 });
 
+// Holds the page's hashchange listeners back until releaseHashChanges(), so a test decides what runs between
+// a navigation and the event that reports it.
+function holdHashChanges() {
+  const listeners = [], held = [];
+  let holding = false;
+  const add = window.addEventListener.bind(window), remove = window.removeEventListener.bind(window);
+  window.addEventListener = (type, fn, options) => {
+    if (type !== 'hashchange') return add(type, fn, options);
+    const entry = { fn, wrapped: (event) => (holding ? held.push({ entry, event }) : fn.call(window, event)) };
+    listeners.push(entry);
+    return add(type, entry.wrapped, options);
+  };
+  window.removeEventListener = (type, fn, options) => {
+    const at = type === 'hashchange' ? listeners.findIndex((entry) => entry.fn === fn) : -1;
+    return remove(type, at >= 0 ? listeners.splice(at, 1)[0].wrapped : fn, options);
+  };
+  window.holdHashChanges = () => { holding = true; };
+  window.releaseHashChanges = () => {
+    holding = false;
+    for (const { entry, event } of held.splice(0)) if (listeners.includes(entry)) entry.fn.call(window, event);
+  };
+}
+
+// A view switch writes its hash at once; nothing may write it again after a navigation the page did not cause.
+// Sequence has no tabs of its own, Rig has (/#rig/plan).
+for (const [name, id] of [['Sequence', 'sequence'], ['Rig', 'rig']]) {
+  test(`a hash navigation right after ${name} opens from the menu is not undone`, async ({ page }) => {
+    await page.addInitScript(holdHashChanges);
+    await open(page, 'show');
+    await page.getByRole('navigation', { name: 'Views' }).getByRole('button', { name: /^Setup/ }).click();
+    const entry = page.getByRole('menu', { name: 'Setup' }).getByRole('menuitem', { name, exact: true });
+    await entry.evaluate((item) => { window.holdHashChanges(); item.click(); window.location.hash = '#show'; });
+    await expect(page.locator(`#panel-${id}`)).toBeVisible();
+    // The switch's effects run after the next frame, or 35 ms: both pass before the navigation is reported.
+    await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => setTimeout(resolve, 100)))));
+    await page.evaluate(() => window.releaseHashChanges());
+    await expect(page.locator('#panel-show'), 'the navigation to #show').toBeVisible();
+    await expect(page).toHaveURL(/#show$/);
+  });
+}
+
 test('the app opens on Show: the room, the looks and global controls', async ({ page }) => {
   await page.goto('/');
   await page.locator('.offline-veil').waitFor({ state: 'detached' });
