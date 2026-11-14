@@ -147,17 +147,25 @@ test('another effect keeps its own palette, chosen from the same list and the sa
     for (const view of ['show', 'effects']) {
       await set(request, { effectColours: null });
       await open(page, view);
-      const card = page.getByRole('region', { name: 'Colours', exact: true });
+      // Show splits the card (the operator, 2026-11-14): Palettes, then the wheel and the order under one fold.
+      const card = page.getByRole('region', { name: view === 'show' ? 'Palettes' : 'Colours', exact: true });
+      const editor = view === 'show' ? page.getByRole('region', { name: 'Colour editing', exact: true }) : card;
       await expect(card.getByRole('group', { name: 'Bass band' })).toHaveCount(0);
       if (view === 'show') {
-        await expect(card.getByRole('button', { name: 'Colour wheel', exact: true })).toHaveAttribute('aria-expanded', 'true');
+        await expect(editor.getByRole('button', { name: /^Edit colours/ })).toHaveAttribute('aria-expanded', 'false');
         await expect(card.getByLabel('Search Effect palettes')).toBeVisible();
       }
       await card.getByLabel('Search Effect palettes').fill('red');
       await card.locator('[data-palette="redCyan"]').click();
       await until(request, (s) => s.effectColours?.palette?.colours.join(',') === '#FF0000,#00BFFF');
-      await card.getByLabel('Palette colour 2', { exact: true }).fill('#ffc800');
+      if (view === 'show') {
+        await expect(card.getByText('Selected palette', { exact: true })).toBeVisible();
+        await expect(card.locator('.show-palette-name')).toHaveText('Red Cyan');
+        await editor.getByRole('button', { name: /^Edit colours/ }).click();
+      }
+      await editor.getByLabel('Palette colour 2', { exact: true }).fill('#ffc800');
       await until(request, (s) => s.effectColours?.palette?.colours.join(',') === '#FF0000,#FFC800');
+      if (view === 'show') await expect(card.locator('.show-palette-name')).toHaveText('Custom colours');
       await expect(card.getByLabel('Colour distribution')).toBeVisible();
     }
   } finally {
@@ -167,33 +175,42 @@ test('another effect keeps its own palette, chosen from the same list and the sa
 });
 
 
-test('Show folds only the colour wheel, keeping palette edits available and remembering the fold', async ({ page, request }) => {
+test('one button folds the wheel and the colour order, folded on a fresh browser, remembered over a reload, deaf to the old key', async ({ page, request }) => {
   await set(request, { pattern: 'ldj.Swirl' });
+  // A browser that folded nothing under the old key: the new fold starts closed all the same.
+  await page.addInitScript(() => { if (!sessionStorage.getItem('seeded')) { localStorage.setItem('lightshow.show.colourWheel', 'open'); sessionStorage.setItem('seeded', '1'); } });
   await open(page, 'show');
-  const card = page.getByRole('region', { name: 'Colours', exact: true });
-  const toggle = card.getByRole('button', { name: 'Colour wheel', exact: true });
-  const order = card.getByRole('list', { name: 'Palette colour order' });
-  const search = card.getByLabel('Search Effect palettes');
+  const editor = page.getByRole('region', { name: 'Colour editing', exact: true });
+  const toggle = editor.getByRole('button', { name: /^Edit colours/ });
+  const order = editor.getByRole('list', { name: 'Palette colour order' });
+  const palettes = page.getByRole('region', { name: 'Palettes', exact: true });
+  await expect(toggle).toHaveAttribute('aria-expanded', 'false');
+  await expect(editor.locator('.colour-wheel-disc')).toHaveCount(0);
+  await expect(order).toHaveCount(0);
+  await expect(palettes.getByLabel('Search Effect palettes')).toBeVisible();
+  expect(await page.evaluate(() => localStorage.getItem('lightshow.show.colourWheel')), 'the old key is removed').toBeNull();
+  await expect(page.getByRole('button', { name: /Edit colours|Colour wheel/ })).toHaveCount(1);
+
+  await toggle.click();
   await expect(toggle).toHaveAttribute('aria-expanded', 'true');
-  await expect(card.locator('.colour-wheel-disc')).toBeVisible();
-  await toggle.click();
-  await expect(toggle).toHaveAttribute('aria-expanded', 'false');
-  await expect(card.locator('.colour-wheel-disc')).toBeHidden();
+  await expect(editor.locator('.colour-wheel-disc')).toBeVisible();
   await expect(order).toBeVisible();
-  await expect(search).toBeVisible();
-  await search.fill('red cyan');
-  await card.locator('[data-palette="redCyan"]').click();
-  await until(request, (s) => s.effectColours?.palette?.colours.join(',') === '#FF0000,#00BFFF');
-  await card.getByLabel('Palette colour 2', { exact: true }).fill('#ffc800');
-  await until(request, (s) => s.effectColours?.palette?.colours.join(',') === '#FF0000,#FFC800');
   await page.reload();
-  await expect(toggle).toHaveAttribute('aria-expanded', 'false');
-  await expect(card.locator('.colour-wheel-disc')).toBeHidden();
+  await expect(toggle).toHaveAttribute('aria-expanded', 'true');
+  await expect(editor.locator('.colour-wheel-disc')).toBeVisible();
   await expect(order).toBeVisible();
-  await expect(search).toBeVisible();
-  await set(request, { pattern: 'chase' });
-  await expect(toggle).toHaveAttribute('aria-expanded', 'false');
+  await editor.getByLabel('Palette colour 2', { exact: true }).fill('#ffc800');
+  await until(request, (s) => s.effectColours?.palette?.colours[1] === '#FFC800');
+
   await toggle.click();
-  await expect(card.locator('.colour-wheel-disc')).toBeVisible();
-  await expect(card.locator('.colour-wheel-point')).not.toHaveCount(0);
+  await expect(toggle).toHaveAttribute('aria-expanded', 'false');
+  await expect(order).toHaveCount(0);
+  await page.evaluate(() => localStorage.setItem('lightshow.show.colourWheel', 'open'));
+  await page.reload();
+  await expect(toggle, 'remembered folded; the old key changes nothing').toHaveAttribute('aria-expanded', 'false');
+  await expect(editor.locator('.colour-wheel-disc')).toHaveCount(0);
+  await set(request, { pattern: 'chase' });
+  await expect(toggle, 'another effect keeps the fold').toHaveAttribute('aria-expanded', 'false');
+  await toggle.click();
+  await expect(editor.locator('.colour-wheel-point')).not.toHaveCount(0);
 });

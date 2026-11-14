@@ -7,6 +7,12 @@ import { colorToCss, formatBpm } from '../utils.js';
 // broadcast the new list back; api() reports any refusal as a toast.
 const cueApi = (path, init) => api(`/api/cues${path}`, init);
 
+/** Saves the look on stage as a new cue; an empty name leaves the naming to the server. */
+export const saveCue = (name) => cueApi('', { method: 'POST', body: JSON.stringify({ name: name.trim() || undefined }) });
+
+/** Recalls a cue; the saved background comes back only when asked. */
+export const recallCue = (id, restoreBackground = false) => cueApi(`/${id}/recall`, { method: 'POST', body: JSON.stringify({ restoreBackground }) });
+
 function Swatches({ colors, presets }) {
   return (
     <span class="cue-swatches">
@@ -84,7 +90,7 @@ function CueRow({ cue, presets, editing, setEditing, restoreBackground }) {
     <div class="cue-row">
       <button
         class={`cue-recall ${cue.blackout ? 'blackout' : ''}`}
-        onClick={() => cueApi(`/${cue.id}/recall`, { method: 'POST', body: JSON.stringify({ restoreBackground }) })}
+        onClick={() => recallCue(cue.id, restoreBackground)}
         title={`Recall "${cue.name}" — ${cue.pattern} at ${formatBpm(cue.bpm)} BPM`}
       >
         <Swatches colors={cue.colors} presets={presets} />
@@ -123,10 +129,7 @@ export function Cues() {
   const [name, setName] = useState('');
 
   const save = async () => {
-    const res = await cueApi('', {
-      method: 'POST',
-      body: JSON.stringify({ name: name.trim() || undefined }),
-    });
+    const res = await saveCue(name);
     // Keep the form open on failure so the name the operator typed survives.
     if (!res.ok) return;
     setName('');

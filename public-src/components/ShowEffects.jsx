@@ -1,7 +1,7 @@
 import { useId, useLayoutEffect, useRef, useState } from 'preact/hooks';
 import { librarySig, pick, send } from '../state.js';
 import { pictureReceivingSig, pictureSourceSig } from '../picture-source.js';
-import { byName, catalogueOf, matchesSearch, tapRow } from './Effects.jsx';
+import { byName, catalogueOf, matchesSearch, tapRow, utilityEffect } from './Effects.jsx';
 import { Photosensitivity, acknowledgeThen } from './Photosensitivity.jsx';
 
 /** The one-sentence form: the Visualizer source with a picture arriving. Colour + motion keeps the list, as it still draws the main effect. */
@@ -20,12 +20,16 @@ export function effectsBox({ running, frozen, source, receiving }) {
   return { picture: false, label: held ? 'Selected effect' : 'Current effect', hint: held ? `${held} The selected effect plays ${when}.` : null };
 }
 
+/** How many tiles a row of the grid holds, as the stylesheet laid them out. */
+const columnsOf = (list) => getComputedStyle(list).gridTemplateColumns.split(' ').filter(Boolean).length || 1;
+
 export function ShowEffects() {
-  const s = pick(['pattern', 'patterns', 'effects', 'families', 'safety', 'running', 'control']);
+  const s = pick(['pattern', 'patterns', 'effects', 'families', 'safety', 'running', 'control', 'live']);
   const box = effectsBox({ running: !!s.running, frozen: !!s.control?.frozen, source: pictureSourceSig.value, receiving: pictureReceivingSig.value });
   const lib = librarySig.value;
   const families = s.families || lib.families || [];
-  const { allRows, rows, playingId } = catalogueOf(s, lib, families, []);
+  const { allRows, rows: catalogue, playingId } = catalogueOf(s, lib, families, []);
+  const rows = catalogue.filter((row) => !utilityEffect(row));
   const [query, setQuery] = useState('');
   const [focusId, setFocusId] = useState(null);
   const [confirm, setConfirm] = useState(null);
@@ -61,7 +65,10 @@ export function ShowEffects() {
   const listKey = (e) => {
     const buttons = [...list.current.querySelectorAll('button')];
     const at = buttons.indexOf(e.target);
-    const next = { ArrowDown: Math.min(buttons.length - 1, at + 1), ArrowUp: Math.max(0, at - 1), Home: 0, End: buttons.length - 1 }[e.key];
+    const step = { ArrowLeft: -1, ArrowRight: 1 }[e.key] ?? (e.key === 'ArrowUp' || e.key === 'ArrowDown'
+      ? (e.key === 'ArrowUp' ? -1 : 1) * columnsOf(list.current) : undefined);
+    const next = e.key === 'Home' ? 0 : e.key === 'End' ? buttons.length - 1
+      : step === undefined ? undefined : Math.max(0, Math.min(buttons.length - 1, at + step));
     if (e.code === 'Space' && at >= 0) {
       e.preventDefault();
       if (!e.repeat) buttons[at].click();
@@ -81,12 +88,15 @@ export function ShowEffects() {
     </section> : <section class="card contained-effects" aria-labelledby={`${id}-title`}>
       <h2 class="card-title" id={`${id}-title`}>Effects</h2>
       {box.hint && <p class="hint contained-hint" role="status">{box.hint}</p>}
+      {s.live?.director?.holding && <p class="hint contained-hold" role="status">
+        Auto holds the picked look; it chooses again on a bar half a minute after the last pick.</p>}
       <div class="contained-current" role="status" aria-live="polite" aria-atomic="true">
         <div class="contained-current-text">
           <span class="contained-current-label">{box.label}</span>
           <span class="contained-current-name">{currentName}</span>
         </div>
-        <span class="contained-current-context">{s.pattern && !found.some((row) => row.id === playingId) ? 'Outside these results' : ''}</span>
+        <span class="contained-current-context">{rows.some((row) => row.id === playingId) && !found.some((row) => row.id === playingId)
+          ? 'Outside these results' : ''}</span>
       </div>
       <label class="contained-search-label" for={`${id}-search`}>Search effects</label>
       <div class="contained-search-tools">
@@ -102,20 +112,17 @@ export function ShowEffects() {
         <ul class="contained-list" id={`${id}-list`} ref={list} aria-label="Effects" onKeyDown={listKey}>
           {found.map((row) => <li key={row.id}>
             <button type="button" class="contained-row" data-effect={row.id} aria-current={row.id === playingId ? 'true' : undefined}
-              tabIndex={row.id === focused?.id ? 0 : -1} title={`${row.name}: ${row.desc || ''}`}
+              tabIndex={row.id === focused?.id ? 0 : -1} title={[row.name, row.desc || (row.tags || []).join(' · ')].filter(Boolean).join(': ')}
               onFocus={() => setFocusId(row.id)} onClick={() => choose(row)}>
-              <span class="contained-row-text">
-                <span class="contained-row-title">{row.name}</span>
-                <span class="contained-row-desc">{row.desc || (row.tags || []).join(' · ')}</span>
-              </span>
-              <span class="contained-row-mark" aria-hidden="true">{row.id === playingId ? '✓ Selected' : ''}</span>
-              {row.rapidFlash && <span class="contained-rapid">Rapid flashing</span>}
+              <span class="contained-row-title">{row.name}</span>
+              {row.id === playingId && <span class="contained-row-mark" aria-hidden="true">✓</span>}
+              {row.rapidFlash && <span class="contained-rapid" title="Rapid flashing">⚡<span class="sr-only"> Rapid flashing</span></span>}
             </button>
           </li>)}
         </ul>
         {!found.length && <div class="contained-empty"><strong>No matching effects.</strong>Try another name or clear the search.</div>}
       </div>
-      <p class="contained-help" id={`${id}-help`}>↑ ↓ to browse · Enter or Space to select. Enter in search moves into the list.</p>
+      <p class="contained-help" id={`${id}-help`}>Arrow keys to browse · Enter or Space to select. Enter in search moves into the list.</p>
     </section>}
     {confirm && <Photosensitivity preset={confirm} onCancel={() => setConfirm(null)}
       onConfirm={async () => { const row = confirm; setConfirm(null); await acknowledgeThen(() => send({ pattern: row.id })); }} />}

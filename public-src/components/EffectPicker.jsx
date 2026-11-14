@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
 import { librarySig, pick, send } from '../state.js';
 import { acknowledgeThen } from './Photosensitivity.jsx';
 import { NowPlaying } from './NowPlaying.jsx';
-import { PhotosensitivityConfirm, byName, catalogueOf, iconOf, matchesSearch, quickDeck, readFavourites, tapRow } from './Effects.jsx';
+import { PhotosensitivityConfirm, byName, catalogueOf, iconOf, matchesSearch, quickDeck, readFavourites, tapRow, utilityEffect } from './Effects.jsx';
 import { AudioReactiveColours, audioReactiveChoices, isAudioReactive } from './AudioReactiveColours.jsx';
 
 const coarse = () => typeof window !== 'undefined' && typeof window.matchMedia === 'function' && window.matchMedia('(pointer: coarse)').matches;
@@ -33,7 +33,8 @@ export function EffectPicker({ hint, onClose }) {
   const box = useRef(null);
   const favourites = useMemo(readFavourites, []);
   const acknowledged = !!s.safety?.photosensitivityAcknowledged;
-  const { rows, playingId, pins } = catalogueOf(s, lib, families, favourites);
+  const { rows: catalogue, playingId, pins } = catalogueOf(s, lib, families, favourites);
+  const rows = catalogue.filter((row) => !utilityEffect(row));
   const query = q.trim().toLowerCase();
   const found = rows.filter((row) => matchesSearch(row, query, families));
   const deck = query ? [] : quickDeck(found, pins);

@@ -131,24 +131,35 @@ returns 409. If a Deezer ARL is configured, an unsupervised Node process needs
 ## Views and controls
 
 For a live session, configure the fixtures and their positions in Rig, then
-run the night from Show: the room in 3D as the rig paints it, the effects beside
+run the night from Show: the room in 3D as the rig paints it, the effects under
 it, and the switches that matter along the top — armed or not, what paints the
 room (the effects or the visualizer picture), the auto show on or off,
-blackout and the master. Choose the main effect from the searchable, scrolling box
-beside the stage, with the chosen effect always shown above the search: **Current effect**
+blackout and the master. Choose the main effect from the searchable, scrolling grid
+under the stage: name-only tiles, one to five side by side as the card's width and the text
+size allow, each with its description as a tooltip and ⚡ on a rapid-flashing effect. The chosen
+effect is always shown above the search: **Current effect**
 while the show plays and is not frozen, otherwise **Selected effect** with a line saying when it
-plays (after Resume, or when the show plays). While the **Visualizer** source has a picture
+plays (after Resume, or when the show plays). While the Auto show plays by ear (the live
+director), a look picked by hand holds until the first bar half a minute after the last pick,
+and the box says **Auto holds the picked look** meanwhile (`live.director.holding` in the state).
+While the **Visualizer** source has a picture
 arriving the box says so in one sentence instead; the list returns when the picture stops or
-when **Effects** is chosen in the header. The header
-picker (or **E**) remains available on every view. Colours sits under the stage:
-the wheel, colour order and palette list stay visible, and **Colour wheel** at the
-card's top right folds only the wheel. Background ends the right column beside
-Colours. Show scales with the window: once the view is 68.75em wide (962.5 CSS px in the
-app's 14px font) it has two columns as tall as the window, the stage taking the height the
-other cards leave and the effects list the height above Background; below the minimums
-(stage 15rem, three effect rows) the page scrolls. On a phone, in one column, the order is
-Stage, Effects, Colours, Background, the stage and the list each two fifths of the window. The stage
-opens in **3D room**, with **2D plot** available beside it. Stop controls remain
+when **Effects** is chosen in the header. Neither the list nor the header picker offers the
+utility effects (the strobes, Blinder, UV Wash, Kill, Glow and the strobe overlays): pads, cues,
+sequences, the API and Effect settings keep them, and one that plays is still named. The header
+picker (or **E**) remains available on every view. A cue row under the stage recalls a saved
+cue as the Cues card does (the current Background stays) or saves the look on stage as a new
+cue under a name. The right column holds **Palettes** (the selected palette named over a
+searchable list, two columns where they stay readable), **Edit colours**, one button that folds
+the colour wheel and the colour order together (folded until it is opened; this browser
+remembers it), and Background. An effect with a palette per band (a Disco) keeps its Bands card
+there. Show scales with the window: once the view is 68.75em wide (962.5 CSS px in the
+app's 14px font) it has two columns as tall as the window; of the height the floors leave, the
+stage takes one part and the effects list two, and the palette list what the right column leaves.
+The floors: the stage at least 15rem and a third of its own width, each list four rows of tiles;
+when they do not fit, the page scrolls. On a phone, in one column, the order is Stage, Effects,
+Palettes, Edit colours, Background, the stage and the effects list each two fifths of the
+window. The stage opens in **3D room**, with **2D plot** available beside it. Stop controls remain
 under the stage when pads are playing.
 Effect settings holds the full catalogue, effect editing and mapping controls,
 the same Bands card and fixture overrides; Perform is the tablet surface for pads, strobes, the Matrix board
@@ -173,7 +184,8 @@ the same on every view, including while scrolling through Show:
   (offered once the rig has an LED panel; see [Squid picture](#squid-picture)) name the
   main effect when chosen (**Effects: Swirl**); pressing that segment, or **E**
   anywhere, opens the effect picker: favourites, your presets and the party
-  looks, then every look A to Z with a search. A tap puts a look on stage and
+  looks, then every look A to Z with a search, without the utility effects that
+  pads and Effect settings offer. A tap puts a look on stage and
   leaves the picker open for the next one; Escape or a press outside closes it.
   While an Audio-reactive look plays, the picker also offers the other
   Audio-reactive looks (Active and Mellow) and their colours. **Visualizer**
@@ -1473,7 +1485,8 @@ Left/Right turn the hue, Up/Down the saturation (**Shift** for ten). Edits are t
 **Reset** or another effect, and are captured by cues.
 
 Any other effect keeps its own palette: the card shows it on the same wheel, colour order
-and palette list, with its **Colour distribution**. A palette with authored gradients
+and palette list, with its **Colour distribution**. On Show that card is split: **Palettes**
+names the selected palette over the list, and **Edit colours** folds the wheel and the order. A palette with authored gradients
 keeps its length and order there. The band ranges do not
 recolour other effects: their palettes are authored per look.
 
