@@ -111,9 +111,11 @@ function topicRooms(payload: unknown): string[] {
     .map((t) => TOPICS[t]);
 }
 
-function attachSockets(io: Server, { midi, integrations }: {
+function attachSockets(io: Server, { midi, integrations, activity = () => {} }: {
   midi: MidiPorts & { onLearn(fn: (event: unknown) => void): void };
   integrations: { broadcast(): void; publisher: Publisher; library?: Parameters<typeof presetLookup>[0]; pads?: Pads };
+  /** A page's deliberate input, at most once a minute: the idle stop counts from it (idle-stop.ts). */
+  activity?: () => void;
 }): void {
   const { publisher } = integrations;
   // Every page hears a voice start and end: a press, a release, a lease run
@@ -334,6 +336,7 @@ function attachSockets(io: Server, { midi, integrations }: {
     });
 
     socket.on('tap', processTap);
+    socket.on('activity', () => activity());
 
     // The energy effects' hold, as the pages before voices sent
     // it: a voice under its energy's id, over the latched one (state.ts). Its

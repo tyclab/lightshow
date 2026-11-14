@@ -1,6 +1,6 @@
 import { performanceReport } from '../performance.js';
 import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
-import { pick, dmxSig, connectedSig, emitFixture, latestSent, stagePreviewSig } from '../state.js';
+import { pick, dmxSig, connectedSig, emitFixture, idlePause, latestSent, stagePreviewSig } from '../state.js';
 import { colorToCss, fixtureOutputColor, fixtureCellColors, meanLight, fmtTime, patchedAt, stageMode } from '../utils.js';
 import { useDmxFeed, useDmxPaint } from '../use-dmx.js';
 import { frames } from '../frame-paint.js';
@@ -8,6 +8,7 @@ import { useRehearsalTrack, useRehearsalSampler, useUnitSpace } from '../rehears
 import { Audition } from './Audition.jsx';
 import { auditionSig, setAudition, useAuditionSampler } from '../audition.js';
 import { NowPlaying } from './NowPlaying.jsx';
+import { PreviewPaused } from './PreviewPaused.jsx';
 import { useTimeline } from '../use-timeline.js';
 import { stagePositions } from '../../src/shared/stage.ts';
 import { buildRig, gridLabel, lineOf, rigSignature } from '../../src/shared/rig.ts';
@@ -86,7 +87,8 @@ export function StagePreview({ controls = true } = {}) {
   // flag in an effect keeps the panel honest the moment the analysis goes away,
   // and means losing it does not cost the operator their scrub position.
   const rehearsal = !auditioning && stagePreviewSig.value.rehearsal && !!data;
-  const mode = stageMode({ rehearsing: rehearsal, connected, armed: s.armed, preview: previewLook, blackout: s.masterBlackout });
+  const mode = stageMode({ rehearsing: rehearsal, connected, armed: s.armed, preview: previewLook, blackout: s.masterBlackout,
+    paused: idlePause.paused.value !== null });
   // Disarmed and not previewing, the lights draw as the blackout draws them: off.
   const shown = mode.lit ? s : { ...s, masterBlackout: true };
   // The timeline data carries the analysed beats, so the chase steps here on
@@ -176,6 +178,7 @@ export function StagePreview({ controls = true } = {}) {
       <button class={`btn sm ${edit ? 'active' : ''}`} disabled={!connected || auditioning} aria-pressed={edit}
         onClick={() => { setUi({ edit: !edit }); drag.current = null; setDraft(null); }}> {edit ? 'Done positioning' : 'Position fixtures'}</button>
     </header>
+    {controls && <PreviewPaused />}
     {controls && <Audition compact />}
     <div ref={surface} class={`stage-surface ${edit ? 'editing' : ''}`} role="group"
       aria-label="Stage layout, viewed from the audience"

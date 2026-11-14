@@ -96,6 +96,14 @@ test('a stage that is dark for a reason names it, and what ends it', () => {
   assert.deepEqual(at({ blackout: true, connected: false }), { tag: 'Offline', lit: true });
 });
 
+test('an idle page\'s stage draws its lights off under its own tag; a rehearsal draws on', () => {
+  const at = (patch) => utils.stageMode({ rehearsing: false, connected: true, armed: false, preview: true, blackout: false, paused: true, ...patch });
+  assert.deepEqual(at({}), { tag: 'Preview paused', lit: false }, 'no feed: the last frame is not the room');
+  assert.deepEqual(at({ preview: false, blackout: true }), { tag: 'Preview paused', lit: false });
+  assert.deepEqual(at({ rehearsing: true }), { tag: 'Rehearsal', lit: true }, 'a rehearsal draws in the browser, from no feed');
+  assert.deepEqual(at({ connected: false }), { tag: 'Offline', lit: true });
+});
+
 test('the blackout state a dark stage draws with turns a lit par off', () => {
   const par = { profileId: 'par', address: 1, universe: 0 };
   assert.equal(utils.fixtureOutputColor(par, barState([128, 200, 100, 50])), 'rgb(100,50,25)');

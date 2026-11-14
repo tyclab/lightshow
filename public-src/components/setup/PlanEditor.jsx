@@ -10,6 +10,7 @@ import {
   PLAN_SNAP, STAGE_EDGES, autoPlace, clamp, geometryOf, lineFromEnds, placeAt, plotBox, pointIn, pxOf, round1, snapTo, surfaceStyle,
 } from '../../stage-geometry.js';
 import { rigSelectionSig, selectOnly, toggleSelected, identifyFixtures, stopIdentify } from '../../rig-ui.js';
+import { PreviewPaused } from '../PreviewPaused.jsx';
 
 /**
  * The plan: the rig as it hangs, seen from above with the audience at the
@@ -403,6 +404,7 @@ export function PlanEditor() {
         <h2 class="panel-title" id="plan-title">Plan</h2>
         <span class="panel-tag">{fixtures.length} fixture{fixtures.length === 1 ? '' : 's'}{rig.hasPixels ? ` · ${rig.units.length} lights` : ''}</span>
       </header>
+      <PreviewPaused />
       <div class="plan-tools" role="toolbar" aria-label="Plan tools">
         <div class="segmented" role="group" aria-label="Tool">
           <button type="button" class={`segmented-btn ${tool === 'select' ? 'active' : ''}`} aria-pressed={tool === 'select'}

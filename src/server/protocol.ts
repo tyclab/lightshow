@@ -24,7 +24,7 @@ export const DOMAIN_OF: Readonly<Record<string, Domain>> = {
   liveAutomation: 'look',
   matrix: 'look',
 
-  artnet: 'rig', universes: 'rig', fixtures: 'rig', profiles: 'rig', rigRevision: 'rig', identify: 'rig', hueBridges: 'rig', hueStrobe: 'rig', hardware: 'rig', armed: 'rig', picture: 'rig', wled: 'rig', hue: 'rig',
+  artnet: 'rig', universes: 'rig', fixtures: 'rig', profiles: 'rig', rigRevision: 'rig', identify: 'rig', hueBridges: 'rig', hueStrobe: 'rig', hardware: 'rig', armed: 'rig', idleStopMin: 'rig', picture: 'rig', wled: 'rig', hue: 'rig',
 
   autoIntensity: 'show', autoSyncOffsetMs: 'show', autoSource: 'show', autoPrefetchDepth: 'show',
   autoShow: 'show', activeSource: 'show', showOn: 'show', cues: 'show', warm: 'show',

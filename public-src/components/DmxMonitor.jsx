@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef } from 'preact/hooks';
 import { stateSig, dmxSig, dmxShapeSig } from '../state.js';
 import { useDmxFeed } from '../use-dmx.js';
+import { PreviewPaused } from './PreviewPaused.jsx';
 import { channelPlace, stripOf, isInternalUniverse } from '../../src/shared/placement.ts';
 
 /**
@@ -116,6 +117,7 @@ export function DmxMonitor() {
   return (
     <div class="card">
       <div class="card-title">DMX Monitor</div>
+      <PreviewPaused fallback />
       {universes.map(({ universe, count }) => (
         <UniverseGrid key={universe} s={s} universe={universe} count={count} />
       ))}
