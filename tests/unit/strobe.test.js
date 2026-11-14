@@ -920,28 +920,25 @@ test('a latched palette strobe replaces a latch kept under a strobe hold', async
 });
 
 test('the strobe pad plays on its own fixtures and leaves the rest to the look', async (t) => {
-  const diag = (at) => {
-    const ri = renderInput();
-    console.error('DIAG', at, JSON.stringify({
-      t: performance.now().toFixed(1), ids: ids(), voices: ri.voices.map((v) => [v.id, v.spec?.kind, v.targets]), pattern: state.pattern, running: state.running,
-      energy: state.energyOverride, master: [state.masterDimmer, state.masterBlackout], frozen: diagControl.frozen, held: diagControl.heldUnavailable,
-      engine: engineStatus().thread, prog: ri.programmePlaying, riFrozen: ri.frozen, effect: ri.effect?.kind ?? null, lamps: [lamp(0), lamp(1), lamp(2)],
-      strobe: liveStrobe.status?.()?.active ?? null, ack: ri.safety?.acknowledged,
-    }));
-  };
-  diag('enter');
   const s = await acknowledged(t);
-  diag('served');
   const [first] = state.fixtures.map((f) => f.id);
   applyPatch({ pattern: 'solid', colorA: 0, running: true, masterDimmer: 255, masterBlackout: false, paletteOverride: null });
-  diag('patched');
   await s.call('PUT', '/api/strobe', { palette: ['#0000FF'], flashesPerSecond: 5 });
-  diag('put');
   renderFrame();
-  diag('rendered');
-  renderFrame();
-  diag('rendered twice');
-  assert.deepEqual([lamp(0).r, lamp(1).r], [255, 255], 'the look: red');
+  const seen = [lamp(0), lamp(1)];
+  if (seen[0].r !== 255 || seen[1].r !== 255) {
+    const ri = renderInput();
+    const fx = state.fixtures.slice(0, 3).map((f) => ({ id: f.id, universe: f.universe, address: f.address, profile: f.profileId }));
+    console.error('DIAG-FAIL', JSON.stringify({
+      seen, fx, artnet: { ...state.artnet }, sacn: state.sacn?.enabled, riUniverses: ri.universes, stored: universes.list(),
+      ids: ids(), voices: ri.voices.map((v) => [v.id, v.spec?.kind]), pattern: state.pattern, running: state.running, energy: state.energyOverride,
+      master: [state.masterDimmer, state.masterBlackout], frozen: diagControl.frozen, held: diagControl.heldUnavailable, engine: engineStatus().thread,
+      prog: ri.programmePlaying, ack: ri.safety?.acknowledged,
+    }));
+    renderFrame();
+    console.error('DIAG-FAIL again', JSON.stringify([lamp(0), lamp(1), universes.list()]));
+  }
+  assert.deepEqual([seen[0].r, seen[1].r], [255, 255], 'the look: red');
   const entry = { label: 'Strobe', accent: '#E2E8F0', content: { kind: 'strobe', id: 'strobe' }, launch: 'hold', quantise: 0, targets: [first] };
   assert.equal((await s.call('PUT', '/api/pads/0/6', entry)).status, 200);
   s.integrations.pads.press(0, 6, ...DECK);
