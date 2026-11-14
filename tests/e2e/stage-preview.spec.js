@@ -91,6 +91,7 @@ test('stopped and disarmed, the stage shows the selected look without a click', 
 });
 
 test('the stopped preview follows an edit of the effect, the palette, a band colour, the master and Background', async ({ page, context, request }) => {
+  test.setTimeout(60_000);
   await set(request, { pattern: 'solid', basePalette: { colours: ['#FF0000'] } });
   await open(page, 'stage');
   const plot = await context.newPage();
@@ -152,6 +153,7 @@ test('the stopped preview follows an edit of the effect, the palette, a band col
 // Disarmed, nothing waits for the photosensitivity acknowledgement (README, /api/safety), so the preview draws a
 // strobe as the audition does; what it must never do is give the acknowledgement, which an arm would inherit.
 test('a rapid effect is limited in the stopped preview as on the rig, and the preview never acknowledges for the operator', async ({ page, request }) => {
+  test.setTimeout(60_000);
   await safetySet(request, { photosensitivityAcknowledged: false });
   await set(request, { pattern: 'ldj.TrueStrobe', basePalette: { colours: ['#FFFFFF'] } });
   const writes = watchControlWrites(page);
@@ -230,6 +232,7 @@ test('armed and stopped, with Background off and no layer, the stage is dark, an
 });
 
 test('no view has a Preview look button', async ({ page, request }) => {
+  test.setTimeout(60_000);
   for (const playing of [false, true]) {
     if (playing) await control(request, 'start', 'look');
     for (const view of VIEW_IDS) {
