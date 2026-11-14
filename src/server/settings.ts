@@ -115,6 +115,7 @@ const DEFAULTS: Settings = {
   outputs: {
     armed: false,
     idleDisarmMin: 15,
+    idleStopMin: 60,
   },
   picture: {
     source: 'effects',
@@ -289,6 +290,7 @@ const schema = z.object({
   outputs: z.object({
     armed: z.boolean(),
     idleDisarmMin: z.number().int().min(0).max(1440),
+    idleStopMin: z.number().int().min(0).max(1440),
   }).strict(),
   picture: z.object({
     source: z.enum(['effects', 'visualizer', 'inspired', 'squid']),

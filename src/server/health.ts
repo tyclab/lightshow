@@ -233,7 +233,8 @@ export function health({ autoShow = null }: HealthDeps = {}) {
     startedAt: new Date(startedAt).toISOString(),
     uptimeS: Math.round(process.uptime()),
     supervisor: inputs.supervisor,
-    engine,
+    // What keeps it from idling, as the performance record says it.
+    engine: { ...engine, awake: awakeProvider ? awakeProvider() : null },
     eventLoop: inputs.eventLoop,
     memory: { rssMb: Math.round(inputs.rssMb), heapUsedMb: Math.round(memory.heapUsed / 1024 / 1024) },
     outputs: {
