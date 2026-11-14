@@ -11,7 +11,7 @@ import { hasBeams, lightRGB, STAGE_W, STAGE_D, TRUSS_H } from '../stage3d/world.
 import { Audition } from './Audition.jsx';
 import { StagePreview } from './StagePreview.jsx';
 import { PreviewPaused } from './PreviewPaused.jsx';
-import { auditionSig, setAudition, useAuditionSampler } from '../audition.js';
+import { auditionSig, demoBeatSig, setAudition, useAuditionSampler, useDemoLookSampler } from '../audition.js';
 import { StageRoomPanel } from './StageRoomPanel.jsx';
 import { scenePool } from '../stage3d/scene-pool.js';
 import { keptRig } from '../stage3d/kept-rig.js';
@@ -40,7 +40,7 @@ const readHaze = () => {
 
 /** `compact`: the stage alone, for the Show view — the room loads here, its panel and the notes stay in Stage. */
 export function StageView({ compact = false } = {}) {
-  const s = pick(['fixtures', 'profiles', 'colorPresets', 'autoShow', 'armed', 'masterBlackout']);
+  const s = pick(['fixtures', 'profiles', 'colorPresets', 'autoShow', 'armed', 'masterBlackout', 'control']);
   const connected = connectedSig.value;
   const fixtures = s.fixtures || [];
   const profiles = s.profiles || {};
@@ -51,7 +51,9 @@ export function StageView({ compact = false } = {}) {
   const rehearsing = !auditioning && ui.rehearsal && !!data;
   const [format, setFormat] = useState('3d');
   const paused = idlePause.paused.value !== null;
-  const mode = stageMode({ rehearsing, connected, armed: s.armed, preview: ui.preview, blackout: s.masterBlackout, paused });
+  const mode = stageMode({ rehearsing, connected, armed: s.armed, blackout: s.masterBlackout, paused,
+    playing: !!s.control?.playing, layers: !!s.control?.layers, frozen: !!s.control?.frozen });
+  const demo = mode.demo && !auditioning;
   const dark = auditioning ? null : mode.note;
   const tagClass = `panel-tag${!auditioning && mode.tag === 'Blackout' ? ' blackout' : ''}`;
   const durationMs = data && data.duration ? data.duration * 1000 : 0;
@@ -81,10 +83,11 @@ export function StageView({ compact = false } = {}) {
   const space = useUnitSpace(rig, [rig], room);
   const sample = useRehearsalSampler(data, space, rehearsing && format === '3d');
   const auditionSample = useAuditionSampler(space, auditioning && format === '3d');
+  const demoSample = useDemoLookSampler(space, demo && format === '3d');
 
   // What the frame loop reads, without restarting it for every change.
   const live = useRef({});
-  live.current = { fixtures, profiles, rig, sample, auditionSample, auditioning, format, rehearsing, dark: !mode.lit, presets: s.colorPresets, durationMs };
+  live.current = { fixtures, profiles, rig, sample, auditionSample, demoSample, auditioning, format, rehearsing, dark: !mode.lit, presets: s.colorPresets, durationMs };
 
   // The canvas and its scene come from the pool and go back to it (scene-pool.js):
   // a return to this view reuses the WebGL context instead of making another.
@@ -207,6 +210,16 @@ export function StageView({ compact = false } = {}) {
           rehearsalFrame = cur.auditionSample(at, cur.fixtures, cur.presets, cur.rig);
         }
         scene.current.setLights(rehearsalFrame);
+        lastDmx = null;
+      } else if (cur.demoSample) {
+        const at = demoBeatSig.peek();
+        const inputs = [at, cur.demoSample, cur.fixtures, cur.presets, cur.rig];
+        if (!rehearsalInputs || inputs.some((value, i) => value !== rehearsalInputs[i])) {
+          rehearsalInputs = inputs;
+          rehearsalFrame = cur.demoSample(at, cur.fixtures, cur.presets, cur.rig);
+        }
+        scene.current.setLights(rehearsalFrame);
+        lastDmx = null;
       } else if (cur.rehearsing) {
         if (st.playing && cur.durationMs) {
           position = Math.min(cur.durationMs, position + Math.min(250, now - lastNow));
@@ -224,6 +237,7 @@ export function StageView({ compact = false } = {}) {
           rehearsalFrame = cur.sample(position, cur.fixtures, cur.presets, cur.rig);
         }
         scene.current.setLights(rehearsalFrame);
+        lastDmx = null;
       } else {
         position = st.position;
         const dmx = dmxSig.value;
@@ -280,7 +294,8 @@ export function StageView({ compact = false } = {}) {
     + `${fixtures.length} fixtures${bars ? `, ${bars} of them bars` : ''}, ${parts} lights, `
     + `${auditioning ? `auditioning ${audition.name || audition.id}; browser only, outputs disarmed` : rehearsing ? `rehearsing the track at ${fmtTime(ui.position)}` : !connected ? 'offline'
       : paused ? 'preview paused for want of input, lights drawn off' : s.masterBlackout ? 'Blackout is on, every light is dark'
-      : s.armed ? 'showing the live output' : mode.lit ? 'previewing with outputs disarmed; nothing is transmitted' : 'outputs disarmed, lights drawn off; nothing is transmitted'}.`;
+      : s.armed ? 'showing the live output' : demo ? 'previewing the selected look on the demo beat in this browser; nothing is transmitted'
+        : 'previewing with outputs disarmed; nothing is transmitted'}.`;
   keys.current = onKeyDown;
   useLayoutEffect(() => { if (canvas.current) canvas.current.setAttribute('aria-label', description); });
 
@@ -311,8 +326,6 @@ export function StageView({ compact = false } = {}) {
             onInput={(e) => setHaze(Number(e.target.value))} />
         </label>}
         <span class="stage3d-sep" aria-hidden="true" />
-        {connected && !s.armed && !rehearsing && !auditioning && <button type="button" class={`btn sm ${ui.preview ? 'active' : ''}`} aria-pressed={!!ui.preview}
-          title="Draw what arming would send; nothing goes out" onClick={() => setUi({ preview: !ui.preview })}>Preview look</button>}
         <button type="button" class={`btn sm ${rehearsing ? 'active' : ''}`} aria-pressed={rehearsing} disabled={!data}
           title={data ? 'Play the loaded track\'s show here, at any moment of it' : 'Rehearsal needs an analysed track'}
           onClick={() => { setAudition({ active: false, playing: false }); setUi({ rehearsal: !rehearsing, playing: false }); }}>{rehearsing ? 'Back to live' : 'Rehearse track'}</button>
@@ -346,7 +359,8 @@ export function StageView({ compact = false } = {}) {
           ? 'Audition: the demo track drives this effect locally. No commands are sent to the rig.' : rehearsing
           ? 'Rehearsing: the planned show, as the timeline has it; nothing goes out to the rig.'
           : !connected ? 'Offline: the live output is unavailable.' : mode.note ? mode.note : s.armed
-            ? 'Live: what is going out to the rig now.'
+            ? 'Live: what is going out to the rig now.' : demo
+            ? 'Preview: the selected look on the built-in demo beat, drawn in this browser; outputs are disarmed and nothing is transmitted to the rig.'
             : 'Preview: outputs are disarmed; nothing is transmitted to the rig.'}
       </p>}
     </div>

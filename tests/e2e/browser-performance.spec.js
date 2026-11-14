@@ -1,6 +1,6 @@
 import { writeFile } from 'node:fs/promises';
 import { test, expect } from '@playwright/test';
-import { previewLook, reset, set, state } from './helpers.js';
+import { reset, set, state } from './helpers.js';
 import { mainThreadBudget } from './browser-budget.js';
 
 test('opt-in timing observes real draws and rejects an injected 250 ms renderer stall', async ({ page, request }, testInfo) => {
@@ -26,7 +26,6 @@ test('opt-in timing observes real draws and rejects an injected 250 ms renderer 
     expect(await page.evaluate(() => '__lightshowPerformance' in window)).toBe(false);
     await page.goto('/?performance=1#stage');
     await page.locator('.offline-veil').waitFor({ state: 'detached' });
-    await previewLook(page);
     const snapshot = () => page.evaluate(() => window.__lightshowPerformance.snapshot());
     await expect.poll(async () => (await snapshot()).counts['scene.draws'] || 0).toBeGreaterThan(10);
     await attach('startup-timing.json', await snapshot());

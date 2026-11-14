@@ -1,7 +1,7 @@
 import { effect, signal } from '@preact/signals';
 import { useEffect, useMemo, useRef } from 'preact/hooks';
 import { stateSig, librarySig, stagePreviewSig, field, pick } from './state.js';
-import { previewOptions, resolverOf } from './preview-inputs.js';
+import { demoLookSampler, previewOptions, resolverOf } from './preview-inputs.js';
 import { createPreviewSampler } from '../src/shared/preview.ts';
 import { DEMO_AUDIO_SOURCE, DEMO_BPM, DEMO_DURATION_MS } from '../src/shared/demo-track.ts';
 
@@ -60,5 +60,40 @@ export function useAuditionSampler(space, enabled = true) {
       audioSource: DEMO_AUDIO_SOURCE, resolveEffect: (id) => id === a.id && a.spec ? a.spec : resolve(id),
     });
   }, [prepared?.key, prepared?.space]);
+  return active ? sampler : null;
+}
+
+// The live look a stopped, disarmed stage draws (Show v3, G6): its keys, so an edit re-samples it.
+const DEMO_KEYS = ['armed', 'pattern', 'colorA', 'colorB', 'colorC', 'colorD', 'beatDivision', 'flashLimit', 'strobeSpeed', 'strobeFunction',
+  'pixelMap', 'pixelPattern', 'panelPattern', 'masterDimmer', 'basePalette', 'paletteOverride', 'overridePalette', 'effectColours',
+  'background', 'hardware', 'profiles', 'safety', 'hueStrobe'];
+
+/** Where the demo beat is, looping the demo track: one clock for every stage drawing it, ticking only while one does. */
+export const demoBeatSig = signal(0);
+let demoUsers = 0, demoTimer = null, demoOrigin = 0;
+
+function holdDemoBeat() {
+  if (demoUsers++ === 0) {
+    demoOrigin = performance.now() - demoBeatSig.peek();
+    demoTimer = setInterval(() => {
+      if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return;
+      demoBeatSig.value = (performance.now() - demoOrigin) % DEMO_DURATION_MS;
+    }, 1000 / 30);
+  }
+  let released = false;
+  return () => {
+    if (released) return;
+    released = true;
+    if (--demoUsers === 0) { clearInterval(demoTimer); demoTimer = null; }
+  };
+}
+
+/** The selected look on the demo beat while `enabled` and disarmed, else null: arming drops it in the same render. It sends nothing. */
+export function useDemoLookSampler(space, enabled) {
+  const s = pick(DEMO_KEYS), library = librarySig.value;
+  const active = enabled && s.armed === false;
+  useEffect(() => (active ? holdDemoBeat() : undefined), [active]);
+  const sampler = useMemo(() => (active ? demoLookSampler(s, { library, space }) : null),
+    [active, space, library.user, ...DEMO_KEYS.map((key) => s[key])]);
   return active ? sampler : null;
 }

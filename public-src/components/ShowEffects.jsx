@@ -1,8 +1,9 @@
 import { useId, useLayoutEffect, useRef, useState } from 'preact/hooks';
-import { librarySig, pick, send } from '../state.js';
+import { connectedSig, idlePause, librarySig, pick, send } from '../state.js';
 import { pictureReceivingSig, pictureSourceSig } from '../picture-source.js';
 import { byName, catalogueOf, matchesSearch, tapRow } from './Effects.jsx';
 import { Photosensitivity, acknowledgeThen } from './Photosensitivity.jsx';
+import { stageMode } from '../utils.js';
 
 /** The one-sentence form: the Visualizer source with a picture arriving. Colour + motion keeps the list, as it still draws the main effect. */
 export const pictureForm = (source, receiving) => source === 'visualizer' && !!receiving;
@@ -11,18 +12,22 @@ const HELD = { frozen: ['The picture is frozen.', 'after Resume'], stopped: ['Th
   both: ['The picture is frozen and the show is stopped.', 'after Resume and play'] };
 const PICTURE = 'the Visualizer picture paints the room; the main effect shows again when the picture stops or when Effects is chosen in the header.';
 
-/** What the Effects box says, from the show, Freeze and the picture source: it never names as playing what Freeze or a stop holds back. */
-export function effectsBox({ running, frozen, source, receiving }) {
+/** What the Effects box says, from the show, Freeze and the picture source: it never names as playing what Freeze or a stop holds back.
+ * `previewing`: the stage draws the selected effect on the demo beat, stopped and disarmed (G6). */
+export function effectsBox({ running, frozen, source, receiving, previewing = false }) {
   const [held, when] = HELD[frozen && !running ? 'both' : frozen ? 'frozen' : running ? '' : 'stopped'] ?? [];
   if (pictureForm(source, receiving)) {
     return { picture: true, text: held ? `${held} ${when[0].toUpperCase()}${when.slice(1)}, ${PICTURE}` : `${PICTURE[0].toUpperCase()}${PICTURE.slice(1)}` };
   }
-  return { picture: false, label: held ? 'Selected effect' : 'Current effect', hint: held ? `${held} The selected effect plays ${when}.` : null };
+  const hint = !held ? null : previewing && when === HELD.stopped[1] ? `${held} The preview shows the selected effect; Play sends it.` : `${held} The selected effect plays ${when}.`;
+  return { picture: false, label: held ? 'Selected effect' : 'Current effect', hint };
 }
 
 export function ShowEffects() {
-  const s = pick(['pattern', 'patterns', 'effects', 'families', 'safety', 'running', 'control']);
-  const box = effectsBox({ running: !!s.running, frozen: !!s.control?.frozen, source: pictureSourceSig.value, receiving: pictureReceivingSig.value });
+  const s = pick(['pattern', 'patterns', 'effects', 'families', 'safety', 'running', 'control', 'armed', 'masterBlackout']);
+  const previewing = stageMode({ rehearsing: false, connected: connectedSig.value, armed: s.armed !== false, blackout: !!s.masterBlackout, paused: idlePause.paused.value !== null,
+    playing: !!s.control?.playing, layers: !!s.control?.layers, frozen: !!s.control?.frozen }).demo;
+  const box = effectsBox({ running: !!s.running, frozen: !!s.control?.frozen, source: pictureSourceSig.value, receiving: pictureReceivingSig.value, previewing });
   const lib = librarySig.value;
   const families = s.families || lib.families || [];
   const { allRows, rows, playingId } = catalogueOf(s, lib, families, []);
