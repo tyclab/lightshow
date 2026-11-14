@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { armFromHeader, control, open, playButton, previewLook, reset, state, until } from './helpers.js';
+import { armFromHeader, control, open, playButton, reset, state, until } from './helpers.js';
 
 test.beforeEach(async ({ request }) => {
   await control(request, 'stop');
@@ -204,15 +204,3 @@ test('header controls work in setup, and preview playback never rearms a disarme
   await until(request, s => s.masterBlackout === false);
 });
 
-test('the disarmed preview choice survives reloads and can be switched off', async ({ page, request }) => {
-  await open(page, 'show');
-  await previewLook(page);
-  await page.reload();
-  const preview = page.getByRole('button', { name: 'Preview look' }).first();
-  await expect(preview).toHaveAttribute('aria-pressed', 'true');
-  expect((await state(request)).armed).toBe(false);
-  await preview.click();
-  await page.reload();
-  await expect(preview).toHaveAttribute('aria-pressed', 'false');
-  expect((await state(request)).armed).toBe(false);
-});

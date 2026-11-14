@@ -58,13 +58,6 @@ export async function open(page, view = 'effects', { theme = 'dark' } = {}) {
   await page.locator(`#panel-${resolveRoute(view).view}`).waitFor();
 }
 
-/** Disarmed, a stage draws its lights off; this asks it to draw the look that arming would send. */
-export async function previewLook(page) {
-  const button = page.getByRole('button', { name: 'Preview look' }).first();
-  await button.click();
-  await expect(button).toHaveAttribute('aria-pressed', 'true');
-}
-
 /** Poll the server until `check(state)` holds, or fail with the last state. */
 export async function until(request, check, { timeout = 3000 } = {}) {
   const end = Date.now() + timeout;

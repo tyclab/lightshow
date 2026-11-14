@@ -264,12 +264,13 @@ test('the Effects box follows the picture source, the picture, Stop and Freeze, 
   }
 });
 
+// Stopped and disarmed, the stage previews the selected effect by itself (Show v3, G6), so the hint says so and what Play does.
 test('a pick while stopped is named as selected, with when it plays', async ({ page, request }) => {
   await control(request, 'stop');
   await open(page, 'show');
   const effects = box(page);
   await expect(effects.locator('.contained-current-label')).toHaveText('Selected effect');
-  await expect(effects.locator('.contained-hint')).toHaveText('The show is stopped. The selected effect plays when the show plays.');
+  await expect(effects.locator('.contained-hint')).toHaveText('The show is stopped. The preview shows the selected effect; Play sends it.');
   await row(page, 'v2.aurora').click();
   const after = await until(request, (s) => s.pattern === 'v2.aurora');
   expect(after.running).toBe(false);

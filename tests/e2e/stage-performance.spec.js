@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { open, previewLook, set, state, reset } from './helpers.js';
+import { open, set, state, reset } from './helpers.js';
 import { stageImage } from './stage-image.js';
 
 for (const frameInterval of [0, 100]) test(`Stage idles between visible changes and redraws lights and camera input${frameInterval ? ' at 10 Hz' : ''}`, async ({ page, request }) => {
@@ -38,7 +38,6 @@ for (const frameInterval of [0, 100]) test(`Stage idles between visible changes 
     added = (await fixtures.json()).fixtures;
     await set(request, { pattern: 'solid', basePalette: { colours: ['#FF0000'] }, overridePalette: null });
     await open(page, 'stage');
-    await previewLook(page);
     await expect.poll(async () => (await counters()).draws).toBeGreaterThan(0);
     await idle();
     const still = await counters();

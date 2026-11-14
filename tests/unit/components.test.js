@@ -1371,6 +1371,11 @@ test('Show\'s Effects box names the main effect as current only while it plays, 
   for (const [running, frozen, source, receiving, want] of rows) {
     assert.deepStrictEqual(ui.effectsBox({ running, frozen, source, receiving }), want, JSON.stringify({ running, frozen, source, receiving }));
   }
+  // Stopped and disarmed, the stage previews the selected effect by itself (G6): the hint says so, and what Play does.
+  for (const source of ['effects', 'visualizer', 'inspired']) {
+    assert.deepStrictEqual(ui.effectsBox({ running: false, frozen: false, source, receiving: false, previewing: true }),
+      { picture: false, label: 'Selected effect', hint: 'The show is stopped. The preview shows the selected effect; Play sends it.' }, source);
+  }
 
   const effects = (html) => /<section class="card contained-effects[^"]*"[^>]*>(.*?)<\/section>/s.exec(html)[1];
   givenLibrary({ running: true, picture: { source: 'visualizer', input: { units: 4, receiving: true } }, armed: true });

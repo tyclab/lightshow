@@ -6,7 +6,7 @@ import { useDmxFeed, useDmxPaint } from '../use-dmx.js';
 import { frames } from '../frame-paint.js';
 import { useRehearsalTrack, useRehearsalSampler, useUnitSpace } from '../rehearsal.js';
 import { Audition } from './Audition.jsx';
-import { auditionSig, setAudition, useAuditionSampler } from '../audition.js';
+import { auditionSig, demoBeatSig, setAudition, useAuditionSampler, useDemoLookSampler } from '../audition.js';
 import { NowPlaying } from './NowPlaying.jsx';
 import { PreviewPaused } from './PreviewPaused.jsx';
 import { useTimeline } from '../use-timeline.js';
@@ -16,7 +16,7 @@ import { STAGE_EDGES, clamp, geometryOf, placeAt, pointIn, surfaceStyle } from '
 import { layoutOf, paintLayer, useCellLayer } from '../cell-layer.js';
 
 // The state the plot draws from; any other key changes without waking it.
-const KEYS = ['fixtures', 'profiles', 'armed', 'autoShow', 'colorPresets', 'masterBlackout', 'masterDimmer'];
+const KEYS = ['fixtures', 'profiles', 'armed', 'autoShow', 'colorPresets', 'masterBlackout', 'masterDimmer', 'control'];
 const NONE = [];
 
 /**
@@ -58,7 +58,7 @@ export function StagePreview({ controls = true } = {}) {
   const audition = auditionSig.value;
   const auditioning = audition.active && !s.armed;
   const { data } = useTimeline();
-  const { edit, playing, position, preview: previewLook } = stagePreviewSig.value;
+  const { edit, playing, position } = stagePreviewSig.value;
   const setUi = (patch) => { stagePreviewSig.value = { ...stagePreviewSig.value, ...patch }; };
   const [draft, setDraft] = useState(null);
   const drag = useRef(null);
@@ -87,9 +87,9 @@ export function StagePreview({ controls = true } = {}) {
   // flag in an effect keeps the panel honest the moment the analysis goes away,
   // and means losing it does not cost the operator their scrub position.
   const rehearsal = !auditioning && stagePreviewSig.value.rehearsal && !!data;
-  const mode = stageMode({ rehearsing: rehearsal, connected, armed: s.armed, preview: previewLook, blackout: s.masterBlackout,
-    paused: idlePause.paused.value !== null });
-  // Disarmed and not previewing, the lights draw as the blackout draws them: off.
+  const mode = stageMode({ rehearsing: rehearsal, connected, armed: s.armed, blackout: s.masterBlackout, paused: idlePause.paused.value !== null,
+    playing: !!s.control?.playing, layers: !!s.control?.layers, frozen: !!s.control?.frozen });
+  // An idle page's lights draw as the blackout draws them: off.
   const shown = mode.lit ? s : { ...s, masterBlackout: true };
   // The timeline data carries the analysed beats, so the chase steps here on
   // the same beats the rig will step on.
@@ -97,7 +97,10 @@ export function StagePreview({ controls = true } = {}) {
   const sample = useRehearsalSampler(data, space, rehearsal);
   // One entry per light: a par, or each cell of a bar.
   const auditionSample = useAuditionSampler(space, auditioning);
-  const preview = auditioning ? auditionSample(audition.position, fixtures, s.colorPresets, rig) : rehearsal ? sample(position, fixtures, s.colorPresets, rig) : null;
+  // Stopped and disarmed, the selected look on the demo beat (G6); its clock re-renders only this plot.
+  const demoSample = useDemoLookSampler(space, mode.demo && !auditioning);
+  const preview = auditioning ? auditionSample(audition.position, fixtures, s.colorPresets, rig) : rehearsal ? sample(position, fixtures, s.colorPresets, rig)
+    : demoSample ? demoSample(demoBeatSig.value, fixtures, s.colorPresets, rig) : null;
   // Live, the plot paints the DMX feed; rehearsing, it draws the timeline and
   // has no reason to wake — and re-sample the whole timeline — on every frame.
   const live = !rehearsal && !auditioning;
@@ -107,7 +110,7 @@ export function StagePreview({ controls = true } = {}) {
   const inputs = useRef(null);
   inputs.current = { drawn, rig, positions, preview, shown, connected, live };
   const layer = useCellLayer(lightHost, drawn.length > 0, () => paintPlot(surface.current, layer.current, inputs.current));
-  useDmxPaint(() => paintPlot(surface.current, layer.current, inputs.current), live);
+  useDmxPaint(() => paintPlot(surface.current, layer.current, inputs.current), live && !demoSample);
 
   // Follows the *track*, not the timeline. A replan — an intensity nudge, a
   // palette change — re-mints timelineRevision and hands us a new `data` for the
@@ -173,8 +176,6 @@ export function StagePreview({ controls = true } = {}) {
     <header class="panel-head">
       <h2 class="panel-title">Stage preview</h2>
       <span class={`panel-tag${!auditioning && mode.tag === 'Blackout' ? ' blackout' : ''}`}>{auditioning ? 'Audition · browser only' : mode.tag}</span>
-      {connected && !s.armed && !rehearsal && !auditioning && <button class={`btn sm ${previewLook ? 'active' : ''}`} aria-pressed={!!previewLook}
-        title="Draw what arming would send; nothing goes out" onClick={() => setUi({ preview: !previewLook })}>Preview look</button>}
       <button class={`btn sm ${edit ? 'active' : ''}`} disabled={!connected || auditioning} aria-pressed={edit}
         onClick={() => { setUi({ edit: !edit }); drag.current = null; setDraft(null); }}> {edit ? 'Done positioning' : 'Position fixtures'}</button>
     </header>

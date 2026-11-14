@@ -39,21 +39,14 @@ export const autoPositionSig = signal({ positionMs: 0, running: false, updatedAt
 export const autoTimelineSig = signal({ data: null, key: null, status: 'idle', error: null });
 
 // Shared by the stage preview in both views so they never disagree; a drag stays in the component.
-function readPreviewLook() {
-  try { return localStorage.getItem('lightshow.previewLook') === 'true'; } catch { return false; }
-}
-
 export const stagePreviewSig = signal({
-  edit: false, rehearsal: false, playing: false, position: 0, preview: readPreviewLook(),
+  edit: false, rehearsal: false, playing: false, position: 0,
   // So a remount on a view switch is not taken for a new track.
   trackId: undefined,
 });
 
-const previewLook = computed(() => stagePreviewSig.value.preview);
-effect(() => {
-  const enabled = previewLook.value;
-  try { localStorage.setItem('lightshow.previewLook', String(enabled)); } catch { /* private mode */ }
-});
+// A stage previews by itself now (Show v3, G6): the old Preview look choice is dropped and read by nothing.
+try { localStorage.removeItem('lightshow.previewLook'); } catch { /* private mode */ }
 
 // From public/auth.js, loaded first; guarded in case it is not.
 const auth = (typeof window !== 'undefined' && window.LightshowAuth) || {

@@ -1,7 +1,7 @@
 // One card per look; both mappings remain playable with outputs disarmed.
 
 import { test, expect } from '@playwright/test';
-import { control, open, previewLook, reset, set, state, until } from './helpers.js';
+import { control, open, reset, set, state, until } from './helpers.js';
 import { stageImage, stageMotion } from './stage-image.js';
 
 const NAMES = ['Scatter Strobe', 'Scatter Fade', 'Scatter Grow', 'Groove Wave', 'Big Room Wave', 'Ascent', 'Double Wave', 'Swagger',
@@ -54,8 +54,8 @@ test('the list has each spatial effect once, in its room form, and keeps old ids
 test('a Spatial preset and its 2D twin move on the Stage while disarmed', async ({ page, request }) => {
   await set(request, { pattern: 'v2.grooveWave', basePalette: { colours: ['#FF0000000000', '#0000FF000000'] }, overridePalette: null });
   await open(page, 'stage');
-  await expect(page.getByRole('img', { name: /The rig in 3D/ })).toHaveAttribute('aria-label', /lights drawn off/);
-  await previewLook(page);
+  // Playing and disarmed, the stage draws the server's feed: what arming would send.
+  await expect(page.locator('.stage3d-tools .panel-tag')).toHaveText('Preview (disarmed)');
   await expect(page.getByRole('img', { name: /The rig in 3D/ })).toHaveAttribute('aria-label', /previewing with outputs disarmed/);
   for (const id of ['v2.grooveWave', 'v2.grooveWave.2d']) {
     await set(request, { pattern: id });
