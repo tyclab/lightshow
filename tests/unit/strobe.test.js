@@ -26,7 +26,8 @@ import { createApplier } from '../../src/server/apply.ts';
 import { EffectLibrary } from '../../src/server/effect-library.ts';
 import { PaletteStore } from '../../src/server/palette-store.ts';
 import { PadStore } from '../../src/server/pads.ts';
-import { stopEngine, renderInput, renderFrame } from '../../src/server/engine.ts';
+import { stopEngine, renderInput, renderFrame, engineStatus } from '../../src/server/engine.ts';
+import { control as diagControl } from '../../src/server/control.ts';
 import { applyPatch } from '../../src/server/patch.ts';
 import { captureLook, recallLook } from '../../src/server/cues.ts';
 import { state, voices, strobe as liveStrobe, getLiveState } from '../../src/server/state.ts';
@@ -919,11 +920,27 @@ test('a latched palette strobe replaces a latch kept under a strobe hold', async
 });
 
 test('the strobe pad plays on its own fixtures and leaves the rest to the look', async (t) => {
+  const diag = (at) => {
+    const ri = renderInput();
+    console.error('DIAG', at, JSON.stringify({
+      t: performance.now().toFixed(1), ids: ids(), voices: ri.voices.map((v) => [v.id, v.spec?.kind, v.targets]), pattern: state.pattern, running: state.running,
+      energy: state.energyOverride, master: [state.masterDimmer, state.masterBlackout], frozen: diagControl.frozen, held: diagControl.heldUnavailable,
+      engine: engineStatus().thread, prog: ri.programmePlaying, riFrozen: ri.frozen, effect: ri.effect?.kind ?? null, lamps: [lamp(0), lamp(1), lamp(2)],
+      strobe: liveStrobe.status?.()?.active ?? null, ack: ri.safety?.acknowledged,
+    }));
+  };
+  diag('enter');
   const s = await acknowledged(t);
+  diag('served');
   const [first] = state.fixtures.map((f) => f.id);
   applyPatch({ pattern: 'solid', colorA: 0, running: true, masterDimmer: 255, masterBlackout: false, paletteOverride: null });
+  diag('patched');
   await s.call('PUT', '/api/strobe', { palette: ['#0000FF'], flashesPerSecond: 5 });
+  diag('put');
   renderFrame();
+  diag('rendered');
+  renderFrame();
+  diag('rendered twice');
   assert.deepEqual([lamp(0).r, lamp(1).r], [255, 255], 'the look: red');
   const entry = { label: 'Strobe', accent: '#E2E8F0', content: { kind: 'strobe', id: 'strobe' }, launch: 'hold', quantise: 0, targets: [first] };
   assert.equal((await s.call('PUT', '/api/pads/0/6', entry)).status, 200);
