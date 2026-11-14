@@ -2,7 +2,7 @@ import { performanceReport } from '../performance.js';
 import { Background } from './Background.jsx';
 import { useEffect, useLayoutEffect, useRef, useState } from 'preact/hooks';
 import { effect } from '@preact/signals';
-import { pick, connectedSig, dmxSig, dmxReceivedAt, field, pictureImageSig, stagePreviewSig, wantPicture } from '../state.js';
+import { pick, connectedSig, dmxSig, dmxReceivedAt, field, idlePause, pictureImageSig, stagePreviewSig, wantPicture } from '../state.js';
 import { fmtTime, rigLights, stageMode } from '../utils.js';
 import { useDmxFeed } from '../use-dmx.js';
 import { useTimeline } from '../use-timeline.js';
@@ -10,6 +10,7 @@ import { useRehearsalTrack, useRehearsalSampler, useUnitSpace } from '../rehears
 import { hasBeams, lightRGB, STAGE_W, STAGE_D, TRUSS_H } from '../stage3d/world.js';
 import { Audition } from './Audition.jsx';
 import { StagePreview } from './StagePreview.jsx';
+import { PreviewPaused } from './PreviewPaused.jsx';
 import { auditionSig, setAudition, useAuditionSampler } from '../audition.js';
 import { StageRoomPanel } from './StageRoomPanel.jsx';
 import { scenePool } from '../stage3d/scene-pool.js';
@@ -49,7 +50,8 @@ export function StageView({ compact = false } = {}) {
   const auditioning = audition.active && !s.armed;
   const rehearsing = !auditioning && ui.rehearsal && !!data;
   const [format, setFormat] = useState('3d');
-  const mode = stageMode({ rehearsing, connected, armed: s.armed, preview: ui.preview, blackout: s.masterBlackout });
+  const paused = idlePause.paused.value !== null;
+  const mode = stageMode({ rehearsing, connected, armed: s.armed, preview: ui.preview, blackout: s.masterBlackout, paused });
   const dark = auditioning ? null : mode.note;
   const tagClass = `panel-tag${!auditioning && mode.tag === 'Blackout' ? ' blackout' : ''}`;
   const durationMs = data && data.duration ? data.duration * 1000 : 0;
@@ -144,7 +146,7 @@ export function StageView({ compact = false } = {}) {
     const stop = effect(() => {
       const image = pictureImageSig.value;
       const picture = field('picture').value;
-      const painting = !auditionSig.value.active && picture?.source === 'visualizer' && !!picture.input;
+      const painting = !auditionSig.value.active && idlePause.paused.value === null && picture?.source === 'visualizer' && !!picture.input;
       scene.current.setPicture(painting ? image : null);
     });
     return () => { stop(); release(); };
@@ -276,13 +278,15 @@ export function StageView({ compact = false } = {}) {
   const bars = rig.cellMaps.filter(Boolean).length;
   const description = `The rig in 3D from ${VIEW_NAMES[view]}: `
     + `${fixtures.length} fixtures${bars ? `, ${bars} of them bars` : ''}, ${parts} lights, `
-    + `${auditioning ? `auditioning ${audition.name || audition.id}; browser only, outputs disarmed` : rehearsing ? `rehearsing the track at ${fmtTime(ui.position)}` : !connected ? 'offline' : s.masterBlackout ? 'Blackout is on, every light is dark'
+    + `${auditioning ? `auditioning ${audition.name || audition.id}; browser only, outputs disarmed` : rehearsing ? `rehearsing the track at ${fmtTime(ui.position)}` : !connected ? 'offline'
+      : paused ? 'preview paused for want of input, lights drawn off' : s.masterBlackout ? 'Blackout is on, every light is dark'
       : s.armed ? 'showing the live output' : mode.lit ? 'previewing with outputs disarmed; nothing is transmitted' : 'outputs disarmed, lights drawn off; nothing is transmitted'}.`;
   keys.current = onKeyDown;
   useLayoutEffect(() => { if (canvas.current) canvas.current.setAttribute('aria-label', description); });
 
   return (
     <div class={`stage3d-view${compact ? ' compact' : ''}`}>
+      <PreviewPaused />
       {!compact && <Background />}
       {!compact && <StageRoomPanel snapshot={roomState} coverage={room ? placed : null} fixtures={fixtures} rig={rig} onChange={setRoomState} />}
       {!compact && <Audition />}

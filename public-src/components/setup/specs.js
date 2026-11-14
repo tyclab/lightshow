@@ -273,6 +273,11 @@ export const SHOW = {
       help: 'Each track avoids the palette and the looks of the one before it, keeps some of its colours when the two '
         + 'keys mix, and paces its biggest moments against the tracks before it. Off plans every track as if it were '
         + 'the first of the night.' },
+    { path: 'outputs.idleStopMin', label: 'Stop an Unattended Show', type: 'number', unit: 'min', min: 0, max: 1440,
+      help: 'While the outputs are disarmed, a show with no control action and no input on any page for this long is '
+        + 'stopped as Stop does, pads included, and an open page pauses its preview until Resume preview. A sequence '
+        + 'stopped this way starts from the top. Armed, it never stops. 0 never stops: for a remote that leaves a '
+        + 'disarmed programme running on purpose.' },
     { path: 'safety.flashLimit', label: 'Flash Limit', type: 'toggle',
       help: 'Photosensitivity: at most three large-area flashes a second (WCAG 2.3.1, ITU-R BT.1702). Strobes are capped '
         + 'at three a second, and a look that would flash the whole rig faster is held to a flicker under a tenth of '

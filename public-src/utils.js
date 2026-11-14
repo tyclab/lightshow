@@ -162,10 +162,12 @@ const OUTPUTS_OFF_NOTE = 'Outputs off: nothing is transmitted to the rig, so its
 
 /** What a stage drawing shows. Disarmed, nothing reaches the rig, so its lights draw off;
  * the engine's idle look appears only when the operator asks to preview it. A stage dark
- * for a reason carries a `note` naming it and what ends it; Blackout outranks the rest. */
-export function stageMode({ rehearsing, connected, armed, preview, blackout }) {
+ * for a reason carries a `note` naming it and what ends it; Blackout outranks the rest.
+ * An idle page holds no feed (`paused`): its last frame is not drawn as the room's. */
+export function stageMode({ rehearsing, connected, armed, preview, blackout, paused = false }) {
   if (rehearsing) return { tag: 'Rehearsal', lit: true };
   if (!connected) return { tag: 'Offline', lit: true };
+  if (paused) return { tag: 'Preview paused', lit: false };
   if (blackout) return { tag: 'Blackout', lit: !!(armed || preview), note: BLACKOUT_NOTE };
   if (armed) return { tag: 'Live output', lit: true };
   return preview ? { tag: 'Preview (disarmed)', lit: true } : { tag: 'Outputs off', lit: false, note: OUTPUTS_OFF_NOTE };
