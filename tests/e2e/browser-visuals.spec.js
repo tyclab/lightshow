@@ -172,7 +172,7 @@ test('the live-audio page: its WebGL canvas is captured, its faded layer is idle
   await page.route(expected, route => route.fulfill({ contentType: 'text/html', body: liveBody }));
   await page.goto(expected);
   const action = (options) => page.evaluate(`(${pageAction.toString()})(${JSON.stringify({ expected, page: LIVE_PAGE, visible: true, ...options })}, ${matchesTarget.toString()}, ${gpuCapture.toString()})`);
-  expect(await action({ mode: 'display' })).toEqual({ ok: true, live: true, reason: null, wait: 'silence' });
+  expect(await action({ mode: 'display' })).toEqual({ ok: true, live: true, reason: null, wait: 'silence', age: null });
   const image = await action({ mode: 'capture', width: 4, height: 4, fit: 'cover', fps: 44 });
   expect(image.ok).toBe(true);
   expect(image.data.slice(0, 3)).toEqual([255, 0, 0]);

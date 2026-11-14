@@ -53,15 +53,17 @@ test('on the live-audio page the display covers, reads its canvas and layer, and
   globalThis.document = { visibilityState: 'visible', querySelector: (selector) => { asked.push(selector); return view; }, getElementById: () => null,
     head: { append: (style) => styles.push(style.textContent) }, createElement: () => ({}) };
   const display = (visible = true) => pageAction({ expected: page, mode: 'display', visible, page: LIVE_PAGE }, matchesTarget);
-  assert.deepEqual(display(), { ok: true, live: false, reason: 'visualizer-unavailable', wait: 'silence' });
+  assert.deepEqual(display(), { ok: true, live: false, reason: 'visualizer-unavailable', wait: 'silence', age: null });
   assert.deepEqual(asked, [LIVE_PAGE.view, LIVE_PAGE.canvas]);
   assert.deepEqual(styles, [LIVE_PAGE.style]);
   canvas = { width: 1920, height: 1080, isConnected: true, closest: (selector) => selector === LIVE_PAGE.layer ? layer : null };
   attrs.delete('data-party-wait');
-  assert.deepEqual(display(), { ok: true, live: true, reason: null, wait: null });
+  attrs.set('data-party-age', '41,87');
+  assert.deepEqual(display(), { ok: true, live: true, reason: null, wait: null, age: { medianMs: 41, worstMs: 87 } }, 'the page\'s own measure of its newest drawn sample');
+  attrs.set('data-party-age', 'x');
   opacity = '0';
   attrs.set('data-party-wait', 'audio');
-  assert.deepEqual(display(), { ok: true, live: false, reason: 'visualizer-idle', wait: 'audio' }, 'the page faded its layer out');
+  assert.deepEqual(display(), { ok: true, live: false, reason: 'visualizer-idle', wait: 'audio', age: null }, 'the page faded its layer out');
   assert.deepEqual(await pageAction({ expected: page, mode: 'capture', visible: true, fit: 'cover', width: 2, height: 1, page: LIVE_PAGE }, matchesTarget),
     { ok: false, idle: true });
   display(false);
@@ -150,6 +152,31 @@ test('display only, the live-audio page says what it waits for, and a page that 
   assert.deepEqual([...new Set(logs.slice(1, -1))], ['Waiting for the live-audio visualizer page', 'Reloading the live-audio visualizer page',
     'Live-audio visualizer idle: the lightshow has no live input', 'Live-audio visualizer idle: silence', 'Live-audio visualizer visible']);
   assert.equal(navigations, 3, 'each tick it was not up, at no delay; never once it was');
+});
+
+test('a page that is not up is reloaded ten seconds after it was last seen not up, and no more often', async () => {
+  const stdin = input();
+  let clock = 0, ticks = 0;
+  const navigations = [];
+  const browser = { connected: true, close: async () => {}, navigate: async () => { navigations.push(clock); }, action: async () => {
+    clock += 2500;
+    if (++ticks === 16) stdin.emit('data', Buffer.from('stop\n'));
+    return ticks > 13 ? { ok: true, live: true, reason: null, wait: null } : { ok: false };
+  } };
+  await run({ page: 'live-audio', curtain: false, browserProfile: profile, visualizerUrl: page, controlsUrl: 'http://127.0.0.1:9090/bundles/party-visuals/api/state' }, {
+    stdin, log: () => {}, readControls: async () => ({ ok: true, visible: true }), connectPage: async () => browser, now: () => clock,
+  });
+  // Not up from the first display at 2.5 s: the first reload ten seconds on, then one each ten seconds while it stays down.
+  assert.deepEqual(navigations, [12_500, 22_500, 32_500]);
+});
+
+test('the status file carries what the page waits for and how old its newest drawn sample was, and nothing else of it', async () => {
+  const { statusSnapshot } = await import('../status.js');
+  const display = (over) => statusSnapshot({ connected: true, ready: true, live: true, visible: true, ...over }).display;
+  assert.deepEqual(display({ wait: null, age: { medianMs: 41.4, worstMs: 87.6 } }), { live: true, visible: true, reason: null, wait: null, ageMs: { medianMs: 41, worstMs: 88 } });
+  for (const wait of ['context', 'busy', 'endpoint']) assert.equal(display({ live: false, reason: 'visualizer-idle', wait }).wait, wait);
+  assert.equal(display({ wait: '<script>' }).wait, null);
+  assert.equal(display({ age: { medianMs: 1e9, worstMs: 1 } }).ageMs, null, 'an age beyond an hour is a clock that is off, not a measure');
 });
 
 test('a Music Assistant page is never reloaded by the helper', async () => {

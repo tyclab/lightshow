@@ -36,7 +36,8 @@ Credentials stay in this process and are never sent to the browser.
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 
 const WAITS = { nodecg: 'no NodeCG connection', lightshow: 'no lightshow connection', 'live-input': 'the lightshow has no live input',
-  audio: 'no audio from the lightshow', silence: 'silence' };
+  audio: 'no audio from the lightshow', silence: 'silence', context: 'its graphics context was lost', busy: 'too many live-audio pages',
+  endpoint: 'the samples endpoint refused it' };
 /** What the display reports, per page. Music Assistant's lines are as they always were. */
 const WORDS = {
   'music-assistant': { browser: 'Waiting for the dedicated Music Assistant browser', page: 'Waiting for Music Assistant login or player page',
@@ -81,7 +82,8 @@ export async function run(settings, dependencies = {}) {
   const attachCurtain = dependencies.connectCurtain ?? (async (...args) => (await import('./curtain.js')).connectCurtain(...args));
   const attachRoom = dependencies.connectRoom ?? (async (...args) => (await import('./room.js')).connectRoom(...args));
   const words = WORDS[settings.page] ?? WORDS['music-assistant'], reloadAfterMs = dependencies.reloadAfterMs ?? RELOAD_AFTER_MS;
-  let stopped = false, browser = null, browserRetryAt = 0, ready = false, live = false, reason = null, wait = null, notReadySince = null, reloadAt = 0;
+  const clock = dependencies.now ?? (() => performance.now());
+  let stopped = false, browser = null, browserRetryAt = 0, ready = false, live = false, reason = null, wait = null, age = null, notReadySince = null, reloadAt = 0;
   let controls = { ok: false, visible: false }, controlsAt = -Infinity, lastStatus = '', input = '';
   const report = status => { if (status !== lastStatus) { lastStatus = status; log(status); } };
   // A visualizer Music Assistant faded out after playback stopped is idle: wait for it rather than fail captures.
@@ -116,7 +118,7 @@ export async function run(settings, dependencies = {}) {
   const parentTimer = setInterval(() => { if (!parentAlive(settings.parentPid)) stop(); }, 1000);
   const stopTelemetry = startTelemetry(feeds.map(([name, feed]) => [name, feed.pump]), settings.telemetryFile, log, () => ({ displayHeld: hold ? hold.held : null }));
   const writeStatus = statusWriter(settings.statusFile, log);
-  const snapshot = () => statusSnapshot({ connected: browser?.connected, ready, live, reason, wait, visible: controls.visible, stopped, feeds });
+  const snapshot = () => statusSnapshot({ connected: browser?.connected, ready, live, reason, wait, age, visible: controls.visible, stopped, feeds });
   const statusTimer = settings.statusFile ? setInterval(() => { void writeStatus(snapshot()); }, 1000) : null;
   report(feeds.length ? `Browser display with ${feeds.map(([name]) => name).join(', ')} output` : 'Browser display only; no lightshow connection');
   try {
@@ -132,10 +134,10 @@ export async function run(settings, dependencies = {}) {
       if (!stopped && browser?.connected) {
         try {
           const shown = await browser.action({ mode: 'display', visible: controls.visible });
-          ready = shown.ok; live = shown.live === true; reason = shown.reason ?? null; wait = shown.wait ?? null;
+          ready = shown.ok; live = shown.live === true; reason = shown.reason ?? null; wait = shown.wait ?? null; age = shown.age ?? null;
           if (!feeds.length) report(!controls.ok ? 'Controls unavailable; display covered' : !ready ? words.page
             : !controls.visible ? words.covered : live ? words.visible : reason === 'visualizer-idle' ? words.idle(wait) : words.unavailable);
-          const now = performance.now();
+          const now = clock();
           if (settings.page !== 'live-audio' || ready) notReadySince = null;
           else if (now - (notReadySince ??= now) >= reloadAfterMs && now >= reloadAt) {
             reloadAt = now + reloadAfterMs;

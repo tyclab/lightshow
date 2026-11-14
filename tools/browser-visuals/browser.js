@@ -5,7 +5,7 @@ import { gpuCapture } from './gpu-capture.js';
 /** The second page the helper drives: Party Visuals' own visualizer, drawn from the lightshow's live input. */
 export const LIVE_PAGE = Object.freeze({
   path: '/bundles/party-visuals/graphics/milkdrop.html',
-  view: '[data-party-visualizer]', layer: '[data-party-visualizer-layer]', canvas: '[data-party-visualizer-canvas]', wait: 'data-party-wait',
+  view: '[data-party-visualizer]', layer: '[data-party-visualizer-layer]', canvas: '[data-party-visualizer-canvas]', wait: 'data-party-wait', age: 'data-party-age',
   style: '[data-party-visualizer] { isolation:isolate; } [data-party-visualizer][data-party-display="off"]::after { content:""; position:absolute; inset:0; background:#000; z-index:10; pointer-events:none; }',
 });
 
@@ -154,7 +154,11 @@ export function pageAction(options, matches, gpu = null) {
   const canvasState = live ? 'live' : 'fallback';
   if (view.getAttribute('data-party-canvas') !== canvasState) view.setAttribute('data-party-canvas', canvasState);
   const reason = live ? null : !canvas || !canvas.width || !canvas.height ? 'visualizer-unavailable' : 'visualizer-idle';
-  if (options.mode !== 'capture') return page.wait ? { ok: true, live, reason, wait: view.getAttribute(page.wait) || null } : { ok: true, live, reason };
+  if (options.mode !== 'capture') {
+    if (!page.wait) return { ok: true, live, reason };
+    const [medianMs, worstMs] = String(view.getAttribute(page.age) || '').split(',').map(Number);
+    return { ok: true, live, reason, wait: view.getAttribute(page.wait) || null, age: Number.isFinite(medianMs) && Number.isFinite(worstMs) ? { medianMs, worstMs } : null };
+  }
   if (!canvas || !canvas.width || !canvas.height || doc.visibilityState !== 'visible') return { ok: false };
   const valid = () => canvas.isConnected && doc.visibilityState === 'visible' && matches(globalThis.location.href, options.expected) && !faded();
   const idle = (result) => result.ok || !faded() ? result : { ok: false, idle: true };
