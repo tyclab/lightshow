@@ -10,6 +10,11 @@ import assert from 'node:assert';
 import { setupIntegrations } from '../../src/server/integrations.ts';
 import { state } from '../../src/server/state.ts';
 
+// The integrations a test builds, their timers stopped after it.
+const built = [];
+const remember = (integrations) => { built.push(integrations); return integrations; };
+test.afterEach(() => { for (const integrations of built.splice(0)) integrations.stopTimers(); });
+
 const SPOTIFY_TRACK = {
   trackId: 'spotify-1',
   name: 'Shelter',
@@ -91,11 +96,11 @@ function build({ analysisCache = null } = {}) {
     setPaletteSize() {}, setIntensity() {}, setSyncOffsetMs() {},
   };
 
-  const integrations = setupIntegrations({
+  const integrations = remember(setupIntegrations({
     io: { emit() {} },
     midi: { enabled: false, sendFeedback() {}, listPorts: () => [] },
     spotify, nowPlaying, deezerSource, prolink, autoShow, analysisCache,
-  });
+  }));
   return { integrations, spotify, nowPlaying, deezerSource, prolink, autoShow, started };
 }
 
@@ -394,6 +399,7 @@ import { conductor } from '../../src/server/conductor.ts';
 import { keyForSpotify } from '../../src/analysis-cache.ts';
 import { getLiveState } from '../../src/server/state.ts';
 import { makeGrid } from '../../src/shared/beat-clock.ts';
+
 
 const beatsAt = (bpm) => Array.from({ length: 600 }, (_, i) => i * (60 / bpm));
 

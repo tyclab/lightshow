@@ -201,6 +201,7 @@ async function serve(t) {
   const effectLibrary = new EffectLibrary(path.join(dir, 'effects.json')).load();
   const paletteStore = new PaletteStore(path.join(dir, 'palettes.json'), { seed: () => [1, 2, 3, 4] }).load();
   const sequenceStore = new SequenceStore(path.join(dir, 'sequences.json')).load();
+  const padStore = new PadStore(path.join(dir, 'pads.json')).load();
   const idle = { onPlaybackUpdate() {}, onTrackChange() {}, getStatus: () => ({}), authenticated: false };
   const autoShow = {
     running: false, track: null, syncOffsetMs: 0, autoSyncMs: 0, analysis: null,
@@ -223,7 +224,7 @@ async function serve(t) {
     spotify: { ...idle, startPolling() {}, async getQueue() { return []; } },
     nowPlaying: idle,
     deezerSource: { ...idle, getQueue: () => [], updatePlayback() {}, updateQueue() {}, disconnect() {} },
-    prolink, autoShow, effectLibrary, paletteStore, sequenceStore,
+    prolink, autoShow, effectLibrary, paletteStore, sequenceStore, padStore,
   });
   attachRoutes(app, { integrations, applier: { applyChanged() {} } });
   await new Promise((r) => server.listen(0, '127.0.0.1', r));
@@ -240,6 +241,7 @@ async function serve(t) {
     if (ownSave) settings.save = ownSave;
     else delete settings.save;
     applyPatch({ ...look, energyOverride: null, paletteOverride: null });
+    integrations.stopTimers();
     io.close();
     await new Promise((r) => server.close(r));
     fs.rmSync(dir, { recursive: true, force: true });

@@ -14,10 +14,15 @@ import { state, getRigState } from '../../src/server/state.ts';
 import { BUILTIN_PROFILE_ID, registerProfile, unregisterProfile } from '../../src/server/profiles.ts';
 import { barProfile } from '../../src/server/bar-profile.ts';
 
+// The integrations a test builds, their timers stopped after it.
+const built = [];
+const remember = (integrations) => { built.push(integrations); return integrations; };
+test.afterEach(() => { for (const integrations of built.splice(0)) integrations.stopTimers(); });
+
 const idle = { onPlaybackUpdate() {}, onTrackChange() {}, getStatus: () => ({}), authenticated: false };
 
 // The integrations add the sources, show and deck keys to the live state.
-const integrations = (io = new Server()) => setupIntegrations({
+const integrations = (io = new Server()) => remember(setupIntegrations({
   io,
   midi: { enabled: false, sendFeedback() {}, listPorts: () => [], onLearn() {}, close() {}, connect() { return true; }, setControlFeedback() {} },
   spotify: { ...idle, startPolling() {}, async getQueue() { return []; } },
@@ -34,7 +39,7 @@ const integrations = (io = new Server()) => setupIntegrations({
     isCached: () => false, gridFor: () => null, isPrefetching: () => false,
     applyQueueOrder() {}, setPaletteSize() {}, setIntensity() {}, setSyncOffsetMs() {}, adjustAutoSync() {},
   },
-});
+}));
 
 // The live state no longer carries the rig: the pages and the helper get the fixtures and
 // profiles from the rig patches only if the server's own broadcast hands the publisher their signatures.

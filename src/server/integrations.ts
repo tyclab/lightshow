@@ -737,9 +737,10 @@ function setupIntegrations({ io, midi, spotify, nowPlaying, deezerSource, prolin
     live: liveInput,
     enabled: () => settings.get('live.autoSync') && !['prolink', 'live', 'timer'].includes(resolveAutoSource()),
   }) : null;
+  let liveTimer: ReturnType<typeof setInterval> | null = null;
   if (liveInput) {
     liveInput.onStatus(() => broadcast());
-    const liveTimer = setInterval(guarded('live input', () => {
+    liveTimer = setInterval(guarded('live input', () => {
       syncLiveDirector();
       if (!liveInput.running) return;
       if (autoSync) autoSync.tick();
@@ -1004,6 +1005,12 @@ function setupIntegrations({ io, midi, spotify, nowPlaying, deezerSource, prolin
 
   return {
     broadcast,
+    /** Stop the timers set up here: the live-input tick, the feeds, the status broadcast and a pending sequence broadcast. */
+    stopTimers() {
+      for (const timer of [liveTimer, positionTimer, dmxFrameTimer, pictureTimer, audioTimer, statusTimer]) if (timer) clearInterval(timer);
+      if (sequenceNews) clearTimeout(sequenceNews);
+      sequenceNews = null;
+    },
     liveAutomation,
     publisher,
     warmer,

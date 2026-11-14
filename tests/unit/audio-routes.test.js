@@ -114,6 +114,7 @@ async function serve({ now } = {}) {
     async close() {
       live.stop();
       for (const c of clients) c.close();
+      integrations.stopTimers();
       io.close();
       await new Promise((r) => server.close(r));
       settings._values = saved;

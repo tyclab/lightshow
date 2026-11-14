@@ -12,10 +12,15 @@ import { ROOM } from '../../src/server/protocol.ts';
 import { engineStatus, identify } from '../../src/server/engine.ts';
 import * as output from '../../src/server/output.ts';
 
+// The integrations a test builds, their timers stopped after it.
+const built = [];
+const remember = (integrations) => { built.push(integrations); return integrations; };
+test.afterEach(() => { for (const integrations of built.splice(0)) integrations.stopTimers(); });
+
 const idle = { onPlaybackUpdate() {}, onTrackChange() {}, getStatus: () => ({}), authenticated: false };
 
 function integrations(io = new Server()) {
-  return setupIntegrations({
+  return remember(setupIntegrations({
     io,
     midi: { enabled: false, sendFeedback() {}, listPorts: () => [], onLearn() {}, close() {}, connect() { return true; }, setControlFeedback() {} },
     spotify: { ...idle, startPolling() {}, async getQueue() { return []; } },
@@ -32,7 +37,7 @@ function integrations(io = new Server()) {
       isCached: () => false, gridFor: () => null, isPrefetching: () => false,
       applyQueueOrder() {}, setPaletteSize() {}, setIntensity() {}, setSyncOffsetMs() {}, adjustAutoSync() {},
     },
-  });
+  }));
 }
 
 test('a subscribed Stage is sent one DMX frame per engine frame', (t) => {

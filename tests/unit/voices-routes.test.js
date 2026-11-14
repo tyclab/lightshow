@@ -113,6 +113,7 @@ async function serve(t) {
     settings._values = values;
     if (ownSave) settings.save = ownSave;
     else delete settings.save;
+    integrations.stopTimers();
     io.close();
     await new Promise((r) => server.close(r));
     fs.rmSync(dir, { recursive: true, force: true });
