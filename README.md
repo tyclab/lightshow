@@ -19,7 +19,10 @@ flowchart LR
   Audio[Audio file or live input] --> Analysis[Python analysis / live features]
   Analysis --> Show[Auto show and effect inputs]
   Analysis --> Clock
-  Screen[Music Assistant browser canvas] --> Pixels[Authenticated pixel input / temporary ownership]
+  Analysis -->|Samples, while a page subscribes| Samples[Read-only samples topic]
+  Samples --> LivePage[Party Visuals live-audio page]
+  LivePage --> Screen
+  Screen[Browser visualizer canvas: Music Assistant or live-audio page] --> Pixels[Authenticated pixel input / temporary ownership]
   Pixels --> Engine
   Clock --> Engine[Engine renderer / blackout / flash limits]
   Server --> Engine
@@ -995,12 +998,29 @@ master blackout, brightness trims and hardware limits still apply. Manual
 overrides, pad voices and Identify retain priority over the external picture.
 Other fixtures continue their existing effects.
 
-The optional `tools/browser-visuals` helper uses Music Assistant's existing
-MilkDrop canvas in a dedicated fullscreen Chrome profile. While a usable canvas
-is visible, it removes the artwork, timeline and visual tint, and follows the
-local Party Visuals on/off switch. If the visualizer is disabled, absent or idle,
-the ordinary player artwork remains visible; the helper does not enable it itself.
-Music Assistant remains the renderer and audio source. OBS is not required.
+The optional `tools/browser-visuals` helper uses a MilkDrop canvas in a
+dedicated fullscreen Chrome profile, from one of two pages that `--visualizer-url`
+chooses:
+
+- **Music Assistant's now-playing page** (`http://<music-assistant>:8095/#/now-playing?player=<player-id>&frameless=1`).
+  While a usable canvas is visible, the helper removes the artwork, timeline and
+  visual tint. If the visualizer is disabled, absent or idle, the ordinary player
+  artwork remains visible; the helper does not enable it itself. Music Assistant
+  remains the renderer and audio source, so only audio that passes through its
+  player queue animates it.
+- **Party Visuals' live-audio page** (`http://127.0.0.1:9090/bundles/party-visuals/graphics/milkdrop.html`,
+  on the same NodeCG origin as `--controls-url`). It renders from this server's
+  live input over the read-only `samples` topic ([Socket.IO](#socketio)), so it
+  moves with whatever the live input hears, whoever plays it. The page fades its
+  canvas layer out when it is idle (no lightshow, no live input, no audio, or
+  three seconds under the live input's −80 dBFS quiet level) and back in with the
+  sound, and the helper treats that fade as it treats Music Assistant's. Its
+  `data-party-wait` attribute names what it waits for, which the helper reports
+  and writes to `--status-file` as `display.wait`. NodeCG may still be starting
+  when Chrome opens it: a page that is not up for ten seconds is navigated to the
+  configured address again, at most every ten seconds.
+
+Either page follows the local Party Visuals on/off switch. OBS is not required.
 Playback-path limitations and capture checks are in the
 [visualizer troubleshooting notes](docs/agents/visualizer.md).
 Every helper light output also follows the Lightshow's **Picture** selector:
@@ -1067,7 +1087,7 @@ cannot block capture. Logs contain no credentials, URLs or device/lease identiti
 
 ```mermaid
 flowchart LR
-    Canvas[Music Assistant canvas] --> Capture[GPU downscale / three bounded readback buffers]
+    Canvas[Music Assistant or live-audio page canvas] --> Capture[GPU downscale / three bounded readback buffers]
     Capture --> Ready[Non-blocking completion / newest fresh picture]
     Ready --> Ack[One frame awaiting acknowledgement per lease]
     Ack --> Latest[Latest accepted picture per lease, up to 60 fps]
@@ -1079,8 +1099,8 @@ flowchart LR
 On Windows with Node 24+, install the helper and use the browser launcher from
 [party-visuals](https://github.com/tyclab/party-visuals). The launcher creates a
 dedicated persistent Chrome profile, waits for the selected TV and supplies an
-ephemeral loopback debugging port. The helper accesses only the configured Music
-Assistant origin, now-playing route and player. Sign in normally in this profile;
+ephemeral loopback debugging port. The helper accesses only the configured page:
+the Music Assistant origin, now-playing route and player, or the live-audio page. Sign in normally in this profile;
 credentials are not passed through the visualizer URL or command arguments.
 Update the paired Party Visuals browser launcher as well: older installed
 launchers explicitly pass `--fps 10`, which overrides this helper's default.
@@ -1731,6 +1751,14 @@ Other rapid loop/latched effects do not inherit the manual strobe cap.
 Hue flash/pulse adaptation preserves the exemptions described under
 [Hue flash handling](#hue-flash-handling).
 
+A browser visualizer's picture, from either page, reaches the rig only as a
+pixel-input or room-picture lease: a claim needs armed outputs and the
+acknowledgement, and in the renderer every unit it paints passes the per-unit
+hardware rate limit (`maxFlashHz`, 20 Hz for DDP and DMX by default) and, with
+`safety.flashLimit`, the large-area limiter, before the master and blackout. The
+screen itself shows the page as it renders; neither page's screen picture is
+flash-limited.
+
 ## Music, analysis and audio
 
 ### Analysis environment
@@ -1871,6 +1899,8 @@ The live input analyses every hop (256 samples at 22.05 kHz, about 86 a second)
 and reports each one until it has heard 3 s of digital silence under −80 dBFS;
 then it reports four states a second, marked `quiet` in the state's `live` block.
 The first sound returns it to every hop at once, at most 93 ms late that once.
+While a page subscribes to the `samples` topic, the live input also sends each
+block it reads, mono 16-bit, before analysing it; with no subscriber it sends none.
 
 Set-list warming accepts one artist/title per line, explicit track objects,
 a Spotify queue or playlist. It prepares analysis ahead of playback. Cache
@@ -2347,7 +2377,16 @@ the state in protocol 2:
   `subscribe: ['picture']` the client gets `picture-image` (`{ width, height, data }`,
   RGB bytes), volatile, the room sender's newest picture up to 24 times a
   second, and `null` once when its lease ends. Every topic sends its latest at
-  once on subscribing. The live page holds the DMX and picture topics only
+  once on subscribing. After `subscribe: ['samples']` the client gets the live
+  input as heard: `samples` events `{ g, end, rate, data }`, `data` mono 16-bit
+  little-endian samples up to the stream's sample count `end` of live input
+  process `g` (a new process counts from zero), at most 1024 a packet. Each
+  packet waits for the client's acknowledgement; samples arriving meanwhile are
+  sent with the next one, contiguous, and when more than 1024 have come only the
+  newest are, so a slow client gets the newest samples and never a backlog (an
+  unacknowledged packet holds it back for at most a second). The live input
+  sends samples only while a client subscribes; the topic is read-only and takes
+  the same token as every other. The live page holds the DMX and picture topics only
   while its tab is visible: hidden, it unsubscribes, and shown again it
   subscribes. Disarmed, it also lets them go after `idleStopMin` minutes
   without input, until Resume preview or an arm. It sends `activity` (no
