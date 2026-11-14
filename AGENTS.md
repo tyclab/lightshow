@@ -33,8 +33,8 @@ callers are preserved; keep README commands and diagrams aligned with code.
 - Tests, browser motion, Nix or dependency work:
   [validation and traps](docs/agents/validation.md).
 - Display capture or a dark visualizer: [visualizer troubleshooting](docs/agents/visualizer.md).
-- The header (top bar), play/stop, Freeze, Blackout, Arm or the master:
-  [header rulings](docs/agents/header.md).
+- The header (top bar), play/stop, Freeze, Blackout, Arm or the master, the view
+  strip or the Show view: [header, strip and Show rulings](docs/agents/header.md).
 - Deployment, external ports or integration changes:
   [deployment and show safety](docs/agents/deployment.md).
 
