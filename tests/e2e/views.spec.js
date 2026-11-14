@@ -27,9 +27,9 @@ test('the app opens on Show: the room, the looks and global controls', async ({ 
   }
   await expect(page.getByRole('group', { name: 'Picture source' })).toBeVisible();
   await expect(page.locator('.show-room .stage3d-canvas')).toBeVisible();
-  await expect(page.locator('.show-looks .background-controls')).toBeVisible();
-  await expect(page.locator('.show-looks .bands')).toBeVisible();
-  await expect(page.locator('.show-looks .effects')).toHaveCount(0);
+  await expect(page.locator('.show-body > .background-controls')).toBeVisible();
+  await expect(page.locator('.show-colours .bands')).toBeVisible();
+  await expect(page.locator('.show-body > .contained-effects')).toBeVisible();
   await expect(page.locator('.command-bar')).toHaveCount(0);
 });
 
@@ -41,6 +41,10 @@ test('the Show room offers the 2D plot beside the 3D room', async ({ page }) => 
   await format.getByRole('button', { name: '2D plot', exact: true }).click();
   await expect(room.locator('.stage3d-canvas')).toBeHidden();
   await expect(room.locator('section').filter({ has: page.getByRole('heading', { name: 'Stage preview' } ) })).toBeVisible();
+  await page.reload();
+  await expect(format.getByRole('button', { name: '3D room', exact: true })).toHaveAttribute('aria-pressed', 'true');
+  await expect(room.locator('.stage3d-canvas')).toBeVisible();
+  await format.getByRole('button', { name: '2D plot', exact: true }).click();
   await format.getByRole('button', { name: '3D room', exact: true }).click();
   await expect(room.locator('.stage3d-canvas')).toBeVisible();
 });

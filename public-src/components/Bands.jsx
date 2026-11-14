@@ -219,12 +219,21 @@ function BandChannels({ colour, palettes, masked, audio }) {
 }
 
 /** Any other effect: its own palette on the wheel and in order, recoloured, resized or replaced from the list; the effect decides how it plays it. */
-function EffectPalette({ colour, palettes, masked, classic, compact }) {
+function EffectPalette({ colour, palettes, masked, classic, compact, show }) {
   const body = colour.current;
   const entries = body.colours || [];
   const [selected, setSelected] = useState(0);
   const [expanded, setExpanded] = useState(false);
   const editorId = useId();
+  const wheelId = useId();
+  const [wheelOpen, setWheelOpen] = useState(() => {
+    try { return localStorage.getItem('lightshow.show.colourWheel') !== 'closed'; } catch { return true; }
+  });
+  const toggleWheel = () => {
+    const open = !wheelOpen;
+    setWheelOpen(open);
+    try { localStorage.setItem('lightshow.show.colourWheel', open ? 'open' : 'closed'); } catch { /* private mode */ }
+  };
   const at = Math.min(selected, entries.length - 1);
   const strings = entries.filter((c) => typeof c === 'string');
   const strip = strings.length > 1 ? `linear-gradient(in oklch 90deg, ${strings.map((c) => c.slice(0, 7)).join(', ')})` : strings[0]?.slice(0, 7) || '#808080';
@@ -248,10 +257,29 @@ function EffectPalette({ colour, palettes, masked, classic, compact }) {
   const full = fixed || entries.length >= MAX_BAND_STOPS;
   const add = (hue, saturation) => { write(insertStop(entries, stopAt('#FFFFFF', hue, saturation))); setSelected(entries.length); };
   const placed = entries.map((c) => (typeof c === 'string' ? point(c) : null));
+  const wheel = <div class="band-wheel-side">
+    <ColourWheel name="Palette" points={placed} selected={at} onSelect={setSelected} onAdd={full ? null : add}
+      onMove={(i, hue, saturation) => write(entries.map((c, j) => (j === i ? stopAt(typeof c === 'string' ? c : '#FFFFFF', hue, saturation) : c)))}
+      colourOf={(i, hue, saturation) => stopAt(typeof entries[i] === 'string' ? entries[i] : '#FFFFFF', hue, saturation)} />
+  </div>;
+  const order = <div class="band-order-side">
+    <div class="band-order-title">Colour order</div>
+    <StopOrder name="Palette" stops={entries} selected={at} onSelect={setSelected}
+      onHex={(i, hex) => write(entries.map((c, j) => (j === i ? hex : c)))}
+      onReorder={fixed ? null : (from, to) => write(moveStop(entries, from, to))}
+      onRemove={fixed ? null : (i) => { write(removeStop(entries, i)); setSelected(Math.max(0, i - 1)); }} />
+    {!full && <button type="button" class="btn sm band-add" onClick={() => {
+      const p = placed[at] ?? { hue: 0, saturation: 1 };
+      add((p.hue + 30) % 360, p.saturation || 1);
+    }}>Add colour</button>}
+  </div>;
+  const paletteList = <PaletteList label="Effect" palettes={palettes} active={active} range={false} onChoose={choose} />;
   return <>
     <div class="card-title band-title">
       <span>Colours</span>
       {s.effectColours && <button type="button" class="btn sm band-reset" onClick={() => send({ effectColours: null })}>Reset</button>}
+      {show && !white && <button type="button" class="btn sm wheel-toggle" aria-expanded={wheelOpen} aria-controls={wheelId}
+        aria-label="Colour wheel" onClick={toggleWheel}>Colour wheel</button>}
     </div>
     {masked && <p class="muted" role="status">{masked}</p>}
     {colour.modes.length > 0 && <label class="band-distribution">Colour distribution <select aria-label="Colour distribution" value={mode}
@@ -260,30 +288,19 @@ function EffectPalette({ colour, palettes, masked, classic, compact }) {
         first: 'First colour', palette: 'Cycle palette' })[m]}</option>)}
     </select></label>}
     {white ? <p class="muted">White emitters ignore palettes. Choose First colour or Cycle palette for colour.</p> : <div class="band-channel" role="group" aria-label="Effect palette">
-      {compact && <button type="button" class={`band-strip band-palette-toggle${expanded ? ' open' : ''}`} aria-expanded={expanded}
+      {compact && !show && <button type="button" class={`band-strip band-palette-toggle${expanded ? ' open' : ''}`} aria-expanded={expanded}
         aria-controls={editorId} aria-label="Edit effect colours" style={{ '--strip': strip }} onClick={() => setExpanded(!expanded)}>
         <span class="band-strip-label">Edit colours</span><span aria-hidden="true">{expanded ? '▴' : '▾'}</span>
       </button>}
-      {(!compact || expanded) && <div class="band-editor" id={editorId}>
-        <div class="band-sequence">
-          <div class="band-wheel-side">
-            <ColourWheel name="Palette" points={placed} selected={at} onSelect={setSelected} onAdd={full ? null : add}
-              onMove={(i, hue, saturation) => write(entries.map((c, j) => (j === i ? stopAt(typeof c === 'string' ? c : '#FFFFFF', hue, saturation) : c)))}
-              colourOf={(i, hue, saturation) => stopAt(typeof entries[i] === 'string' ? entries[i] : '#FFFFFF', hue, saturation)} />
-          </div>
-          <div class="band-order-side">
-            <div class="band-order-title">Colour order</div>
-            <StopOrder name="Palette" stops={entries} selected={at} onSelect={setSelected}
-              onHex={(i, hex) => write(entries.map((c, j) => (j === i ? hex : c)))}
-              onReorder={fixed ? null : (from, to) => write(moveStop(entries, from, to))}
-              onRemove={fixed ? null : (i) => { write(removeStop(entries, i)); setSelected(Math.max(0, i - 1)); }} />
-            {!full && <button type="button" class="btn sm band-add" onClick={() => {
-              const p = placed[at] ?? { hue: 0, saturation: 1 };
-              add((p.hue + 30) % 360, p.saturation || 1);
-            }}>Add colour</button>}
-          </div>
-        </div>
-        <PaletteList label="Effect" palettes={palettes} active={active} range={false} onChoose={choose} />
+      {(show || !compact || expanded) && <div class="band-editor" id={editorId}>
+        {show ? <div class={`colours-grid${wheelOpen ? '' : ' folded'}`}>
+          <div id={wheelId} class="wheel-box" hidden={!wheelOpen}>{wheel}</div>
+          {order}
+          {paletteList}
+        </div> : <>
+          <div class="band-sequence">{wheel}{order}</div>
+          {paletteList}
+        </>}
       </div>}
     </div>}
   </>;
@@ -305,7 +322,7 @@ function PictureColours() {
   </section>;
 }
 
-export function Bands({ compact = false }) {
+export function Bands({ compact = false, show = false }) {
   const colour = useColourTarget('base');
   const { audio, palette, control } = pick(['audio', 'palette', 'control']);
   const palettes = useLibraryPalettes();
@@ -319,6 +336,6 @@ export function Bands({ compact = false }) {
   return <section class="card bands" aria-label={bands ? 'Bands' : 'Colours'}>
     {control?.frozen && <p class="hint">The picture is frozen. Colour edits appear when you Resume.</p>}
     {bands ? <BandChannels colour={colour} palettes={palettes} masked={masked} audio={audio} />
-      : <EffectPalette key={colour.s.pattern} colour={colour} palettes={palettes} masked={masked} classic={palette} compact={compact} />}
+      : <EffectPalette key={colour.s.pattern} colour={colour} palettes={palettes} masked={masked} classic={palette} compact={compact} show={show} />}
   </section>;
 }

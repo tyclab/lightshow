@@ -775,11 +775,11 @@ test('the Background card offers Fixed colour by hue, saturation and brightness,
   assert.match(glowing, /faint glow/);
 });
 
-test('Show stacks Background then Bands; a Disco shows its bands, another effect its own palette', () => {
+test('Show keeps effect selection, Background and Bands; a Disco shows its bands, another effect its own palette', () => {
   givenLibrary({ pattern: 'hd.disco.ambient', audio: { mode: 'reactive' } });
   const show = ui.html(ui.h(ui.Show));
-  const order = [...show.matchAll(/<(?:section|div) class="card ([a-z-]+)/g)].map((m) => m[1]).filter((c) => ['background-controls', 'effects', 'bands'].includes(c));
-  assert.deepStrictEqual(order, ['background-controls', 'bands']);
+  const order = [...show.matchAll(/<(?:section|div) class="card ([a-z-]+)/g)].map((m) => m[1]).filter((c) => ['background-controls', 'contained-effects', 'bands'].includes(c));
+  assert.deepStrictEqual(order, ['contained-effects', 'bands', 'background-controls']);
   const card = /<section class="card bands"[^>]*>(.*?)<\/section>/s.exec(show)[1];
   // The operator, 2026-11-07: "what does the rotation button do in clolours? doesnt seem make sense?": the card title names no effect.
   assert.match(card, /<div class="card-title band-title"><span>Bands<\/span><\/div>/);
@@ -801,11 +801,13 @@ test('Show stacks Background then Bands; a Disco shows its bands, another effect
   assert.match(band('Treble'), /Fast Pulse/);
   assert.match(edited, />Reset</);
   assert.ok(ambient.params.channels[1].enabled, 'the library preset is untouched');
-  // Any other effect: its palette as one bar and the same list, with its distribution.
   givenLibrary({ pattern: 'v2.scatterStrobe' });
-  const compact = ui.html(ui.h(ui.Show));
-  assert.match(compact, /aria-expanded="false"[^>]*aria-label="Edit effect colours"/);
-  assert.doesNotMatch(compact, /colour-wheel-disc|band-palette-list/, 'Show opens colour editing on demand');
+  const colours = ui.html(ui.h(ui.Show));
+  assert.match(colours, /class="btn sm wheel-toggle" aria-expanded="true"[^>]*>Colour wheel<\/button>/);
+  assert.match(colours, /colour-wheel-disc/);
+  assert.match(colours, /band-palette-list/);
+  assert.match(colours, /aria-label="Palette colour order"/);
+  assert.doesNotMatch(colours, /Edit effect colours/, 'Show keeps colour order and palette selection open');
   const own = /<section class="card bands" aria-label="Colours"[^>]*>(.*?)<\/section>/s.exec(ui.html(ui.h(ui.Bands)))[1];
   assert.match(own, /aria-label="Effect palette"/);
   assert.match(own, /class="colour-wheel-disc adds"/, 'its palette sits on the wheel, and a tap there adds a colour');
@@ -814,6 +816,25 @@ test('Show stacks Background then Bands; a Disco shows its bands, another effect
   assert.doesNotMatch(own, /Bass band|Fast Pulse/);
   assert.match(own, /<div class="card-title band-title"><span>Colours<\/span><\/div>/);
   assert.doesNotMatch(card + own, /band-mode|band-for|for Ambient|for Scatter Strobe/, 'neither card names the effect');
+});
+
+test('Show remembers a folded colour wheel while keeping the colour order and palettes', () => {
+  givenLibrary({ pattern: 'ldj.Swirl' });
+  globalThis.localStorage = { getItem: (key) => (key === 'lightshow.show.colourWheel' ? 'closed' : null) };
+  try {
+    const html = ui.html(ui.h(ui.Bands, { show: true }));
+    assert.match(html, /class="btn sm wheel-toggle" aria-expanded="false"/);
+    assert.match(html, /class="wheel-box" hidden/);
+    assert.match(html, /aria-label="Palette colour order"/);
+    assert.match(html, /aria-label="Search Effect palettes"/);
+    const effects = ui.html(ui.h(ui.Bands));
+    assert.doesNotMatch(effects, /wheel-toggle|wheel-box|folded/);
+    assert.match(effects, /colour-wheel-disc/);
+    globalThis.localStorage.getItem = () => { throw new Error('storage unavailable'); };
+    assert.match(ui.html(ui.h(ui.Bands, { show: true })), /class="btn sm wheel-toggle" aria-expanded="true"/);
+  } finally {
+    delete globalThis.localStorage;
+  }
 });
 
 test('a favourite is pinned first on the deck, whatever it is', () => {
@@ -1118,7 +1139,9 @@ test('one header row: the picture source and its effect first, then play, Freeze
   assert.doesNotMatch(header, /aria-label="Theme"|Keep awake|Full screen/, 'this device\'s tools are behind ⋮');
   const show = ui.html(ui.h(ui.Show));
   assert.ok(show.includes('stage3d-host'));
-  assert.doesNotMatch(show, /effects-deck|effects-catalogue|All effects|Search effects/, 'effect selection stays in the header picker');
+  assert.match(show, /contained-effects/);
+  assert.match(show, /Search effects/);
+  assert.doesNotMatch(show, /effects-deck|effects-catalogue/, 'Show uses its contained list');
   assert.strictEqual(count(show, 'role="switch"'), 0, 'global controls stay in the header');
   assert.doesNotMatch(show, /Global show controls|Master dimmer|Picture source/);
   assert.ok(!show.includes('stage-room-panel'), 'the room panel stays in Stage');
