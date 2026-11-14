@@ -93,7 +93,12 @@ export function useDemoLookSampler(space, enabled) {
   const s = pick(DEMO_KEYS), library = librarySig.value;
   const active = enabled && s.armed === false;
   useEffect(() => (active ? holdDemoBeat() : undefined), [active]);
-  const sampler = useMemo(() => (active ? demoLookSampler(s, { library, space }) : null),
-    [active, space, library.user, ...DEMO_KEYS.map((key) => s[key])]);
+  const sampler = useMemo(() => {
+    if (!active) return null;
+    const sample = demoLookSampler(s, { library, space });
+    // Each look starts the demo beat from its beginning, so a mount or an edit never walks up to half a minute in one task.
+    const from = demoBeatSig.peek();
+    return (at, ...rest) => sample((((at - from) % DEMO_DURATION_MS) + DEMO_DURATION_MS) % DEMO_DURATION_MS, ...rest);
+  }, [active, space, library.user, ...DEMO_KEYS.map((key) => s[key])]);
   return active ? sampler : null;
 }
