@@ -820,7 +820,7 @@ button.cb-bpm-num:focus-visible { outline: .125rem solid var(--accent); outline-
   .contained-current-context { max-width: 85px; }
 }
 
-/* Draft 2. Row order: Stage and Effects, then Colours under the stage, Background last. */
+/* Stage with Colours under it on the left, Effects with Background under it on the right; one column: Stage, Effects, Colours, Background. */
 main.mode-show { padding-bottom: 24px; }
 .show-body { display: grid; gap: 12px; grid-template-columns: minmax(0, 1fr); }
 .show-body .card { margin: 0; }
@@ -835,7 +835,6 @@ main.mode-show { padding-bottom: 24px; }
 .wheel-box[hidden] { display: none; }
 .colours-grid .band-search { padding: 6px 10px; background: var(--card); color: var(--text); border: 1px solid var(--border-hi);
   border-radius: var(--radius-sm); font: inherit; }
-.colours-grid .band-palette[hidden] { display: none; }
 @container (min-width: 620px) {
   .colours-grid { grid-template-columns: 250px minmax(210px, 270px) minmax(0, 1fr); }
   .colours-grid.folded { grid-template-columns: minmax(210px, 300px) minmax(0, 1fr); }
@@ -4208,8 +4207,6 @@ input[type=range]::-moz-range-thumb {
 }
 .band-strip.open { box-shadow: 0 0 0 2px #5b45e0, inset 0 0 12px rgba(0, 0, 0, .45); }
 .band-strip:focus-visible { outline: .125rem solid var(--accent); outline-offset: .1875rem; }
-.band-palette-toggle { display: flex; align-items: center; justify-content: space-between; }
-.band-strip-label { padding: 3px 8px; border-radius: 12px; background: rgba(0, 0, 0, .75); }
 .band-editor { display: grid; gap: 12px; padding: 12px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface);
   container-type: inline-size; }
 .band-sequence { display: grid; grid-template-columns: minmax(0, 1fr) minmax(200px, 250px); gap: 14px; align-items: start; }

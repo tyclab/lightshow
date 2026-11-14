@@ -219,12 +219,10 @@ function BandChannels({ colour, palettes, masked, audio }) {
 }
 
 /** Any other effect: its own palette on the wheel and in order, recoloured, resized or replaced from the list; the effect decides how it plays it. */
-function EffectPalette({ colour, palettes, masked, classic, compact, show }) {
+function EffectPalette({ colour, palettes, masked, classic, show }) {
   const body = colour.current;
   const entries = body.colours || [];
   const [selected, setSelected] = useState(0);
-  const [expanded, setExpanded] = useState(false);
-  const editorId = useId();
   const wheelId = useId();
   const [wheelOpen, setWheelOpen] = useState(() => {
     try { return localStorage.getItem('lightshow.show.colourWheel') !== 'closed'; } catch { return true; }
@@ -236,7 +234,6 @@ function EffectPalette({ colour, palettes, masked, classic, compact, show }) {
   };
   const at = Math.min(selected, entries.length - 1);
   const strings = entries.filter((c) => typeof c === 'string');
-  const strip = strings.length > 1 ? `linear-gradient(in oklch 90deg, ${strings.map((c) => c.slice(0, 7)).join(', ')})` : strings[0]?.slice(0, 7) || '#808080';
   const write = (colours) => send(colour.patch({ ...body, colours }));
   // Authored gradients name colours by place, so their palette keeps its length and order.
   const fixed = !!body.gradients?.length;
@@ -288,11 +285,7 @@ function EffectPalette({ colour, palettes, masked, classic, compact, show }) {
         first: 'First colour', palette: 'Cycle palette' })[m]}</option>)}
     </select></label>}
     {white ? <p class="muted">White emitters ignore palettes. Choose First colour or Cycle palette for colour.</p> : <div class="band-channel" role="group" aria-label="Effect palette">
-      {compact && !show && <button type="button" class={`band-strip band-palette-toggle${expanded ? ' open' : ''}`} aria-expanded={expanded}
-        aria-controls={editorId} aria-label="Edit effect colours" style={{ '--strip': strip }} onClick={() => setExpanded(!expanded)}>
-        <span class="band-strip-label">Edit colours</span><span aria-hidden="true">{expanded ? '▴' : '▾'}</span>
-      </button>}
-      {(show || !compact || expanded) && <div class="band-editor" id={editorId}>
+      <div class="band-editor">
         {show ? <div class={`colours-grid${wheelOpen ? '' : ' folded'}`}>
           <div id={wheelId} class="wheel-box" hidden={!wheelOpen}>{wheel}</div>
           {order}
@@ -301,7 +294,7 @@ function EffectPalette({ colour, palettes, masked, classic, compact, show }) {
           <div class="band-sequence">{wheel}{order}</div>
           {paletteList}
         </>}
-      </div>}
+      </div>
     </div>}
   </>;
 }
@@ -322,7 +315,7 @@ function PictureColours() {
   </section>;
 }
 
-export function Bands({ compact = false, show = false }) {
+export function Bands({ show = false }) {
   const colour = useColourTarget('base');
   const { audio, palette, control } = pick(['audio', 'palette', 'control']);
   const palettes = useLibraryPalettes();
@@ -336,6 +329,6 @@ export function Bands({ compact = false, show = false }) {
   return <section class="card bands" aria-label={bands ? 'Bands' : 'Colours'}>
     {control?.frozen && <p class="hint">The picture is frozen. Colour edits appear when you Resume.</p>}
     {bands ? <BandChannels colour={colour} palettes={palettes} masked={masked} audio={audio} />
-      : <EffectPalette key={colour.s.pattern} colour={colour} palettes={palettes} masked={masked} classic={palette} compact={compact} show={show} />}
+      : <EffectPalette key={colour.s.pattern} colour={colour} palettes={palettes} masked={masked} classic={palette} show={show} />}
   </section>;
 }

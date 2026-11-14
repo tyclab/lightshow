@@ -808,7 +808,6 @@ test('Show keeps effect selection, Background and Bands; a Disco shows its bands
   assert.match(colours, /colour-wheel-disc/);
   assert.match(colours, /band-palette-list/);
   assert.match(colours, /aria-label="Palette colour order"/);
-  assert.doesNotMatch(colours, /Edit effect colours/, 'Show keeps colour order and palette selection open');
   const own = /<section class="card bands" aria-label="Colours"[^>]*>(.*?)<\/section>/s.exec(ui.html(ui.h(ui.Bands)))[1];
   assert.match(own, /aria-label="Effect palette"/);
   assert.match(own, /class="colour-wheel-disc adds"/, 'its palette sits on the wheel, and a tap there adds a colour');

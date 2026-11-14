@@ -2,7 +2,7 @@ import { test, expect } from '@playwright/test';
 import { open, reset, set } from './helpers.js';
 
 for (const [width, height] of [[1701, 1370], [1440, 900], [390, 844]]) {
-  test(`Show keeps its list contained and cards in draft order at ${width}×${height}`, async ({ page, request }) => {
+  test(`Show keeps its list contained and cards in the Show order at ${width}×${height}`, async ({ page, request }) => {
     await reset(request);
     await set(request, { pattern: 'swirl' });
     await page.setViewportSize({ width, height });
