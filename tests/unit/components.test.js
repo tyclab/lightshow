@@ -1120,7 +1120,7 @@ test('one header row: the picture source and its effect first, then play, Freeze
     control: { version: 1, programme: 'look', playing: false, frozen: false, blackout: false, armed: false },
     safety: { photosensitivityAcknowledged: true }, showOn: false, autoShow: { status: 'idle', intensity: 70 } });
   const header = ui.html(ui.h(ui.Header));
-  const order = ['aria-label="Picture source"', 'aria-label="Global show controls"', 'aria-label="Start Look"', 'aria-label="Programme"',
+  const order = ['aria-label="Picture source"', 'aria-label="Global show controls"', 'aria-label="Auto show"', 'aria-label="Play selected picture"',
     '>Freeze</button>', '>Blackout</button>', 'aria-label="Arm"', 'aria-label="Master dimmer"', '<button type="button" class="status-chip', 'aria-label="This device"'];
   const at = order.map((needle) => header.indexOf(needle));
   assert.ok(at.every((i) => i >= 0), `every control is there: ${order.filter((_, i) => at[i] < 0)}`);
@@ -1133,8 +1133,10 @@ test('one header row: the picture source and its effect first, then play, Freeze
   assert.match(source, /class="picture-segment-effect">Swirl</);
   assert.strictEqual(count(source, 'aria-haspopup'), 1, 'only the chosen source opens the picker; the others choose');
   for (const label of ['Colour + motion', 'Visualizer']) assert.match(source, new RegExp(`aria-label="${label.replace('+', '\\+')}"`));
-  assert.match(header, /<button[^>]*aria-label="Start Look"[^>]*><span aria-hidden="true">▶<\/span><span class="global-play-text">Look<\/span><\/button>/, 'play names what it starts');
-  assert.doesNotMatch(header, /Programme<select|<select[^>]*aria-label="Programme"/, 'no programme select');
+  assert.match(header, /<button[^>]*aria-label="Play selected picture"[^>]*><span aria-hidden="true">▶<\/span><span class="global-play-text">Play<\/span><\/button>/, 'play names what it starts');
+  assert.match(header, /<button type="button" role="switch"[^>]*aria-checked="false" aria-label="Auto show"/, 'one Auto show switch');
+  assert.strictEqual(count(header, 'role="switch"'), 1);
+  assert.doesNotMatch(header, /Programme|menuitemradio|role="menu"|aria-label="(Start |Stop )?Look"/, 'no Look button and no programme menu');
   assert.doesNotMatch(header, /now-playing|header-now|stat-pill/, 'the main effect line and the pills are gone from the row');
   assert.doesNotMatch(header, /aria-label="Theme"|Keep awake|Full screen/, 'this device\'s tools are behind ⋮');
   const show = ui.html(ui.h(ui.Show));
@@ -1147,19 +1149,40 @@ test('one header row: the picture source and its effect first, then play, Freeze
   assert.ok(!show.includes('stage-room-panel'), 'the room panel stays in Stage');
 });
 
-test('the play button is Stop while the programme plays, Start (or Resume) otherwise, and always names the programme', () => {
-  const play = (control) => {
-    given({ running: control.playing, control: { version: 1, frozen: false, blackout: false, armed: false, ...control } });
-    return /<div class="global-play[^"]*">(.*?)<\/div>/s.exec(ui.html(ui.h(ui.Header)))[1];
+// Show v3, G4: one Play/Stop; Stop whenever it would clear something, Play named for what it starts.
+test('the play button names what it starts', () => {
+  const header = (control, sequence) => {
+    given({ running: !!control.playing, sequence, control: { version: 1, frozen: false, blackout: false, armed: false, layers: false, ...control } });
+    return ui.html(ui.h(ui.Header));
   };
-  assert.match(play({ programme: 'look', playing: false }), /aria-label="Start Look"/);
-  const playing = play({ programme: 'look', playing: true });
-  assert.match(playing, /aria-label="Stop Look"[^>]*>.*■.*Stop<span class="global-play-name"> Look<\/span><\/span><\/button>/s);
-  assert.doesNotMatch(playing, /Start Look/, 'one button: Stop while playing');
-  assert.match(play({ programme: 'auto', playing: false }), /aria-label="Start Auto show"/);
-  const paused = play({ programme: 'sequence', playing: true, paused: true });
-  assert.match(paused, /aria-label="Resume Sequence"[^>]*title="Resume the paused sequence timeline\."/);
-  assert.match(paused, />Resume<\/span><\/button>/);
+  const play = (control, sequence) => /<div class="global-play[^"]*">(.*?)<\/div>/s.exec(header(control, sequence))[1];
+  const intro = { loaded: { id: 'intro', name: 'Intro' }, playing: false, paused: false, lanes: [] };
+  for (const [control, sequence, name] of [
+    [{ programme: 'look' }, undefined, 'Play selected picture'],
+    [{ programme: 'auto' }, undefined, 'Play Auto show'],
+    [{ programme: 'sequence' }, intro, 'Play sequence Intro'],
+    [{ programme: 'sequence' }, { loaded: null, lanes: [] }, 'Play sequence'],
+  ]) {
+    const html = play(control, sequence);
+    assert.match(html, new RegExp(`aria-label="${name}"[^>]*>.*▶.*<span class="global-play-text">Play</span></button>`, 's'), name);
+    assert.strictEqual(count(html, '<button type="button" class="btn global-control global-play-main'), 1, `${name}: one play button`);
+  }
+  for (const [control, name] of [
+    [{ programme: 'look', playing: true }, 'Stop selected picture'],
+    [{ programme: 'auto', playing: true }, 'Stop Auto show'],
+    [{ programme: 'sequence', playing: true, paused: true }, 'Stop sequence Intro'],
+    [{ programme: 'look', playing: false, layers: true }, 'Stop and clear pads'],
+  ]) {
+    const html = play(control, intro);
+    assert.match(html, new RegExp(`class="btn global-control global-play-main protective"[^>]*aria-label="${name}"[^>]*>.*■.*<span class="global-play-text">Stop</span></button>`, 's'), name);
+    assert.doesNotMatch(html, /aria-label="Play /, `${name}: Stop instead of Play`);
+  }
+  assert.match(play({ programme: 'sequence', playing: true, paused: true }, intro), /title="The timeline is paused; Resume is on Perform\./);
+  const auto = (programme) => /<button type="button" role="switch"[^>]*aria-checked="(true|false)"[^>]*>(.*?)<\/button>/s.exec(header({ programme }))
+    .slice(1);
+  assert.deepStrictEqual(auto('auto').map((x) => x.replace(/<[^>]+>/g, '')), ['true', 'Auto showOn']);
+  assert.deepStrictEqual(auto('look').map((x) => x.replace(/<[^>]+>/g, '')), ['false', 'Auto showOff']);
+  assert.strictEqual(auto('sequence')[0], 'false');
 });
 
 /** The picture source as rendered: its markup, the chosen segment's, and the props a click on that segment runs. */

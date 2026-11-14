@@ -18,14 +18,15 @@ export function transportButtons(driver, s) {
   if (driver === 'auto') return ['downloading', 'analyzing'].includes(s.autoShow?.status)
     ? [{ id: 'cancel', label: 'Cancel analysis', enabled: true, request: post('/api/auto/cancel') }] : [];
   if (driver !== 'sequence') return [];
-  const q = s.sequence, loaded = !!q?.loaded, loop = q?.loop;
+  const q = s.sequence, loaded = !!q?.loaded, loop = q?.loop, paused = !!q?.paused;
+  // The sequencer's pause is one-way: Resume is the control's Start, which carries on from the held beat.
   return [
-    { id: 'pause', label: 'Pause timeline', enabled: loaded && !!q?.playing, pressed: !!q?.paused },
+    { id: 'pause', label: paused ? 'Resume timeline' : 'Pause timeline', enabled: loaded && (!!q?.playing || paused), ...(paused ? { control: 'start' } : {}) },
     { id: 'prev', label: 'Previous row', enabled: loaded },
     { id: 'next', label: 'Next row', enabled: loaded },
     { id: 'shuffle', label: 'Shuffle rows', enabled: loaded },
     { id: 'loop', label: 'Loop region', enabled: loaded && !!loop, pressed: !!loop?.on },
-  ].map((button) => ({ ...button, request: post(`/api/sequence/${button.id}`,
+  ].map((button) => ({ ...button, request: button.control ? null : post(`/api/sequence/${button.id}`,
     button.id === 'loop' && loop ? { ...loop, on: !loop.on } : null) }));
 }
 

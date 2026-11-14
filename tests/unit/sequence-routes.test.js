@@ -312,6 +312,37 @@ test('switching from the sequence to the look while it plays shows the look at o
   await sendControl(s.call, 'stop');
 });
 
+// Show v3, G5: "Use selected picture" chooses the look while the sequence stands stopped; its Play shows the look.
+test('after a stopped sequence, Play of the selected picture renders nothing of the sequence', async (t) => {
+  const s = await serve(t);
+  const artnet = state.artnet.enabled;
+  state.artnet.enabled = false;   // nothing leaves this machine
+  t.after(async () => { await stopEngine(); state.artnet.enabled = artnet; });
+  applyPatch({ pattern: 'solid', colorA: 0, masterDimmer: 255, masterBlackout: false });
+  const first = state.fixtures[0];
+  const lit = (channel) => () => {
+    const ch = getProfile(first).channelMap;
+    const dmx = universes.getBuffer(first.universe ?? state.artnet.universe);
+    return dmx[first.address - 1 + ch[channel]] === 255 && dmx[first.address - 1 + ch[channel === 'red' ? 'green' : 'red']] === 0;
+  };
+  await s.call('PUT', '/api/sequence', { ...SET, clips: [clip('G', 0, 1e6, { kind: 'ldj.MatrixSolid', params: { cadence: 1, beats: 32 }, palette: ['#00FF00'] })] });
+  startEngine({ thread: 'main' });
+  await sendControl(s.call, 'start', 'sequence');
+  assert.ok(await until(lit('green'), 1000), 'the sequence plays');
+  await sendControl(s.call, 'stop');
+  let res = await sendControl(s.call, 'select', 'look');
+  assert.deepEqual([res.status, res.body.control.programme, res.body.control.playing], [200, 'look', false], 'choosing starts nothing');
+  assert.equal(state.running, false);
+  assert.equal(getLiveState().sequence.loaded?.id, SET.id, 'the sequence stays loaded for the next time it is chosen');
+  res = await sendControl(s.call, 'start');
+  assert.deepEqual([res.status, res.body.control.programme, res.body.control.playing], [200, 'look', true]);
+  assert.ok(await until(lit('red'), 1000), 'the selected picture shows');
+  await wait(100);
+  assert.equal(lit('green')(), false, 'nothing of the sequence is held over it');
+  assert.equal(renderInput().sequenceTransport, null);
+  await sendControl(s.call, 'stop');
+});
+
 test('explicit sequence Start and Stop own the free clock', async (t) => {
   const s = await serve(t);
   t.after(() => applyPatch({ running: true }));

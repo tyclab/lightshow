@@ -37,9 +37,10 @@ async function expectEveryPill(page, where) {
   await page.keyboard.press('Escape');
   await expect(stats).toHaveCount(0);
   const controls = page.getByRole('group', { name: 'Global show controls' });
-  for (const name of ['Stop Look', 'Programme', 'Freeze', /^(Blackout|Restore)$/, 'Arm']) {
+  for (const name of ['Stop selected picture', 'Freeze', /^(Blackout|Restore)$/, 'Arm']) {
     await expect(controls.getByRole('button', { name, exact: true }), `${where}: ${name}`).toBeInViewport();
   }
+  await expect(controls.getByRole('switch', { name: 'Auto show', exact: true }), `${where}: Auto show`).toBeInViewport();
   await expect(controls.getByRole('status')).toContainText('Playing');
   await expect(controls.getByRole('status')).toContainText('Disarmed');
 }

@@ -1,12 +1,8 @@
-import { useEffect, useRef, useState } from 'preact/hooks';
+import { useEffect, useState } from 'preact/hooks';
 import { connectedSig, pick, send } from '../state.js';
 import { controlPending, settleFault, showFault, takeControl } from '../control.js';
 import { useDraft } from '../draft.js';
-import { useDismiss } from '../popover.js';
 import { Photosensitivity, acknowledgeThen } from './Photosensitivity.jsx';
-
-const PROGRAMMES = [['look', 'Look'], ['auto', 'Auto show'], ['sequence', 'Sequence']];
-const programmeName = (id) => PROGRAMMES.find(([key]) => key === id)?.[1] ?? 'Look';
 
 /** The show's state in words, for screen readers and the status details. */
 export function controlStatus(c, ready, pending) {
@@ -17,70 +13,52 @@ export function controlStatus(c, ready, pending) {
   return `${c.paused ? 'Timeline paused' : c.playing ? 'Playing' : 'Stopped'}${c.frozen ? ' · Frozen' : ''}${c.blackout ? ' · Blackout' : ''} · ${c.armed ? 'Armed' : 'Disarmed'}`;
 }
 
+/** What the programme plays, in words: the selected picture, the Auto show or the loaded sequence by its name. */
+export function programmeName(programme, sequence) {
+  if (programme === 'auto') return 'Auto show';
+  if (programme === 'sequence') return sequence?.loaded?.name ? `sequence ${sequence.loaded.name}` : 'sequence';
+  return 'selected picture';
+}
+
 /**
- * One play button that names what it starts, and stops it while it plays; its menu chooses the
- * programme (while one plays, the choice switches to it at once) and keeps Stop in reach when the button itself is not Stop.
+ * The header's one play button: Stop whenever Stop would clear something (a programme playing or paused, or a
+ * layer only Stop clears, such as pads over a stopped programme), otherwise Play, named for what it starts.
  */
-function PlayControl({ c, ready, pending }) {
-  const [open, setOpen] = useState(false);
-  const trigger = useRef(null);
-  const menu = useRef(null);
-  useDismiss(open, () => setOpen(false), trigger, menu);
-  const programme = c?.programme ?? 'look';
-  const name = programmeName(programme);
-  const stops = !!c?.playing && !c?.paused;
+export function playButton(c, sequence) {
+  const name = programmeName(c?.programme ?? 'look', sequence);
+  const keeps = 'Background and global controls keep their settings.';
+  if (c?.paused) return { stops: true, label: `Stop ${name}`, title: `The timeline is paused; Resume is on Perform. Stop ends it and clears pads. ${keeps}` };
+  if (c?.playing) return { stops: true, label: `Stop ${name}`, title: `Stop ${name}: stops the programme and clears pads. ${keeps}` };
+  if (c?.layers) return { stops: true, label: 'Stop and clear pads', title: `Nothing plays, but pads or another layer only Stop clears are on. Stop clears them. ${keeps}` };
+  return { stops: false, label: `Play ${name}`, title: `Play ${name}. Freeze, Blackout and output permission keep their settings.` };
+}
+
+/** Auto show on or off, and one Play/Stop button; switching never starts or stops playback. */
+function PlayControl({ c, sequence, ready, pending }) {
   const blocked = !ready || pending || c?.ready === false;
-  useEffect(() => {
-    if (open) (menu.current?.querySelector('[aria-checked="true"]:not([disabled])') ?? menu.current?.querySelector('[role^="menuitem"]:not([disabled])'))?.focus();
-  }, [open]);
-  const pickItem = (run) => { setOpen(false); trigger.current?.focus(); run(); };
-  const onMenuKey = (e) => {
-    const items = [...menu.current.querySelectorAll('[role^="menuitem"]:not([disabled])')];
-    const at = items.indexOf(document.activeElement);
-    const to = e.key === 'ArrowDown' ? (at + 1) % items.length : e.key === 'ArrowUp' ? (at <= 0 ? items.length - 1 : at - 1)
-      : e.key === 'Home' ? 0 : e.key === 'End' ? items.length - 1 : -1;
-    if (e.key === 'Tab') setOpen(false);
-    if (to < 0 || !items.length) return;
-    e.preventDefault();
-    items[to].focus();
-  };
+  const auto = c?.programme === 'auto';
+  const play = playButton(c, sequence);
   return (
-    <div class={`global-play${stops ? ' playing' : ''}`}>
-      {stops
-        ? <button type="button" class="btn global-control global-play-main protective" disabled={!ready} aria-label={`Stop ${name}`}
-          title={`Stop ${name}: stops the programme and clears pads. Background and global controls keep their settings.`}
-          onClick={() => takeControl('stop')}>
-          <span aria-hidden="true">■</span><span class="global-play-text">Stop<span class="global-play-name"> {name}</span></span>
-        </button>
-        : <button type="button" class="btn global-control global-play-main" disabled={blocked} aria-label={`${c?.paused ? 'Resume' : 'Start'} ${name}`}
-          title={c?.paused ? `Resume the paused ${name.toLowerCase()} timeline.` : `Start ${name}. Freeze, Blackout and output permission keep their settings.`}
-          onClick={() => takeControl('start')}>
-          <span aria-hidden="true">▶</span><span class="global-play-text">{c?.paused ? 'Resume' : name}</span>
-        </button>}
-      <button ref={trigger} type="button" class="btn global-control global-play-menu" aria-label="Programme" aria-haspopup="menu"
-        aria-expanded={open} disabled={!ready} title={`Programme: ${name}. What the play button starts.`} onClick={() => setOpen(!open)}>
-        <span aria-hidden="true">▾</span>
+    <div class={`global-play${play.stops ? ' playing' : ''}`}>
+      <button type="button" role="switch" class="btn global-control global-auto" aria-checked={auto} aria-label="Auto show" disabled={blocked}
+        title={auto ? 'Auto show is on: the director chooses the looks. Off goes back to the selected picture; playback keeps running or stays stopped.'
+          : 'Auto show is off. On hands the looks to the director; playback keeps running or stays stopped.'}
+        onClick={() => takeControl('select', auto ? 'look' : 'auto')}>
+        <span class="global-auto-label">Auto<span class="global-auto-long"> show</span></span>
+        <span class="global-auto-state" aria-hidden="true">{auto ? 'On' : 'Off'}</span>
+        <span class="global-auto-track" aria-hidden="true" />
       </button>
-      {open && <div ref={menu} class="header-popover global-play-list" role="menu" aria-label="Programme" onKeyDown={onMenuKey}>
-        {PROGRAMMES.map(([id, label]) => (
-          <button key={id} type="button" role="menuitemradio" aria-checked={programme === id} tabIndex={-1}
-            disabled={blocked}
-            title={c?.playing && id !== programme ? `Switch to ${label}: ${name} ends and ${label} starts. Pads, Freeze and Blackout stay as they are.`
-              : `${label} is what the play button starts`}
-            onClick={() => pickItem(() => programme !== id && takeControl('select', id))}>
-            <span class="global-play-check" aria-hidden="true">{programme === id ? '✓' : ''}</span>{label}
-          </button>
-        ))}
-        {!stops && <button type="button" role="menuitem" class="protective" tabIndex={-1} disabled={!ready}
-          title="Stop the programme and clear pads. Background and global controls keep their settings."
-          onClick={() => pickItem(() => takeControl('stop'))}>{c?.paused ? `Stop ${name}` : 'Stop and clear pads'}</button>}
-      </div>}
+      <button type="button" class={`btn global-control global-play-main${play.stops ? ' protective' : ''}`}
+        disabled={play.stops ? !ready : blocked} aria-label={play.label} title={play.title}
+        onClick={() => takeControl(play.stops ? 'stop' : 'start')}>
+        <span aria-hidden="true">{play.stops ? '■' : '▶'}</span><span class="global-play-text">{play.stops ? 'Stop' : 'Play'}</span>
+      </button>
     </div>
   );
 }
 
 export function GlobalControls() {
-  const { control: c, masterDimmer } = pick(['control', 'masterDimmer']);
+  const { control: c, masterDimmer, sequence } = pick(['control', 'masterDimmer', 'sequence']);
   const ready = connectedSig.value && c?.version === 1;
   const pending = controlPending.value > 0 || c?.pending;
   const [dim, onDim, commitDim] = useDraft(masterDimmer ?? 255, (value) => send({ masterDimmer: value }));
@@ -100,7 +78,7 @@ export function GlobalControls() {
       onClick={() => takeControl(action)}>{label}</button>
   );
   return <div class="global-controls" role="group" aria-label="Global show controls">
-    <PlayControl c={c} ready={ready} pending={pending} />
+    <PlayControl c={c} sequence={sequence} ready={ready} pending={pending} />
     {button(c?.frozen ? 'Resume' : 'Freeze', c?.frozen ? 'resume' : 'freeze', c?.frozen, false,
       'Freeze holds the whole picture. Resume releases the hold; it does not start a stopped programme.', 'freeze')}
     {button(c?.blackout ? <><span class="global-blackout-state" aria-hidden="true"><span class="global-blackout-dot">● </span>Blackout</span><span>Restore</span></> : 'Blackout',

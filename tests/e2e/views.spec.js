@@ -22,9 +22,10 @@ test('the app opens on Show: the room, the looks and global controls', async ({ 
   await expect(page).toHaveURL(/#show$/);
   await expect(page.getByRole('tab', { name: /^Show/ })).toHaveAttribute('aria-selected', 'true');
   const controls = page.getByRole('group', { name: 'Global show controls' });
-  for (const name of ['Stop Look', 'Programme', 'Freeze', 'Blackout', 'Arm']) {
+  for (const name of ['Stop selected picture', 'Freeze', 'Blackout', 'Arm']) {
     await expect(controls.getByRole('button', { name, exact: true })).toBeVisible();
   }
+  await expect(controls.getByRole('switch', { name: 'Auto show', exact: true })).toBeVisible();
   await expect(page.getByRole('group', { name: 'Picture source' })).toBeVisible();
   await expect(page.locator('.show-room .stage3d-canvas')).toBeVisible();
   await expect(page.locator('.show-body > .background-controls')).toBeVisible();

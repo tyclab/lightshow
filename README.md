@@ -166,7 +166,7 @@ The sticky header is one row on a desktop (two on a phone, 1000 px and narrower)
 the same on every view, including while scrolling through Show:
 
 ```text
-[mark] [Effects: Swirl ▾ | Colour + motion | Visualizer | Squid]  [▶ Look ▾] [Freeze] [Blackout] [Arm]  Master ━━●━ 100%  [● 120 BPM Online] [⋮]
+[mark] [Effects: Swirl ▾ | Colour + motion | Visualizer | Squid]  [Auto show Off ○] [▶ Play] [Freeze] [Blackout] [Arm]  Master ━━●━ 100%  [● 120 BPM Online] [⋮]
 ```
 
 - **Picture source** comes first. **Effects**, **Colour + motion** and **Squid**
@@ -182,16 +182,22 @@ the same on every view, including while scrolling through Show:
   chosen. Choosing it closes an open picker. The main effect still shows while no
   picture arrives and 2 s after the picture stops; choose it under Effects or
   Colour + motion. The other sources are one tap away.
-- **Play** names what it starts (**▶ Look**, **▶ Auto show**, **▶ Sequence**) and
-  is **■ Stop …** while that programme plays; its ▾ menu chooses the programme
-  and keeps **Stop** in reach when the button itself is not Stop (stopped:
-  **Stop and clear pads**; a paused sequence: **Stop Sequence**, while the button
-  resumes it). Chosen while another programme plays, it switches in one go: the
-  one playing ends (a sequence lets its held picture go; it plays from the top
-  next time) and the chosen one starts. Pads, a held energy effect, Freeze and
-  Blackout stay as they are; only Stop clears the pads. A programme that cannot
-  start (no sequence loaded, no analysed track or live input) is refused and the
-  one playing carries on.
+- **Auto show** is one switch, on exactly while the Auto show is the programme. Off
+  goes back to the selected picture. Switching never starts or stops playback: playing,
+  the new programme takes over in one go (a sequence lets its held picture go; it plays
+  from the top next time); stopped, it stays stopped. Pads, a held energy effect,
+  Freeze, Blackout and Arm stay as they are. Switching on while a programme plays needs
+  an analysed track or a listening live input, or it is refused and nothing changes;
+  stopped, the switch turns on and Play says what is missing. Below 1366 px wide the
+  switch drops its On/Off word (the knob shows it); on a phone it reads **Auto** over the knob.
+- **Play** is one button. It reads **■ Stop** whenever Stop would clear something: a
+  programme playing, a paused sequence timeline, or pads (a held energy effect,
+  Identify) over a stopped programme, where its name is **Stop and clear pads**. Stop
+  ends the programme and clears the pads. Otherwise it reads **▶ Play** and its name says
+  what it starts: **Play selected picture**, **Play Auto show** or **Play sequence**
+  with the loaded sequence's name. A sequence is chosen on Perform, not here; a
+  programme that cannot start (no sequence loaded, no analysed track or live input) is
+  refused with the reason.
 - **Freeze/Resume**, **Blackout/Restore** and **Arm/Disarm** keep their own 44 px
   buttons at fixed places. Armed shows on the button itself: filled red, **● Armed**
   over **Disarm**; so does Blackout, filled red as well: **● Blackout** over **Restore**
@@ -314,11 +320,23 @@ The global controls and the picture source appear once in the app header,
 including setup views; choosing a source or an effect never starts the programme
 or releases Freeze or Blackout.
 
+Perform's **Sequence shelf** chooses a sequence as the programme: pick one of the saved
+sequences (or the loaded one, saved or not) and press **Select sequence**; the header's
+Play then plays it. Selecting loads the sequence only when it is not the loaded one, so
+selecting the loaded one again neither reloads nor restarts it, and running or stopped
+stays as it was. Replacing a loaded sequence with unsaved changes asks first; while a
+sequence plays or is paused the server refuses to replace it and says so. Once a sequence
+is the programme, **Use selected picture** goes back to the selected picture (so does
+the Auto show switch, on and then off). Leaving a stopped sequence lets its held picture
+go without starting anything. **Open the sequence editor** leads to Sequence.
+
 Hashes open a view directly, such as `/#perform` or `/#rig/outputs`.
 Show opens by default. Old `#manual`, `#timeline` and `#matrix` bookmarks redirect
 to Effects, Auto Show → Timeline and Perform → Matrix. The global header stays
 in one place on every tab. Sequence tools retain timeline Pause and row navigation.
-The play button resumes a paused sequence timeline; Resume releases only the picture hold.
+A paused timeline shows **Resume timeline** in Pause's place, on Perform and in Sequence;
+it carries on from the held beat. The header keeps Stop while the timeline is paused.
+The header's Resume releases only the picture hold.
 The view strip scrolls with its arrow buttons; keyboard arrows, Home and End
 work while a view tab is focused.
 
@@ -1575,7 +1593,7 @@ palette take effect on Play. Select a clip to edit its timing/targets or open it
 effect settings. Apply to clip embeds that edited effect without changing its
 source preset. **Hold on live rig** launches a live voice using the clip's targets and releases on exit. **Audition on Stage** previews the draft locally while disarmed.
 Playlist rows move the playhead by click or keyboard without starting or stopping
-the programme. Choose Sequence in the play button's menu, then start or stop it there. Saved patterns can be renamed, mapped to lanes or deleted.
+the programme. Select the sequence on Perform's shelf, then start or stop it with the header's Play. Saved patterns can be renamed, mapped to lanes or deleted.
 Clips can carry a name; selected clips can be grouped, moved together by beats
 or lanes, and ungrouped. Command rows have Run now.
 
@@ -1932,7 +1950,10 @@ last displayed `version: 1`, `session` and `revision` to `POST /api/control`, pl
 `action` and optional `programme` (`look`, `auto`, `sequence`). Actions are
 `select`, `start`, `stop`, `freeze`, `resume`, `arm`, `disarm`, `blackout`, `restore`.
 `select` or `start` naming another programme while one plays switches to it in one
-step, as the play menu does.
+step, as the Auto show switch and Perform's sequence shelf do. Naming another programme
+while nothing plays starts nothing and lets a stopped sequence's held picture go.
+`control.layers` is true while a voice (pad), a held energy effect or Identify is on:
+the layers Stop clears besides the programme.
 A successful response follows the renderer acknowledgement. If none arrives
 within 2 seconds the action fails and `control.fault` says so; an acknowledgement
 that arrives later clears that fault and marks the revision applied. A 409 requires a

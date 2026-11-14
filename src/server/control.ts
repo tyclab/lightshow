@@ -20,9 +20,13 @@ export interface ControlHooks {
   setBlackout: (on: boolean) => void;
   validateStart: (programme: Programme) => void;
   paused?: () => boolean;
+  /** True while a layer only Stop clears is on: a voice (pending or hidden too), a held energy effect, Identify. */
+  layers?: () => boolean;
   start: (programme: Programme) => void;
   /** Ends the programme playing and starts `programme` in its place; pads, Freeze and Blackout stay. */
   switchTo: (programme: Programme) => void;
+  /** The stopped programme `from` is left for another: what it still holds goes, and nothing starts. */
+  leave?: (from: Programme) => void;
   stop: () => void;
   changed: () => void;
   frame: () => Promise<void>;
@@ -54,6 +58,7 @@ export class GlobalControl {
       programme: this.programme, playing: this.playing, frozen: this.frozen,
       ready: this.hooks?.ready?.() ?? true,
       paused: this.hooks?.paused?.() ?? false,
+      layers: this.hooks?.layers?.() ?? false,
       heldUnavailable: this.heldUnavailable,
       armed: this.hooks?.armed() ?? false, blackout: this.hooks?.blackout() ?? false,
       pending: this.appliedRevision < this.revision && !this.fault, fault: this.fault };
@@ -76,7 +81,8 @@ export class GlobalControl {
     }
     const programme = request.programme === undefined ? this.programme : request.programme as Programme;
     if (!PROGRAMMES.has(programme)) throw new HttpError(400, 'Unknown programme');
-    const switching = (action === 'select' || action === 'start') && this.playing && programme !== this.programme;
+    const choosing = (action === 'select' || action === 'start') && programme !== this.programme;
+    const switching = choosing && this.playing;
     if (action === 'start' || switching) hooks.validateStart(programme);
     const revision = ++this.revision;
     this.fault = null;
@@ -84,10 +90,14 @@ export class GlobalControl {
       switch (action) {
         case 'select':
           if (switching) hooks.switchTo(programme);
+          else if (choosing) hooks.leave?.(this.programme);
           this.programme = programme; break;
         case 'start':
           if (switching) hooks.switchTo(programme);
-          else if (!this.playing || hooks.paused?.()) hooks.start(programme);
+          else {
+            if (choosing) hooks.leave?.(this.programme);
+            if (!this.playing || hooks.paused?.()) hooks.start(programme);
+          }
           this.programme = programme; this.playing = true; break;
         case 'stop': this.playing = false; hooks.stop(); break;
         case 'freeze': this.frozen = true; break;

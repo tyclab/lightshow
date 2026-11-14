@@ -23,6 +23,13 @@ revised in #113 and #126); its full text is in git history. The rulings below st
 
 2026-11-08: "the visualizer button doesnt make sense for me. why does it has effects to select?"
 
+2026-11-14 (UTC), on the Show v3 draft:
+
+- "why do i need to stop playback for the change from look to auto? any technical reson at all?=" (02:30)
+- "why do we have look an auto show? shoudlnt we not only need a toggle for auto show on off? look is
+  bascially the are called picture?" (03:11)
+- "the removal of look dropdown button. thats for sure"
+
 ## Decisions
 
 - Same place on every tab, no duplicates, nothing changes Freeze or Blackout as a side effect.
@@ -33,8 +40,11 @@ revised in #113 and #126); its full text is in git history. The rulings below st
 - When the room looks wrong the operator changes the effect first (2026-11-07). The picture source
   control stays first; its Effects and Colour + motion segments name the main effect with its
   picker one tap away. Switching effects must be the fastest action in the header.
-- Play is one split button, "▶ Look ▾" with Auto show and Sequence in its menu; the same button
-  reads "■ Stop …" while playing (2026-11-07).
+- One Play/Stop button and one Auto show switch (2026-11-14). Switching the programme never starts
+  or stops playback, and keeps pads, Freeze, Blackout and Arm. Stop is offered whenever it would
+  clear something: a programme playing or paused, or pads over a stopped programme (the control's
+  `layers`). Play's name says what it starts. A sequence is selected on Perform; no Look button,
+  no programme menu.
 - Visible without a tap: BPM and Online, in the one status chip. Armed is shown by the Arm button
   itself, so its armed state must be unmistakable, not a status pill (2026-11-07).
 - Visualizer names only the picture source (2026-11-09). The effect family `ldj.visualizer.*` is

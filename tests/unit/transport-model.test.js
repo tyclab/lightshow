@@ -29,13 +29,15 @@ test('look transport has no secondary global playback controls', () => {
   for (const running of [true, false]) assert.deepEqual(transportButtons('look', { running }), []);
 });
 
-test('sequence transport offers timeline operations without global Start/Stop or Freeze', () => {
+// Show v3, G4: the sequencer's pause is one-way, so a paused timeline's Resume is the control's Start.
+test('sequence transport offers timeline operations and a Pause that turns into Resume, without Stop or Freeze', () => {
   const loaded = { loaded: { id: 'set' }, lanes: [] };
-  const buttons = transportButtons('sequence', { sequence: { ...loaded, playing: true, paused: true } });
-  assert.deepEqual(buttons.map((b) => b.id), ['pause', 'prev', 'next', 'shuffle', 'loop']);
-  assert.equal(buttons.find((b) => b.id === 'pause').pressed, true);
-  assert.equal(buttons.find((b) => b.id === 'pause').enabled, true);
-  assert.deepEqual(buttons[0].request, { path: '/api/sequence/pause', method: 'POST' });
+  const playing = transportButtons('sequence', { sequence: { ...loaded, playing: true, paused: false } });
+  assert.deepEqual(playing.map((b) => b.id), ['pause', 'prev', 'next', 'shuffle', 'loop']);
+  assert.deepEqual([playing[0].label, playing[0].enabled, playing[0].control], ['Pause timeline', true, undefined]);
+  assert.deepEqual(playing[0].request, { path: '/api/sequence/pause', method: 'POST' });
+  const paused = transportButtons('sequence', { sequence: { ...loaded, playing: false, paused: true } })[0];
+  assert.deepEqual([paused.id, paused.label, paused.enabled, paused.control, paused.request], ['pause', 'Resume timeline', true, 'start', null]);
   assert.equal(transportButtons('sequence', { sequence: loaded })[0].enabled, false);
 });
 
