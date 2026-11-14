@@ -29,12 +29,10 @@ async function drag(page, from, to) {
 const centre = async (locator) => { const b = await locator.boundingBox(); return { x: b.x + b.width / 2, y: b.y + b.height / 2 }; };
 
 for (const [width, height] of [[1915, 1000], [1024, 768], [390, 844]]) {
-  test(`Show reads Background, Bands with every band control in reach at ${width} px`, async ({ page }) => {
+  test(`Show keeps Bands and Background with every band control in reach at ${width} px`, async ({ page }) => {
     await page.setViewportSize({ width, height });
     await open(page, 'show');
-    const order = await page.locator('.show-looks > .card').evaluateAll((cards) => cards.map((card) => card.getAttribute('aria-label')
-      || card.querySelector('.card-title')?.textContent));
-    expect(order).toEqual(['Background lighting', 'Bands']);
+    await expect(page.getByRole('region', { name: 'Background lighting', exact: true })).toBeVisible();
     const card = page.getByRole('region', { name: 'Bands', exact: true });
     await expect(card.locator('.band-title')).toHaveText(/^Bands(Reset)?$/);
     for (const name of ['Bass', 'Voice', 'Treble']) {
@@ -152,10 +150,8 @@ test('another effect keeps its own palette, chosen from the same list and the sa
       const card = page.getByRole('region', { name: 'Colours', exact: true });
       await expect(card.getByRole('group', { name: 'Bass band' })).toHaveCount(0);
       if (view === 'show') {
-        const edit = card.getByRole('button', { name: 'Edit effect colours', exact: true });
-        await expect(edit).toHaveAttribute('aria-expanded', 'false');
-        await expect(card.getByLabel('Search Effect palettes')).toHaveCount(0);
-        await edit.click();
+        await expect(card.getByRole('button', { name: 'Colour wheel', exact: true })).toHaveAttribute('aria-expanded', 'true');
+        await expect(card.getByLabel('Search Effect palettes')).toBeVisible();
       }
       await card.getByLabel('Search Effect palettes').fill('red');
       await card.locator('[data-palette="redCyan"]').click();
@@ -168,4 +164,36 @@ test('another effect keeps its own palette, chosen from the same list and the sa
     await set(request, { pattern: DISCO });
     await request.put('/api/settings', { data: { safety: { photosensitivityAcknowledged: false } } });
   }
+});
+
+
+test('Show folds only the colour wheel, keeping palette edits available and remembering the fold', async ({ page, request }) => {
+  await set(request, { pattern: 'ldj.Swirl' });
+  await open(page, 'show');
+  const card = page.getByRole('region', { name: 'Colours', exact: true });
+  const toggle = card.getByRole('button', { name: 'Colour wheel', exact: true });
+  const order = card.getByRole('list', { name: 'Palette colour order' });
+  const search = card.getByLabel('Search Effect palettes');
+  await expect(toggle).toHaveAttribute('aria-expanded', 'true');
+  await expect(card.locator('.colour-wheel-disc')).toBeVisible();
+  await toggle.click();
+  await expect(toggle).toHaveAttribute('aria-expanded', 'false');
+  await expect(card.locator('.colour-wheel-disc')).toBeHidden();
+  await expect(order).toBeVisible();
+  await expect(search).toBeVisible();
+  await search.fill('red cyan');
+  await card.locator('[data-palette="redCyan"]').click();
+  await until(request, (s) => s.effectColours?.palette?.colours.join(',') === '#FF0000,#00BFFF');
+  await card.getByLabel('Palette colour 2', { exact: true }).fill('#ffc800');
+  await until(request, (s) => s.effectColours?.palette?.colours.join(',') === '#FF0000,#FFC800');
+  await page.reload();
+  await expect(toggle).toHaveAttribute('aria-expanded', 'false');
+  await expect(card.locator('.colour-wheel-disc')).toBeHidden();
+  await expect(order).toBeVisible();
+  await expect(search).toBeVisible();
+  await set(request, { pattern: 'chase' });
+  await expect(toggle).toHaveAttribute('aria-expanded', 'false');
+  await toggle.click();
+  await expect(card.locator('.colour-wheel-disc')).toBeVisible();
+  await expect(card.locator('.colour-wheel-point')).not.toHaveCount(0);
 });

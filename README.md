@@ -131,14 +131,17 @@ returns 409. If a Deezer ARL is configured, an unsupervised Node process needs
 ## Views and controls
 
 For a live session, configure the fixtures and their positions in Rig, then
-run the night from Show: the room in 3D as the rig paints it, the colour controls beside
+run the night from Show: the room in 3D as the rig paints it, the effects beside
 it, and the switches that matter along the top — armed or not, what paints the
 room (the effects or the visualizer picture), the auto show on or off,
-blackout and the master. Choose the main effect through the header picker (or **E**),
-then search and select a look. Show keeps Background and the effect's colours in
-the Bands card beside the room, with stop controls when pads are playing.
-The colour strip opens the wheel and palette choices when needed; effect selection
-and colour editing do not add a permanent catalogue to Show.
+blackout and the master. Choose the main effect from the searchable, scrolling box
+beside the stage, with the current effect always shown above the search. The header
+picker (or **E**) remains available on every view. Colours sits under the stage:
+the wheel, colour order and palette list stay visible, and **Colour wheel** at the
+card's top right folds only the wheel. Background ends the right column beside
+Colours. On a phone the order is Stage, Effects, Colours, Background. The stage
+opens in **3D room**, with **2D plot** available beside it. Stop controls remain
+under the stage when pads are playing.
 Effects holds the full catalogue, effect editing and mapping controls,
 the same Bands card and fixture overrides; Perform is the tablet surface for pads, strobes, the Matrix board
 and tempo tools; Sequence arranges clips or runs a playlist; Stage shows the
@@ -490,7 +493,7 @@ explicit background has its own colour, independent of colour A. Rotation blends
 its sector boundaries, including the emitter's size, to avoid a hard wall-wide
 colour jump.
 
-The **Background** card, above the main controls in Show, Effects and Stage, separates ambient light from the effect. **Follow effect**
+The **Background** card in Show, Effects and Stage separates ambient light from the effect. On Show it ends the right column, or follows Colours on a phone. **Follow effect**
 uses the effect's authored background colours and movement; **Fixed colour** is a base
 colour of your own, picked by hue, saturation and brightness (or the colour well) plus
 white, amber and UV; **Off** removes the background.

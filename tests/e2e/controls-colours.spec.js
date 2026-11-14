@@ -66,11 +66,12 @@ test('one Strobe catalogue entry exposes colour modes and preserves old selectio
   await expect(page.getByText('White emitters ignore palettes.', { exact: false })).toBeVisible();
 });
 
-test('background remains above main controls, accessible from Stage, and the header is themed on mobile', async ({ page, request }) => {
+test('background follows Colours on mobile, remains accessible from Stage, and the header is themed', async ({ page, request }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await open(page, 'show');
-  const order = await page.locator('.show-looks > .card').evaluateAll((cards) => cards.map((card) => card.querySelector('.card-title')?.textContent));
-  expect(order[0]).toBe('Background');
+  const colours = await page.locator('.show-colours').boundingBox();
+  const backgroundBox = await page.locator('.background-controls').boundingBox();
+  expect(backgroundBox.y).toBeGreaterThanOrEqual(colours.y + colours.height);
   for (const control of [page.getByRole('button', { name: 'Programme', exact: true }), page.getByRole('group', { name: 'Picture source' }).getByRole('button').first()]) {
     const theme = await control.evaluate((element) => ({ colour: getComputedStyle(element).color, background: getComputedStyle(element).backgroundColor }));
     expect(theme.colour).not.toBe(theme.background);

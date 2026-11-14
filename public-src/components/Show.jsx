@@ -3,15 +3,17 @@ import { StageView } from './StageView.jsx';
 import { PlayingVoices } from './NowPlaying.jsx';
 import { Bands } from './Bands.jsx';
 import { Background } from './Background.jsx';
+import { ShowEffects } from './ShowEffects.jsx';
 
-// The header picker chooses the effect; Show keeps the room and its colour controls.
 export function Show() {
   return (
     <div class="show-view">
       <StrobesOff perform />
       <div class="show-body">
-        <div class="show-room"><StageView compact /></div>
-        <div class="show-looks"><PlayingVoices stopAll /><Background /><Bands compact /></div>
+        <div class="show-room"><StageView compact /><PlayingVoices stopAll /></div>
+        <ShowEffects />
+        <div class="show-colours"><Bands show /></div>
+        <Background />
       </div>
     </div>
   );

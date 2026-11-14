@@ -1,5 +1,36 @@
 import { test, expect } from '@playwright/test';
-import { open } from './helpers.js';
+import { open, reset, set } from './helpers.js';
+
+for (const [width, height] of [[1701, 1370], [1440, 900], [390, 844]]) {
+  test(`Show keeps its list contained and cards in draft order at ${width}×${height}`, async ({ page, request }) => {
+    await reset(request);
+    await set(request, { pattern: 'swirl' });
+    await page.setViewportSize({ width, height });
+    await open(page, 'show');
+    await expect(page.locator('.show-room .stage3d-canvas')).toBeVisible();
+    const bounds = async (selector) => page.locator(selector).boundingBox();
+    const room = await bounds('.show-room'), effects = await bounds('.contained-effects');
+    const colours = await bounds('.show-colours'), background = await bounds('.background-controls');
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
+    const list = page.locator('.contained-scroll');
+    expect(await list.evaluate((el) => el.scrollHeight > el.clientHeight)).toBe(true);
+    if (width >= 1000) {
+      expect(Math.abs(effects.y - room.y)).toBeLessThan(1);
+      expect(effects.x).toBeGreaterThanOrEqual(room.x + room.width);
+      expect(colours.y).toBeGreaterThanOrEqual(room.y + room.height);
+      expect(Math.abs(background.y + background.height - colours.y - colours.height)).toBeLessThan(1);
+      expect(effects.y + effects.height).toBeLessThanOrEqual(background.y);
+    } else {
+      expect(effects.y).toBeGreaterThanOrEqual(room.y + room.height);
+      expect(colours.y).toBeGreaterThanOrEqual(effects.y + effects.height);
+      expect(background.y).toBeGreaterThanOrEqual(colours.y + colours.height);
+    }
+    await page.getByRole('region', { name: 'Background lighting' }).getByRole('button', { name: 'Fixed colour', exact: true }).click();
+    await expect(page.getByRole('group', { name: 'Background colour sliders' })).toBeVisible();
+    expect((await bounds('.contained-effects')).y + (await bounds('.contained-effects')).height).toBeLessThanOrEqual((await bounds('.background-controls')).y);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
+  });
+}
 
 test('portrait pads precede strobe, meters and colour libraries', async ({ page }) => {
   await page.setViewportSize({ width: 768, height: 1024 });
