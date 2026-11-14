@@ -161,6 +161,12 @@ is saved in this browser across reloads and shared by both views.
 They say **Live output** once outputs are armed, and **Blackout** while Blackout is on, armed or not.
 A dark stage says why, over the 3D stage and under the plot: Outputs off points to **Preview look**,
 Blackout to **Restore** in the header.
+A disarmed page nobody touches for `outputs.idleStopMin` minutes (60; Settings → Show, **Stop an
+Unattended Show**) lets its DMX and picture feeds go: every view that draws a stage says **Preview paused
+after 60 minutes without input.**, the stage draws its lights off under **Preview paused**, and **Resume
+preview** brings the feeds back and starts nothing. Arming resumes it too; armed, a page never pauses. The
+server stops a disarmed show nobody attends after the same minutes (see
+[Home Assistant integration surface](#home-assistant-integration-surface)).
 
 The sticky header is one row on a desktop (two on a phone, 1000 px and narrower) and
 the same on every view, including while scrolling through Show:
@@ -743,7 +749,7 @@ New mapping revisions discard delayed and partially staged colours.
 | `sacn` | `enabled: false`, `host: ''` for multicast, `priority: 100`, `sourceName: 'TycStation Lightshow'`, `universeOffset: 1`, `interface: ''`; stable generated `cid` |
 | `hue` | `bridges: []`, `latencyMs: 0`, `strobe: 'flash'`; each paired bridge has an id, address, enabled flag, area and write-only credentials |
 | `picture` | `source: 'effects'`, `'visualizer'`, `'inspired'` (Colour + motion) or `'squid'`; `blackPoint: 0.12`, the peak under which a picture unit stays dark; `decode: false`, sRGB to linear light; `grade`: the room picture's optional colour grade, off by default, `{ enabled: false, whiteLimit: 0, saturation: 1, ceiling: 1, hueCeiling: 1 }`; see [Room picture](#room-picture) |
-| `outputs` | `armed: false`; always reset to false at startup. `idleDisarmMin: 15`: minutes armed with nothing playing before the outputs disarm themselves; `0` never |
+| `outputs` | `armed: false`; always reset to false at startup. `idleDisarmMin: 15`: minutes armed with nothing playing before the outputs disarm themselves; `0` never. `idleStopMin: 60`: minutes disarmed without a control action or page input before a show is stopped as Stop does and an idle page pauses its preview; `0` never |
 | `sources` | `prolink: false`, `smtc: true` |
 | `spotify` | Client id, secret, server-written refresh token; optional `proxyBase`; `allowUnverifiedState: false` |
 | `deezer` | Optional `arl` cookie |
@@ -2014,6 +2020,16 @@ auto show or pixel input is active at every 10 s check for
 would. Surface a 409 safety refusal to the operator instead of retrying it as
 an acknowledgement.
 
+A disarmed show nobody attends is stopped. While disarmed and `control.playing`
+or `control.layers` is true, `outputs.idleStopMin` minutes (60, in the live
+state as `idleStopMin`) without an accepted control action and without a page's
+`activity` event end it with the same `stop` the header sends, and one line is
+logged under `component=control`. Polling, status reports and other requests do
+not count, so a remote that leaves a disarmed programme running on purpose sets
+`idleStopMin` to `0`. A sequence stopped this way starts from the top on its
+next Start. Arming clears the count; armed, the show is never stopped this way
+and the idle disarm above applies.
+
 Each arm or disarm that changes the state logs one info line under
 `component=outputs` with `armed` and `via`: `rest` (the three
 `/api/outputs/*` routes or `PUT /api/settings`),
@@ -2314,7 +2330,10 @@ the state in protocol 2:
   second, and `null` once when its lease ends. Every topic sends its latest at
   once on subscribing. The live page holds the DMX and picture topics only
   while its tab is visible: hidden, it unsubscribes, and shown again it
-  subscribes.
+  subscribes. Disarmed, it also lets them go after `idleStopMin` minutes
+  without input, until Resume preview or an arm. It sends `activity` (no
+  payload) on deliberate input (pointer down, key, wheel, touch), at most once
+  a minute; the server's idle stop counts from it.
 
 The `voice-hold` message holds a voice while a button is down:
 `{ action: 'press' | 'renew' | 'release', token, pad?: { bank, slot }, effect?, targets? }`.
@@ -2371,7 +2390,8 @@ so a stall at start-up stops warning a minute later. `renderedTotal` counts the
 ticks that rendered a frame. `idle` is true while the outputs are disarmed, no
 page watches the DMX feed and no identify runs: the engine then
 renders every ninth tick (about 5 a second), and every tick again as soon as a
-change, an effect command or an Art-Net retirement waits on a frame. `eventLoop`
+change, an effect command or an Art-Net retirement waits on a frame. `awake`
+names what keeps it from idling, as the performance record does. `eventLoop`
 gives the main thread's delay in milliseconds over the last 30 s window: the
 excess over the 10 ms sampling timer, so an idle loop reads 0.
 
