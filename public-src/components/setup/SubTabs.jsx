@@ -29,7 +29,8 @@ export function useSubTab(view, tabs) {
   useEffect(() => {
     try { localStorage.setItem(key, tab); } catch { /* private mode */ }
     const want = `#${view}/${tab}`;
-    if (window.location.hash !== want) window.history.replaceState(null, '', want);
+    // Only while the hash names this view: a navigation that left it meanwhile is not undone.
+    if (resolveRoute(window.location.hash)?.view === view && window.location.hash !== want) window.history.replaceState(null, '', want);
   }, [tab]);
   useEffect(() => {
     const onHash = () => { const linked = fromHash(view, ids); if (linked) setTab(linked); };
