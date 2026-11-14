@@ -43,6 +43,7 @@ import { SequenceStore } from './sequence-store.ts';
 import { LiveAutomation } from './live-automation.ts';
 import { isArmed } from './armed.ts';
 import { pictureInput } from './picture-live.ts';
+import { SampleRelay } from './sample-relay.ts';
 import { setAwakeProvider, setLiveProvider } from './health.ts';
 import { toHex } from '../shared/effects/palette.ts';
 import { configFile } from './config-dir.ts';
@@ -54,7 +55,7 @@ import type MidiController from '../midi.ts';
 import type NowPlayingSource from '../nowplaying-source.ts';
 import type ProLink from '../prolink.ts';
 import type LiveInput from '../live-input.ts';
-import type { LiveReading } from '../live-input.ts';
+import type { LiveReading, LiveSamples } from '../live-input.ts';
 import type { ProlinkTrack } from '../prolink.ts';
 import type { AnalysisPriority } from '../analyzer-worker.ts';
 import type SpotifyClient from '../spotify.ts';
@@ -504,6 +505,8 @@ function setupIntegrations({ io, midi, spotify, nowPlaying, deezerSource, prolin
       featuresHear(r);
     });
   }
+  const samples = new SampleRelay({ want: (on) => liveInput?.wantSamples(on) });
+  if (liveInput) liveInput.onSamples(guarded('live samples', (block: LiveSamples) => samples.push(block)));
 
   function heard(): AudioFrame | null {
     const streamNowMs = liveInput ? liveInput.streamNowMs() : null;
@@ -1013,6 +1016,7 @@ function setupIntegrations({ io, midi, spotify, nowPlaying, deezerSource, prolin
     },
     liveAutomation,
     publisher,
+    samples,
     warmer,
     audio: { features: audioFeatures, summary: audioSummary, detectors, captureInput: () => {
       const reading = liveInput?.getReading();

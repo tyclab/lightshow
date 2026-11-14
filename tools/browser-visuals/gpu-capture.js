@@ -52,7 +52,7 @@ export async function gpuCapture(options, source, view, valid = () => true) {
     } catch { gl.getExtension('WEBGL_lose_context')?.loseContext(); return null; }
   }
   if (slot.request) return slot.request;
-  const current = () => !slot.disposed && !slot.gl.isContextLost() && source.isConnected && source.width === slot.sourceWidth && source.height === slot.sourceHeight && view.querySelector('.visualizer-layer__canvas') === source && valid();
+  const current = () => !slot.disposed && !slot.gl.isContextLost() && source.isConnected && source.width === slot.sourceWidth && source.height === slot.sourceHeight && view.querySelector(options.page?.canvas ?? '.visualizer-layer__canvas') === source && valid();
   slot.request = (async () => {
     const { gl, vertices, rgba } = slot, started = performance.now();
     const period = 1000 / Math.max(1, Math.min(60, options.fps || 44));

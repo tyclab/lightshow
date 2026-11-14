@@ -2,9 +2,22 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { gpuCapture } from './gpu-capture.js';
 
+/** The second page the helper drives: Party Visuals' own visualizer, drawn from the lightshow's live input. */
+export const LIVE_PAGE = Object.freeze({
+  path: '/bundles/party-visuals/graphics/milkdrop.html',
+  view: '[data-party-visualizer]', layer: '[data-party-visualizer-layer]', canvas: '[data-party-visualizer-canvas]', wait: 'data-party-wait', age: 'data-party-age',
+  style: '[data-party-visualizer] { isolation:isolate; } [data-party-visualizer][data-party-display="off"]::after { content:""; position:absolute; inset:0; background:#000; z-index:10; pointer-events:none; }',
+});
+
+export function isLivePage(url) {
+  try { const u = new URL(url); return u.pathname === LIVE_PAGE.path && !u.hash; } catch { return false; }
+}
+
 export function matchesTarget(actual, expected) {
   try {
     const a = new URL(actual), b = new URL(expected);
+    // The live-audio page has no route in its fragment: exactly the configured page.
+    if (!b.hash) return !a.username && !a.password && a.origin === b.origin && a.pathname === b.pathname && !a.search && !a.hash && !b.search;
     const ar = new URL(a.hash.slice(1), 'http://route.invalid'), br = new URL(b.hash.slice(1), 'http://route.invalid');
     return !a.username && !a.password && a.origin === b.origin && a.pathname === b.pathname && !a.search && ar.pathname === '/now-playing' && ar.pathname === br.pathname && ar.searchParams.get('player') === br.searchParams.get('player') && ar.searchParams.get('frameless') === br.searchParams.get('frameless') && [...ar.searchParams.keys()].every(key => ['player', 'frameless'].includes(key));
   } catch { return false; }
@@ -28,7 +41,7 @@ export async function discoverPage(profile, expected, { readFile = fs.readFile, 
   const targets = await read('/json/list');
   if (!Array.isArray(targets)) throw new Error('Invalid browser target list');
   const matching = targets.filter(target => target.type === 'page' && matchesTarget(target.url, expected));
-  if (matching.length !== 1) throw new Error('Waiting for one matching Music Assistant page');
+  if (matching.length !== 1) throw new Error('Waiting for one matching visualizer page');
   const target = endpoint(matching[0].webSocketDebuggerUrl, port);
   if (!/^\/devtools\/page\/[a-zA-Z0-9-]+$/.test(target.pathname)) throw new Error('Invalid page endpoint');
   target.hostname = '127.0.0.1';
@@ -75,10 +88,11 @@ export async function connectPage(profile, expected, onClose = () => {}, discove
     ws.send(JSON.stringify({ id, method, params }));
   });
   let objectId;
+  const page = isLivePage(expected) ? { page: LIVE_PAGE } : {};
   const action = async options => {
     const result = await call('Runtime.callFunctionOn', { objectId, functionDeclaration: 'function(options) { return this.action(options, this.matches, this.gpu); }',
-      arguments: [{ value: { ...options, expected } }], returnByValue: true, awaitPromise: true });
-    if (result?.exceptionDetails || !result?.result?.value) throw new Error('Music Assistant canvas unavailable');
+      arguments: [{ value: { ...options, expected, ...page } }], returnByValue: true, awaitPromise: true });
+    if (result?.exceptionDetails || !result?.result?.value) throw new Error('Visualizer canvas unavailable');
     return result.result.value;
   };
   try {
@@ -90,6 +104,8 @@ export async function connectPage(profile, expected, onClose = () => {}, discove
   return {
     get connected() { return ready && ws.readyState === 1; },
     action,
+    /** Load the configured page again: a page Chrome opened before its server listened shows an error page instead. */
+    async navigate() { await call('Page.navigate', { url: expected }); },
     async close() {
       try { if (ready) { await action({ mode: 'cleanup' }); await call('Runtime.releaseObject', { objectId }); } } catch {}
       ws.close();
@@ -100,14 +116,20 @@ export async function connectPage(profile, expected, onClose = () => {}, discove
 export async function captureCanvas(browser, settings, visible = true) {
   const result = await browser.action({ mode: 'capture', width: settings.width, height: settings.height, fit: settings.fit, visible, ...(settings.fps ? { fps: settings.fps } : {}) });
   if (result.idle === true) throw Object.assign(new Error('Visualizer idle'), { idle: true });
-  if (!result.ok || result.width !== settings.width || result.height !== settings.height || !Array.isArray(result.data) || result.data.length !== settings.width * settings.height * 3 || !result.data.every(value => Number.isInteger(value) && value >= 0 && value <= 255)) throw new Error('Music Assistant canvas unavailable');
+  if (!result.ok || result.width !== settings.width || result.height !== settings.height || !Array.isArray(result.data) || result.data.length !== settings.width * settings.height * 3 || !result.data.every(value => Number.isInteger(value) && value >= 0 && value <= 255)) throw new Error('Visualizer canvas unavailable');
   return { width: result.width, height: result.height, data: Buffer.from(result.data) };
 }
 
 export function pageAction(options, matches, gpu = null) {
   const doc = globalThis.document, styleId = 'party-visuals-browser-style';
+  // Without a page contract, Music Assistant's now-playing view.
+  const page = options.page ?? { view: '.now-playing-view', layer: '.visualizer-layer', canvas: '.visualizer-layer__canvas', style: `.now-playing-view { isolation:isolate; }
+      .now-playing-view[data-party-canvas="live"] .now-playing-artwork,.now-playing-view[data-party-canvas="live"] .now-playing-info,.now-playing-view[data-party-canvas="live"] .now-playing-timeline,.now-playing-view[data-party-canvas="live"] .visualizer-layer__scrim,.now-playing-view[data-party-canvas="live"] .visualizer-layer__tint { display:none!important; }
+      .now-playing-view .visualizer-layer__canvas { filter:none!important; transform:none!important; }
+      .now-playing-view .visualizer-layer__stack { opacity:1!important; }
+      .now-playing-view[data-party-display="off"]::after { content:""; position:absolute; inset:0; background:#000; z-index:10; pointer-events:none; }` };
   if (!matches(globalThis.location.href, options.expected)) return { ok: false };
-  const view = doc.querySelector('.now-playing-view');
+  const view = doc.querySelector(page.view);
   if (options.mode === 'cleanup') {
     void gpu?.(options, null, view);
     doc.getElementById(styleId)?.remove(); view?.removeAttribute('data-party-display'); view?.removeAttribute('data-party-canvas');
@@ -117,26 +139,26 @@ export function pageAction(options, matches, gpu = null) {
   if (!view) return { ok: false, live: false, reason: 'player-page-unavailable' };
   if (!doc.getElementById(styleId)) {
     const style = doc.createElement('style'); style.id = styleId;
-    style.textContent = `.now-playing-view { isolation:isolate; }
-      .now-playing-view[data-party-canvas="live"] .now-playing-artwork,.now-playing-view[data-party-canvas="live"] .now-playing-info,.now-playing-view[data-party-canvas="live"] .now-playing-timeline,.now-playing-view[data-party-canvas="live"] .visualizer-layer__scrim,.now-playing-view[data-party-canvas="live"] .visualizer-layer__tint { display:none!important; }
-      .now-playing-view .visualizer-layer__canvas { filter:none!important; transform:none!important; }
-      .now-playing-view .visualizer-layer__stack { opacity:1!important; }
-      .now-playing-view[data-party-display="off"]::after { content:""; position:absolute; inset:0; background:#000; z-index:10; pointer-events:none; }`;
+    style.textContent = page.style;
     doc.head.append(style);
   }
   const display = options.visible === false ? 'off' : 'on';
   if (view.getAttribute('data-party-display') !== display) view.setAttribute('data-party-display', display);
-  const canvas = view.querySelector('.visualizer-layer__canvas');
-  // Music Assistant fades the visualizer out about a second after playback stops; a covered display never reads it.
+  const canvas = view.querySelector(page.canvas);
+  // Music Assistant fades the visualizer out about a second after playback stops, the live-audio page on silence; a covered display never reads it.
   const faded = () => {
-    const layer = options.visible !== false ? canvas?.closest('.visualizer-layer') : null;
+    const layer = options.visible !== false ? canvas?.closest(page.layer) : null;
     return !!layer && Number(globalThis.getComputedStyle(layer).opacity) <= 0.001;
   };
   const live = !!canvas && !!canvas.width && !!canvas.height && !faded();
   const canvasState = live ? 'live' : 'fallback';
   if (view.getAttribute('data-party-canvas') !== canvasState) view.setAttribute('data-party-canvas', canvasState);
   const reason = live ? null : !canvas || !canvas.width || !canvas.height ? 'visualizer-unavailable' : 'visualizer-idle';
-  if (options.mode !== 'capture') return { ok: true, live, reason };
+  if (options.mode !== 'capture') {
+    if (!page.wait) return { ok: true, live, reason };
+    const [medianMs, worstMs] = String(view.getAttribute(page.age) || '').split(',').map(Number);
+    return { ok: true, live, reason, wait: view.getAttribute(page.wait) || null, age: Number.isFinite(medianMs) && Number.isFinite(worstMs) ? { medianMs, worstMs } : null };
+  }
   if (!canvas || !canvas.width || !canvas.height || doc.visibilityState !== 'visible') return { ok: false };
   const valid = () => canvas.isConnected && doc.visibilityState === 'visible' && matches(globalThis.location.href, options.expected) && !faded();
   const idle = (result) => result.ok || !faded() ? result : { ok: false, idle: true };

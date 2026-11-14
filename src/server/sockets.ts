@@ -26,6 +26,7 @@ import type { Server, Socket } from 'socket.io';
 import type { MidiPorts } from './midi-connect.ts';
 import type { Publisher } from './protocol.ts';
 import type { Pads } from './pads.ts';
+import type { SampleRelay, SampleSocket } from './sample-relay.ts';
 
 /** A browser holding an energy effect down. */
 interface EnergyHoldMessage {
@@ -104,16 +105,17 @@ export function describeClient(socket: Pick<Socket, 'id' | 'handshake'>): string
   return `Client connected: ${socket.id} (protocol ${askedProtocol(socket)}, ${from}${agent ? `, ${agent}` : ''})`;
 }
 
+const topicNames = (payload: unknown): unknown[] => (Array.isArray(payload) ? payload : [payload]);
+
 /** The feeds named in a subscribe message that exist, as their rooms. */
 function topicRooms(payload: unknown): string[] {
-  const names = Array.isArray(payload) ? payload : [payload];
-  return names.filter((t): t is keyof typeof TOPICS => typeof t === 'string' && Object.hasOwn(TOPICS, t))
+  return topicNames(payload).filter((t): t is keyof typeof TOPICS => typeof t === 'string' && Object.hasOwn(TOPICS, t))
     .map((t) => TOPICS[t]);
 }
 
 function attachSockets(io: Server, { midi, integrations, activity = () => {} }: {
   midi: MidiPorts & { onLearn(fn: (event: unknown) => void): void };
-  integrations: { broadcast(): void; publisher: Publisher; library?: Parameters<typeof presetLookup>[0]; pads?: Pads };
+  integrations: { broadcast(): void; publisher: Publisher; library?: Parameters<typeof presetLookup>[0]; pads?: Pads; samples?: SampleRelay };
   /** A page's deliberate input, at most once a minute: the idle stop counts from it (idle-stop.ts). */
   activity?: () => void;
 }): void {
@@ -200,9 +202,12 @@ function attachSockets(io: Server, { midi, integrations, activity = () => {} }: 
         const audio = room === ROOM.audio ? publisher.lastAudio() : undefined;
         if (audio !== undefined) socket.emit('audio', audio);
       }
+      // The live input's samples go to each subscriber one acknowledged packet at a time (sample-relay.ts).
+      if (topicNames(payload).includes('samples')) integrations.samples?.add(socket as unknown as SampleSocket);
     });
     socket.on('unsubscribe', (payload) => {
       for (const room of topicRooms(payload)) socket.leave(room);
+      if (topicNames(payload).includes('samples')) integrations.samples?.remove(socket.id);
     });
 
     socket.on('set', async (payload) => {
@@ -389,6 +394,7 @@ function attachSockets(io: Server, { midi, integrations, activity = () => {} }: 
     socket.on('disconnect', () => {
       pixelInputs.disconnect(socket.id);
       pictureInput.disconnect(socket.id);
+      integrations.samples?.remove(socket.id);
       voices.disconnect(socket.id);
       console.log('Client disconnected:', socket.id);
     });

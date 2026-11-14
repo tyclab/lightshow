@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "private": true,
   "type": "module",
-  "description": "Dedicated Music Assistant browser display and optional leased curtain pixels",
+  "description": "Dedicated visualizer browser display (Music Assistant or the Party Visuals live-audio page) and optional leased curtain pixels",
   "engines": {
     "node": ">=24"
   },

@@ -732,5 +732,173 @@ class BandsRequest(unittest.TestCase):
         self.assertEqual(len([m for m in lines if m['type'] == 'ready']), 1, 'one capture throughout')
 
 
+@needs_numpy
+class SamplesRequest(unittest.TestCase):
+    """The samples as heard, for a visualizer page: only while the server asks, and the analysis unchanged."""
+
+    def run_asking(self, track, requests_at, receipts=True):
+        from analysis.live import LiveService, Emitter, HOP
+        out = io.StringIO()
+        service = LiveService(Emitter(out), sample_rate=track.sr)
+        read = 0
+        for start in range(0, len(track.samples), HOP):
+            for request in requests_at.get(start, ()):
+                service.ask(json.dumps(request))
+            service.push(track.samples[start:start + HOP])
+            lines = lines_of(out.getvalue())
+            for msg in lines[read:] if receipts else ():
+                receipt = server_receipt(msg, track.sr)
+                if receipt is not None and service.pcm:
+                    service.ask(json.dumps(receipt))
+            read = len(lines)
+        return lines_of(out.getvalue()), service
+
+    def test_no_samples_until_the_server_asks(self):
+        track = synth.four_on_the_floor(bpm=128, bars=2)
+        self.assertFalse(any(m['type'] == 'pcm' for m in run_service(track)))
+
+    def test_asked_every_block_goes_out_as_heard_ahead_of_its_analysis(self):
+        import base64
+        import numpy as np
+        from analysis.live import HOP
+        track = synth.four_on_the_floor(bpm=128, bars=2)
+        on_at = 40 * HOP
+        lines, service = self.run_asking(track, {on_at: [{'type': 'pcm', 'on': True}]})
+        [said] = [i for i, m in enumerate(lines) if m.get('on') is not None]
+        self.assertEqual(lines[said], {'type': 'pcm', 'on': True})
+        self.assertFalse(any(m['type'] == 'pcm' for m in lines[:said]))
+        blocks = [m for m in lines if m['type'] == 'pcm' and 'data' in m]
+        self.assertEqual([m['end'] for m in blocks], [min(len(track.samples), s + HOP) for s in range(on_at, len(track.samples), HOP)])
+        heard = np.concatenate([np.frombuffer(base64.b64decode(m['data']), dtype='<i2') for m in blocks])
+        sent = np.round(np.clip(track.samples[on_at:], -1, 1) * 32767).astype(np.int16)
+        self.assertTrue(np.array_equal(heard, sent), 'every sample, in order, none twice')
+        self.assertTrue(all(m['rate'] == track.sr and m['dropped'] == 0 and m['at'] > 1.7e9 for m in blocks))
+        states = [i for i, m in enumerate(lines) if m['type'] == 'state']
+        for block in (i for i, m in enumerate(lines) if m['type'] == 'pcm' and 'data' in m):
+            later = [i for i in states if i > block]
+            if later:
+                self.assertEqual(lines[later[0]]['captured'], round(lines[block]['end'] / track.sr, 4), 'a block goes out before its state')
+        self.assertEqual([m for m in lines if m['type'] == 'state'], [m for m in run_service(track) if m['type'] == 'state'],
+                         'the analysis the lights read is the same')
+        self.assertEqual(service.pcm_dropped, 0)
+
+    def test_no_receipts_no_more_than_a_packet_of_samples_unread(self):
+        from analysis.live import HOP, PCM_MAX_UNREAD
+        track = synth.four_on_the_floor(bpm=128, bars=2)
+        lines, service = self.run_asking(track, {10 * HOP: [{'type': 'pcm', 'on': True}]}, receipts=False)
+        blocks = [m for m in lines if m['type'] == 'pcm' and 'data' in m]
+        self.assertEqual(len(blocks) * HOP, PCM_MAX_UNREAD + HOP, 'a server that reads nothing gets this much and no more')
+        self.assertEqual(service.pcm_dropped, -(-len(track.samples) // HOP) - 10 - len(blocks))
+
+    def test_off_stops_them_and_a_bad_word_is_an_error(self):
+        from analysis.live import HOP
+        track = synth.four_on_the_floor(bpm=128, bars=2)
+        lines, _ = self.run_asking(track, {10 * HOP: [{'type': 'pcm', 'on': True}],
+                                           20 * HOP: [{'type': 'pcm', 'on': False}, {'type': 'pcm', 'on': 'yes'}]})
+        [off] = [i for i, m in enumerate(lines) if m.get('on') is False]
+        self.assertEqual(len([m for m in lines[:off] if m['type'] == 'pcm' and 'data' in m]), 10)
+        self.assertFalse(any(m['type'] == 'pcm' for m in lines[off + 1:]))
+        [error] = [m for m in lines if m['type'] == 'error']
+        self.assertIs(error['fatal'], False)
+
+    def test_a_block_costs_a_small_part_of_its_hop(self):
+        import time
+        from analysis.live import LiveService, Emitter, HOP
+        track = synth.four_on_the_floor(bpm=128, bars=2)
+        service = LiveService(Emitter(io.StringIO()), sample_rate=track.sr)
+        blocks = [track.samples[s:s + HOP] for s in range(0, HOP * 500, HOP)]
+        started = time.process_time()
+        for block in blocks:
+            service.pcm_line(block)
+        per_block = (time.process_time() - started) / len(blocks)
+        self.assertLess(per_block, 0.1 * HOP / track.sr, f'{per_block * 1e6:.0f} µs of CPU a block')
+
+
+def server_receipt(msg, sr):
+    """What the server writes back for a line it has read while it wants samples (src/live-input.ts)."""
+    if msg['type'] == 'state':
+        return {'type': 'pcm', 'read': msg['captured']}
+    if msg['type'] == 'pcm' and 'data' in msg:
+        return {'type': 'pcm', 'read': msg['end'] / sr}
+    return None
+
+
+@needs_numpy
+class SamplesUnderAStoppedReader(unittest.TestCase):
+    """A server that stops reading: through a real pipe, sample lines give way and the analysis lines do not."""
+
+    PAUSE_AT_HOP = 200
+
+    def run_pipe(self, samples):
+        import threading
+        import time
+        from analysis.live import LiveService, Emitter, HOP
+        track = synth.four_on_the_floor(bpm=128, bars=8)
+        r, w = os.pipe()
+        writer = os.fdopen(w, 'w')
+        service = LiveService(Emitter(writer), sample_rate=track.sr)
+        resume, paused = threading.Event(), threading.Event()
+        lines, pushed, paused_after = [], [0], []
+
+        def capture():
+            if samples:
+                service.ask(json.dumps({'type': 'pcm', 'on': True}))
+            for start in range(0, len(track.samples), HOP):
+                service.push(track.samples[start:start + HOP])
+                pushed[0] += 1
+            writer.close()
+
+        def reader():
+            rest = b''
+            while True:
+                chunk = os.read(r, 4096)
+                if not chunk:
+                    return
+                rest += chunk
+                *whole, rest = rest.split(b'\n')
+                for line in whole:
+                    msg = json.loads(line)
+                    lines.append(msg)
+                    receipt = server_receipt(msg, track.sr)
+                    if receipt is not None and service.pcm:
+                        service.ask(json.dumps(receipt))
+                    if not paused.is_set() and msg['type'] == 'state' and msg['captured'] >= self.PAUSE_AT_HOP * HOP / track.sr:
+                        paused_after.append((len(lines), pushed[0]))
+                        paused.set()
+                        resume.wait()
+
+        threads = [threading.Thread(target=capture, daemon=True), threading.Thread(target=reader, daemon=True)]
+        for thread in threads:
+            thread.start()
+        self.assertTrue(paused.wait(30))
+        last, still = -1, time.monotonic()
+        while time.monotonic() - still < 0.5:
+            if pushed[0] != last:
+                last, still = pushed[0], time.monotonic()
+            time.sleep(0.02)
+        blocked_at, dropped_while_stopped = pushed[0], service.pcm_dropped
+        resume.set()
+        for thread in threads:
+            thread.join(30)
+        os.close(r)
+        return track, lines, paused_after[0], blocked_at, dropped_while_stopped, service
+
+    def test_sample_lines_give_way_and_none_go_stale_ahead_of_fresh_ones(self):
+        from analysis.live import HOP, PCM_MAX_UNREAD
+        track, plain, _, plain_blocked, _, _ = self.run_pipe(samples=False)
+        track, lines, (read_before, _), blocked, dropped, service = self.run_pipe(samples=True)
+        # Without the give-way, a sample line beside every state line filled the pipe in a third of the hops.
+        self.assertGreaterEqual(blocked, plain_blocked - 25, f'the analysis stopped at hop {blocked}, {plain_blocked} without samples')
+        self.assertGreater(dropped, 0, 'samples left out while the server did not read')
+        self.assertEqual(service.pcm_dropped, max(m['dropped'] for m in lines if m['type'] == 'pcm' and 'data' in m))
+        self.assertEqual([m for m in lines if m['type'] == 'state'], [m for m in plain if m['type'] == 'state'],
+                         'every state line, in order, whole: the same as without samples')
+        after = [m for m in lines[read_before:] if m['type'] == 'pcm' and 'data' in m]
+        first_gap = next((i for i in range(1, len(after)) if after[i]['end'] - after[i - 1]['end'] > HOP), len(after))
+        self.assertLessEqual(first_gap * HOP, PCM_MAX_UNREAD + HOP,
+                             'after the pause, at most a packet of samples from before it, then fresh ones')
+        self.assertLess(first_gap, len(after), 'samples went on once the server read again')
+
+
 if __name__ == '__main__':
     unittest.main()

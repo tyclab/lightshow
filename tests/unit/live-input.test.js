@@ -518,6 +518,117 @@ test('a device is found the way soundcard finds it: by id, then within a name, t
   assert.strictEqual(findLiveDevice('Line In', names, ids), null);
 });
 
+// ── The samples for a visualizer page ─────────────────────────────────────────
+
+const pcm = (end, samples, rate = 22050, more = {}) => JSON.stringify({ type: 'pcm', end, rate, at: 1_800_000_000.25, data: Buffer.from(Int16Array.from(samples).buffer).toString('base64'), ...more });
+
+test('the process is asked for its samples only while someone wants them, and again after a restart', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const procs = [];
+  const live = new LiveInput({ spawner: () => { const p = fakeProcess(); procs.push(p); return p; }, now: () => 0 });
+  live.start({ source: 'loopback' });
+  live.wantSamples(false);
+  await settle();
+  assert.deepStrictEqual(procs[0].asked, [], 'never asked: nothing to stop');
+  live.wantSamples(true);
+  live.wantSamples(true);
+  await settle();
+  assert.deepStrictEqual(procs[0].asked, [{ type: 'pcm', on: true }], 'asked once');
+  procs[0].emit('close', 1);
+  t.mock.timers.tick(2000);
+  await settle();
+  assert.deepStrictEqual(procs[1].asked, [{ type: 'pcm', on: true }], 'the new process is asked as it starts');
+  live.wantSamples(false);
+  await settle();
+  assert.deepStrictEqual(procs[1].asked, [{ type: 'pcm', on: true }, { type: 'pcm', on: false }]);
+  live.stop();
+});
+
+test('sample lines reach the listener as bytes with their process, and nothing else does', () => {
+  const live = new LiveInput({ spawner: () => fakeProcess(), now: () => 0 });
+  const heard = [];
+  live.onSamples((block) => heard.push(block));
+  live.start({ source: 'loopback' });
+  live.handleLine(pcm(256, [1, -2, 3]));
+  assert.deepStrictEqual(heard, [], 'not asked for: not passed on');
+  live.wantSamples(true);
+  live.handleLine(JSON.stringify({ type: 'pcm', on: true }));
+  live.handleLine(pcm(259, [1, -2, 32767]));
+  for (const bad of [pcm(2, [1, 2, 3]), pcm(1.5, [1]), pcm(300, [1], 0), JSON.stringify({ type: 'pcm', end: 9, rate: 22050, data: 'AA' }),
+    JSON.stringify({ type: 'pcm', end: 1e6, rate: 22050, data: 'A'.repeat(70000) })]) live.handleLine(bad);
+  assert.strictEqual(heard.length, 1);
+  const [block] = heard;
+  assert.deepStrictEqual({ stream: block.stream, end: block.end, rate: block.rate, at: block.at }, { stream: live._stream, end: 259, rate: 22050, at: 1_800_000_000_250 });
+  assert.deepStrictEqual([...new Int16Array(block.data.buffer, block.data.byteOffset, block.data.length / 2)], [1, -2, 32767]);
+  assert.strictEqual(live.getReading(), null, 'samples are no reading');
+  live.stop();
+});
+
+test('the process is told how far its lines are read, while samples are wanted, and what it left out is in the status', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const procs = [];
+  const live = new LiveInput({ spawner: () => { const p = fakeProcess(); procs.push(p); return p; }, now: () => 0 });
+  live.onSamples(() => {});
+  live.start({ source: 'loopback' });
+  live.handleLine(state());
+  await settle();
+  assert.deepStrictEqual(procs[0].asked, [], 'no samples wanted: no receipts');
+  live.wantSamples(true);
+  live.handleLine(state({ captured: 10.0466 }));
+  live.handleLine(pcm(22050 * 11, [1, 2], 22050, { dropped: 7 }));
+  await settle();
+  assert.deepStrictEqual(procs[0].asked, [{ type: 'pcm', on: true }, { type: 'pcm', read: 10.0466 }, { type: 'pcm', read: 11 }]);
+  assert.strictEqual(live.status().samplesDropped, 7);
+  live.handleLine(pcm(22050 * 12, [1, 2], 22050, { dropped: 9 }));
+  assert.strictEqual(live.status().samplesDropped, 9, 'the process counts on');
+  procs[0].emit('close', 1);
+  t.mock.timers.tick(2000);
+  live.handleLine(pcm(256, [1, 2], 22050, { dropped: 2 }));
+  assert.strictEqual(live.status().samplesDropped, 11, 'a new process counts from zero; the status keeps what the last one left out');
+  live.stop();
+});
+
+test('receipts a process does not read stop at a bound instead of piling up', async () => {
+  const written = [];
+  const stdin = { writable: true, writableLength: 0, write: (line) => written.push(JSON.parse(line)), on() {} };
+  const proc = Object.assign(fakeProcess(), { stdin });
+  const live = new LiveInput({ spawner: () => proc, now: () => 0 });
+  live.onSamples(() => {});
+  live.start({ source: 'loopback' });
+  live.wantSamples(true);
+  live.handleLine(state({ captured: 1 }));
+  stdin.writableLength = 4097;
+  live.handleLine(state({ captured: 2 }));
+  live.handleLine(pcm(22050 * 2, [1], 22050));
+  stdin.writableLength = 4096;
+  live.handleLine(state({ captured: 3 }));
+  assert.deepStrictEqual(written, [{ type: 'pcm', on: true }, { type: 'pcm', read: 1 }, { type: 'pcm', read: 3 }],
+    'none while more than 4 KiB wait unread: the process then leaves samples out, as it would for a slow reader');
+  live.stop();
+});
+
+test('each process names its samples anew, and a restarted server with a clock that did not step back never reuses a name', (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const streams = (wall) => {
+    const procs = [];
+    const live = new LiveInput({ spawner: () => { const p = fakeProcess(); procs.push(p); return p; }, now: () => 0, wallNow: () => wall });
+    const names = [];
+    live.onSamples((block) => names.push(block.stream));
+    live.start({ source: 'loopback' });
+    live.wantSamples(true);
+    live.handleLine(pcm(256, [1]));
+    procs[0].emit('close', 1);
+    t.mock.timers.tick(2000);
+    live.handleLine(pcm(256, [1]));
+    live.stop();
+    return names;
+  };
+  // Two server lifetimes, the second started after the first: each counts its first process as generation 1.
+  const first = streams(1_800_000_000_000), second = streams(1_800_000_003_600);
+  assert.deepStrictEqual(first, [1_800_000_000_000, 1_800_000_000_001], 'a restart within the same millisecond still moves on');
+  assert.deepStrictEqual(second, [1_800_000_003_600, 1_800_000_003_601]);
+});
+
 // ── The pattern clock ─────────────────────────────────────────────────────────
 
 test('the pattern clock follows the live beat when nothing better knows the music', () => {
