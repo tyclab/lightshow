@@ -3,7 +3,7 @@
 // the look. Puts back the pad, the strobe, the acknowledgement and the look.
 
 import { test, expect } from '@playwright/test';
-import { control, open, previewLook, reset, set, state, until } from './helpers.js';
+import { control, open, reset, set, state, until } from './helpers.js';
 import { stageImage } from './stage-image.js';
 import { dmxLatch } from './dmx-latch.js';
 
@@ -42,8 +42,7 @@ test('voices appear over the stage look and disappear when stopped', async ({ pa
   const preview = await context.newPage();
   try {
     await open(page, 'stage');
-    await expect(page.getByRole('img', { name: /The rig in 3D/ })).toHaveAttribute('aria-label', /lights drawn off/);
-    await previewLook(page);
+    await expect(page.locator('.stage3d-tools .panel-tag')).toHaveText('Preview (disarmed)');
     await expect(page.getByRole('img', { name: /The rig in 3D/ })).toHaveAttribute('aria-label', /previewing with outputs disarmed/);
     await open(preview, 'effects');
     const now = preview.locator('.stage-now');

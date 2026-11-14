@@ -2,7 +2,7 @@
 // rehearsed, and the rig drawn in 3D — live from the DMX feed, or rehearsing.
 
 import { test, expect } from '@playwright/test';
-import { control, open, previewLook, reset, set, state, loadTrack, unloadTrack } from './helpers.js';
+import { control, open, reset, set, state, loadTrack, unloadTrack } from './helpers.js';
 import { stageImage } from './stage-image.js';
 
 test.beforeEach(async ({ request }) => {
@@ -20,21 +20,27 @@ async function litShare(page) {
   return (await stageImage(page)).litShare;
 }
 
-test('disarmed, the Stage view draws the lights off until the look is previewed, and the blackout darkens the preview', async ({ page, request }) => {
+// Show v3 (G6), the operator's "so to preview i need to klick look an preview? why?": no click, no dark stage.
+test('disarmed, the Stage view previews by itself: the selected look while stopped, the feed while playing, dark under the blackout', async ({ page, request }) => {
   await set(request, { pattern: 'solid' });
+  await control(request, 'stop');
   await open(page, 'stage');
   const stage = page.getByRole('img', { name: /The rig in 3D/ });
-  await expect(stage).toHaveAttribute('aria-label', /4 fixtures, 4 lights, outputs disarmed, lights drawn off/);
-  await expect(page.locator('.stage3d-tools .panel-tag')).toHaveText('Outputs off');
-  await expect.poll(() => litShare(page), { message: 'nothing goes out, so nothing is lit' }).toBeLessThan(0.001);
+  const tag = page.locator('.stage3d-tools .panel-tag');
+  await expect(stage).toHaveAttribute('aria-label', /4 fixtures, 4 lights, previewing the selected look on the demo beat/);
+  await expect(tag).toHaveText('Preview · demo beat');
+  await expect.poll(() => litShare(page), { message: 'stopped, the selected look lights the haze' }).toBeGreaterThan(0.01);
 
-  await previewLook(page);
+  await control(request, 'start', 'look');
   await expect(stage).toHaveAttribute('aria-label', /4 fixtures, 4 lights, previewing with outputs disarmed/);
-  await expect(page.locator('.stage3d-tools .panel-tag')).toHaveText('Preview (disarmed)');
+  await expect(tag).toHaveText('Preview (disarmed)');
   await expect.poll(() => litShare(page), { message: 'the pars light the haze' }).toBeGreaterThan(0.01);
 
   await control(request, 'blackout');
   await expect.poll(() => litShare(page), { message: 'nothing lit under the blackout' }).toBeLessThan(0.001);
+  await control(request, 'stop');
+  await expect(tag).toHaveText('Blackout');
+  await expect.poll(() => litShare(page), { message: 'stopped, the blackout still outranks the preview' }).toBeLessThan(0.001);
 });
 
 test('the viewpoints, and the keys on the stage', async ({ page }) => {
@@ -79,14 +85,15 @@ test('rehearsing on the Stage view: the planned show at any moment, whatever the
 });
 
 // The operator, 2026-11-13: the Show stage stayed black, and only a header button read "Restore".
-test('on Show, a dark stage says why: Outputs off names Preview look, Blackout names itself and Restore', async ({ page }) => {
+// Show v3 (G6): stopped and disarmed it is no longer dark, so only Blackout needs a note.
+test('on Show, a stopped stage previews with nothing to explain, and Blackout names itself and Restore', async ({ page, request }) => {
+  await control(request, 'stop');
   await open(page, 'show');
   const tag = page.locator('.stage3d-tools .panel-tag');
   const note = page.locator('.stage3d-note.stage-dark');
   const header = page.locator('.app-header');
-  await expect(tag).toHaveText('Outputs off');
-  await expect(note).toContainText('Outputs off');
-  await expect(note).toContainText('Preview look');
+  await expect(tag).toHaveText('Preview · demo beat');
+  await expect(note, 'a previewed look is drawn: nothing to explain').toHaveCount(0);
 
   await header.getByRole('button', { name: 'Blackout', exact: true }).click();
   await expect(tag).toHaveText('Blackout');
@@ -96,11 +103,8 @@ test('on Show, a dark stage says why: Outputs off names Preview look, Blackout n
   expect(under, 'a drag on the note turns the stage').toContain('stage3d-canvas');
 
   await header.getByRole('button', { name: 'Restore', exact: true }).click();
-  await expect(tag).toHaveText('Outputs off');
-  await expect(note).toContainText('Preview look');
-  await previewLook(page);
-  await expect(tag).toHaveText('Preview (disarmed)');
-  await expect(note, 'a previewed look is drawn: nothing to explain').toHaveCount(0);
+  await expect(tag).toHaveText('Preview · demo beat');
+  await expect(note).toHaveCount(0);
 });
 
 test('without WebGL the Stage view says so', async ({ page }) => {
@@ -191,7 +195,7 @@ test('Stage and the fixture plot distinguish disarmed preview from armed output'
     await open(page, 'stage');
     const label = page.locator('.stage3d-tools .panel-tag');
     const stage = page.getByRole('img', { name: /The rig in 3D/ });
-    await expect(label).toHaveText('Outputs off');
+    await expect(label).toHaveText('Preview (disarmed)');
     await expect(stage).toHaveAttribute('aria-label', /nothing is transmitted/);
     await expect(page.locator('.look-note')).toContainText('nothing is transmitted to the rig');
     await control(request, 'arm');
@@ -207,14 +211,14 @@ test('Stage and the fixture plot distinguish disarmed preview from armed output'
     const plot = page.locator('.stage-panel .panel-tag');
     await expect(plot).toHaveText('Live output');
     await control(request, 'disarm');
-    await expect(plot).toHaveText('Outputs off');
+    await expect(plot).toHaveText('Preview (disarmed)');
     await control(request, 'blackout');
     await expect(plot).toHaveText('Blackout');
     await expect(page.locator('.stage-panel .stage-dark')).toContainText('Blackout is on');
     await control(request, 'restore');
-    await expect(plot).toHaveText('Outputs off');
-    await previewLook(page);
     await expect(plot).toHaveText('Preview (disarmed)');
+    await control(request, 'stop');
+    await expect(plot, 'stopped, the plot previews the selected look itself').toHaveText('Preview · demo beat');
   } finally {
     await control(request, 'disarm');
     await control(request, before.control.playing ? 'start' : 'stop', before.control.programme);

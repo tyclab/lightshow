@@ -67,41 +67,52 @@ test('a par reads exactly as it always did', () => {
   assert.equal(utils.fixtureOutputColor({ profileId: 'par', address: 1, universe: 0 }, state), 'rgb(100,50,25)');
 });
 
-test('a disarmed stage draws its lights off unless the look is previewed', () => {
-  const at = (patch) => {
-    const { tag, lit } = utils.stageMode({ rehearsing: false, connected: true, armed: false, preview: false, ...patch });
-    return { tag, lit };
-  };
-  assert.deepEqual(at({}), { tag: 'Outputs off', lit: false }, 'nothing goes out, so nothing is drawn lit');
-  assert.deepEqual(at({ preview: true }), { tag: 'Preview (disarmed)', lit: true });
-  assert.deepEqual(at({ armed: true }), { tag: 'Live output', lit: true });
-  assert.deepEqual(at({ armed: true, preview: true }), { tag: 'Live output', lit: true }, 'armed, the wire is the picture');
-  assert.deepEqual(at({ rehearsing: true }), { tag: 'Rehearsal', lit: true }, 'a rehearsal draws the planned show');
-  assert.deepEqual(at({ connected: false }), { tag: 'Offline', lit: true });
+// The operator, 2026-11-14: "so to preview i need to klick look an preview? why? also preview runs local in browser right?"
+// What a stage draws, in the order of the Show v3 table (G6): nothing is dark for want of a click.
+const STOPPED = { rehearsing: false, connected: true, armed: false, blackout: false, playing: false, layers: false, frozen: false, paused: false };
+const modeOf = (patch) => {
+  const { tag, lit, demo, note } = utils.stageMode({ ...STOPPED, ...patch });
+  return { tag, lit, demo, ...(note ? { note } : {}) };
+};
+
+test('stopped and disarmed, a stage draws the selected look on the demo beat; anything playing shows the feed', () => {
+  assert.deepEqual(modeOf({}), { tag: 'Preview · demo beat', lit: true, demo: true }, 'no click, no dark stage');
+  for (const patch of [{ playing: true }, { layers: true }, { frozen: true }, { playing: true, layers: true, frozen: true }]) {
+    assert.deepEqual(modeOf(patch), { tag: 'Preview (disarmed)', lit: true, demo: false }, `${JSON.stringify(patch)}: what arming would send`);
+  }
+  assert.notEqual(modeOf({}).tag, modeOf({ playing: true }).tag, 'the demo beat is never tagged as the feed');
 });
 
-test('a stage that is dark for a reason names it, and what ends it', () => {
-  const at = (patch) => utils.stageMode({ rehearsing: false, connected: true, armed: false, preview: false, blackout: false, ...patch });
-  assert.match(at({}).note, /^Outputs off: .*Preview look/, 'disarmed and not previewing');
-  assert.equal(at({ preview: true }).note, undefined, 'a previewed look is lit: nothing to explain');
-  assert.equal(at({ armed: true }).note, undefined);
-  for (const patch of [{ armed: true }, { preview: true }, {}]) {
-    const mode = at({ blackout: true, ...patch });
-    assert.equal(mode.tag, 'Blackout', 'Blackout outranks every other reason: it stays dark through an arm');
+test('armed, a stage shows only the feed, whatever plays: the demo beat never draws', () => {
+  for (const patch of [{}, { playing: true }, { layers: true }, { frozen: true }]) {
+    assert.deepEqual(modeOf({ armed: true, ...patch }), { tag: 'Live output', lit: true, demo: false }, JSON.stringify(patch));
+  }
+});
+
+test('Blackout outranks the outputs and playback: the feed, dark, says why', () => {
+  for (const patch of [{}, { armed: true }, { playing: true }, { layers: true }, { frozen: true }]) {
+    const mode = modeOf({ blackout: true, ...patch });
+    assert.equal(mode.tag, 'Blackout', JSON.stringify(patch));
+    assert.equal(mode.demo, false, 'Blackout never draws the demo beat');
+    assert.equal(mode.lit, true, 'the feed already carries the Blackout');
     assert.match(mode.note, /^Blackout is on: .*Restore/);
   }
-  assert.equal(at({ blackout: true, armed: true }).lit, true, 'the feed already carries the Blackout');
-  assert.equal(at({ blackout: true }).lit, false);
-  assert.deepEqual(at({ blackout: true, rehearsing: true }), { tag: 'Rehearsal', lit: true }, 'a rehearsal draws the planned show');
-  assert.deepEqual(at({ blackout: true, connected: false }), { tag: 'Offline', lit: true });
+  for (const patch of [{}, { playing: true }, { armed: true }]) assert.equal(modeOf(patch).note, undefined, 'a lit stage has nothing to explain');
 });
 
-test('an idle page\'s stage draws its lights off under its own tag; a rehearsal draws on', () => {
-  const at = (patch) => utils.stageMode({ rehearsing: false, connected: true, armed: false, preview: true, blackout: false, paused: true, ...patch });
-  assert.deepEqual(at({}), { tag: 'Preview paused', lit: false }, 'no feed: the last frame is not the room');
-  assert.deepEqual(at({ preview: false, blackout: true }), { tag: 'Preview paused', lit: false });
-  assert.deepEqual(at({ rehearsing: true }), { tag: 'Rehearsal', lit: true }, 'a rehearsal draws in the browser, from no feed');
-  assert.deepEqual(at({ connected: false }), { tag: 'Offline', lit: true });
+test('an idle page draws nothing, the demo beat included, until Resume preview; rehearsal and offline are as before', () => {
+  for (const patch of [{}, { playing: true }, { blackout: true }, { frozen: true }]) {
+    assert.deepEqual(modeOf({ paused: true, ...patch }), { tag: 'Preview paused', lit: false, demo: false }, JSON.stringify(patch));
+  }
+  for (const patch of [{}, { blackout: true }, { armed: true }, { paused: true }]) {
+    assert.deepEqual(modeOf({ rehearsing: true, ...patch }), { tag: 'Rehearsal', lit: true, demo: false }, 'a rehearsal draws the planned show');
+  }
+  assert.deepEqual(modeOf({ connected: false }), { tag: 'Offline', lit: true, demo: false });
+});
+
+test('no stage note points to a Preview look button', () => {
+  const rows = [{}, { blackout: true }, { armed: true }, { playing: true }, { paused: true }, { connected: false }];
+  for (const patch of rows) assert.doesNotMatch(JSON.stringify(utils.stageMode({ ...STOPPED, ...patch })), /Preview look|Outputs off/);
 });
 
 test('the blackout state a dark stage draws with turns a lit par off', () => {

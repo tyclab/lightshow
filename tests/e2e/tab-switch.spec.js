@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { open, openFromSetup, previewLook, reset, set, state } from './helpers.js';
+import { open, openFromSetup, reset, set, state } from './helpers.js';
 
 test.beforeEach(async ({ request }) => { await reset(request); });
 
@@ -136,7 +136,6 @@ test('the Effects stage plot paints bar cells and lamps on one canvas, and the s
   const remove = await redBars(request);
   try {
     await open(page, 'effects');
-    await previewLook(page);
     const plot = page.getByRole('group', { name: 'Stage layout, viewed from the audience' });
     await expect(plot.locator('canvas.stage-cells-canvas')).toHaveCount(1);
     await expect(plot.locator('.stage-cell')).toHaveCount(0);
@@ -170,7 +169,6 @@ test('a lost WebGL context that comes back draws again; one that does not gives 
   const remove = await redBars(request);
   try {
     await open(page, 'effects');
-    await previewLook(page);
     const plot = page.getByRole('group', { name: 'Stage layout, viewed from the audience' });
     await expect.poll(async () => (await cellPixels(page)).red).toBeGreaterThan(500);
     await page.locator('canvas.stage-cells-canvas').evaluate((canvas) => { canvas.dataset.marked = 'yes'; });
