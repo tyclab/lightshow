@@ -155,7 +155,8 @@ cue as the Cues card does (the current Background stays) or saves the look on st
 cue under a name. The right column holds **Palettes** (the selected palette named over a
 searchable list, two columns where they stay readable), **Edit colours**, one button that folds
 the colour wheel and the colour order together (folded until it is opened; this browser
-remembers it), and Background. An effect with a palette per band (a Disco) keeps its Bands card
+remembers it; opened, it lengthens the page by its own height: the palettes keep theirs,
+Background moves down and the effects list takes the added height), and Background. An effect with a palette per band (a Disco) keeps its Bands card
 there. Show scales with the window: once the view is 68.75em wide (962.5 CSS px in the
 app's 14px font) it has two columns as tall as the window; of the height the floors leave, the
 stage takes one part and the effects list two, and the palette list what the right column leaves.
