@@ -827,19 +827,21 @@ main.mode-show { --show-top: .71rem; --show-bottom: 3rem; padding-block: var(--s
 }
 
 .contained-effects { min-width: 0; display: flex; flex-direction: column; }
-.contained-effects .card-title { margin-bottom: .71rem; }
-.contained-hint, .contained-hold { margin-bottom: .86rem; }
-.contained-current { display: flex; align-items: center; gap: .71rem; min-height: 3.43rem; padding: .57rem .86rem; margin-bottom: .86rem; border: var(--hairline) solid var(--accent); border-radius: var(--radius-sm); background: var(--wash-blue); }
+/* The count in the title row; the chosen effect and the search share a row while both keep their width, else wrap. */
+.contained-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: .29rem .86rem; margin-bottom: .71rem; }
+.contained-head .card-title { margin: 0; }
+.contained-hint, .contained-hold { margin-bottom: .71rem; }
+.contained-tools { display: flex; flex-wrap: wrap; align-items: center; gap: .57rem .86rem; margin-bottom: .71rem; }
+.contained-current { flex: 1 1 16rem; min-width: 0; display: flex; align-items: center; gap: .71rem; min-height: 3.43rem; padding: .57rem .86rem; border: var(--hairline) solid var(--accent); border-radius: var(--radius-sm); background: var(--wash-blue); }
 .contained-current-text { display: grid; gap: .14rem; min-width: 0; }
 .contained-current-label { color: var(--text-blue); font-size: .72rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
 .contained-current-name { font-size: 1.07rem; font-weight: 750; color: var(--text); overflow-wrap: anywhere; }
 .contained-current-context { margin-left: auto; max-width: 6.8rem; color: var(--muted); font-size: .79rem; text-align: right; }
-.contained-search-label { display: block; margin-bottom: .43rem; color: var(--text); font-size: .86rem; font-weight: 600; }
-.contained-search-tools { display: flex; gap: .57rem; }
+.contained-search-tools { flex: 2 1 18rem; min-width: 0; display: flex; gap: .57rem; }
 .contained-search-tools input { width: 100%; min-width: 0; height: 3.15rem; padding: .57rem .79rem; border: var(--hairline) solid var(--border); border-radius: var(--radius-sm); color: var(--text); background: var(--bg); font: inherit; font-size: .93rem; }
 .contained-search-tools input:focus-visible { outline: .15rem solid var(--accent); outline-offset: .15rem; }
 .contained-search-tools .btn { min-width: 4.29rem; height: 3.15rem; }
-.contained-count { display: block; margin: .64rem 0 .5rem; color: var(--muted); font-size: .79rem; font-variant-numeric: tabular-nums; }
+.contained-count { color: var(--muted); font-size: .79rem; font-variant-numeric: tabular-nums; }
 .contained-scroll { height: max(var(--show-list-floor), 40svh); min-height: var(--show-list-floor); overflow-y: scroll; overflow-x: hidden; scrollbar-gutter: stable; scrollbar-color: #7483a3 var(--bg); border: var(--hairline) solid var(--border); border-radius: var(--radius-sm); background: var(--bg); }
 .contained-scroll::-webkit-scrollbar { width: .86rem; }
 .contained-scroll::-webkit-scrollbar-track { background: var(--bg); }
@@ -852,7 +854,9 @@ main.mode-show { --show-top: .71rem; --show-bottom: 3rem; padding-block: var(--s
 .contained-row:hover { background: var(--wash-blue); }
 .contained-row:focus-visible { outline: .15rem solid var(--accent); outline-offset: -.22rem; background: rgba(90,162,255,.13); }
 .contained-row[aria-current="true"] { border-color: var(--accent); background: rgba(90,162,255,.14); }
-.contained-row-title { flex: 1; min-width: 0; overflow-wrap: anywhere; font-size: .93rem; font-weight: 650; line-height: 1.25; }
+.contained-row-text { flex: 1; min-width: 0; display: grid; gap: .07rem; }
+.contained-row-title { overflow-wrap: anywhere; font-size: .93rem; font-weight: 650; line-height: 1.25; }
+.contained-row-family { color: var(--muted); font-size: .79rem; font-weight: 500; line-height: 1.2; overflow-wrap: anywhere; }
 .contained-row-mark { color: var(--text-blue); font-size: .86rem; font-weight: 700; }
 .contained-rapid { color: var(--text-amber); font-size: .86rem; }
 .contained-empty { padding: 2.57rem 1.29rem; text-align: center; color: var(--muted); font-size: .86rem; line-height: 1.7; }

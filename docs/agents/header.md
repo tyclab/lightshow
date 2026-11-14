@@ -67,7 +67,8 @@ revised in #113 and #126); its full text is in git history. The rulings below st
   window 1-5 next to each other scaling with page width?" The stage over the effects on the left; Palettes,
   the "Edit colours" fold and Background on the right; on a phone Stage, Effects, Palettes, Edit colours,
   Background. Effects are name-only tiles, one to five columns by the card's width and the text size, in a
-  contained, searchable list with the chosen effect pinned above it; the description is the tile's tooltip.
+  contained, searchable list with the chosen effect pinned beside the search; the description is the tile's
+  tooltip, and tiles that share a name show their family on a second line.
   It says Current effect only while the show plays unfrozen, Selected effect otherwise. While the Visualizer
   source has a picture arriving, the card shows one sentence about it and nothing to choose. Palettes names
   the selected palette over its list, two columns where readable; one button folds the colour wheel and the

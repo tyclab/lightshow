@@ -20,6 +20,28 @@ export function effectsBox({ running, frozen, source, receiving }) {
   return { picture: false, label: held ? 'Selected effect' : 'Current effect', hint: held ? `${held} The selected effect plays ${when}.` : null };
 }
 
+/** What tells tiles of one name apart: their family as Effect settings names it, Classic for a classic pattern. */
+function kindOf(row, families) {
+  if (row.user) return 'Saved preset';
+  return families.find((family) => family.id === row.family)?.name || (row.legacy ? 'Classic' : 'Effect');
+}
+
+/** A second line for each tile whose name another listed tile shares; a kind two of them share is numbered. */
+function twinLines(rows, families) {
+  const byName = new Map();
+  for (const row of rows) byName.set(row.name, [...(byName.get(row.name) || []), row]);
+  const lines = new Map();
+  for (const group of byName.values()) {
+    if (group.length < 2) continue;
+    const kinds = group.map((row) => kindOf(row, families));
+    group.forEach((row, i) => {
+      const same = kinds.filter((kind) => kind === kinds[i]).length;
+      lines.set(row.id, same > 1 ? `${kinds[i]} ${kinds.slice(0, i + 1).filter((kind) => kind === kinds[i]).length}` : kinds[i]);
+    });
+  }
+  return lines;
+}
+
 /** How many tiles a row of the grid holds, as the stylesheet laid them out. */
 const columnsOf = (list) => getComputedStyle(list).gridTemplateColumns.split(' ').filter(Boolean).length || 1;
 
@@ -30,6 +52,7 @@ export function ShowEffects() {
   const families = s.families || lib.families || [];
   const { allRows, rows: catalogue, playingId } = catalogueOf(s, lib, families, []);
   const rows = catalogue.filter((row) => !utilityEffect(row));
+  const twins = twinLines(rows, families);
   const [query, setQuery] = useState('');
   const [focusId, setFocusId] = useState(null);
   const [confirm, setConfirm] = useState(null);
@@ -86,35 +109,41 @@ export function ShowEffects() {
       <h2 class="card-title" id={`${id}-title`}>Effects</h2>
       <p role="status">{box.text}</p>
     </section> : <section class="card contained-effects" aria-labelledby={`${id}-title`}>
-      <h2 class="card-title" id={`${id}-title`}>Effects</h2>
+      <div class="contained-head">
+        <h2 class="card-title" id={`${id}-title`}>Effects</h2>
+        <span class="contained-count" role="status" aria-live="polite" aria-atomic="true">
+          {words.length ? `${found.length} of ${rows.length} effects` : `${rows.length} effects`}
+        </span>
+      </div>
       {box.hint && <p class="hint contained-hint" role="status">{box.hint}</p>}
       {s.live?.director?.holding && <p class="hint contained-hold" role="status">
         Auto holds the picked look; it chooses again on a bar half a minute after the last pick.</p>}
-      <div class="contained-current" role="status" aria-live="polite" aria-atomic="true">
-        <div class="contained-current-text">
-          <span class="contained-current-label">{box.label}</span>
-          <span class="contained-current-name">{currentName}</span>
+      <div class="contained-tools">
+        <div class="contained-current" role="status" aria-live="polite" aria-atomic="true">
+          <div class="contained-current-text">
+            <span class="contained-current-label">{box.label}</span>
+            <span class="contained-current-name">{currentName}</span>
+          </div>
+          <span class="contained-current-context">{rows.some((row) => row.id === playingId) && !found.some((row) => row.id === playingId)
+            ? 'Outside these results' : ''}</span>
         </div>
-        <span class="contained-current-context">{rows.some((row) => row.id === playingId) && !found.some((row) => row.id === playingId)
-          ? 'Outside these results' : ''}</span>
+        <div class="contained-search-tools">
+          <input ref={search} id={`${id}-search`} type="search" aria-label="Search effects" placeholder="Name, description or tag"
+            autoComplete="off" spellCheck={false} aria-controls={`${id}-list`} aria-describedby={`${id}-help`} value={query}
+            onInput={(e) => setQuery(e.currentTarget.value)} onKeyDown={searchKey} />
+          <button class="btn" type="button" disabled={!query} onClick={clear}>Clear</button>
+        </div>
       </div>
-      <label class="contained-search-label" for={`${id}-search`}>Search effects</label>
-      <div class="contained-search-tools">
-        <input ref={search} id={`${id}-search`} type="search" placeholder="Name, description or tag" autoComplete="off" spellCheck={false}
-          aria-controls={`${id}-list`} aria-describedby={`${id}-help`} value={query}
-          onInput={(e) => setQuery(e.currentTarget.value)} onKeyDown={searchKey} />
-        <button class="btn" type="button" disabled={!query} onClick={clear}>Clear</button>
-      </div>
-      <span class="contained-count" role="status" aria-live="polite" aria-atomic="true">
-        {words.length ? `${found.length} of ${rows.length} effects` : `${rows.length} effects`}
-      </span>
       <div class="contained-scroll" ref={scroll}>
         <ul class="contained-list" id={`${id}-list`} ref={list} aria-label="Effects" onKeyDown={listKey}>
           {found.map((row) => <li key={row.id}>
             <button type="button" class="contained-row" data-effect={row.id} aria-current={row.id === playingId ? 'true' : undefined}
               tabIndex={row.id === focused?.id ? 0 : -1} title={[row.name, row.desc || (row.tags || []).join(' · ')].filter(Boolean).join(': ')}
               onFocus={() => setFocusId(row.id)} onClick={() => choose(row)}>
-              <span class="contained-row-title">{row.name}</span>
+              <span class="contained-row-text">
+                <span class="contained-row-title">{row.name}</span>
+                {twins.has(row.id) && <span class="contained-row-family">{twins.get(row.id)}</span>}
+              </span>
               {row.id === playingId && <span class="contained-row-mark" aria-hidden="true">✓</span>}
               {row.rapidFlash && <span class="contained-rapid" title="Rapid flashing">⚡<span class="sr-only"> Rapid flashing</span></span>}
             </button>

@@ -309,3 +309,49 @@ test('Show and the header picker omit the utility effects and still name one tha
   await page.evaluate(() => { window.location.hash = '#effects'; });
   await expect(page.locator('.effects-catalogue .pattern-btn .name').filter({ hasText: /^UV Wash/ })).toHaveCount(1);
 });
+
+test('tiles that share a name differ in their visible text, and a unique name keeps one line', async ({ page }) => {
+  await open(page, 'show');
+  await expect(row(page, 'chase')).toBeVisible();
+  const tiles = await box(page).locator('.contained-row').evaluateAll((buttons) => buttons.map((button) => {
+    const second = button.querySelector('.contained-row-family');
+    return { id: button.dataset.effect, name: button.querySelector('.contained-row-title').textContent,
+      second: second && second.checkVisibility() ? second.textContent : null };
+  }));
+  const byName = Map.groupBy(tiles, (tile) => tile.name);
+  const shared = [...byName.values()].filter((group) => group.length > 1).flat();
+  expect(shared.map((tile) => tile.id).sort(), 'the names Show lists more than once').toEqual(['breathe', 'fire', 'fireworks', 'impact',
+    'party.fire', 'rain', 'swirl', 'v2.breathe', 'v2.fire', 'v2.fireworks', 'v2.impact', 'v2.rain', 'v2.swirl']);
+  for (const group of byName.values()) {
+    if (group.length === 1) { expect(group[0].second, `${group[0].id} has one line`).toBeNull(); continue; }
+    const texts = group.map((tile) => `${tile.name} ${tile.second}`);
+    expect(group.every((tile) => tile.second), `${group[0].name}: a second line on each`).toBe(true);
+    expect(new Set(texts).size, `${group[0].name}: ${texts.join(' / ')}`).toBe(group.length);
+  }
+  const second = (id) => tiles.find((tile) => tile.id === id).second;
+  expect([second('breathe'), second('v2.breathe'), second('party.fire')]).toEqual(['Classic', 'Spatial', 'Party Looks']);
+});
+
+test('the Effects card puts its count in the title row and the selected effect beside the search', async ({ page, request }) => {
+  await control(request, 'stop');
+  const effects = box(page);
+  for (const [width, height, oneRow] of [[1440, 900, true], [390, 844, false]]) {
+    await page.setViewportSize({ width, height });
+    await open(page, 'show');
+    const search = effects.getByRole('searchbox', { name: 'Search effects' });
+    await expect(search).toHaveAttribute('placeholder', 'Name, description or tag');
+    await expect(effects.getByText('Search effects', { exact: true }), 'no visible label: the field names itself').toHaveCount(0);
+    const [title, count, current, field, card] = await Promise.all([effects.getByRole('heading', { name: 'Effects' }), effects.locator('.contained-count'),
+      effects.locator('.contained-current'), search, effects].map((l) => l.boundingBox()));
+    expect(count.y, `${width}: the count in the title row`).toBeLessThan(title.y + title.height);
+    expect(count.y + count.height).toBeGreaterThan(title.y);
+    expect(count.x).toBeGreaterThan(title.x + title.width);
+    if (oneRow) {
+      expect(field.x, `${width}: the search beside the selected effect`).toBeGreaterThanOrEqual(current.x + current.width);
+      expect(field.y).toBeLessThan(current.y + current.height);
+    } else {
+      expect(field.y, `${width}: wrapped under the selected effect`).toBeGreaterThanOrEqual(current.y + current.height);
+    }
+    for (const part of [count, current, field]) expect(part.x + part.width).toBeLessThanOrEqual(card.x + card.width + 0.5);
+  }
+});

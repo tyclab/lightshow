@@ -136,8 +136,10 @@ it, and the switches that matter along the top — armed or not, what paints the
 room (the effects or the visualizer picture), the auto show on or off,
 blackout and the master. Choose the main effect from the searchable, scrolling grid
 under the stage: name-only tiles, one to five side by side as the card's width and the text
-size allow, each with its description as a tooltip and ⚡ on a rapid-flashing effect. The chosen
-effect is always shown above the search: **Current effect**
+size allow, each with its description as a tooltip and ⚡ on a rapid-flashing effect. Tiles that
+share a name add a second line that tells them apart: the family (Spatial, Party Looks, …),
+**Classic** for a classic pattern or **Saved preset**. The count stands in the card's title row,
+and the chosen effect beside the search: **Current effect**
 while the show plays and is not frozen, otherwise **Selected effect** with a line saying when it
 plays (after Resume, or when the show plays). While the Auto show plays by ear (the live
 director), a look picked by hand holds until the first bar half a minute after the last pick,
