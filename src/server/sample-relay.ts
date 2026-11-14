@@ -11,7 +11,7 @@ export const SAMPLES_PER_PACKET = 1024;
 export const SAMPLES_ACK_MS = 1000;
 
 export interface SamplePacket {
-  /** The live input process the samples are from, unique across server restarts: a new one counts from zero again. */
+  /** The live input process the samples are from, unique across server restarts unless the wall clock steps back; a new one counts from zero. */
   g: number;
   /** The stream's sample count after the newest sample in `data`. */
   end: number;

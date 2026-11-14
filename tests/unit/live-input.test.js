@@ -564,7 +564,8 @@ test('sample lines reach the listener as bytes with their process, and nothing e
   live.stop();
 });
 
-test('the process is told how far its lines are read, while samples are wanted, and counts what it left out', async () => {
+test('the process is told how far its lines are read, while samples are wanted, and what it left out is in the status', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
   const procs = [];
   const live = new LiveInput({ spawner: () => { const p = fakeProcess(); procs.push(p); return p; }, now: () => 0 });
   live.onSamples(() => {});
@@ -577,11 +578,36 @@ test('the process is told how far its lines are read, while samples are wanted, 
   live.handleLine(pcm(22050 * 11, [1, 2], 22050, { dropped: 7 }));
   await settle();
   assert.deepStrictEqual(procs[0].asked, [{ type: 'pcm', on: true }, { type: 'pcm', read: 10.0466 }, { type: 'pcm', read: 11 }]);
-  assert.strictEqual(live.samplesDropped, 7);
+  assert.strictEqual(live.status().samplesDropped, 7);
+  live.handleLine(pcm(22050 * 12, [1, 2], 22050, { dropped: 9 }));
+  assert.strictEqual(live.status().samplesDropped, 9, 'the process counts on');
+  procs[0].emit('close', 1);
+  t.mock.timers.tick(2000);
+  live.handleLine(pcm(256, [1, 2], 22050, { dropped: 2 }));
+  assert.strictEqual(live.status().samplesDropped, 11, 'a new process counts from zero; the status keeps what the last one left out');
   live.stop();
 });
 
-test('each process names its samples anew, and a restarted server never reuses a name', (t) => {
+test('receipts a process does not read stop at a bound instead of piling up', async () => {
+  const written = [];
+  const stdin = { writable: true, writableLength: 0, write: (line) => written.push(JSON.parse(line)), on() {} };
+  const proc = Object.assign(fakeProcess(), { stdin });
+  const live = new LiveInput({ spawner: () => proc, now: () => 0 });
+  live.onSamples(() => {});
+  live.start({ source: 'loopback' });
+  live.wantSamples(true);
+  live.handleLine(state({ captured: 1 }));
+  stdin.writableLength = 4097;
+  live.handleLine(state({ captured: 2 }));
+  live.handleLine(pcm(22050 * 2, [1], 22050));
+  stdin.writableLength = 4096;
+  live.handleLine(state({ captured: 3 }));
+  assert.deepStrictEqual(written, [{ type: 'pcm', on: true }, { type: 'pcm', read: 1 }, { type: 'pcm', read: 3 }],
+    'none while more than 4 KiB wait unread: the process then leaves samples out, as it would for a slow reader');
+  live.stop();
+});
+
+test('each process names its samples anew, and a restarted server with a clock that did not step back never reuses a name', (t) => {
   t.mock.timers.enable({ apis: ['setTimeout'] });
   const streams = (wall) => {
     const procs = [];

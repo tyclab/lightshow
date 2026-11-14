@@ -70,7 +70,7 @@ export interface LiveEvent {
 
 /**
  * A block of the live input as heard: mono 16-bit little-endian, `end` the stream's sample count after
- * its newest. `stream` names the process, unique across server restarts; `at` is the wall clock (ms)
+ * its newest. `stream` names the process, unique across server restarts unless the wall clock steps back; `at` is the wall clock (ms)
  * when the block was read from the device.
  */
 export interface LiveSamples {
@@ -83,6 +83,8 @@ export interface LiveSamples {
 
 // A quiet capture reads eight hops at a time; anything far past that is not a block of this service's.
 const MAX_SAMPLES_BASE64 = 65536;
+// About 100 read receipts: a process whose stdin is not read gets no more, and leaves samples out instead.
+const RECEIPT_BACKLOG_BYTES = 4096;
 
 export interface LiveStatus {
   running: boolean;
@@ -95,6 +97,8 @@ export interface LiveStatus {
   locked: boolean;
   levelDb: number | null;
   quiet: boolean;
+  /** Sample blocks the live input left out since the server started, because a samples subscriber's path read too slowly. */
+  samplesDropped: number;
 }
 
 const RESTART_MS = 2000;
@@ -154,6 +158,7 @@ class LiveInput {
   declare _wallNow: () => number;
   declare _stream: number;
   declare _samplesDropped: number;
+  declare _samplesDroppedBefore: number;
 
   constructor({ spawner, now, wallNow, scriptPath }: { spawner?: Spawner; now?: () => number; wallNow?: () => number; scriptPath?: string } = {}) {
     this._now = now || (() => performance.now());
@@ -187,6 +192,7 @@ class LiveInput {
     this._onSamples = null;
     this._stream = 0;
     this._samplesDropped = 0;
+    this._samplesDroppedBefore = 0;
   }
 
   onEvent(fn: LiveInput['_onEvent']): void { this._onEvent = fn; }
@@ -209,11 +215,9 @@ class LiveInput {
   /** How far this side has read, in stream seconds: the process sends samples only while it is close behind. */
   _receipt(read: unknown): void {
     const stdin = this._proc?.stdin;
-    if (this._samplesWanted && Number.isFinite(read) && stdin && stdin.writable) stdin.write(`{"type":"pcm","read":${read}}\n`);
+    if (!this._samplesWanted || !Number.isFinite(read) || !stdin || !stdin.writable || stdin.writableLength > RECEIPT_BACKLOG_BYTES) return;
+    stdin.write(`{"type":"pcm","read":${read}}\n`);
   }
-
-  /** Sample blocks the process left out because this side read too slowly. */
-  get samplesDropped(): number { return this._samplesDropped; }
 
   useBands(source: (() => [number, number][]) | null): void { this._bandSource = source; }
 
@@ -294,8 +298,10 @@ class LiveInput {
     }
     this._proc = proc;
     this._generation += 1;
-    // The process's samples are named by the wall-clock millisecond it started, so a restarted server names them anew.
+    // The process's samples are named by the wall-clock millisecond it started: new after a server restart unless the clock stepped back.
     this._stream = Math.max(this._wallNow(), this._stream + 1);
+    this._samplesDroppedBefore += this._samplesDropped;
+    this._samplesDropped = 0;
     proc.stdout.setEncoding('utf8');
     const rl = readline.createInterface({ input: proc.stdout });
     this._rl = rl;
@@ -470,6 +476,7 @@ class LiveInput {
       locked: !!(r && r.locked),
       levelDb: r && r.energy != null && r.energy > 0 ? Math.round(20 * Math.log10(r.energy) * 10) / 10 : null,
       quiet: !!r && r.quiet === true,
+      samplesDropped: this._samplesDroppedBefore + this._samplesDropped,
     };
   }
 
