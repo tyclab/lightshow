@@ -26,8 +26,7 @@ import { createApplier } from '../../src/server/apply.ts';
 import { EffectLibrary } from '../../src/server/effect-library.ts';
 import { PaletteStore } from '../../src/server/palette-store.ts';
 import { PadStore } from '../../src/server/pads.ts';
-import { stopEngine, renderInput, renderFrame, engineStatus } from '../../src/server/engine.ts';
-import { control as diagControl } from '../../src/server/control.ts';
+import { stopEngine, renderInput, renderFrame } from '../../src/server/engine.ts';
 import { applyPatch } from '../../src/server/patch.ts';
 import { captureLook, recallLook } from '../../src/server/cues.ts';
 import { state, voices, strobe as liveStrobe, getLiveState } from '../../src/server/state.ts';
@@ -925,20 +924,7 @@ test('the strobe pad plays on its own fixtures and leaves the rest to the look',
   applyPatch({ pattern: 'solid', colorA: 0, running: true, masterDimmer: 255, masterBlackout: false, paletteOverride: null });
   await s.call('PUT', '/api/strobe', { palette: ['#0000FF'], flashesPerSecond: 5 });
   renderFrame();
-  const seen = [lamp(0), lamp(1)];
-  if (seen[0].r !== 255 || seen[1].r !== 255) {
-    const ri = renderInput();
-    const fx = state.fixtures.slice(0, 3).map((f) => ({ id: f.id, universe: f.universe, address: f.address, profile: f.profileId }));
-    console.error('DIAG-FAIL', JSON.stringify({
-      seen, fx, artnet: { ...state.artnet }, sacn: state.sacn?.enabled, riUniverses: ri.universes, stored: universes.list(),
-      ids: ids(), voices: ri.voices.map((v) => [v.id, v.spec?.kind]), pattern: state.pattern, running: state.running, energy: state.energyOverride,
-      master: [state.masterDimmer, state.masterBlackout], frozen: diagControl.frozen, held: diagControl.heldUnavailable, engine: engineStatus().thread,
-      prog: ri.programmePlaying, ack: ri.safety?.acknowledged,
-    }));
-    renderFrame();
-    console.error('DIAG-FAIL again', JSON.stringify([lamp(0), lamp(1), universes.list()]));
-  }
-  assert.deepEqual([seen[0].r, seen[1].r], [255, 255], 'the look: red');
+  assert.deepEqual([lamp(0).r, lamp(1).r], [255, 255], 'the look: red');
   const entry = { label: 'Strobe', accent: '#E2E8F0', content: { kind: 'strobe', id: 'strobe' }, launch: 'hold', quantise: 0, targets: [first] };
   assert.equal((await s.call('PUT', '/api/pads/0/6', entry)).status, 200);
   s.integrations.pads.press(0, 6, ...DECK);
