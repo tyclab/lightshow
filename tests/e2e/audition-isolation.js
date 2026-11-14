@@ -6,7 +6,8 @@ export function watchControlWrites(page) {
   page.on('websocket', (socket) => socket.on('framesent', ({ payload }) => {
     if (typeof payload !== 'string' || !/^4[25]/.test(payload)) return;
     const event = JSON.parse(payload.slice(payload.indexOf('[')));
-    if (!['subscribe', 'unsubscribe', 'sync'].includes(event[0])) writes.push({ transport: 'socket', event });
+    // A page's input reaching the idle stop (`activity`) changes no state either.
+    if (!['subscribe', 'unsubscribe', 'sync', 'activity'].includes(event[0])) writes.push({ transport: 'socket', event });
   }));
   return writes;
 }

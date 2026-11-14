@@ -4,6 +4,7 @@ import { io } from 'socket.io-client';
 import { createVoiceHolds } from './hold-control.js';
 import { timelinePosition } from './timeline-state.js';
 import { createStore } from './store.js';
+import { createIdlePause } from './idle-pause.js';
 import { decodeDmxFrame } from '../src/shared/dmx-frame.ts';
 
 // One signal per state key (store.js, protocol v2), so a field re-renders only its readers.
@@ -155,25 +156,43 @@ socket.on('picture-image', (message) => {
   if (performanceReport) performanceReport.count('picture.received');
 });
 
+// After the idle-stop minutes without input while disarmed, the page lets its feeds go until Resume preview (idle-pause.js).
+export const idlePause = createIdlePause({
+  now: () => Date.now(),
+  setTimer: (fn, ms) => setTimeout(fn, ms),
+  clearTimer: (id) => clearTimeout(id),
+  send: () => emitLive('activity'),
+  target: typeof document === 'undefined' ? null : document,
+});
+effect(() => idlePause.update({ minutes: field('idleStopMin').value, armed: field('armed').value }));
+
 // A hidden page holds no feed, or a phone left on a view keeps the engine rendering for nobody;
 // its views stay counted, so showing it subscribes again and the server replays the latest.
 const pageVisible = () => typeof document === 'undefined' || document.visibilityState === 'visible';
 
-/** The first view subscribes, the last unsubscribes, and a reconnect subscribes again: while the page is visible. */
+/** The first view subscribes, the last unsubscribes, and a reconnect subscribes again: while the page is visible and not paused. */
 function visibleFeed(topic) {
   let wanted = 0;
-  const send = (event) => { if (socket.connected) socket.emit(event, [topic]); };
-  socket.on('connect', () => { if (wanted > 0 && pageVisible()) send('subscribe'); });
-  if (typeof document !== 'undefined') {
-    document.addEventListener?.('visibilitychange', () => { if (wanted > 0) send(pageVisible() ? 'subscribe' : 'unsubscribe'); });
-  }
+  // What the server holds for this socket: a reconnect starts from nothing.
+  let held = false;
+  const sync = () => {
+    const want = wanted > 0 && pageVisible() && idlePause.paused.peek() === null;
+    if (want === held || !socket.connected) return;
+    held = want;
+    socket.emit(want ? 'subscribe' : 'unsubscribe', [topic]);
+  };
+  socket.on('connect', () => { held = false; sync(); });
+  if (typeof document !== 'undefined') document.addEventListener?.('visibilitychange', sync);
+  effect(() => { idlePause.paused.value; sync(); });
   return () => {
-    if (wanted++ === 0 && pageVisible()) send('subscribe');
+    wanted++;
+    sync();
     let released = false;
     return () => {
       if (released) return;
       released = true;
-      if (--wanted === 0 && pageVisible()) send('unsubscribe');
+      wanted--;
+      sync();
     };
   };
 }

@@ -45,6 +45,11 @@ revised in #113 and #126); its full text is in git history. The rulings below st
   clear something: a programme playing or paused, or pads over a stopped programme (the control's
   `layers`). Play's name says what it starts. A sequence is selected on Perform; no Look button,
   no programme menu.
+- A disarmed show nobody attends stops after 60 minutes (2026-11-14): "if not we should make sure it
+  stops automatically, lets say 60min or somethign?? i mean if show is not arm and page is idel or
+  closed". `outputs.idleStopMin` (60, 0 never) without a control action or page input ends it with the
+  header's Stop; an idle page releases its feeds and says "Preview paused after 60 minutes without
+  input." with Resume preview, which starts nothing. Armed, neither runs.
 - Visible without a tap: BPM and Online, in the one status chip. Armed is shown by the Arm button
   itself, so its armed state must be unmistakable, not a status pill (2026-11-07).
 - Visualizer names only the picture source (2026-11-09). The effect family `ldj.visualizer.*` is

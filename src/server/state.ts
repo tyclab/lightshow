@@ -473,6 +473,8 @@ function getLiveState() {
     universes: wireUniverses(),
     // A remote lights its arm button by this.
     armed: isArmed(),
+    // Pages pause their preview after the same minutes without input.
+    idleStopMin: settings.get('outputs.idleStopMin'),
     picture: { ...settings.group('picture'), input: pictureInput.status() },
     rigRevision: rigRevision(),
     // Labels for the patch table and inspector; never the keys.

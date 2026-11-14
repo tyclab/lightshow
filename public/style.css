@@ -3500,6 +3500,13 @@ input[type=range]::-moz-range-thumb {
 @media (max-width: 560px) {
   .stage3d-sep { display: none; }
 }
+/* An idle page holds no feed until Resume (idle-pause.js): said above every stage drawing. */
+.preview-paused {
+  display: flex; flex-wrap: wrap; align-items: center; gap: .5rem 1rem;
+  padding: .5rem .75rem; border: .0625rem solid var(--amber); border-radius: var(--radius);
+  background: var(--card); color: var(--text-amber); font-size: .857rem; line-height: 1.5;
+}
+.preview-paused .btn { margin-inline-start: auto; }
 
 /* =============================================================
    TIMELINE — the show, to read and rehearse

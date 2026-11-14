@@ -227,6 +227,7 @@ test('health routes expose liveness and detailed status', async (t) => {
   assert.equal(h.problems[0].level, 'error');
   for (const key of ['version', 'node', 'pid', 'uptimeS', 'engine', 'memory', 'outputs', 'supervisor', 'log']) assert.ok(key in h, key);
   assert.equal(typeof h.engine.idle, 'boolean');
+  assert.ok('awake' in h.engine, 'what keeps the engine from idling, beside idle');
   assert.deepEqual(h.auto, { status: 'idle', running: false, error: null });
   assert.equal(typeof health().uptimeS, 'number');
   assert.equal(typeof h.counts.effects, 'number');

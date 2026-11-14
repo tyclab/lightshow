@@ -126,6 +126,19 @@ test('Settings → Show selects the saved Hue flash mode', () => {
   assert.match(select[0], /<option selected value="pulse"/);
 });
 
+test('Settings → Show sets the minutes after which a disarmed show nobody attends stops, 0 to a day', () => {
+  ui.settingsSig.value = { settings: { outputs: { armed: false, idleStopMin: 45 }, auto: { setMemory: true }, safety: { flashLimit: false }, hue: { strobe: 'flash' } }, secrets: {} };
+  const html = ui.html(ui.h(ui.SettingsSection, ui.SHOW));
+  const input = html.match(/<input id="set-outputs.idleStopMin"[^>]*>/);
+  assert.ok(input, 'the field is in Settings → Show');
+  assert.match(input[0], /type="number"/);
+  assert.match(input[0], /min="0"/);
+  assert.match(input[0], /max="1440"/);
+  assert.match(input[0], /value="45"/);
+  assert.match(html, /Stop an Unattended Show/);
+  assert.match(html, /0 never stops/);
+});
+
 test('Settings → Analysis offers standby for the analyser here, beside the GPU memory', () => {
   ui.settingsSig.value = {
     settings: { analysis: { separator: 'demucs', structureModel: 'auto', gpuMemory: 'auto', localWorker: 'standby', remoteWaitMs: 120000 } },

@@ -38,6 +38,7 @@ import { settings, CONFIG_FILE } from './server/settings.ts';
 import { cacheDir, dataDir } from './server/config-dir.ts';
 import { createApplier } from './server/apply.ts';
 import { createIdleDisarm } from './server/idle-disarm.ts';
+import { createIdleStop } from './server/idle-stop.ts';
 import { isArmed, onDisarm } from './server/armed.ts';
 import { safety } from './server/safety.ts';
 import { startWledWatch, wledBoards } from './server/wled-watch.ts';
@@ -209,7 +210,15 @@ configureControls({ integrations, applier, autoShow }, () => { lookStore.save(cu
 
 remoteAnalysis.attachStatusRoute(app, () => ({ queue: autoShow.analysisCounts(), local: autoShow.localAnalysis() }));
 attachRoutes(app, { midi, autoShow, spotify, nowPlaying, deezerSource, prolink, analysisCache, integrations, applier, restart: restartServer });
-attachSockets(io, { midi, integrations });
+// Disarmed, a show with no control action and no page input for outputs.idleStopMin minutes is stopped as the header's Stop does.
+const idleStop = createIdleStop({
+  now: () => performance.now(),
+  control,
+  minutes: () => settings.get('outputs.idleStopMin'),
+  stopped: (minutes) => console.log(`[control] stopped after ${minutes} min disarmed without activity`),
+});
+setInterval(() => void idleStop.tick(), 10_000).unref();
+attachSockets(io, { midi, integrations, activity: () => idleStop.touch() });
 
 // On a thread of its own unless the settings say otherwise (engine.thread).
 showStore.setPublisher(publishRigRevision);
