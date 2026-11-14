@@ -1,4 +1,4 @@
-import { useId, useMemo, useRef, useState } from 'preact/hooks';
+import { useId, useLayoutEffect, useMemo, useRef, useState } from 'preact/hooks';
 import { audioFeedSig, librarySig, pick, send } from '../state.js';
 import { chooseSource, pictureColours, pictureReceivingSig, pictureSourceSig } from '../picture-source.js';
 import { useColourTarget } from '../colour-target.js';
@@ -229,6 +229,23 @@ function editorOpen() {
   } catch { return false; }
 }
 
+/**
+ * Show's open colour editor publishes its height, as the bars publish theirs. The Show CSS adds it to the window's
+ * share: the page grows by the editor and the palettes keep their height.
+ */
+function useEditorHeight(body, open) {
+  useLayoutEffect(() => {
+    const element = body.current, view = element?.closest('.show-view');
+    if (!open || !view) return undefined;
+    const observer = new ResizeObserver(([entry]) => {
+      const box = entry.borderBoxSize?.[0];
+      view.style.setProperty('--show-editor-height', `${box ? box.blockSize : element.getBoundingClientRect().height}px`);
+    });
+    observer.observe(element, { box: 'border-box' });
+    return () => { observer.disconnect(); view.style.removeProperty('--show-editor-height'); };
+  }, [open]);
+}
+
 /** Any other effect: its own palette on the wheel and in order, recoloured, resized or replaced from the list; the effect decides how it plays it. */
 function EffectPalette({ colour, palettes, masked, classic, show, frozen }) {
   const body = colour.current;
@@ -287,6 +304,8 @@ function EffectPalette({ colour, palettes, masked, classic, show, frozen }) {
       first: 'First colour', palette: 'Cycle palette' })[m]}</option>)}
   </select></label>;
   const whiteNote = <p class="muted">White emitters ignore palettes. Choose First colour or Cycle palette for colour.</p>;
+  const editorBody = useRef(null);
+  useEditorHeight(editorBody, !!show && editing && !white);
   if (show) {
     // Show (the operator, 2026-11-14): the palettes stay in view; the wheel and the colour order fold together under one button.
     const named = active && active !== 'off' ? palettes.find((p) => p.id === active) ?? { id: active } : null;
@@ -308,7 +327,7 @@ function EffectPalette({ colour, palettes, masked, classic, show, frozen }) {
           <span class="show-fold-text"><strong>Edit colours</strong><small>Colour wheel &amp; colour order</small></span>
           <span class="show-fold-chevron" aria-hidden="true">⌄</span>
         </button>
-        <div id={editorId} class="show-fold-body" hidden={!editing}>
+        <div id={editorId} class="show-fold-body" ref={editorBody} hidden={!editing}>
           {editing && <div class="band-channel" role="group" aria-label="Effect palette">
             <div class="band-editor"><div class="band-sequence">{wheel}{order}</div></div>
           </div>}

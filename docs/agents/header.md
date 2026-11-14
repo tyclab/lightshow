@@ -95,6 +95,13 @@ history. The rulings below stay.
   step only at 35, 47.5, 68.75 and 120em, the columns follow the view's own width at 68.75em, and in two
   columns a list keeps four rows of tiles and the preview 15rem and a third of its width; when those floors
   do not fit, the page scrolls.
+- The open colour editor makes the page longer; it does not take the palettes' room (2026-11-14, 15:17: "the
+  colour wheel should move or resize the panel not go over it"; asked which, the operator chose "Push down").
+  In two columns the palette list is what the window leaves, so an editor inside that share shrank the list
+  and cut its last row. A style sheet cannot add a box's own height to the window's share, so the editor
+  publishes its height as the bars do (`--show-editor-height`) and the style sheet adds it: the palettes and
+  the stage keep their height, Background moves down and the effects list takes the added height. That is
+  the one height a script reports to Show; no script sets a size.
 - The utility effects (the catalogue's `own.energy` family: the strobes, Blinder, UV Wash, Kill, Glow and
   the strobe overlays) are not offered on Show or in the header's effect picker (2026-11-14, 02:39: "uv wash
   is brocken effect? dop we need it at all? we have button for that right?"). Pads, cues, sequences and the

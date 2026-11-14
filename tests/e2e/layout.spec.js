@@ -101,7 +101,8 @@ for (const [width, height, holds] of SHOW_SIZES) {
     expect(m.scrollWidth).toBeLessThanOrEqual(width);
     expect(m.twoColumns).toBe(width - 24 >= 68.75 * m.rem);
     if (holds === 'fit') expect(m.scrollHeight, 'no page scroll').toBeLessThanOrEqual(height);
-    // A taller Background or an open fold reaches the layout without a script: the columns still end on one line.
+    // A taller Background reaches the layout without a script, an open fold through its published height: the columns
+    // still end on one line.
     await page.getByRole('region', { name: 'Background lighting' }).getByRole('button', { name: 'Fixed colour', exact: true }).click();
     await expect(page.getByRole('group', { name: 'Background colour sliders' })).toBeVisible();
     await page.getByRole('region', { name: 'Colour editing', exact: true }).getByRole('button', { name: /^Edit colours/ }).click();
@@ -109,6 +110,32 @@ for (const [width, height, holds] of SHOW_SIZES) {
     expectArrangement(await showLayout(page), 'with Fixed colour and the fold open');
     await page.getByRole('region', { name: 'Colour editing', exact: true }).getByRole('button', { name: /^Edit colours/ }).click();
     await page.getByRole('region', { name: 'Background lighting' }).getByRole('button', { name: 'Follow effect', exact: true }).click();
+  });
+}
+
+// The operator, 2026-11-14: "the colour wheel should move or resize the panel not go over it". The open editor adds
+// its own height to the page: Background moves down by it, the palettes and the stage keep their height.
+for (const [width, height] of [[1701, 1370], [2560, 1440], [1440, 900], [390, 844]]) {
+  test(`an open Edit colours lengthens the page and leaves the palettes their height at ${width}×${height}`, async ({ page, request }) => {
+    await openShow(page, request, width, height);
+    const toggle = page.getByRole('region', { name: 'Colour editing', exact: true }).getByRole('button', { name: /^Edit colours/ });
+    const folded = await showLayout(page);
+    await toggle.click();
+    await expect(page.locator('.show-fold .colour-wheel-disc')).toBeVisible();
+    const editor = (await page.locator('.show-fold-body').boundingBox()).height;
+    expect(editor).toBeGreaterThan(10 * folded.rem);
+    await expect.poll(async () => Math.abs((await showLayout(page)).scrollHeight - folded.scrollHeight - editor)).toBeLessThan(1.5);
+    const opened = await showLayout(page);
+    expectArrangement(opened, 'open');
+    expect(Math.abs(opened.palettes.h - folded.palettes.h), 'the palettes keep their height').toBeLessThan(1);
+    expect(Math.abs(opened.wrap.h - folded.wrap.h), 'the stage keeps its height').toBeLessThan(1);
+    expect(Math.abs(opened.fold.h - folded.fold.h - editor), 'the fold grows by its editor').toBeLessThan(1);
+    // From the fold's own top: the click may have scrolled the page.
+    expect(Math.abs((opened.background.y - opened.fold.y) - (folded.background.y - folded.fold.y) - editor), 'Background moves down by the editor')
+      .toBeLessThan(1);
+    await toggle.click();
+    await expect.poll(async () => (await showLayout(page)).scrollHeight).toBe(folded.scrollHeight);
+    expect(Math.abs((await showLayout(page)).palettes.h - folded.palettes.h), 'folded again').toBeLessThan(1);
   });
 }
 
