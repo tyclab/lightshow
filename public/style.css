@@ -820,16 +820,15 @@ main.mode-show { --show-top: .71rem; --show-bottom: 3rem; padding-block: var(--s
   --show-gap: .86rem; --show-tile: 3.15rem; --show-tile-gap: .43rem; --show-list-pad: .29rem; --show-stage-min: 15rem;
   --show-effect-min: 13rem; --show-palette-min: 8rem;
   --show-list-floor: calc(4 * var(--show-tile) + 3 * var(--show-tile-gap) + 2 * var(--show-list-pad) + 2 * var(--hairline));
-  --show-push: var(--show-editor-height, 0rem);
   container: show / inline-size;
   display: flex; flex-direction: column; gap: var(--show-gap);
   /* The window's share; the safety notice, toolbar and pads take theirs inside it and the stage canvas gets what is left.
      The open colour editor adds its height, published as the bars' heights are: the page grows by it. */
   min-height: calc(100dvh - var(--header-height, 0rem) - var(--commands-height, 0rem) - var(--views-height, 0rem) - var(--show-top) - var(--show-bottom)
-    + var(--show-push));
+    + var(--show-editor-height, 0rem));
 }
-/* The picture's sentence card leaves the right column room of its own: the editor opens into it. */
-.show-view:has(> .show-body.picture) { --show-push: 0rem; }
+/* The open editor makes the page scroll: the scrollbar's room is taken with the click, before the editor is measured. */
+html:has(.show-fold-toggle[aria-expanded="true"]) { scrollbar-gutter: stable; }
 
 .contained-effects { min-width: 0; display: flex; flex-direction: column; }
 /* The count in the title row; the chosen effect and the search share a row while both keep their width, else wrap. */
@@ -934,7 +933,7 @@ main.mode-show { --show-top: .71rem; --show-bottom: 3rem; padding-block: var(--s
   .show-room .stage3d-view { flex: 1 1 auto; }
   .show-room .stage3d-wrap { flex: 1 1 0; height: auto; min-height: max(var(--show-stage-min), 33.333cqi); }
   .show-main > .contained-effects { flex: 2 1 auto; }
-  .show-body .contained-scroll { flex: 1 1 0; height: auto; min-height: calc(var(--show-list-floor) + var(--show-push)); }
+  .show-body .contained-scroll { flex: 1 1 0; height: auto; min-height: calc(var(--show-list-floor) + var(--show-editor-height, 0rem)); }
   .show-colours, .show-colours > .card:first-child { flex: 1 1 auto; }
   .show-palettes .band-palettes, .show-palettes .band-palette-list { flex: 1 1 0; height: auto; }
   .show-body.picture .contained-effects, .show-body.picture .show-colours, .show-body.picture .show-colours > .card { flex: none; }
