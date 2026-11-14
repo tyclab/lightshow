@@ -43,13 +43,20 @@ test('the Show block steps its widths only at 35, 47.5, 68.75 and 120em', () => 
     ['68.75em', '40rem', '480px']);
 });
 
+const component = (file) => path.join(import.meta.dirname, '..', '..', 'public-src', 'components', file);
+const SIZING = /ResizeObserver|offset(?:Width|Height)|client(?:Width|Height)|getBoundingClientRect|\.style\.(?:width|height)|style=\{\{[^}]*(?:width|height)/;
+
 test('no script computes a Show size: columns, list heights and the preview come from CSS', () => {
-  const sources = ['Show.jsx', 'ShowEffects.jsx', 'ShowCues.jsx']
-    .map((file) => path.join(import.meta.dirname, '..', '..', 'public-src', 'components', file)).filter((file) => fs.existsSync(file));
+  const sources = ['Show.jsx', 'ShowEffects.jsx', 'ShowCues.jsx'].map(component).filter((file) => fs.existsSync(file));
   assert.ok(sources.length >= 2);
-  for (const file of sources) {
-    const code = fs.readFileSync(file, 'utf8');
-    assert.doesNotMatch(code, /ResizeObserver|offset(?:Width|Height)|client(?:Width|Height)|getBoundingClientRect|\.style\.(?:width|height)|style=\{\{[^}]*(?:width|height)/,
-      path.basename(file));
-  }
+  for (const file of sources) assert.doesNotMatch(fs.readFileSync(file, 'utf8'), SIZING, path.basename(file));
+});
+
+test('the one height a script reports to Show is the open colour editor\'s, and the block adds it', () => {
+  const code = fs.readFileSync(component('Bands.jsx'), 'utf8');
+  const hook = code.match(/function useEditorHeight\([\s\S]*?\n\}\n/);
+  assert.ok(hook, 'Bands.jsx has useEditorHeight');
+  assert.deepStrictEqual([...hook[0].matchAll(/setProperty\('([^']+)'/g)].map((m) => m[1]), ['--show-editor-height']);
+  assert.doesNotMatch(code.replace(hook[0], ''), SIZING, 'Bands.jsx outside useEditorHeight');
+  assert.match(showBlock(css), /\.show-view\s*\{[^}]*min-height:[^;]*\+ var\(--show-editor-height, 0rem\)\)/);
 });

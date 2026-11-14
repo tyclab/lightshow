@@ -101,7 +101,8 @@ for (const [width, height, holds] of SHOW_SIZES) {
     expect(m.scrollWidth).toBeLessThanOrEqual(width);
     expect(m.twoColumns).toBe(width - 24 >= 68.75 * m.rem);
     if (holds === 'fit') expect(m.scrollHeight, 'no page scroll').toBeLessThanOrEqual(height);
-    // A taller Background or an open fold reaches the layout without a script: the columns still end on one line.
+    // A taller Background reaches the layout without a script, an open fold through its published height: the columns
+    // still end on one line.
     await page.getByRole('region', { name: 'Background lighting' }).getByRole('button', { name: 'Fixed colour', exact: true }).click();
     await expect(page.getByRole('group', { name: 'Background colour sliders' })).toBeVisible();
     await page.getByRole('region', { name: 'Colour editing', exact: true }).getByRole('button', { name: /^Edit colours/ }).click();
@@ -111,6 +112,50 @@ for (const [width, height, holds] of SHOW_SIZES) {
     await page.getByRole('region', { name: 'Background lighting' }).getByRole('button', { name: 'Follow effect', exact: true }).click();
   });
 }
+
+// The operator, 2026-11-14: "the colour wheel should move or resize the panel not go over it". The open editor adds
+// its own height to the page: Background moves down by it, the palettes and the stage keep their height.
+for (const [width, height] of [[1701, 1370], [2560, 1440], [1440, 900], [390, 844]]) {
+  test(`an open Edit colours lengthens the page and leaves the palettes their height at ${width}×${height}`, async ({ page, request }) => {
+    await openShow(page, request, width, height);
+    // The open editor takes the scrollbar's room (style.css); taken here from the start, both states have one width.
+    await page.addStyleTag({ content: 'html { scrollbar-gutter: stable; }' });
+    await barsSettled(page);
+    const toggle = page.getByRole('region', { name: 'Colour editing', exact: true }).getByRole('button', { name: /^Edit colours/ });
+    const folded = await showLayout(page);
+    await toggle.click();
+    await expect(page.locator('.show-fold .colour-wheel-disc')).toBeVisible();
+    // The height is published with the frame that draws the editor: read the layout once it is.
+    await expect.poll(() => page.evaluate(() => Math.abs(parseFloat(document.querySelector('.show-view').style.getPropertyValue('--show-editor-height'))
+      - document.querySelector('.show-fold-body').getBoundingClientRect().height))).toBeLessThan(0.5);
+    const editor = (await page.locator('.show-fold-body').boundingBox()).height;
+    expect(editor).toBeGreaterThan(10 * folded.rem);
+    const opened = await showLayout(page);
+    expect(Math.abs(opened.scrollHeight - folded.scrollHeight - editor), 'the page grows by the editor').toBeLessThan(1.5);
+    expectArrangement(opened, 'open');
+    expect(Math.abs(opened.palettes.h - folded.palettes.h), 'the palettes keep their height').toBeLessThan(1);
+    expect(Math.abs(opened.wrap.h - folded.wrap.h), 'the stage keeps its height').toBeLessThan(1);
+    expect(Math.abs(opened.fold.h - folded.fold.h - editor), 'the fold grows by its editor').toBeLessThan(1);
+    // From the fold's own top: the click may have scrolled the page.
+    expect(Math.abs((opened.background.y - opened.fold.y) - (folded.background.y - folded.fold.y) - editor), 'Background moves down by the editor')
+      .toBeLessThan(1);
+    await toggle.click();
+    await expect.poll(async () => (await showLayout(page)).scrollHeight).toBe(folded.scrollHeight);
+    expect(Math.abs((await showLayout(page)).palettes.h - folded.palettes.h), 'folded again').toBeLessThan(1);
+  });
+}
+
+test('the published editor height goes when the editor does', async ({ page, request }) => {
+  await openShow(page, request, 1701, 1370);
+  const published = () => page.evaluate(() => document.querySelector('.show-view').style.getPropertyValue('--show-editor-height'));
+  await page.getByRole('region', { name: 'Colour editing', exact: true }).getByRole('button', { name: /^Edit colours/ }).click();
+  await expect.poll(published).toMatch(/^\d/);
+  // An effect with a palette per band shows its Bands card: no editor, nothing published.
+  await set(request, { pattern: 'hd.disco.ambient' });
+  await expect(page.locator('.show-fold')).toHaveCount(0);
+  expect(await published()).toBe('');
+  expect((await showLayout(page)).scrollHeight, 'no page scroll').toBeLessThanOrEqual(1370);
+});
 
 test('the effects grid has one to five columns by width', async ({ page, request }) => {
   for (const [width, columns] of [[390, 1], [560, 2], [768, 3], [1440, 4], [1920, 5]]) {

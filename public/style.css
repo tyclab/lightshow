@@ -822,9 +822,13 @@ main.mode-show { --show-top: .71rem; --show-bottom: 3rem; padding-block: var(--s
   --show-list-floor: calc(4 * var(--show-tile) + 3 * var(--show-tile-gap) + 2 * var(--show-list-pad) + 2 * var(--hairline));
   container: show / inline-size;
   display: flex; flex-direction: column; gap: var(--show-gap);
-  /* The window's share; the safety notice, toolbar and pads take theirs inside it and the stage canvas gets what is left. */
-  min-height: calc(100dvh - var(--header-height, 0rem) - var(--commands-height, 0rem) - var(--views-height, 0rem) - var(--show-top) - var(--show-bottom));
+  /* The window's share; the safety notice, toolbar and pads take theirs inside it and the stage canvas gets what is left.
+     The open colour editor adds its height, published as the bars' heights are: the page grows by it. */
+  min-height: calc(100dvh - var(--header-height, 0rem) - var(--commands-height, 0rem) - var(--views-height, 0rem) - var(--show-top) - var(--show-bottom)
+    + var(--show-editor-height, 0rem));
 }
+/* The open editor makes the page scroll: the scrollbar's room is taken with the click, before the editor is measured. */
+html:has(.show-fold-toggle[aria-expanded="true"]) { scrollbar-gutter: stable; }
 
 .contained-effects { min-width: 0; display: flex; flex-direction: column; }
 /* The count in the title row; the chosen effect and the search share a row while both keep their width, else wrap. */
@@ -921,14 +925,15 @@ main.mode-show { --show-top: .71rem; --show-bottom: 3rem; padding-block: var(--s
 
 /* Two columns, one row as tall as the window: the stage over the effects, Palettes, the fold and Background beside
    them. Of the height the floors leave, the stage takes one part and the effects two; the palette list takes what the
-   right column leaves, so both columns end on one line. The sentence form keeps its card at its content. */
+   right column leaves, so both columns end on one line. The sentence form keeps its card at its content. The height an
+   open colour editor adds to the page goes to the effects list: the stage and the palettes keep theirs. */
 @container show (min-width: 68.75em) {
   .show-body { align-content: stretch; grid-template-columns: minmax(0, 1.6fr) minmax(21rem, 1fr); grid-template-rows: 1fr; }
   .show-room { flex: 1 1 auto; }
   .show-room .stage3d-view { flex: 1 1 auto; }
   .show-room .stage3d-wrap { flex: 1 1 0; height: auto; min-height: max(var(--show-stage-min), 33.333cqi); }
   .show-main > .contained-effects { flex: 2 1 auto; }
-  .show-body .contained-scroll { flex: 1 1 0; height: auto; }
+  .show-body .contained-scroll { flex: 1 1 0; height: auto; min-height: calc(var(--show-list-floor) + var(--show-editor-height, 0rem)); }
   .show-colours, .show-colours > .card:first-child { flex: 1 1 auto; }
   .show-palettes .band-palettes, .show-palettes .band-palette-list { flex: 1 1 0; height: auto; }
   .show-body.picture .contained-effects, .show-body.picture .show-colours, .show-body.picture .show-colours > .card { flex: none; }
