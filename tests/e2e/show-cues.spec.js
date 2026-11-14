@@ -12,6 +12,7 @@ test.afterEach(async ({ request }) => {
 });
 
 test('a cue is saved and recalled from Show', async ({ page, request }) => {
+  await page.clock.install();
   await set(request, { pattern: 'v2.aurora' });
   await open(page, 'show');
   const row = page.getByRole('group', { name: 'Cues', exact: true });
@@ -27,11 +28,15 @@ test('a cue is saved and recalled from Show', async ({ page, request }) => {
   await dialog.getByRole('button', { name: 'Cancel', exact: true }).click();
   await expect(dialog).toHaveCount(0);
   await expect(save, 'focus goes back to the button').toBeFocused();
+  // The page's timers stand still, as when a busy machine runs effects late: keys pressed at once still reach the dialog.
+  await page.clock.pauseAt(await page.evaluate(() => Date.now() + 1000));
   await save.click();
+  await expect(name, 'focus moves in at once').toBeFocused();
   await expect(name, 'a cancelled name is not kept').toHaveValue('');
   await page.keyboard.press('Escape');
   await expect(dialog).toHaveCount(0);
   await expect(save).toBeFocused();
+  await page.clock.resume();
   expect(await cues(request)).toEqual([]);
 
   await page.route('**/api/cues', (route) => (route.request().method() === 'POST'
