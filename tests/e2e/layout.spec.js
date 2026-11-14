@@ -144,6 +144,22 @@ test('at 1280 by 720 the stage and the effects list keep their floors', async ({
   expect(m.scrollHeight, 'the page scrolls rather than squeezing them').toBeGreaterThan(720);
 });
 
+test('the Preview paused notice stays above the stage on Show, in two columns and in one', async ({ page, request }) => {
+  await page.clock.install();
+  for (const [width, height] of [[1440, 900], [390, 844]]) {
+    await openShow(page, request, width, height);
+    await page.clock.fastForward('01:00:00');
+    const notice = page.locator('.show-room .preview-paused');
+    await expect(notice).toBeVisible();
+    const [box, room, wrap] = await Promise.all([notice, page.locator('.show-room'), page.locator('.show-room .stage3d-wrap')].map((l) => l.boundingBox()));
+    expect(box.y, `${width}: at the top of the stage card`).toBeGreaterThanOrEqual(room.y - 0.5);
+    expect(box.y + box.height, `${width}: above the stage`).toBeLessThanOrEqual(wrap.y);
+    expect(box.x + box.width).toBeLessThanOrEqual(room.x + room.width + 0.5);
+    await notice.getByRole('button', { name: 'Resume preview', exact: true }).click();
+    await expect(notice).toHaveCount(0);
+  }
+});
+
 test('portrait pads precede strobe, meters and colour libraries', async ({ page }) => {
   await page.setViewportSize({ width: 768, height: 1024 });
   await open(page, 'perform');
