@@ -134,6 +134,9 @@ export interface PreviewOptions {
   overridePalette?: PaletteBody | null;
   /** Room metres per unit of the rig being sampled, as the renderer's setSpace; absent is plan-only. */
   space?: UnitSpace | null;
+  /** Each light as it emits, as the page reads the rig's DMX: a dimmer channel's level times the emitters.
+   * Absent, the emitter channel values the renderer writes. */
+  light?: boolean;
 }
 
 /** The override's colours, parsed once; anything that is not a list of hex colours is none. */
@@ -349,11 +352,24 @@ const unitLight = (c: Colour, dim: number, strobe = 0): UnitLight => ({
   r: c.r, g: c.g, b: c.b, w: c.w || 0, a: c.a || 0, uv: c.uv || 0, dim, strobe,
 });
 
-function previewOutput(colour: Colour, scale: number, map: ChannelMap | undefined, profile: Profile | undefined): Colour {
+/** The dimmer byte the rig writes for a light at `scale` (renderer.ts writeDimmer), as a reader of its DMX sees it. */
+function dimmerByte(scale: number, fine: boolean): number {
+  const level = Math.max(0, Math.min(1, scale));
+  return fine ? Math.round(level * 65535) >> 8 : Math.round(level * 255);
+}
+
+function previewOutput(colour: Colour, scale: number, map: ChannelMap | undefined, profile: Profile | undefined, light = false): Colour {
   const emitters = outputEmitters(colour, scale, map);
-  if (!map || !isHueProfile(profile)) return emitters;
-  const dimmer = Math.round(Math.max(0, Math.min(255, 255 * scale)));
-  return { ...hueEmitterColour(emitters, dimmer, map, profile.hue), w: 0, a: 0, uv: 0 };
+  if (map && isHueProfile(profile)) {
+    const dimmer = Math.round(Math.max(0, Math.min(255, 255 * scale)));
+    return { ...hueEmitterColour(emitters, dimmer, map, profile.hue), w: 0, a: 0, uv: 0 };
+  }
+  // The rig drives a dimmer at the light's level as well as the emitters (writePar, cellDrive): it emits both.
+  const fixture = profile?.channelMap ?? map;
+  if (!light || !map || (map.dimmer === undefined && fixture?.dimmer === undefined)) return emitters;
+  const k = dimmerByte(scale, fixture?.dimmerFine !== undefined) / 255;
+  return { r: Math.round(emitters.r * k), g: Math.round(emitters.g * k), b: Math.round(emitters.b * k),
+    w: Math.round(emitters.w * k), a: Math.round(emitters.a * k), uv: Math.round(emitters.uv * k) };
 }
 
 function createPreviewSampler(events: readonly PreviewEvent[] = [], grid: GridSource | null = null,
@@ -583,7 +599,7 @@ function createPreviewSampler(events: readonly PreviewEvent[] = [], grid: GridSo
       }
       const scale = (dim / 255) * ((fixture.maxBrightness ?? 255) / 255);
       const profile = options.profiles?.[fixture.profileId ?? ''];
-      return previewOutput(color, scale, rig.cellMaps[i]?.[cell] ?? profile?.channelMap, profile);
+      return previewOutput(color, scale, rig.cellMaps[i]?.[cell] ?? profile?.channelMap, profile, options.light);
     });
   }
 
@@ -918,7 +934,7 @@ function createPreviewSampler(events: readonly PreviewEvent[] = [], grid: GridSo
       const { fixture: i, cell } = rig.units[u];
       const scale = (dims[u] / 255) * ((fixtures[i]?.maxBrightness ?? 255) / 255);
       const profile = options.profiles?.[fixtures[i]?.profileId ?? ''];
-      out[u] = previewOutput(cols[u], scale, rig.cellMaps[i]?.[cell] ?? profile?.channelMap, profile);
+      out[u] = previewOutput(cols[u], scale, rig.cellMaps[i]?.[cell] ?? profile?.channelMap, profile, options.light);
     }
     return out;
   }

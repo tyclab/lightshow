@@ -365,3 +365,27 @@ test('solid previews as the rig drives it, with and without a unit space', async
     assert.deepStrictEqual(preview.map((c) => c.r), pars.map((f) => store.getBuffer(0)[f.address - 1 + red]));
   }
 });
+
+// The rig drives a dimmer channel at the light's level as well as the emitters (renderer.ts writePar),
+// so what a dimmer fixture emits, and what the page reads from its DMX, is both. The stopped stage's
+// demo-beat look (Show v3, G6) draws under the master, so a partial level has to read as the rig's.
+import { getLiveState } from '../../src/server/state.ts';
+import { demoLookSampler } from '../../public-src/preview-inputs.js';
+import { fixtureLight } from '../../public-src/utils.js';
+
+test('a partly dimmed look previews as the page reads the rig: the dimmer channel dims what the emitters send', async () => {
+  const fix = state.fixtures[0], profile = getProfile(fix);
+  assert.notStrictEqual(profile.channelMap.dimmer, undefined, 'the test fixture has a dimmer channel');
+  const universe = fix.universe ?? state.artnet.universe;
+  const off = { version: 1, mode: 'off', level: 1, colour: { r: 0, g: 0, b: 0, w: 0, a: 0, uv: 0 } };
+  for (const masterDimmer of [255, 128, 40]) {
+    applyPatch({ pattern: 'solid', colorA: 3, energyOverride: null, masterDimmer, masterBlackout: false, background: off });
+    conductor.tap();
+    await frames();
+    const read = fixtureLight(fix, { profiles: { [fix.profileId]: profile } }, { [universe]: Array.from(universes.getBuffer(universe)) });
+    const sample = demoLookSampler({ ...getLiveState(), profiles: { [fix.profileId]: profile } });
+    const [preview] = sample(1000, [fix], COLOR_PRESETS, buildRig([fix], () => profile));
+    assert.deepStrictEqual(comparable(read, preview), read, `master ${masterDimmer}`);
+  }
+  applyPatch({ masterDimmer: 255 });
+});

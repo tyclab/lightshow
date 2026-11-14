@@ -47,7 +47,7 @@ export function previewOptions(s, { table = null, library = null } = {}) {
 /**
  * The selected look as a stopped, disarmed stage draws it (Show v3, G6): the live state's effect with its
  * colours, the palette and its override, Background and the look's own flash limit, on the built-in demo
- * beat. The master scales each fixture's trim, as the engine multiplies them. Safety is always given and
+ * beat, each light as it emits. The master scales each fixture's trim, as the engine multiplies them. Safety is always given and
  * acknowledged only when the state says so, so a rapid effect stays dark until the operator acknowledges.
  */
 export function demoLookSampler(s, { library = null, space = null } = {}) {
@@ -61,7 +61,7 @@ export function demoLookSampler(s, { library = null, space = null } = {}) {
     pixelMap: s.pixelMap ?? null, pixelPattern: s.pixelPattern ?? null, panelPattern: s.panelPattern ?? null,
   };
   const sample = createPreviewSampler([{ timeMs: 0, action: 'patch', data: look }], null, {
-    ...base, sequence: null, space, audioSource: DEMO_AUDIO_SOURCE,
+    ...base, sequence: null, space, audioSource: DEMO_AUDIO_SOURCE, light: true,
     safety: { acknowledged: s.safety?.photosensitivityAcknowledged === true, hdFlashIntervalMs: s.safety?.hdFlashIntervalMs ?? 350 },
   });
   const master = Number.isFinite(s.masterDimmer) ? Math.max(0, Math.min(255, s.masterDimmer)) / 255 : 1;
