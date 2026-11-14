@@ -68,11 +68,16 @@ export interface LiveEvent {
   data?: Record<string, unknown>;
 }
 
-/** A block of the live input as heard: mono 16-bit little-endian, `end` the stream's sample count after its newest. */
+/**
+ * A block of the live input as heard: mono 16-bit little-endian, `end` the stream's sample count after
+ * its newest. `stream` names the process, unique across server restarts; `at` is the wall clock (ms)
+ * when the block was read from the device.
+ */
 export interface LiveSamples {
-  generation: number;
+  stream: number;
   end: number;
   rate: number;
+  at: number;
   data: Buffer;
 }
 
@@ -146,9 +151,13 @@ class LiveInput {
   declare _quiet: boolean;
   declare _samplesWanted: boolean;
   declare _onSamples: ((block: LiveSamples) => void) | null;
+  declare _wallNow: () => number;
+  declare _stream: number;
+  declare _samplesDropped: number;
 
-  constructor({ spawner, now, scriptPath }: { spawner?: Spawner; now?: () => number; scriptPath?: string } = {}) {
+  constructor({ spawner, now, wallNow, scriptPath }: { spawner?: Spawner; now?: () => number; wallNow?: () => number; scriptPath?: string } = {}) {
     this._now = now || (() => performance.now());
+    this._wallNow = wallNow || Date.now;
     this._spawn = spawner || ((exe, args) => spawn(exe, args, { windowsHide: true }));
     this._scriptPath = scriptPath || path.join(import.meta.dirname, 'live_input.py');
     this._options = null;
@@ -176,6 +185,8 @@ class LiveInput {
     this._quiet = false;
     this._samplesWanted = false;
     this._onSamples = null;
+    this._stream = 0;
+    this._samplesDropped = 0;
   }
 
   onEvent(fn: LiveInput['_onEvent']): void { this._onEvent = fn; }
@@ -194,6 +205,15 @@ class LiveInput {
     const stdin = this._proc?.stdin;
     if (stdin && stdin.writable) stdin.write(`${JSON.stringify({ type: 'pcm', on: this._samplesWanted })}\n`);
   }
+
+  /** How far this side has read, in stream seconds: the process sends samples only while it is close behind. */
+  _receipt(read: unknown): void {
+    const stdin = this._proc?.stdin;
+    if (this._samplesWanted && Number.isFinite(read) && stdin && stdin.writable) stdin.write(`{"type":"pcm","read":${read}}\n`);
+  }
+
+  /** Sample blocks the process left out because this side read too slowly. */
+  get samplesDropped(): number { return this._samplesDropped; }
 
   useBands(source: (() => [number, number][]) | null): void { this._bandSource = source; }
 
@@ -274,6 +294,8 @@ class LiveInput {
     }
     this._proc = proc;
     this._generation += 1;
+    // The process's samples are named by the wall-clock millisecond it started, so a restarted server names them anew.
+    this._stream = Math.max(this._wallNow(), this._stream + 1);
     proc.stdout.setEncoding('utf8');
     const rl = readline.createInterface({ input: proc.stdout });
     this._rl = rl;
@@ -338,6 +360,7 @@ class LiveInput {
         break;
       case 'state':
         this._takeReading(msg as unknown as LiveReading);
+        this._receipt(msg.captured);
         break;
       case 'event':
         if (msg.event && typeof msg.event === 'object' && this._onEvent) this._onEvent(msg.event as LiveEvent);
@@ -347,6 +370,7 @@ class LiveInput {
         break;
       case 'pcm':
         if (this._samplesWanted && this._onSamples && typeof msg.data === 'string') this._takeSamples(msg);
+        if (Number.isSafeInteger(msg.end) && Number.isInteger(msg.rate) && (msg.rate as number) > 0) this._receipt((msg.end as number) / (msg.rate as number));
         break;
       case 'error':
         this._error = typeof msg.message === 'string' ? msg.message : 'live input error';
@@ -364,11 +388,12 @@ class LiveInput {
   }
 
   _takeSamples(msg: Record<string, unknown>): void {
-    const { end, rate, data } = msg as { end: unknown; rate: unknown; data: string };
+    const { end, rate, data, at, dropped } = msg as { end: unknown; rate: unknown; data: string; at: unknown; dropped: unknown };
+    if (Number.isSafeInteger(dropped)) this._samplesDropped = dropped as number;
     if (!Number.isSafeInteger(end) || !Number.isInteger(rate) || (rate as number) <= 0 || data.length > MAX_SAMPLES_BASE64) return;
     const bytes = Buffer.from(data, 'base64');
     if (!bytes.length || bytes.length % 2 || bytes.length / 2 > (end as number)) return;
-    this._onSamples!({ generation: this._generation, end: end as number, rate: rate as number, data: bytes });
+    this._onSamples!({ stream: this._stream, end: end as number, rate: rate as number, at: Number.isFinite(at) ? (at as number) * 1000 : NaN, data: bytes });
   }
 
   _takeReading(r: LiveReading): void {

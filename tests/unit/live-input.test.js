@@ -520,7 +520,7 @@ test('a device is found the way soundcard finds it: by id, then within a name, t
 
 // ── The samples for a visualizer page ─────────────────────────────────────────
 
-const pcm = (end, samples, rate = 22050) => JSON.stringify({ type: 'pcm', end, rate, data: Buffer.from(Int16Array.from(samples).buffer).toString('base64') });
+const pcm = (end, samples, rate = 22050, more = {}) => JSON.stringify({ type: 'pcm', end, rate, at: 1_800_000_000.25, data: Buffer.from(Int16Array.from(samples).buffer).toString('base64'), ...more });
 
 test('the process is asked for its samples only while someone wants them, and again after a restart', async (t) => {
   t.mock.timers.enable({ apis: ['setTimeout'] });
@@ -558,10 +558,49 @@ test('sample lines reach the listener as bytes with their process, and nothing e
     JSON.stringify({ type: 'pcm', end: 1e6, rate: 22050, data: 'A'.repeat(70000) })]) live.handleLine(bad);
   assert.strictEqual(heard.length, 1);
   const [block] = heard;
-  assert.deepStrictEqual({ generation: block.generation, end: block.end, rate: block.rate }, { generation: 1, end: 259, rate: 22050 });
+  assert.deepStrictEqual({ stream: block.stream, end: block.end, rate: block.rate, at: block.at }, { stream: live._stream, end: 259, rate: 22050, at: 1_800_000_000_250 });
   assert.deepStrictEqual([...new Int16Array(block.data.buffer, block.data.byteOffset, block.data.length / 2)], [1, -2, 32767]);
   assert.strictEqual(live.getReading(), null, 'samples are no reading');
   live.stop();
+});
+
+test('the process is told how far its lines are read, while samples are wanted, and counts what it left out', async () => {
+  const procs = [];
+  const live = new LiveInput({ spawner: () => { const p = fakeProcess(); procs.push(p); return p; }, now: () => 0 });
+  live.onSamples(() => {});
+  live.start({ source: 'loopback' });
+  live.handleLine(state());
+  await settle();
+  assert.deepStrictEqual(procs[0].asked, [], 'no samples wanted: no receipts');
+  live.wantSamples(true);
+  live.handleLine(state({ captured: 10.0466 }));
+  live.handleLine(pcm(22050 * 11, [1, 2], 22050, { dropped: 7 }));
+  await settle();
+  assert.deepStrictEqual(procs[0].asked, [{ type: 'pcm', on: true }, { type: 'pcm', read: 10.0466 }, { type: 'pcm', read: 11 }]);
+  assert.strictEqual(live.samplesDropped, 7);
+  live.stop();
+});
+
+test('each process names its samples anew, and a restarted server never reuses a name', (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const streams = (wall) => {
+    const procs = [];
+    const live = new LiveInput({ spawner: () => { const p = fakeProcess(); procs.push(p); return p; }, now: () => 0, wallNow: () => wall });
+    const names = [];
+    live.onSamples((block) => names.push(block.stream));
+    live.start({ source: 'loopback' });
+    live.wantSamples(true);
+    live.handleLine(pcm(256, [1]));
+    procs[0].emit('close', 1);
+    t.mock.timers.tick(2000);
+    live.handleLine(pcm(256, [1]));
+    live.stop();
+    return names;
+  };
+  // Two server lifetimes, the second started after the first: each counts its first process as generation 1.
+  const first = streams(1_800_000_000_000), second = streams(1_800_000_003_600);
+  assert.deepStrictEqual(first, [1_800_000_000_000, 1_800_000_000_001], 'a restart within the same millisecond still moves on');
+  assert.deepStrictEqual(second, [1_800_000_003_600, 1_800_000_003_601]);
 });
 
 // ── The pattern clock ─────────────────────────────────────────────────────────

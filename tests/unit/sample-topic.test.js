@@ -46,7 +46,7 @@ async function until(check, what) {
   throw new Error(`timed out waiting for ${what}`);
 }
 
-const block = (k) => ({ generation: 1, end: (k + 1) * 256, rate: 22050,
+const block = (k) => ({ stream: 1, end: (k + 1) * 256, rate: 22050, at: 1_800_000_000_000 + k,
   data: Buffer.from(Int16Array.from({ length: 256 }, (_, i) => k * 256 + i).buffer) });
 
 test('samples need the same token as every topic and go to subscribers only, one acknowledged packet at a time', { timeout: 15000 }, async (t) => {
@@ -78,7 +78,7 @@ test('samples need the same token as every topic and go to subscribers only, one
   await until(() => got.length === 2, 'the packet after the acknowledgement');
   const [first, second] = got;
   assert.ok(Buffer.isBuffer(first.data), 'binary on the wire');
-  assert.deepEqual([first.g, first.end, first.rate, first.data.length], [1, 256, 22050, 512]);
+  assert.deepEqual([first.g, first.end, first.rate, first.data.length, first.at], [1, 256, 22050, 512, 1_800_000_000_000]);
   assert.deepEqual([second.end, second.data.length], [768, 1024], 'both blocks that came meanwhile, contiguous');
   assert.equal(second.data.readInt16LE(0), 256);
 

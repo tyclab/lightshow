@@ -25,10 +25,10 @@ function subscriber(id = 'page', { decode = true } = {}) {
   return socket;
 }
 
-/** Hop `k` of process `generation`: 256 samples numbered by their place in the stream (mod 2^15). */
-function block(k, generation = 1, count = HOP) {
+/** Hop `k` of process `stream`: 256 samples numbered by their place in the stream (mod 2^15), read at 1000 ms + k. */
+function block(k, stream = 1, count = HOP) {
   const end = (k + 1) * HOP, values = Int16Array.from({ length: count }, (_, i) => (end - count + i) % 32768);
-  return { generation, end, rate: 22050, data: Buffer.from(values.buffer) };
+  return { stream, end, rate: 22050, at: 1000 + k, data: Buffer.from(values.buffer) };
 }
 
 test('nobody subscribed: the live input is asked for nothing, and a block that still comes is not kept', () => {
@@ -60,6 +60,7 @@ test('one packet unacknowledged per subscriber; what arrives meanwhile goes next
   const [first, second] = page.packets;
   assert.deepStrictEqual([first.end, first.samples.length, second.end, second.samples.length], [HOP, HOP, 3 * HOP, 2 * HOP]);
   assert.deepStrictEqual([...first.samples, ...second.samples], Array.from({ length: 3 * HOP }, (_, i) => i), 'every sample once, in order');
+  assert.deepStrictEqual([first.at, second.at], [1000, 1002], 'each packet carries when its newest block was read');
   page.ack();
   assert.strictEqual(page.packets.length, 2, 'nothing new: nothing sent');
   relay.push(block(3));
@@ -111,7 +112,7 @@ for (const [name, seconds] of [['a minute', 60], ['four hours', 4 * 3600]]) {
         page.ack();
       } else {
         now = nextHop;
-        relay.push({ generation: 1, end: ++k * HOP, rate: 22050, data: silence });
+        relay.push({ stream: 1, end: ++k * HOP, rate: 22050, at: k, data: silence });
         newest = k * HOP;
         nextHop += hopMs;
       }

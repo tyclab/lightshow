@@ -49,12 +49,6 @@ first state over them, with the list as it was sent:
 
 A list it cannot take is an error that is not fatal, and the bands stay.
 
-`{"type": "pcm", "on": true}` (answered with the same line) has every block
-read go out as heard, before its analysis, until `"on": false`: mono 16-bit
-little-endian in base64, `end` the stream's sample count after its newest:
-
-    {"type": "pcm", "end": ..., "rate": 22050, "data": "..."}
-
 Capture uses `soundcard` (loopback on Windows and Linux); `sounddevice` is the line-in fallback.
 Neither is needed for a file, which is what the tests use.
 """
@@ -85,6 +79,7 @@ QUIET_AFTER_SEC = RealtimeConfig.quiet_after_sec
 # Four states a second stay inside the server's 500 ms freshness and audio-gap limits.
 QUIET_STATE_SEC = 0.25
 QUIET_BLOCK = 8
+PCM_MAX_UNREAD = 1024
 
 MAX_BANDS = 12
 BAND_HZ_MAX = SAMPLE_RATE / 2.0
@@ -189,13 +184,19 @@ class LiveService:
         self.captured = 0
         self.quiet = False
         self.pcm = False
+        self.pcm_dropped = 0
+        self._pcm_read = 0
         self._silent_samples = 0
         self._next_quiet_state = 0.0
         self._requests = collections.deque()
 
     def ask(self, line):
         """A line from the server, from any thread: applied before the next hop."""
-        self._requests.append(line)
+        read = _read_receipt(line)
+        if read is None:
+            self._requests.append(line)
+        else:
+            self._pcm_read = max(self._pcm_read, round(read * self.sample_rate))
 
     def _take_requests(self):
         while self._requests:
@@ -204,6 +205,7 @@ class LiveService:
                 msg = json.loads(line)
                 if isinstance(msg, dict) and msg.get('type') == 'pcm' and isinstance(msg.get('on'), bool):
                     self.pcm = msg['on']
+                    self._pcm_read = self.captured
                     self.emitter.send({'type': 'pcm', 'on': self.pcm})
                     continue
                 if not isinstance(msg, dict) or msg.get('type') != 'bands' or not isinstance(msg.get('bands'), str):
@@ -224,7 +226,7 @@ class LiveService:
             block = block.mean(axis=1)
         self.captured += block.size
         if self.pcm and block.size:
-            self.emitter.send(self.pcm_line(block))
+            self._send_samples(block)
         self._listen(block)
         before = self.analyzer._frame_index
         events = self.analyzer.push(block)
@@ -235,10 +237,16 @@ class LiveService:
         if self.analyzer._frame_index != before and self._state_due():
             self.emitter.send(self.state())
 
+    def _send_samples(self, block):
+        if self.captured - block.size - self._pcm_read > PCM_MAX_UNREAD:
+            self.pcm_dropped += 1
+            return
+        self.emitter.send(self.pcm_line(block))
+
     def pcm_line(self, block):
         pcm = np.round(np.clip(block, -1.0, 1.0) * 32767.0).astype('<i2')
-        return {'type': 'pcm', 'end': self.captured, 'rate': self.sample_rate,
-                'data': base64.b64encode(pcm.tobytes()).decode('ascii')}
+        return {'type': 'pcm', 'end': self.captured, 'rate': self.sample_rate, 'at': round(time.time(), 3),
+                'dropped': self.pcm_dropped, 'data': base64.b64encode(pcm.tobytes()).decode('ascii')}
 
     def _listen(self, block):
         if not block.size:
@@ -309,6 +317,17 @@ class LiveService:
             'bands': [float(power[lower:upper + 1].sum()) for lower, upper in self.band_bins],
             'fftPower': float(power.sum()),
         }
+
+
+def _read_receipt(line):
+    if '"read"' not in line:
+        return None
+    try:
+        msg = json.loads(line)
+    except ValueError:
+        return None
+    read = msg.get('read') if isinstance(msg, dict) and msg.get('type') == 'pcm' else None
+    return float(read) if isinstance(read, (int, float)) and not isinstance(read, bool) and math.isfinite(read) else None
 
 
 def read_requests(stream, service):

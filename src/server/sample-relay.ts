@@ -11,13 +11,15 @@ export const SAMPLES_PER_PACKET = 1024;
 export const SAMPLES_ACK_MS = 1000;
 
 export interface SamplePacket {
-  /** The live input process the samples are from: a new one counts from zero again. */
+  /** The live input process the samples are from, unique across server restarts: a new one counts from zero again. */
   g: number;
   /** The stream's sample count after the newest sample in `data`. */
   end: number;
   rate: number;
   /** Mono 16-bit little-endian samples, contiguous up to `end`. */
   data: Buffer;
+  /** The engine's wall clock (ms) when the newest block was read from the device: a diagnostic, as good as the clocks' sync. */
+  at: number;
 }
 
 export interface SampleSocket {
@@ -32,10 +34,11 @@ export class SampleRelay {
   readonly #want: (on: boolean) => void;
   readonly #subscribers = new Map<string, Subscriber>();
   readonly #ring = Buffer.alloc(SAMPLES_PER_PACKET * 2);
-  #generation = -1;
+  #stream = -1;
   #rate = 0;
   #start = 0;
   #end = 0;
+  #at = NaN;
 
   constructor({ want }: { want: (on: boolean) => void }) {
     this.#want = want;
@@ -53,21 +56,22 @@ export class SampleRelay {
 
   remove(id: string): void {
     if (!this.#subscribers.delete(id) || this.#subscribers.size) return;
-    this.#generation = -1;
+    this.#stream = -1;
     this.#want(false);
   }
 
   push(block: LiveSamples): void {
     const count = block.data.length / 2, first = block.end - count;
     if (!this.#subscribers.size || first < 0) return;
-    if (block.generation !== this.#generation || block.rate !== this.#rate || first !== this.#end) {
+    if (block.stream !== this.#stream || block.rate !== this.#rate || first !== this.#end) {
       // A new process, or samples that never came: the stream starts again at this block.
-      this.#generation = block.generation;
+      this.#stream = block.stream;
       this.#rate = block.rate;
       this.#start = this.#end = first;
       for (const subscriber of this.#subscribers.values()) subscriber.sent = first;
     }
     this.#write(block.data, block.end);
+    this.#at = block.at;
     for (const subscriber of this.#subscribers.values()) if (!subscriber.waiting) this.#send(subscriber);
   }
 
@@ -93,7 +97,7 @@ export class SampleRelay {
     if (from >= this.#end || !subscriber.socket.connected) return;
     subscriber.sent = this.#end;
     subscriber.waiting = true;
-    const packet: SamplePacket = { g: this.#generation, end: this.#end, rate: this.#rate, data: this.#read(from) };
+    const packet: SamplePacket = { g: this.#stream, end: this.#end, rate: this.#rate, data: this.#read(from), at: this.#at };
     subscriber.socket.timeout(SAMPLES_ACK_MS).emit('samples', packet, () => {
       subscriber.waiting = false;
       if (this.#subscribers.get(subscriber.socket.id) === subscriber) this.#send(subscriber);
