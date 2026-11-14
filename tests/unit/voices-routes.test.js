@@ -309,6 +309,42 @@ test("voice DELETE stops all remaining voices", async (t) => {
   assert.deepEqual(ids(), []);
 });
 
+// Show v3: the header offers Stop while a layer only Stop clears is on, so the page never rebuilds that from its lists.
+test('`layers` is true for a raw or pending voice, a held energy effect and Identify, and false after Stop', async (t) => {
+  const s = await serve(t);
+  const layers = async () => (await s.call('GET', '/api/control')).body.control.layers;
+  const stop = async () => assert.equal((await sendControl(s.call, 'stop')).status, 200);
+  assert.equal(await layers(), false, 'nothing on');
+
+  voices.start({ spec: FADE, targets: 'shared', mode: 'latched', tier: 'voice', source: 'api', hidden: true });
+  assert.deepEqual(renderInput().voices, [], 'hidden: nothing of it is drawn');
+  assert.equal(await layers(), true, 'a raw voice counts');
+  await stop();
+  assert.equal(await layers(), false);
+
+  assert.equal((await sendControl(s.call, 'start', 'look')).status, 200);
+  voices.start({ spec: FADE, targets: 'shared', mode: 'latched', tier: 'voice', source: 'api', quantise: 1024 });
+  assert.ok(voices.list()[0].startedAt > Date.now(), 'still waiting for its grid line');
+  assert.equal(await layers(), true, 'a pending voice counts');
+  await stop();
+  assert.equal(await layers(), false);
+
+  const { socket } = await s.page();
+  socket.emit('energy-hold', { action: 'press', token: 'one', effect: 'glow' });
+  await until(() => state.heldEnergy === 'glow', 'the hold');
+  assert.equal(await layers(), true, 'a held energy effect counts');
+  await stop();
+  assert.equal(state.heldEnergy, null);
+  assert.equal(await layers(), false);
+
+  const identify = await s.call('POST', '/api/identify', { fixtures: [state.fixtures[0].id], seconds: 60 });
+  assert.deepEqual([identify.status, identify.body.ids], [200, [state.fixtures[0].id]]);
+  assert.equal(await layers(), true, 'Identify counts');
+  await stop();
+  assert.equal(await layers(), false, 'Stop ended every layer');
+  assert.equal((await s.call('GET', '/api/control')).body.control.playing, false);
+});
+
 test("invalid voice requests launch nothing", async (t) => {
   const s = await serve(t);
   armOutputs(t);

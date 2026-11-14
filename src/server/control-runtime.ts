@@ -22,6 +22,7 @@ export function configureControls({ integrations, applier, autoShow }: Pick<Rout
     armed: isArmed,
     blackout: () => state.masterBlackout,
     paused: () => control.programme === 'sequence' && sequencer.status().paused,
+    layers: () => voices.size > 0 || state.heldEnergy !== null || state.energyOverride !== null || !!identify.request()?.ids.length,
     arm(on, origin) {
       const rig = showStore.status();
       if (on && (rig.pending || rig.error)) {
@@ -46,6 +47,10 @@ export function configureControls({ integrations, applier, autoShow }: Pick<Rout
       integrations.stopAutoShow();
       if (sequencer.current()) sequencer.release();
       start(programme);
+    },
+    // A stopped sequence holds its picture until it is let go; left for another programme, it starts nothing.
+    leave(from) {
+      if (from === 'sequence' && sequencer.current()) sequencer.release();
     },
     stop() {
       autoShow.startPending = null;
