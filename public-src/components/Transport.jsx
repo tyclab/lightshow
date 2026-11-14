@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'preact/hooks';
-import { api, pick } from '../state.js';
+import { api, connectedSig, pick } from '../state.js';
+import { controlPending, takeControl } from '../control.js';
 import { beatsPerBar, positionText, presetNameOf } from '../preview-inputs.js';
 import { chooseDriver, driverOf, transportButtons, transportState } from '../transport-model.js';
 import { confirmSequenceReplacement } from '../sequence-workspace.js';
@@ -33,6 +34,52 @@ export async function runTransport(requests) {
   return true;
 }
 
+/**
+ * Perform's sequence shelf: a sequence is chosen as the programme here, and left for the selected picture; the header's
+ * one Play/Stop plays it. Choosing loads it first only when it is not the loaded one, so a reselect never restarts it.
+ */
+export function SequenceShelf() {
+  const s = pick(['sequence', 'sequences', 'control']);
+  const loaded = s.sequence?.loaded || null;
+  const saved = s.sequences || [];
+  const options = loaded && !saved.some((q) => q.id === loaded.id) ? [{ ...loaded, unsaved: true }, ...saved] : saved;
+  const [picked, setPicked] = useState(null);
+  // Another sequence loaded, here or elsewhere, is the one the shelf offers next.
+  useEffect(() => { setPicked(null); }, [loaded?.id]);
+  const choice = options.find((q) => q.id === picked) ?? options.find((q) => q.id === loaded?.id) ?? options[0] ?? null;
+  const c = s.control;
+  const ready = connectedSig.value && c?.version === 1 && c?.ready !== false;
+  const busy = controlPending.value > 0 || !!c?.pending;
+  const chosen = c?.programme === 'sequence';
+  const selected = chosen && !!choice && choice.id === loaded?.id;
+  const select = async () => {
+    if (choice.id !== loaded?.id && !await runTransport(chooseDriver(choice.id))) { setPicked(null); return; }
+    await takeControl('select', 'sequence');
+  };
+  const help = chosen ? `${c?.playing ? 'Playing' : 'Ready'} in the header’s shared transport. Use the selected picture or turn Auto show on to leave this sequence.`
+    : c?.playing ? 'Select to switch the running playback to this sequence.' : 'Select here, then use the header’s Play button.';
+  return (
+    <section class="sequence-shelf" aria-label="Sequence shelf">
+      <div class="sequence-shelf-head">
+        <span class="perform-kicker">Sequence shelf</span>
+        <h2>{choice ? choice.name || choice.id : 'No sequence saved'}</h2>
+      </div>
+      {options.length > 0 && <select class="sequence-shelf-picker" aria-label="Sequence" value={choice?.id}
+        onChange={(e) => setPicked(e.currentTarget.value)}>
+        {options.map((q) => <option key={q.id} value={q.id}>{q.unsaved ? `${q.name || q.id} · not saved` : q.name || q.id}</option>)}
+      </select>}
+      <div class="sequence-shelf-actions">
+        <button type="button" class={`btn sequence-select${selected ? ' active' : ''}`} disabled={!choice || !ready || busy}
+          onClick={select}>{selected ? 'Sequence selected ✓' : 'Select sequence'}</button>
+        {chosen && <button type="button" class="btn" disabled={!ready || busy}
+          onClick={() => takeControl('select', 'look')}>Use selected picture</button>}
+        <a class="sequence-shelf-editor" href="#sequence">{options.length ? 'Open the sequence editor' : 'Make one in the sequence editor'}</a>
+      </div>
+      {options.length > 0 && <p class="hint" role="status">{help}</p>}
+    </section>
+  );
+}
+
 export function Transport({ initial, compact = false, prefer = null } = {}) {
   const s = pick(['sequence', 'sequences', 'effects', 'running', 'showOn', 'autoShow', 'autoSource', 'activeSource', 'control']);
   const driver = driverOf(s, prefer);
@@ -62,7 +109,8 @@ export function Transport({ initial, compact = false, prefer = null } = {}) {
   return (
     <section class={`perform-transport${compact ? ' transport-compact' : ''}`} aria-label="Transport">
       {!compact && <div class="transport-row">
-        {driver === 'sequence' && <select class="transport-picker" aria-label="Loaded sequence" value={value}
+        {/* The sequence editor loads here; Perform chooses on its shelf. */}
+        {driver === 'sequence' && prefer === 'sequence' && <select class="transport-picker" aria-label="Loaded sequence" value={value}
           disabled={!!s.control?.playing} onChange={(e) => change(e.currentTarget)}>
           <option value="">No sequence loaded</option>
           {loadedId && !sequences.some((q) => q.id === loadedId) && <option value={loadedId}>{status.loaded.name}</option>}
@@ -74,8 +122,8 @@ export function Transport({ initial, compact = false, prefer = null } = {}) {
       <div class="transport-buttons">
         {buttons.filter((b) => !compact || ['play', 'pause', 'stop', 'cancel'].includes(b.id)).map((b) => (
           <button key={b.id} type="button" class="transport-btn" aria-label={b.label} aria-pressed={b.pressed}
-            disabled={!b.enabled} onClick={() => runTransport([b.request])}>
-            <span aria-hidden="true">{GLYPHS[b.id]}</span><span>{b.label}</span>
+            disabled={!b.enabled} onClick={() => (b.control ? takeControl(b.control) : runTransport([b.request]))}>
+            <span aria-hidden="true">{GLYPHS[b.control ? 'play' : b.id]}</span><span>{b.label}</span>
           </button>
         ))}
       </div>

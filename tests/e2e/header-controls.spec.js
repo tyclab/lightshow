@@ -194,7 +194,7 @@ test('header controls work in setup, and preview playback never rearms a disarme
   await until(request, s => s.armed === false && s.control.playing === true && s.control.frozen === false);
   await playButton(page, 'Stop').click();
   await until(request, s => !s.control.playing);
-  await playButton(page, 'Start').click();
+  await playButton(page, 'Play').click();
   await until(request, s => s.running === true);
   expect((await state(request)).armed).toBe(false);
   const blackout = header.getByRole('button', { name: 'Blackout', exact: true });

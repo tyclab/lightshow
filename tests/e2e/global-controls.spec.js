@@ -10,10 +10,12 @@ test('one global control set stays visible on every view without changing latche
     await page.goto(`/#${view.id}`);
     await expect(controls).toHaveCount(1);
     await expect(controls).toBeVisible();
-    for (const label of ['Stop Look', 'Programme', 'Freeze', 'Blackout', 'Arm']) {
+    for (const label of ['Stop selected picture', 'Freeze', 'Blackout', 'Arm']) {
       await expect(controls.getByRole('button', { name: label, exact: true })).toBeVisible();
       await expect(page.getByRole('button', { name: label, exact: true })).toHaveCount(1);
     }
+    await expect(controls.getByRole('switch', { name: 'Auto show', exact: true })).toBeVisible();
+    await expect(page.getByRole('switch', { name: 'Auto show', exact: true })).toHaveCount(1);
     await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
     const bounds = await controls.boundingBox();
     expect(bounds.y).toBeGreaterThanOrEqual(0);
@@ -44,7 +46,7 @@ test('explicit controls preserve independent states and content edits cannot rel
   expect(stopped.control.playing).toBe(false);
   expect(stopped.control.blackout).toBe(true);
   expect(stopped.armed).toBe(false);
-  await playButton(page, 'Start').click();
+  await playButton(page, 'Play').click();
   await until(request, s => s.control.playing && !s.control.pending);
   expect((await state(request)).control.blackout).toBe(true);
   await controls.getByRole('button', { name: 'Restore', exact: true }).click();
