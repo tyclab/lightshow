@@ -8,6 +8,7 @@ import { control, open, reset, set, state, until } from './helpers.js';
 import { stageImage, stageMotion } from './stage-image.js';
 import { watchControlWrites } from './audition-isolation.js';
 import { VIEW_IDS } from '../../public-src/views.js';
+import { DARKER, FLASHES_PER_SECOND, SWING } from '../../src/shared/flash-limit.ts';
 
 const BLACK = { r: 0, g: 0, b: 0, w: 0, a: 0, uv: 0 };
 const BACKGROUND_OFF = { version: 1, mode: 'off', level: 1, colour: BLACK };
@@ -52,16 +53,49 @@ const lampFrames = (page, ms, all = false) => page.evaluate(([ms, all]) => new P
   requestAnimationFrame(step);
 }), [ms, all]);
 
-/** Flashes a second: a frame lit above half after one at or under a tenth. */
-function flashRate(frames, seconds) {
-  let flashes = 0, dark = true;
-  for (const light of frames) {
-    const l = level(light);
-    if (l >= 128 && dark) flashes++;
-    if (l <= 25) dark = true; else if (l >= 128) dark = false;
+// The rig's own flash limit (src/shared/flash-limit.ts, applied by limitRoomFlashes in room-flash.ts): the room's light
+// changes when it swings by SWING with its darker side under DARKER; after 2 × FLASHES_PER_SECOND changes in a second
+// it is held within a swing, but only by scaling light, so a frame the effect leaves dark still falls: one more change,
+// after which every rise is held. A frame the page misses can only hide a change. The room's light is the mean
+// luminance of the plot's lamps as drawn; in green, with no white emitter, that is the limiter's own measure.
+const LIMIT = 2 * FLASHES_PER_SECOND + 1;
+const luminance = (light) => { const [r = 0, g = 0, b = 0] = channels(light); return (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255; };
+
+/** The most changes of the room's light in any one second of `frames` ({ t in ms, lights }). */
+function mostChangesInASecond(frames) {
+  const at = [];
+  let extreme = null, rising = true;
+  for (const { t, lights } of frames) {
+    const room = lights.reduce((sum, light) => sum + luminance(light), 0) / lights.length;
+    if (extreme === null) extreme = room;
+    else if (rising ? room >= extreme : room <= extreme) extreme = room;
+    else if (rising ? extreme - room >= SWING && room < DARKER : room - extreme >= SWING && extreme < DARKER) {
+      at.push(t);
+      rising = !rising;
+      extreme = room;
+    }
   }
-  return flashes / seconds;
+  return at.reduce((most, start) => Math.max(most, at.filter((t) => t >= start && t < start + 1000).length), 0);
 }
+
+const STEP_MS = 25;
+/** The plot through `ms` of the demo beat, stepped on the page's own clock: the same frames however busy the host is. */
+async function steppedFrames(page, ms) {
+  const out = [];
+  for (let t = 0; t < ms; t += STEP_MS) {
+    await page.clock.runFor(STEP_MS);
+    out.push({ t, lights: await plotLights(page) });
+  }
+  return out;
+}
+
+/** The plot on every animation frame for `ms`, timed by the page: the engine's feed keeps the server's time. */
+const timedFrames = (page, ms) => page.evaluate((ms) => new Promise((resolve) => {
+  const lamps = [...document.querySelectorAll('.stage-surface .stage-fixture')];
+  const out = [], end = performance.now() + ms;
+  const step = (t) => { out.push({ t, lights: lamps.map((lamp) => lamp.dataset.light || '') }); if (t < end) requestAnimationFrame(step); else resolve(out); };
+  requestAnimationFrame(step);
+}), ms);
 
 async function plotFormat(page) {
   await page.getByRole('button', { name: '2D plot', exact: true }).click();
@@ -91,7 +125,6 @@ test('stopped and disarmed, the stage shows the selected look without a click', 
 });
 
 test('the stopped preview follows an edit of the effect, the palette, a band colour, the master and Background', async ({ page, context, request }) => {
-  test.setTimeout(60_000);
   await set(request, { pattern: 'solid', basePalette: { colours: ['#FF0000'] } });
   await open(page, 'stage');
   const plot = await context.newPage();
@@ -153,28 +186,29 @@ test('the stopped preview follows an edit of the effect, the palette, a band col
 // Disarmed, nothing waits for the photosensitivity acknowledgement (README, /api/safety), so the preview draws a
 // strobe as the audition does; what it must never do is give the acknowledgement, which an arm would inherit.
 test('a rapid effect is limited in the stopped preview as on the rig, and the preview never acknowledges for the operator', async ({ page, request }) => {
-  test.setTimeout(60_000);
   await safetySet(request, { photosensitivityAcknowledged: false });
-  await set(request, { pattern: 'ldj.TrueStrobe', basePalette: { colours: ['#FFFFFF'] } });
+  await set(request, { pattern: 'ldj.TrueStrobe', basePalette: { colours: ['#00FF00'] } });
   const writes = watchControlWrites(page);
+  await page.clock.install();
   await open(page, 'stage');
   await plotFormat(page);
   await expect(plotTag(page)).toHaveText(DEMO);
-  const free = flashRate(await lampFrames(page, 4000), 4);
-  expect(free, 'without the limit the strobe flashes fast').toBeGreaterThan(5);
+  await page.clock.pauseAt(await page.evaluate(() => Date.now() + 1000));
+  const free = mostChangesInASecond(await steppedFrames(page, 3000));
+  expect(free, 'without the limit the strobe changes the room\'s light more often than the rig allows').toBeGreaterThan(LIMIT);
 
   await safetySet(request, { flashLimit: true });
   await until(request, (s) => s.flashLimit === true);
-  await page.waitForTimeout(300);
-  const limited = flashRate(await lampFrames(page, 4000), 4);
-  expect(limited, 'the look\'s flash limit: at most three a second').toBeLessThanOrEqual(3.25);
+  await page.waitForTimeout(500);
+  const limited = mostChangesInASecond(await steppedFrames(page, 3000));
+  expect(limited, 'the look\'s flash limit, as the rig counts it').toBeLessThanOrEqual(LIMIT);
   expect((await safetySettings(request)).photosensitivityAcknowledged, 'the preview gave no acknowledgement').toBe(false);
   expect(writes, 'and sent nothing').toEqual([]);
 
+  await page.clock.resume();
   await control(request, 'start', 'look');
   await expect(plotTag(page)).toHaveText('Preview (disarmed)');
-  const rig = flashRate(await lampFrames(page, 4000), 4);
-  expect(rig, 'the engine, under the same limit').toBeLessThanOrEqual(3.25);
+  expect(mostChangesInASecond(await timedFrames(page, 3000)), 'the engine, under the same limit').toBeLessThanOrEqual(LIMIT);
 
   await control(request, 'arm');
   expect((await state(request)).safety.photosensitivityAcknowledged, 'armed after the preview, the acknowledgement is still the operator\'s to give').toBe(false);
@@ -232,7 +266,6 @@ test('armed and stopped, with Background off and no layer, the stage is dark, an
 });
 
 test('no view has a Preview look button', async ({ page, request }) => {
-  test.setTimeout(60_000);
   for (const playing of [false, true]) {
     if (playing) await control(request, 'start', 'look');
     for (const view of VIEW_IDS) {
