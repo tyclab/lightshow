@@ -4,6 +4,10 @@ import { control, open, reset, set, state, until } from './helpers.js';
 
 const box = (page) => page.locator('.contained-effects');
 const row = (page, id) => box(page).locator(`.contained-row[data-effect="${id}"]`);
+// The catalogue's utility family (own.energy): Show and the header picker leave it to pads, cues, sequences and the API.
+const UTILITY = ['energy.whiteStrobe', 'energy.colorStrobe', 'energy.blinder', 'energy.uvWash', 'energy.kill', 'energy.glow', 'palette-strobe',
+  'overlay.all', 'overlay.step', 'overlay.scatter', 'overlay.zone'];
+const LISTED = 102;
 
 test.beforeEach(async ({ request }) => { await reset(request); });
 test.afterEach(async ({ request }) => { await reset(request); });
@@ -13,7 +17,7 @@ test('Show filters the complete effects list and keeps the live selection visibl
   const effects = box(page), search = effects.getByRole('searchbox', { name: 'Search effects' });
   await expect(row(page, 'chase')).toBeVisible();
   const total = await effects.locator('.contained-row').count();
-  expect(total).toBeGreaterThan(100);
+  expect(total).toBe(LISTED);
   await expect(effects.locator('.contained-count')).toHaveText(`${total} effects`);
   await expect(effects.locator('.contained-current-name')).toHaveText('Chase →');
   expect(await effects.locator('.contained-scroll').evaluate((el) => el.scrollHeight > el.clientHeight)).toBe(true);
@@ -57,8 +61,18 @@ test('keyboard browsing reaches both ends and selecting keeps the global control
   await expect(rows.last()).toBeFocused();
   await page.keyboard.press('Home');
   await expect(rows.first()).toBeFocused();
-  await page.keyboard.press('ArrowDown');
+  // Tiles in columns (the operator, 2026-11-14: "1-5 next to each other"): left and right step, up and down go by a row.
+  const columns = await effects.locator('.contained-list').evaluate((list) => getComputedStyle(list).gridTemplateColumns.split(' ').length);
+  expect(columns).toBeGreaterThan(1);
+  await page.keyboard.press('ArrowRight');
   await expect(rows.nth(1)).toBeFocused();
+  await page.keyboard.press('ArrowDown');
+  await expect(rows.nth(1 + columns)).toBeFocused();
+  await page.keyboard.press('ArrowUp');
+  await expect(rows.nth(1)).toBeFocused();
+  await page.keyboard.press('ArrowLeft');
+  await expect(rows.first()).toBeFocused();
+  await page.keyboard.press('ArrowRight');
   await page.keyboard.press('Escape');
   await expect(search).toBeFocused();
   await search.fill('v2.aurora');
@@ -185,13 +199,16 @@ test('the Effects box follows the picture source, the picture, Stop and Freeze, 
     await feed.start();
     await expect(sentence).toHaveText(painting);
     await expect(effects.locator('.contained-row, input, button, [role="switch"], .contained-current')).toHaveCount(0);
+    // The v3 layout (the operator, 2026-11-14): the sentence stays under the stage, the colours switch over Background.
     const card = await effects.boundingBox(), background = await page.locator('.background-controls').boundingBox();
     const colours = await page.locator('.show-colours').boundingBox(), stage = await page.locator('.show-room').boundingBox();
     expect(card.height).toBeLessThan(150);
     expect(colours.height).toBeLessThan(150);
-    expect(background.y - card.y - card.height).toBeGreaterThan(0);
-    expect(background.y - card.y - card.height).toBeLessThan(20);
-    expect(colours.y).toBeGreaterThanOrEqual(stage.y + stage.height);
+    expect(card.y).toBeGreaterThanOrEqual(stage.y + stage.height);
+    expect(card.y - stage.y - stage.height).toBeLessThan(20);
+    expect(colours.x).toBeGreaterThanOrEqual(stage.x + stage.width);
+    expect(background.y - colours.y - colours.height).toBeGreaterThan(0);
+    expect(background.y - colours.y - colours.height).toBeLessThan(20);
 
     await feed.release();
     await expect(label).toHaveText('Current effect');
@@ -261,4 +278,80 @@ test('a pick while stopped is named as selected, with when it plays', async ({ p
   await control(request, 'start', 'look');
   await expect(effects.locator('.contained-current-label')).toHaveText('Current effect');
   await expect(effects.locator('.contained-hint')).toHaveCount(0);
+});
+
+test('Show and the header picker omit the utility effects and still name one that is selected', async ({ page, request }) => {
+  await open(page, 'show');
+  const effects = box(page);
+  await expect(row(page, 'chase')).toBeVisible();
+  for (const id of UTILITY) await expect(row(page, id), id).toHaveCount(0);
+  await expect(effects.locator('.contained-row')).toHaveCount(LISTED);
+  await expect(effects.locator('.contained-count')).toHaveText(`${LISTED} effects`);
+  const segment = page.getByRole('group', { name: 'Picture source' }).getByRole('button', { name: /^Effects:/ });
+  const picker = page.getByRole('dialog', { name: 'Main effect' });
+  await segment.click();
+  await expect(picker.locator('.picker-list .picker-choice[data-id="chase"]')).toHaveCount(1);
+  for (const id of UTILITY) await expect(picker.locator(`.picker-choice[data-id="${id}"]`), id).toHaveCount(0);
+  await expect(picker.locator('.picker-list .picker-choice')).toHaveCount(LISTED);
+  await picker.getByRole('button', { name: 'Close', exact: true }).click();
+
+  // A look whose effect is one of them still plays from the API, and both places name it.
+  await set(request, { pattern: 'energy.uvWash' });
+  await expect(effects.locator('.contained-current-name')).toHaveText('UV Wash');
+  await expect(segment).toHaveAccessibleName('Effects: UV Wash');
+  await segment.click();
+  await expect(picker.locator('.picker-now')).toContainText('UV Wash');
+  await expect(picker.locator('.picker-choice[data-id="energy.uvWash"]')).toHaveCount(0);
+  expect((await state(request)).pattern).toBe('energy.uvWash');
+  await picker.getByRole('button', { name: 'Close', exact: true }).click();
+
+  // The Effect settings view keeps them.
+  await page.evaluate(() => { window.location.hash = '#effects'; });
+  await expect(page.locator('.effects-catalogue .pattern-btn .name').filter({ hasText: /^UV Wash/ })).toHaveCount(1);
+});
+
+test('tiles that share a name differ in their visible text, and a unique name keeps one line', async ({ page }) => {
+  await open(page, 'show');
+  await expect(row(page, 'chase')).toBeVisible();
+  const tiles = await box(page).locator('.contained-row').evaluateAll((buttons) => buttons.map((button) => {
+    const second = button.querySelector('.contained-row-family');
+    return { id: button.dataset.effect, name: button.querySelector('.contained-row-title').textContent,
+      second: second && second.checkVisibility() ? second.textContent : null };
+  }));
+  const byName = Map.groupBy(tiles, (tile) => tile.name);
+  const shared = [...byName.values()].filter((group) => group.length > 1).flat();
+  expect(shared.map((tile) => tile.id).sort(), 'the names Show lists more than once').toEqual(['breathe', 'fire', 'fireworks', 'impact',
+    'party.fire', 'rain', 'swirl', 'v2.breathe', 'v2.fire', 'v2.fireworks', 'v2.impact', 'v2.rain', 'v2.swirl']);
+  for (const group of byName.values()) {
+    if (group.length === 1) { expect(group[0].second, `${group[0].id} has one line`).toBeNull(); continue; }
+    const texts = group.map((tile) => `${tile.name} ${tile.second}`);
+    expect(group.every((tile) => tile.second), `${group[0].name}: a second line on each`).toBe(true);
+    expect(new Set(texts).size, `${group[0].name}: ${texts.join(' / ')}`).toBe(group.length);
+  }
+  const second = (id) => tiles.find((tile) => tile.id === id).second;
+  expect([second('breathe'), second('v2.breathe'), second('party.fire')]).toEqual(['Classic', 'Spatial', 'Party Looks']);
+});
+
+test('the Effects card puts its count in the title row and the selected effect beside the search', async ({ page, request }) => {
+  await control(request, 'stop');
+  const effects = box(page);
+  for (const [width, height, oneRow] of [[1440, 900, true], [390, 844, false]]) {
+    await page.setViewportSize({ width, height });
+    await open(page, 'show');
+    const search = effects.getByRole('searchbox', { name: 'Search effects' });
+    await expect(search).toHaveAttribute('placeholder', 'Name, description or tag');
+    await expect(effects.getByText('Search effects', { exact: true }), 'no visible label: the field names itself').toHaveCount(0);
+    const [title, count, current, field, card] = await Promise.all([effects.getByRole('heading', { name: 'Effects' }), effects.locator('.contained-count'),
+      effects.locator('.contained-current'), search, effects].map((l) => l.boundingBox()));
+    expect(count.y, `${width}: the count in the title row`).toBeLessThan(title.y + title.height);
+    expect(count.y + count.height).toBeGreaterThan(title.y);
+    expect(count.x).toBeGreaterThan(title.x + title.width);
+    if (oneRow) {
+      expect(field.x, `${width}: the search beside the selected effect`).toBeGreaterThanOrEqual(current.x + current.width);
+      expect(field.y).toBeLessThan(current.y + current.height);
+    } else {
+      expect(field.y, `${width}: wrapped under the selected effect`).toBeGreaterThanOrEqual(current.y + current.height);
+    }
+    for (const part of [count, current, field]) expect(part.x + part.width).toBeLessThanOrEqual(card.x + card.width + 0.5);
+  }
 });

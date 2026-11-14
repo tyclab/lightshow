@@ -146,9 +146,10 @@ class LiveDirector {
     this._building = false;
   }
 
-  /** What the rig is showing, for the UI. */
-  status(): { active: boolean; pattern: string | null; silent: boolean } {
-    return { active: this.active, pattern: this._look ? String(this._look.pattern) : null, silent: this._silent };
+  /** What the rig is showing, for the UI. `holding`: a hand's look stays until the director's next one. */
+  status(): { active: boolean; pattern: string | null; silent: boolean; holding: boolean } {
+    return { active: this.active, pattern: this._look ? String(this._look.pattern) : null, silent: this._silent,
+      holding: this.active && this._heldUntil > 0 };
   }
 
   /** Every hop: keep the character of what is playing up to date. */

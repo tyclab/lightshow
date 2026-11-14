@@ -30,3 +30,26 @@ test('the check finds px lengths wherever they stand and ignores comments', () =
   assert.deepStrictEqual(pxLengths(showBlock(sample)), ['12px', '-0.5px', '.5px', '620px']);
   assert.deepStrictEqual(pxLengths('.a { width: 2rem; --x: 1em; content: "px"; }'), []);
 });
+
+/** Every width a media or container query of the block asks about, as written. */
+const widthSteps = (text) => [...text.matchAll(/@(?:media|container)[^{]*\{/g)]
+  .flatMap((m) => [...m[0].matchAll(/(?:min-|max-)?width\s*:\s*([^)]+)\)|width\s*[<>]=?\s*([^)\s]+)/g)].map((w) => (w[1] ?? w[2]).trim()));
+
+test('the Show block steps its widths only at 35, 47.5, 68.75 and 120em', () => {
+  const steps = widthSteps(showBlock(css));
+  assert.ok(steps.length > 0, 'the block has width steps');
+  assert.deepStrictEqual(steps.filter((step) => !['35em', '47.5em', '68.75em', '120em'].includes(step)), []);
+  assert.deepStrictEqual(widthSteps('@container show (min-width: 68.75em) {} @media (width < 40rem) {} @container (max-width: 480px) {}'),
+    ['68.75em', '40rem', '480px']);
+});
+
+test('no script computes a Show size: columns, list heights and the preview come from CSS', () => {
+  const sources = ['Show.jsx', 'ShowEffects.jsx', 'ShowCues.jsx']
+    .map((file) => path.join(import.meta.dirname, '..', '..', 'public-src', 'components', file)).filter((file) => fs.existsSync(file));
+  assert.ok(sources.length >= 2);
+  for (const file of sources) {
+    const code = fs.readFileSync(file, 'utf8');
+    assert.doesNotMatch(code, /ResizeObserver|offset(?:Width|Height)|client(?:Width|Height)|getBoundingClientRect|\.style\.(?:width|height)|style=\{\{[^}]*(?:width|height)/,
+      path.basename(file));
+  }
+});

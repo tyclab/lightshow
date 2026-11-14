@@ -1,24 +1,30 @@
 import { test, expect } from '@playwright/test';
 import { open, reset, set } from './helpers.js';
 
-// The Show layout scales with the window (docs/agents/header.md). In the app's 14px font the view goes to two
-// columns at 68.75em of its own width (962.5 CSS px); the stage canvas keeps 15rem and the effects list three rows.
-// fit: no page scroll and both columns end on one line; minimums: the page fits unless a minimum is reached.
-const SHOW_SIZES = [[390, 844], [820, 1180], [1050, 900, 'card'], [1180, 820], [1280, 720], [1366, 768], [1440, 900, 'minimums'], [1536, 864, 'minimums'],
-  [1701, 1370, 'fit'], [1920, 1080, 'fit'], [2560, 1440, 'fit']];
+// The Show layout (docs/agents/header.md): the stage over the effects on the left, Palettes, the "Edit colours" fold
+// and Background on the right, at 68.75em of the view's own width; stacked below it. Sizes come from CSS alone: in the
+// app's 14px font the preview is never flatter than 3:1 of its width nor lower than 15rem, a list never shorter than
+// four rows of tiles, and the page scrolls when those floors do not fit. "fit": the page needs no scroll there.
+const SHOW_SIZES = [[320, 844], [390, 844], [768, 1024], [1100, 900], [1280, 720], [1440, 900], [1701, 1370, 'fit'], [1920, 1080],
+  [2560, 1440, 'fit']];
+
+/** Twice the page's text: what a reader who needs larger text sets. */
+const largeText = (page) => page.addStyleTag({ content: 'html, body { font-size: 28px !important; }' });
 
 /** Waits until the sticky bars' published heights match the bars, as the view's height reads them. */
 const barsSettled = (page) => expect.poll(() => page.evaluate(() => [['header', '.app-header'], ['views', '.mode-nav']]
   .every(([bar, selector]) => Math.abs(parseFloat(getComputedStyle(document.documentElement).getPropertyValue(`--${bar}-height`))
     - document.querySelector(selector).getBoundingClientRect().height) < 0.5))).toBe(true);
 
-/** Card edges, the controls outside their card (a scroll box stands in for what it holds) and the page's own sizes. */
+/** Card edges, the controls outside their card (a scroll box stands in for what it holds), the floors and the page's own sizes. */
 const showLayout = (page) => page.evaluate(() => {
   const rect = (selector) => { const r = document.querySelector(selector)?.getBoundingClientRect(); return r ? { x: r.x, y: r.y, w: r.width, h: r.height, bottom: r.bottom, right: r.right } : null; };
-  const cards = ['.show-room', '.contained-effects', '.show-colours', '.background-controls'];
+  const cards = ['.show-room', '.contained-effects', '.show-palettes', '.show-fold', '.background-controls'];
   const outside = [];
   for (const selector of cards) {
-    const card = document.querySelector(selector), c = card.getBoundingClientRect();
+    const card = document.querySelector(selector);
+    if (!card) { outside.push(`${selector} missing`); continue; }
+    const c = card.getBoundingClientRect();
     if (c.left < -0.5 || c.right > document.documentElement.clientWidth + 0.5) outside.push(`${selector} beyond the page`);
     for (const control of card.querySelectorAll('button, input, select, a[href], [role="switch"], .colour-wheel-disc, canvas')) {
       let box = control;
@@ -29,60 +35,130 @@ const showLayout = (page) => page.evaluate(() => {
       }
     }
   }
-  const view = document.querySelector('.show-view'), list = document.querySelector('.contained-scroll');
-  const rem = parseFloat(getComputedStyle(document.documentElement).fontSize);
+  const view = document.querySelector('.show-view'), list = document.querySelector('.contained-scroll'), grid = document.querySelector('.contained-list');
+  const tiles = [...grid.children], tile = tiles[0].getBoundingClientRect();
+  const columns = getComputedStyle(grid).gridTemplateColumns.split(' ').length;
+  const rowGap = parseFloat(getComputedStyle(grid).rowGap) || 0;
   return {
-    room: rect('.show-room'), effects: rect('.contained-effects'), colours: rect('.show-colours'), background: rect('.background-controls'),
-    wrap: rect('.show-room .stage3d-wrap'), outside, rem, row: document.querySelector('.contained-row').getBoundingClientRect().height,
-    list: list.clientHeight, listScrolls: list.scrollHeight > list.clientHeight,
+    room: rect('.show-room'), effects: rect('.contained-effects'), palettes: rect('.show-palettes'), fold: rect('.show-fold'),
+    background: rect('.background-controls'), wrap: rect('.show-room .stage3d-wrap'), outside, columns,
+    rem: parseFloat(getComputedStyle(document.documentElement).fontSize),
+    fourRows: 4 * tile.height + 3 * rowGap, list: list.clientHeight, listScrolls: list.scrollHeight > list.clientHeight,
     twoColumns: view.clientWidth >= 68.75 * parseFloat(getComputedStyle(view).fontSize),
     scrollHeight: document.documentElement.scrollHeight, scrollWidth: document.documentElement.scrollWidth,
   };
 });
 
+/** The floors of the stage and the list, and the order of the cards in one column or in two. */
+function expectArrangement(m, label = '') {
+  const { room, effects, palettes, fold, background } = m;
+  expect(m.outside, label).toEqual([]);
+  expect(m.wrap.h, `${label} the preview keeps 15rem`).toBeGreaterThanOrEqual(15 * m.rem - 0.5);
+  expect(m.wrap.h, `${label} the preview is never flatter than 3:1`).toBeGreaterThanOrEqual(m.wrap.w / 3 - 0.5);
+  expect(m.list, `${label} the effects list keeps four rows of tiles`).toBeGreaterThanOrEqual(m.fourRows - 0.5);
+  expect(m.listScrolls, label).toBe(true);
+  if (m.twoColumns) {
+    expect(Math.abs(effects.x - room.x), `${label} the effects under the stage`).toBeLessThan(1);
+    expect(effects.y, label).toBeGreaterThanOrEqual(room.bottom);
+    expect(palettes.x, `${label} Palettes right of the stage`).toBeGreaterThanOrEqual(room.right);
+    expect(Math.abs(palettes.y - room.y), `${label} Palettes at the top`).toBeLessThan(1);
+    expect(fold.y, label).toBeGreaterThanOrEqual(palettes.bottom);
+    expect(background.y, label).toBeGreaterThanOrEqual(fold.bottom);
+    expect(Math.abs(background.bottom - effects.bottom), `${label} both columns end on one line`).toBeLessThan(1);
+  } else {
+    const order = [room, effects, palettes, fold, background];
+    for (let i = 1; i < order.length; i++) expect(order[i].y, `${label} card ${i} under card ${i - 1}`).toBeGreaterThanOrEqual(order[i - 1].bottom);
+  }
+}
+
+async function openShow(page, request, width, height, { text = 1 } = {}) {
+  await set(request, { pattern: 'v2.swirl', effectColours: null });
+  await page.setViewportSize({ width, height });
+  await open(page, 'show');
+  if (text === 2) await largeText(page);
+  await expect(page.locator('.show-room .stage3d-canvas')).toBeVisible();
+  await barsSettled(page);
+}
+
+test.beforeEach(async ({ request }) => { await reset(request); });
+
+test('Show puts the stage over the effects and the palettes over the fold and Background', async ({ page, request }) => {
+  for (const [width, height, twoColumns] of [[1440, 900, true], [390, 844, false]]) {
+    await openShow(page, request, width, height);
+    const m = await showLayout(page);
+    expect(m.twoColumns).toBe(twoColumns);
+    expectArrangement(m, `${width}×${height}`);
+    await expect(page.getByRole('region', { name: 'Palettes', exact: true })).toBeVisible();
+    await expect(page.getByRole('region', { name: 'Colour editing', exact: true }).getByRole('button', { name: /^Edit colours/ })).toBeVisible();
+  }
+});
+
 for (const [width, height, holds] of SHOW_SIZES) {
   test(`Show scales with the window and keeps every control in its card at ${width}×${height}`, async ({ page, request }) => {
-    await reset(request);
-    await set(request, { pattern: 'v2.swirl', effectColours: null });
-    await page.setViewportSize({ width, height });
-    await open(page, 'show');
-    await expect(page.locator('.show-room .stage3d-canvas')).toBeVisible();
-    await barsSettled(page);
+    await openShow(page, request, width, height);
     const m = await showLayout(page);
-    expect(m.outside).toEqual([]);
+    expectArrangement(m);
     expect(m.scrollWidth).toBeLessThanOrEqual(width);
-    expect(m.listScrolls).toBe(true);
-    expect(m.wrap.h, 'the stage canvas keeps 15rem').toBeGreaterThanOrEqual(15 * m.rem - 0.5);
-    expect(m.list, 'the effects list keeps three rows').toBeGreaterThanOrEqual(3 * m.row - 0.5);
     expect(m.twoColumns).toBe(width - 24 >= 68.75 * m.rem);
-    const { room, effects, colours, background } = m;
-    if (m.twoColumns) {
-      expect(Math.abs(effects.y - room.y)).toBeLessThan(1);
-      expect(effects.x).toBeGreaterThanOrEqual(room.right);
-      expect(colours.y).toBeGreaterThanOrEqual(room.bottom);
-      expect(Math.abs(background.bottom - colours.bottom), 'both columns end on one line').toBeLessThan(1);
-      expect(effects.bottom).toBeLessThanOrEqual(background.y);
-    } else {
-      expect(effects.y).toBeGreaterThanOrEqual(room.bottom);
-      expect(colours.y).toBeGreaterThanOrEqual(effects.bottom);
-      expect(background.y).toBeGreaterThanOrEqual(colours.bottom);
-    }
     if (holds === 'fit') expect(m.scrollHeight, 'no page scroll').toBeLessThanOrEqual(height);
-    if (holds === 'minimums' && m.scrollHeight > height) expect(m.wrap.h, 'the page scrolls only once the canvas is at its minimum').toBeLessThan(15 * m.rem + 1);
-    if (holds === 'card') for (const card of [room, effects, colours, background]) expect(card.h, 'no card taller than the window').toBeLessThanOrEqual(height);
+    // A taller Background or an open fold reaches the layout without a script: the columns still end on one line.
     await page.getByRole('region', { name: 'Background lighting' }).getByRole('button', { name: 'Fixed colour', exact: true }).click();
     await expect(page.getByRole('group', { name: 'Background colour sliders' })).toBeVisible();
-    // The taller Background reaches Show.jsx through a ResizeObserver, a render after the sliders appear.
-    if (m.twoColumns) {
-      await expect.poll(async () => { const now = await showLayout(page); return Math.abs(now.background.bottom - now.colours.bottom); },
-        { message: 'Colours keeps its height beside a taller Background' }).toBeLessThan(1);
-    }
-    const fixed = await showLayout(page);
-    expect(fixed.outside).toEqual([]);
-    expect(fixed.effects.bottom).toBeLessThanOrEqual(fixed.background.y);
+    await page.getByRole('region', { name: 'Colour editing', exact: true }).getByRole('button', { name: /^Edit colours/ }).click();
+    await expect(page.locator('.show-fold .colour-wheel-disc')).toBeVisible();
+    expectArrangement(await showLayout(page), 'with Fixed colour and the fold open');
+    await page.getByRole('region', { name: 'Colour editing', exact: true }).getByRole('button', { name: /^Edit colours/ }).click();
     await page.getByRole('region', { name: 'Background lighting' }).getByRole('button', { name: 'Follow effect', exact: true }).click();
   });
 }
+
+test('the effects grid has one to five columns by width', async ({ page, request }) => {
+  for (const [width, columns] of [[390, 1], [560, 2], [768, 3], [1440, 4], [1920, 5]]) {
+    await openShow(page, request, width, 900);
+    expect((await showLayout(page)).columns, `${width} wide`).toBe(columns);
+  }
+  await openShow(page, request, 2560, 1440);
+  expect((await showLayout(page)).columns, 'never more than five').toBe(5);
+  await openShow(page, request, 1440, 900, { text: 2 });
+  expect((await showLayout(page)).columns, 'larger text, fewer columns').toBeLessThan(5);
+});
+
+test('Show does not scroll sideways at 320 and 390 wide, at 100 % and 200 % text', async ({ page, request }) => {
+  for (const text of [1, 2]) {
+    for (const width of [320, 390]) {
+      await openShow(page, request, width, 844, { text });
+      const m = await showLayout(page);
+      expect(m.scrollWidth, `${width} wide, ${text * 100} % text`).toBeLessThanOrEqual(width);
+      expect(m.outside, `${width} wide, ${text * 100} % text`).toEqual([]);
+    }
+  }
+});
+
+test('at 1280 by 720 the stage and the effects list keep their floors', async ({ page, request }) => {
+  await openShow(page, request, 1280, 720);
+  const m = await showLayout(page);
+  expect(m.twoColumns).toBe(true);
+  expect(m.wrap.h, 'never flatter than 3:1').toBeGreaterThanOrEqual(m.wrap.w / 3 - 0.5);
+  expect(m.wrap.h).toBeGreaterThanOrEqual(15 * m.rem - 0.5);
+  expect(m.list, 'four rows of tiles').toBeGreaterThanOrEqual(m.fourRows - 0.5);
+  expect(m.scrollHeight, 'the page scrolls rather than squeezing them').toBeGreaterThan(720);
+});
+
+test('the Preview paused notice stays above the stage on Show, in two columns and in one', async ({ page, request }) => {
+  await page.clock.install();
+  for (const [width, height] of [[1440, 900], [390, 844]]) {
+    await openShow(page, request, width, height);
+    await page.clock.fastForward('01:00:00');
+    const notice = page.locator('.show-room .preview-paused');
+    await expect(notice).toBeVisible();
+    const [box, room, wrap] = await Promise.all([notice, page.locator('.show-room'), page.locator('.show-room .stage3d-wrap')].map((l) => l.boundingBox()));
+    expect(box.y, `${width}: at the top of the stage card`).toBeGreaterThanOrEqual(room.y - 0.5);
+    expect(box.y + box.height, `${width}: above the stage`).toBeLessThanOrEqual(wrap.y);
+    expect(box.x + box.width).toBeLessThanOrEqual(room.x + room.width + 0.5);
+    await notice.getByRole('button', { name: 'Resume preview', exact: true }).click();
+    await expect(notice).toHaveCount(0);
+  }
+});
 
 test('portrait pads precede strobe, meters and colour libraries', async ({ page }) => {
   await page.setViewportSize({ width: 768, height: 1024 });

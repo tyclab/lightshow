@@ -812,95 +812,126 @@ button.cb-bpm-num:focus-visible { outline: .125rem solid var(--accent); outline-
 /* =============================================================
    SHOW VIEW — the room, the looks, the switches a party needs
    ============================================================= */
-/* No px here (tests/unit/show-css.test.js): rem is the app's 14px root font, and the
-   arrangement follows the view's own width (container `show`) at 35em and 68.75em. */
+/* No px here (tests/unit/show-css.test.js): rem is the app's 14px root font, and the arrangement follows the view's
+   own width (container `show`) at 35em and 68.75em. Floors of content, not of a screen: a list keeps four rows of
+   tiles, the preview 15rem and a third of its own width; when they do not fit, the page scrolls. */
 main.mode-show { --show-top: .71rem; --show-bottom: 3rem; padding-block: var(--show-top) var(--show-bottom); }
 .show-view {
-  --show-gap: .86rem; --show-row: 3.72rem; --show-stage-min: 15rem;
+  --show-gap: .86rem; --show-tile: 3.15rem; --show-tile-gap: .43rem; --show-list-pad: .29rem; --show-stage-min: 15rem;
+  --show-effect-min: 13rem; --show-palette-min: 8rem;
+  --show-list-floor: calc(4 * var(--show-tile) + 3 * var(--show-tile-gap) + 2 * var(--show-list-pad) + 2 * var(--hairline));
   container: show / inline-size;
   display: flex; flex-direction: column; gap: var(--show-gap);
   /* The window's share; the safety notice, toolbar and pads take theirs inside it and the stage canvas gets what is left. */
   min-height: calc(100dvh - var(--header-height, 0rem) - var(--commands-height, 0rem) - var(--views-height, 0rem) - var(--show-top) - var(--show-bottom));
 }
 
-.contained-effects { min-width: 0; }
-.contained-effects .card-title { margin-bottom: .71rem; }
-.contained-hint { margin-bottom: .86rem; }
-.contained-current { display: flex; align-items: center; gap: .71rem; min-height: 3.43rem; padding: .57rem .86rem; margin-bottom: .86rem; border: var(--hairline) solid var(--accent); border-radius: var(--radius-sm); background: var(--wash-blue); }
+.contained-effects { min-width: 0; display: flex; flex-direction: column; }
+/* The count in the title row; the chosen effect and the search share a row while both keep their width, else wrap. */
+.contained-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: .29rem .86rem; margin-bottom: .71rem; }
+.contained-head .card-title { margin: 0; }
+.contained-hint, .contained-hold { margin-bottom: .71rem; }
+.contained-tools { display: flex; flex-wrap: wrap; align-items: center; gap: .57rem .86rem; margin-bottom: .71rem; }
+.contained-current { flex: 1 1 16rem; min-width: 0; display: flex; align-items: center; gap: .71rem; min-height: 3.43rem; padding: .57rem .86rem; border: var(--hairline) solid var(--accent); border-radius: var(--radius-sm); background: var(--wash-blue); }
 .contained-current-text { display: grid; gap: .14rem; min-width: 0; }
 .contained-current-label { color: var(--text-blue); font-size: .72rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
 .contained-current-name { font-size: 1.07rem; font-weight: 750; color: var(--text); overflow-wrap: anywhere; }
 .contained-current-context { margin-left: auto; max-width: 6.8rem; color: var(--muted); font-size: .79rem; text-align: right; }
-.contained-search-label { display: block; margin-bottom: .43rem; color: var(--text); font-size: .86rem; font-weight: 600; }
-.contained-search-tools { display: flex; gap: .57rem; }
+.contained-search-tools { flex: 2 1 18rem; min-width: 0; display: flex; gap: .57rem; }
 .contained-search-tools input { width: 100%; min-width: 0; height: 3.15rem; padding: .57rem .79rem; border: var(--hairline) solid var(--border); border-radius: var(--radius-sm); color: var(--text); background: var(--bg); font: inherit; font-size: .93rem; }
 .contained-search-tools input:focus-visible { outline: .15rem solid var(--accent); outline-offset: .15rem; }
 .contained-search-tools .btn { min-width: 4.29rem; height: 3.15rem; }
-.contained-count { display: block; margin: .64rem 0 .5rem; color: var(--muted); font-size: .79rem; font-variant-numeric: tabular-nums; }
-.contained-scroll { min-height: calc(3 * var(--show-row) + 2 * var(--hairline)); overflow-y: scroll; overflow-x: hidden; scrollbar-gutter: stable; scrollbar-color: #7483a3 var(--bg); border: var(--hairline) solid var(--border); border-radius: var(--radius-sm); background: var(--bg); }
+.contained-count { color: var(--muted); font-size: .79rem; font-variant-numeric: tabular-nums; }
+.contained-scroll { height: max(var(--show-list-floor), 40svh); min-height: var(--show-list-floor); overflow-y: scroll; overflow-x: hidden; scrollbar-gutter: stable; scrollbar-color: #7483a3 var(--bg); border: var(--hairline) solid var(--border); border-radius: var(--radius-sm); background: var(--bg); }
 .contained-scroll::-webkit-scrollbar { width: .86rem; }
 .contained-scroll::-webkit-scrollbar-track { background: var(--bg); }
 .contained-scroll::-webkit-scrollbar-thumb { border: .22rem solid var(--bg); border-radius: .57rem; background: #7483a3; }
-.contained-list { list-style: none; padding: 0; margin: 0; }
-.contained-row { display: flex; align-items: center; width: 100%; height: var(--show-row); gap: .71rem; padding: .5rem .79rem; border: 0; border-bottom: var(--hairline) solid rgba(150,165,205,.2); border-radius: 0; background: transparent; color: var(--text); text-align: left; font: inherit; cursor: pointer; }
+/* Tiles: five columns while each keeps its readable width, fewer as the card narrows or the text grows. */
+.contained-list { list-style: none; margin: 0; padding: var(--show-list-pad); display: grid; gap: var(--show-tile-gap); align-content: start;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, max(var(--show-effect-min), calc((100% - 4 * var(--show-tile-gap)) / 5))), 1fr)); }
+.contained-list > li { display: flex; min-width: 0; }
+.contained-row { position: relative; display: flex; align-items: center; gap: .36rem; width: 100%; min-width: 0; min-height: var(--show-tile); padding: .36rem .57rem; border: var(--hairline) solid var(--border); border-radius: var(--radius-sm); background: var(--card); color: var(--text); text-align: left; font: inherit; cursor: pointer; }
 .contained-row:hover { background: var(--wash-blue); }
-.contained-row:focus-visible { position: relative; outline: .15rem solid var(--accent); outline-offset: -.22rem; background: rgba(90,162,255,.13); }
-.contained-row[aria-current="true"] { background: rgba(90,162,255,.14); box-shadow: inset .22rem 0 var(--accent); }
-.contained-row-text { display: grid; gap: .22rem; min-width: 0; flex: 1; }
-.contained-row-title { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-size: .93rem; font-weight: 650; line-height: 1.15rem; }
-.contained-row-desc { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; color: var(--muted); font-size: .79rem; line-height: 1.07rem; }
-.contained-row-mark { color: var(--text-blue); font-size: .79rem; font-weight: 650; white-space: nowrap; }
-.contained-rapid { color: var(--text-amber); font-size: .72rem; line-height: .93rem; max-width: 3.72rem; text-align: right; }
+.contained-row:focus-visible { outline: .15rem solid var(--accent); outline-offset: -.22rem; background: rgba(90,162,255,.13); }
+.contained-row[aria-current="true"] { border-color: var(--accent); background: rgba(90,162,255,.14); }
+.contained-row-text { flex: 1; min-width: 0; display: grid; gap: .07rem; }
+.contained-row-title { overflow-wrap: anywhere; font-size: .93rem; font-weight: 650; line-height: 1.25; }
+.contained-row-family { color: var(--muted); font-size: .79rem; font-weight: 500; line-height: 1.2; overflow-wrap: anywhere; }
+.contained-row-mark { color: var(--text-blue); font-size: .86rem; font-weight: 700; }
+.contained-rapid { color: var(--text-amber); font-size: .86rem; }
 .contained-empty { padding: 2.57rem 1.29rem; text-align: center; color: var(--muted); font-size: .86rem; line-height: 1.7; }
 .contained-empty strong { display: block; color: var(--text); font-weight: 600; }
 .contained-help { margin: .57rem 0 0; font-size: .72rem; line-height: 1.5; color: var(--muted); }
 
-/* One column: Stage, Effects, Colours, Background, the stage and the list each two fifths of the window. */
+/* One column: Stage, Effects, Palettes, Edit colours, Background. The stage and the effects list each take two fifths of
+   the window above their floors; the palette list keeps its four rows. */
 .show-body { flex: 1 1 auto; display: grid; gap: var(--show-gap); grid-template-columns: minmax(0, 1fr); align-content: start; }
+.show-main, .show-side, .show-colours { display: flex; flex-direction: column; gap: var(--show-gap); min-width: 0; }
 .show-body .card { margin: 0; }
-.show-room, .show-colours { min-width: 0; }
-.show-room .stage3d-wrap { height: max(var(--show-stage-min), 40svh); }
-.show-body .contained-scroll { height: max(calc(3 * var(--show-row) + 2 * var(--hairline)), 40svh); }
+.show-room { container-type: inline-size; display: flex; flex-direction: column; gap: .71rem; min-width: 0; }
+.show-room .stage3d-wrap { height: max(var(--show-stage-min), 33.333cqi, 40svh); }
 @container show (max-width: 35em) {
   .contained-current-context { max-width: 6.1rem; }
 }
 
-/* Colours: wheel, colour order and palettes side by side while they fit, wrapping when not. Only the wheel folds. */
-.wheel-toggle { margin-left: auto; min-height: 2.58rem; font-weight: 600; }
-.wheel-toggle::before { content: '▾ '; }
-.wheel-toggle[aria-expanded="false"]::before { content: '▸ '; }
-.colours-grid { display: flex; flex-wrap: wrap; gap: 1rem; }
-.colours-grid > * { min-width: 0; }
-.wheel-box { flex: 1 1 17.5rem; min-width: min(17.5rem, 100%); max-width: 19.5rem; margin-inline: auto; }
-.wheel-box[hidden] { display: none; }
-.colours-grid .colour-wheel { width: 100%; }
-.colours-grid > .band-order-side { flex: 1 1 15rem; }
-.colours-grid > .band-palettes { flex: 1 1 12rem; display: flex; flex-direction: column; gap: .43rem; }
-.colours-grid .band-palette-list { flex: 1 1 0; max-height: none; min-height: calc(3 * 3.15rem + 2 * .43rem); }
-.colours-grid .band-manage { align-self: start; }
-.colours-grid .band-search { padding: .43rem .71rem; background: var(--card); color: var(--text); border: var(--hairline) solid var(--border-hi);
+/* The cue row under the stage. */
+.show-cues { display: flex; flex-wrap: wrap; align-items: center; gap: .43rem .71rem; }
+.show-cues-label { color: var(--muted); font-size: .86rem; }
+.show-cues select { flex: 1 1 14rem; min-width: 0; min-height: 3.15rem; padding: .43rem .57rem; border: var(--hairline) solid var(--border); border-radius: var(--radius-sm); background: var(--bg); color: var(--text); font: inherit; }
+.show-cues .btn { min-height: 3.15rem; }
+.show-cues-said { flex-basis: 100%; color: var(--muted); font-size: .79rem; }
+.show-cues-said:empty { display: none; }
+.show-cue-dialog { width: min(37rem, 100%); }
+.show-cue-dialog .hint { margin: .43rem 0 0; }
+.show-cue-name { display: block; margin: 1rem 0 .43rem; font-size: .86rem; font-weight: 600; }
+.show-cue-dialog input { width: 100%; min-height: 3.15rem; padding: .57rem .71rem; margin-bottom: 1rem; border: var(--hairline) solid var(--border); border-radius: var(--radius-sm); background: var(--bg); color: var(--text); font: inherit; }
+.show-cue-dialog .btn { min-height: 3.15rem; }
+
+/* Palettes: the selected palette named over a searchable list, two columns while each keeps its readable width. */
+.show-palettes { display: flex; flex-direction: column; gap: .57rem; }
+.show-palettes .band-title { margin: 0; }
+.show-palette-current { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 45%); grid-template-areas: "label strip" "name strip"; align-items: center; column-gap: .86rem; }
+.show-palette-label { grid-area: label; color: var(--muted); font-size: .72rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
+.show-palette-name { grid-area: name; font-size: .93rem; overflow-wrap: anywhere; }
+.show-palette-strip { grid-area: strip; height: 1.71rem; border: var(--hairline) solid var(--border); border-radius: var(--radius-sm); }
+.show-palettes .band-palettes { display: flex; flex-direction: column; gap: .43rem; }
+.show-palettes .band-search { padding: .43rem .71rem; background: var(--card); color: var(--text); border: var(--hairline) solid var(--border-hi);
   border-radius: var(--radius-sm); font: inherit; }
-/* A Disco band: the wheel column keeps a 200 CSS px disc; the order column keeps its width elsewhere. */
+.show-palettes .band-palette-list { --show-palette-floor: calc(4 * var(--show-tile) + 3 * var(--show-tile-gap));
+  height: var(--show-palette-floor); min-height: var(--show-palette-floor); max-height: none; gap: var(--show-tile-gap); align-content: start;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, max(var(--show-palette-min), calc((100% - var(--show-tile-gap)) / 2))), 1fr)); }
+.show-palettes .band-manage { align-self: start; }
+
+/* Edit colours: one button folds the wheel and the colour order together. */
+.show-fold { padding: 0; }
+.show-fold-toggle { display: flex; align-items: center; justify-content: space-between; gap: .57rem; width: 100%; min-height: 3.15rem; padding: .71rem 1rem; border: 0; border-radius: var(--radius); background: none; color: var(--text); text-align: left; font: inherit; cursor: pointer; }
+.show-fold-toggle:focus-visible { outline: .15rem solid var(--accent); outline-offset: -.22rem; }
+.show-fold-text { display: grid; gap: .14rem; }
+.show-fold-text strong { font-size: .93rem; }
+.show-fold-text small { color: var(--muted); font-size: .79rem; font-weight: 400; }
+.show-fold-chevron { color: var(--muted); font-size: 1.29rem; transition: transform .15s; }
+.show-fold-toggle[aria-expanded="true"] .show-fold-chevron { transform: rotate(180deg); }
+.show-fold-body { padding: 0 .86rem .86rem; }
+.show-fold-body[hidden] { display: none; }
+/* A Disco band and the fold: the wheel column keeps a 200 CSS px disc; the order column keeps its width elsewhere. */
 .show-colours .band-sequence { grid-template-columns: minmax(0, 1fr); }
 @container (min-width: 35em) {
   .show-colours .band-sequence { grid-template-columns: minmax(17.5rem, 1fr) minmax(14.3rem, 17.86rem); }
 }
 
-/* Two columns: Stage over Colours, Effects over Background; the stage and the effects list take what is left,
-   both columns ending on one line. Show.jsx sets .colours-short when Colours is shorter than Background. */
+/* Two columns, one row as tall as the window: the stage over the effects, Palettes, the fold and Background beside
+   them. Of the height the floors leave, the stage takes one part and the effects two; the palette list takes what the
+   right column leaves, so both columns end on one line. The sentence form keeps its card at its content. */
 @container show (min-width: 68.75em) {
-  .show-body { align-content: stretch; grid-template-columns: minmax(0, 1.6fr) minmax(21rem, 1fr); grid-template-rows: 1fr auto auto;
-    grid-template-areas: "stage effects" "colours effects" "colours background"; }
-  .show-body.colours-short { grid-template-areas: "stage effects" "stage background" "colours background"; }
-  /* The sentence form: the right column keeps its content height and need not reach the bottom. */
-  .show-body.picture { grid-template-rows: auto auto 1fr auto; grid-template-areas: "stage effects" "stage background" "stage ." "colours ."; }
-  .show-room { grid-area: stage; display: flex; flex-direction: column; }
+  .show-body { align-content: stretch; grid-template-columns: minmax(0, 1.6fr) minmax(21rem, 1fr); grid-template-rows: 1fr; }
+  .show-room { flex: 1 1 auto; }
   .show-room .stage3d-view { flex: 1 1 auto; }
-  .show-room .stage3d-wrap { flex: 1 1 0; height: auto; min-height: var(--show-stage-min); }
-  .show-colours { grid-area: colours; align-self: start; }
-  .show-body > .contained-effects { grid-area: effects; display: flex; flex-direction: column; }
+  .show-room .stage3d-wrap { flex: 1 1 0; height: auto; min-height: max(var(--show-stage-min), 33.333cqi); }
+  .show-main > .contained-effects { flex: 2 1 auto; }
   .show-body .contained-scroll { flex: 1 1 0; height: auto; }
-  .show-body > .background-controls { grid-area: background; align-self: start; }
+  .show-colours, .show-colours > .card:first-child { flex: 1 1 auto; }
+  .show-palettes .band-palettes, .show-palettes .band-palette-list { flex: 1 1 0; height: auto; }
+  .show-body.picture .contained-effects, .show-body.picture .show-colours, .show-body.picture .show-colours > .card { flex: none; }
 }
 
 /* =============================================================
