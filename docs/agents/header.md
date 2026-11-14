@@ -1,8 +1,10 @@
-# Header (top bar) rulings
+# Header (top bar), view strip and Show rulings
 
 Read before changing the header, the picture source control, play/stop, Freeze,
-Blackout, Arm or the master. The header was built from the 2026-11-05 brief (#108,
-revised in #113 and #126); its full text is in git history. The rulings below stay.
+Blackout, Arm or the master, the view strip under the header, or the Show view. The
+header was built from the 2026-11-05 brief (#108, revised in #113 and #126), the Show
+view and the strip from the 2026-11-14 draft (#204 to #210); their full text is in git
+history. The rulings below stay.
 
 ## The operator's words
 
@@ -29,6 +31,8 @@ revised in #113 and #126); its full text is in git history. The rulings below st
 - "why do we have look an auto show? shoudlnt we not only need a toggle for auto show on off? look is
   bascially the are called picture?" (03:11)
 - "the removal of look dropdown button. thats for sure"
+- "the rest seem alright" (03:11), on the draft that showed Show, Perform and Setup in the strip,
+  with the sequence shelf and Stop pads on Perform and one Play/Stop in the header.
 
 ## Decisions
 
@@ -58,6 +62,10 @@ revised in #113 and #126); its full text is in git history. The rulings below st
   closed". `outputs.idleStopMin` (60, 0 never) without a control action or page input ends it with the
   header's Stop; an idle page releases its feeds and says "Preview paused after 60 minutes without
   input." with Resume preview, which starts nothing. Armed, neither runs.
+- The strip under the header has two tabs, Show and Perform, and a Setup menu that holds every
+  other view (2026-11-14). Every view keeps its hash, alias and digit key. Perform carries the
+  sequence shelf and Stop pads. A view switch writes its hash once, at the switch: nothing writes
+  it again after a navigation the page did not cause.
 - Visible without a tap: BPM and Online, in the one status chip. Armed is shown by the Arm button
   itself, so its armed state must be unmistakable, not a status pill (2026-11-07).
 - Visualizer names only the picture source (2026-11-09). The effect family `ldj.visualizer.*` is
