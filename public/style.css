@@ -606,9 +606,6 @@ button.cb-bpm-num:focus-visible { outline: .125rem solid var(--accent); outline-
 .header-tool.active { border-color: var(--accent); color: var(--text); }
 .header-tool:focus-visible, .header-theme:focus-visible { outline: .125rem solid var(--accent); outline-offset: .1875rem; }
 
-/* Perform has no command bar above it to stick under. */
-.mode-tabs.in-perform { position: static; }
-
 /* Read by screen readers, not drawn. */
 .sr-only {
   position: absolute !important;
