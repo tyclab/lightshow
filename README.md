@@ -1016,7 +1016,10 @@ chooses:
   three seconds under the live input's −80 dBFS quiet level) and back in with the
   sound, and the helper treats that fade as it treats Music Assistant's. Its
   `data-party-wait` attribute names what it waits for, which the helper reports
-  and writes to `--status-file` as `display.wait`. NodeCG may still be starting
+  and writes to `--status-file` as `display.wait`. Its `data-party-age` attribute,
+  the median and worst age in ms of the newest sample it drew in the last seconds
+  against the show PC's clock, goes to `display.ageMs` beside it: a diagnostic of
+  the whole path, as good as the two machines' clock sync, that decides nothing. NodeCG may still be starting
   when Chrome opens it: a page that is not up for ten seconds is navigated to the
   configured address again, at most every ten seconds.
 
@@ -1901,6 +1904,21 @@ then it reports four states a second, marked `quiet` in the state's `live` block
 The first sound returns it to every hop at once, at most 93 ms late that once.
 While a page subscribes to the `samples` topic, the live input also sends each
 block it reads, mono 16-bit, before analysing it; with no subscriber it sends none.
+On its stdout NDJSON this is `{"type": "pcm", "on": true}` on stdin (answered with
+the same line; `"on": false` stops it) and then, per block,
+`{"type": "pcm", "end", "rate", "at", "dropped", "data"}`: `end` the stream's sample
+count after the block's newest sample, `at` the wall clock (seconds) when the block
+was read, `data` the samples as 16-bit little-endian base64, `dropped` how many
+blocks it left out so far. While it wants samples the server writes back, for each
+state and sample line it reads, how far it has read: `{"type": "pcm", "read": <stream
+seconds>}`. A sample line goes out only while the server has read to within 1024
+samples (46 ms) of the block before it; otherwise the block's samples are left out
+and counted. So a server that reads slowly or stops never finds more than that much
+sample data ahead of fresh samples, and a sample line never fills the pipe the state
+and event lines need: those stay whole, lossless and in order, written by the same
+thread, and keep the pace they have without a subscriber. This rests on the read
+receipts, so it holds on every platform; it assumes the pipe holds a few kilobytes
+beyond those 1024 samples (Linux's holds 64 KiB; the Windows pipe was not measured).
 
 Set-list warming accepts one artist/title per line, explicit track objects,
 a Spotify queue or playlist. It prepares analysis ahead of playback. Cache
@@ -2378,15 +2396,19 @@ the state in protocol 2:
   RGB bytes), volatile, the room sender's newest picture up to 24 times a
   second, and `null` once when its lease ends. Every topic sends its latest at
   once on subscribing. After `subscribe: ['samples']` the client gets the live
-  input as heard: `samples` events `{ g, end, rate, data }`, `data` mono 16-bit
+  input as heard: `samples` events `{ g, end, rate, data, at }`, `data` mono 16-bit
   little-endian samples up to the stream's sample count `end` of live input
-  process `g` (a new process counts from zero), at most 1024 a packet. Each
-  packet waits for the client's acknowledgement; samples arriving meanwhile are
-  sent with the next one, contiguous, and when more than 1024 have come only the
-  newest are, so a slow client gets the newest samples and never a backlog (an
-  unacknowledged packet holds it back for at most a second). The live input
-  sends samples only while a client subscribes; the topic is read-only and takes
-  the same token as every other. The live page holds the DMX and picture topics only
+  process `g`, at most 1024 a packet. `g` is the wall-clock millisecond the process
+  started, strictly increasing, so a restarted server never reuses one; a new
+  process counts its samples from zero. `at` is the server's wall clock (ms) when
+  the newest block was read from the device, a diagnostic only as good as the two
+  machines' clock sync. Each packet waits for the client's acknowledgement;
+  samples arriving meanwhile are sent with the next one, contiguous, and when more
+  than 1024 have come only the newest are, so a slow client gets the newest samples
+  and never a backlog. An unacknowledged packet holds it back for at most a second:
+  then the next one is sent anyway, so a stalled link can hold one packet a second.
+  The live input sends samples only while a client subscribes; the topic is
+  read-only and takes the same token as every other. The live page holds the DMX and picture topics only
   while its tab is visible: hidden, it unsubscribes, and shown again it
   subscribes. Disarmed, it also lets them go after `idleStopMin` minutes
   without input, until Resume preview or an arm. It sends `activity` (no
