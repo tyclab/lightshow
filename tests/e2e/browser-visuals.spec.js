@@ -155,3 +155,56 @@ test('dedicated CDP attachment captures and releases its page implementation', a
     expect(await page.evaluate(() => document.querySelector('.now-playing-view').__tyclabGpuCaptures)).toBeUndefined();
   } finally { await helper?.close(); await context.close(); await fs.rm(profile, { recursive: true, force: true }); }
 });
+
+// The second page: Party Visuals' live-audio visualizer. Its renderer draws WebGL 2 every frame on a
+// context kept between frames (preserveDrawingBuffer), as the page creates it: without that, a capture
+// from the helper's own frame read a cleared canvas here. The page fades its layer out when idle.
+const livePage = (port = 9090) => `http://127.0.0.1:${port}/bundles/party-visuals/graphics/milkdrop.html`;
+const liveBody = '<div data-party-visualizer data-party-wait="silence" style="position:fixed;inset:0"><div data-party-visualizer-layer style="opacity:1;transition:opacity 150ms linear">'
+  + '<canvas data-party-visualizer-canvas width="64" height="64"></canvas></div></div>'
+  + '<script>const gl = document.querySelector("canvas").getContext("webgl2", { preserveDrawingBuffer: true });'
+  + ' (function draw() { gl.clearColor(1, 0, 0, 1); gl.clear(gl.COLOR_BUFFER_BIT); requestAnimationFrame(draw); })();</script>';
+
+test('the live-audio page: its WebGL canvas is captured, its faded layer is idle, and it says what it waits for', async ({ page }) => {
+  const { gpuCapture } = await import('../../tools/browser-visuals/gpu-capture.js');
+  const { LIVE_PAGE } = await import('../../tools/browser-visuals/browser.js');
+  const expected = livePage();
+  await page.route(expected, route => route.fulfill({ contentType: 'text/html', body: liveBody }));
+  await page.goto(expected);
+  const action = (options) => page.evaluate(`(${pageAction.toString()})(${JSON.stringify({ expected, page: LIVE_PAGE, visible: true, ...options })}, ${matchesTarget.toString()}, ${gpuCapture.toString()})`);
+  expect(await action({ mode: 'display' })).toEqual({ ok: true, live: true, reason: null, wait: 'silence' });
+  const image = await action({ mode: 'capture', width: 4, height: 4, fit: 'cover', fps: 44 });
+  expect(image.ok).toBe(true);
+  expect(image.data.slice(0, 3)).toEqual([255, 0, 0]);
+  await page.evaluate(() => { document.querySelector('[data-party-visualizer-layer]').style.opacity = '0'; });
+  await expect.poll(async () => (await action({ mode: 'display' })).reason).toBe('visualizer-idle');
+  expect(await action({ mode: 'capture', width: 4, height: 4, fit: 'cover', fps: 44 })).toEqual({ ok: false, idle: true });
+  await action({ mode: 'display', visible: false });
+  expect(await page.evaluate(() => getComputedStyle(document.querySelector('[data-party-visualizer]'), '::after').backgroundColor)).toBe('rgb(0, 0, 0)');
+  await action({ mode: 'cleanup' });
+  expect(await page.evaluate(() => document.getElementById('party-visuals-browser-style'))).toBeNull();
+});
+
+test('a live-audio page Chrome could not load yet is found by its address and reloaded', async ({ browser }) => {
+  const fs = await import('node:fs/promises'), os = await import('node:os'), path = await import('node:path'), net = await import('node:net');
+  const { connectPage } = await import('../../tools/browser-visuals/browser.js');
+  // A port nothing listens on: NodeCG not up yet.
+  const port = await new Promise((resolve) => { const s = net.createServer().listen(0, '127.0.0.1', () => { const { port: p } = s.address(); s.close(() => resolve(p)); }); });
+  const expected = livePage(port);
+  const profile = await fs.mkdtemp(path.join(os.tmpdir(), 'visuals-live-'));
+  const context = await browser.browserType().launchPersistentContext(profile, { headless: true, args: ['--remote-debugging-address=127.0.0.1', '--remote-debugging-port=0'] });
+  let helper;
+  try {
+    const page = context.pages()[0];
+    await page.goto(expected).catch(() => {});
+    await expect.poll(() => page.evaluate(() => globalThis.location.href).catch(() => null)).toBe('chrome-error://chromewebdata/');
+    helper = await connectPage(profile, expected);
+    expect(await helper.action({ mode: 'display', visible: true })).toEqual({ ok: false });
+    await context.route(expected, route => route.fulfill({ contentType: 'text/html', body: liveBody }));
+    await helper.navigate();
+    await expect.poll(() => page.evaluate(() => globalThis.location.href).catch(() => null)).toBe(expected);
+    await helper.close(); helper = null;
+    helper = await connectPage(profile, expected);
+    expect(await helper.action({ mode: 'display', visible: true })).toMatchObject({ ok: true, live: true });
+  } finally { await helper?.close(); await context.close(); await fs.rm(profile, { recursive: true, force: true }); }
+});

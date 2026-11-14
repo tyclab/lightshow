@@ -8,6 +8,8 @@ import { displayHold } from './awake.js';
 import { statusSnapshot, statusWriter } from './status.js';
 
 const help = `Usage: node cli.js --browser-profile PATH --visualizer-url URL [options]
+URL: a Music Assistant now-playing player page, or the Party Visuals live-audio page
+  beside the controls endpoint (http://127.0.0.1:9090/bundles/party-visuals/graphics/milkdrop.html).
 Default: display only, with no lightshow connection or fixture lease.
   --controls-url URL    Loopback Party Visuals api/state endpoint
   --curtain             Explicitly enable transient curtain pixel input
@@ -25,13 +27,27 @@ Default: display only, with no lightshow connection or fixture lease.
   --telemetry-file PATH Optional bounded NDJSON log (otherwise summaries use stdout)
   --status-file PATH    Optional atomic readiness snapshot for a local controller
 Chrome must use a dedicated profile with an ephemeral loopback debugging port.
-Only the configured Music Assistant now-playing player page is accessed.
+Only the configured visualizer page is accessed; the live-audio page is reloaded when it is not up.
 Wash on/off controls display visibility; wash intensity does not dim MilkDrop.
 Pixel modes never arm outputs. Ctrl+C or stdin 'stop' releases every lease.
 With pixel or room output on Windows, the displays stay awake while outputs are armed.
 Credentials stay in this process and are never sent to the browser.
 `;
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
+
+const WAITS = { nodecg: 'no NodeCG connection', lightshow: 'no lightshow connection', 'live-input': 'the lightshow has no live input',
+  audio: 'no audio from the lightshow', silence: 'silence' };
+/** What the display reports, per page. Music Assistant's lines are as they always were. */
+const WORDS = {
+  'music-assistant': { browser: 'Waiting for the dedicated Music Assistant browser', page: 'Waiting for Music Assistant login or player page',
+    covered: 'Music Assistant covered', visible: 'Music Assistant visualizer visible', idle: () => 'Visualizer idle; player artwork visible',
+    unavailable: 'Visualizer unavailable; enable it in the player. Artwork remains visible' },
+  'live-audio': { browser: 'Waiting for the dedicated live-audio visualizer browser', page: 'Waiting for the live-audio visualizer page',
+    covered: 'Live-audio visualizer covered', visible: 'Live-audio visualizer visible',
+    idle: (wait) => `Live-audio visualizer idle: ${WAITS[wait] ?? 'waiting for sound'}`, unavailable: 'Live-audio visualizer unavailable; its page has no canvas (no WebGL 2?)' },
+};
+// The live-audio page is NodeCG's: Chrome opened before NodeCG listened shows an error page, which this reloads.
+export const RELOAD_AFTER_MS = 10_000;
 
 export async function readControls(url, fetcher = fetch) {
   try {
@@ -64,7 +80,8 @@ export async function run(settings, dependencies = {}) {
   const stdin = dependencies.stdin ?? process.stdin, log = dependencies.log ?? console.log;
   const attachCurtain = dependencies.connectCurtain ?? (async (...args) => (await import('./curtain.js')).connectCurtain(...args));
   const attachRoom = dependencies.connectRoom ?? (async (...args) => (await import('./room.js')).connectRoom(...args));
-  let stopped = false, browser = null, browserRetryAt = 0, ready = false, live = false, reason = null;
+  const words = WORDS[settings.page] ?? WORDS['music-assistant'], reloadAfterMs = dependencies.reloadAfterMs ?? RELOAD_AFTER_MS;
+  let stopped = false, browser = null, browserRetryAt = 0, ready = false, live = false, reason = null, wait = null, notReadySince = null, reloadAt = 0;
   let controls = { ok: false, visible: false }, controlsAt = -Infinity, lastStatus = '', input = '';
   const report = status => { if (status !== lastStatus) { lastStatus = status; log(status); } };
   // A visualizer Music Assistant faded out after playback stopped is idle: wait for it rather than fail captures.
@@ -99,7 +116,7 @@ export async function run(settings, dependencies = {}) {
   const parentTimer = setInterval(() => { if (!parentAlive(settings.parentPid)) stop(); }, 1000);
   const stopTelemetry = startTelemetry(feeds.map(([name, feed]) => [name, feed.pump]), settings.telemetryFile, log, () => ({ displayHeld: hold ? hold.held : null }));
   const writeStatus = statusWriter(settings.statusFile, log);
-  const snapshot = () => statusSnapshot({ connected: browser?.connected, ready, live, reason, visible: controls.visible, stopped, feeds });
+  const snapshot = () => statusSnapshot({ connected: browser?.connected, ready, live, reason, wait, visible: controls.visible, stopped, feeds });
   const statusTimer = settings.statusFile ? setInterval(() => { void writeStatus(snapshot()); }, 1000) : null;
   report(feeds.length ? `Browser display with ${feeds.map(([name]) => name).join(', ')} output` : 'Browser display only; no lightshow connection');
   try {
@@ -110,15 +127,21 @@ export async function run(settings, dependencies = {}) {
       if (!browser?.connected && started >= browserRetryAt) {
         try {
           browser = await attach(settings.browserProfile, settings.visualizerUrl, () => { ready = false; captures.clear(); for (const [, feed] of feeds) void feed.pump.invalidate(); });
-        } catch { browser = null; browserRetryAt = performance.now() + 3000; report('Waiting for the dedicated Music Assistant browser'); }
+        } catch { browser = null; browserRetryAt = performance.now() + 3000; report(words.browser); }
       }
       if (!stopped && browser?.connected) {
         try {
           const shown = await browser.action({ mode: 'display', visible: controls.visible });
-          ready = shown.ok; live = shown.live === true; reason = shown.reason ?? null;
-          if (!feeds.length) report(!controls.ok ? 'Controls unavailable; display covered' : !ready ? 'Waiting for Music Assistant login or player page'
-            : !controls.visible ? 'Music Assistant covered' : live ? 'Music Assistant visualizer visible'
-              : reason === 'visualizer-idle' ? 'Visualizer idle; player artwork visible' : 'Visualizer unavailable; enable it in the player. Artwork remains visible');
+          ready = shown.ok; live = shown.live === true; reason = shown.reason ?? null; wait = shown.wait ?? null;
+          if (!feeds.length) report(!controls.ok ? 'Controls unavailable; display covered' : !ready ? words.page
+            : !controls.visible ? words.covered : live ? words.visible : reason === 'visualizer-idle' ? words.idle(wait) : words.unavailable);
+          const now = performance.now();
+          if (settings.page !== 'live-audio' || ready) notReadySince = null;
+          else if (now - (notReadySince ??= now) >= reloadAfterMs && now >= reloadAt) {
+            reloadAt = now + reloadAfterMs;
+            report('Reloading the live-audio visualizer page');
+            await browser.navigate?.();
+          }
         } catch { ready = false; await browser.close(); browser = null; browserRetryAt = performance.now() + 1000; }
       } else ready = false;
       hold?.update(feeds.some(([, feed]) => feed.armed()));

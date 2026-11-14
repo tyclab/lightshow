@@ -2,14 +2,17 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 
 const REASONS = new Set(['visualizer-unavailable', 'visualizer-idle', 'player-page-unavailable']);
+// What the live-audio page says it is missing.
+const WAITS = new Set(['nodecg', 'lightshow', 'live-input', 'audio', 'silence']);
 
-export function statusSnapshot({ connected, ready, live, reason, visible, stopped, feeds = [] }, now = new Date()) {
+export function statusSnapshot({ connected, ready, live, reason, wait, visible, stopped, feeds = [] }, now = new Date()) {
   live = !stopped && !!connected && !!ready && !!live;
   return {
     version: 1, time: now.toISOString(), pid: process.pid, stopped: !!stopped,
     browser: { connected: !!connected, ready: !!ready },
     display: { live, visible: !stopped && !!visible,
-      reason: stopped ? 'stopped' : !connected ? 'browser-unavailable' : REASONS.has(reason) ? reason : null },
+      reason: stopped ? 'stopped' : !connected ? 'browser-unavailable' : REASONS.has(reason) ? reason : null,
+      wait: !stopped && connected && WAITS.has(wait) ? wait : null },
     outputs: feeds.map(([name, feed]) => {
       const pump = feed.pump, armed = feed.armed(), connected = !!pump.transport.connected;
       return { name, armed, connected, leased: !!pump.lease, frames: pump.frames,

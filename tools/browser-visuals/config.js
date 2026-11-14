@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import { LIVE_PAGE } from './browser.js';
 
 function readJson(file, label) {
   try { return JSON.parse(fs.readFileSync(file, 'utf8')); }
@@ -49,9 +50,15 @@ export function options(args, env = process.env) {
   if (result.statusFile !== undefined && !path.isAbsolute(result.statusFile)) throw new Error('Status file must use an absolute path');
   if (!result.browserProfile || !path.isAbsolute(result.browserProfile)) throw new Error('An absolute dedicated browser profile path is required');
   const visualizer = validatedUrl(result.visualizerUrl);
-  const route = new URL(visualizer.hash.slice(1), 'http://route.invalid');
-  if (visualizer.search || route.pathname !== '/now-playing' || !route.searchParams.get('player') || [...route.searchParams.keys()].some(key => !['player', 'frameless'].includes(key))) throw new Error('Visualizer URL must select a now-playing player without credentials');
   const controls = validatedUrl(result.controlsUrl);
+  if (visualizer.pathname === LIVE_PAGE.path) {
+    if (visualizer.origin !== controls.origin || visualizer.search || visualizer.hash) throw new Error('The live-audio visualizer must be the Party Visuals page beside the controls endpoint, without a query');
+    result.page = 'live-audio';
+  } else {
+    const route = new URL(visualizer.hash.slice(1), 'http://route.invalid');
+    if (visualizer.search || route.pathname !== '/now-playing' || !route.searchParams.get('player') || [...route.searchParams.keys()].some(key => !['player', 'frameless'].includes(key))) throw new Error('Visualizer URL must select a now-playing player or the live-audio page, without credentials');
+    result.page = 'music-assistant';
+  }
   if (controls.protocol !== 'http:' || !['127.0.0.1', '[::1]', 'localhost'].includes(controls.hostname) || controls.search || controls.hash || controls.pathname !== '/bundles/party-visuals/api/state') throw new Error('Controls must use the loopback Party Visuals state endpoint');
   if (![result.roomWidth, result.roomHeight].every(x => Number.isInteger(x) && x >= 8 && x <= 256)) throw new Error('Invalid room capture size');
   if (result.preview && (result.curtain || result.room || result.panels.length)) throw new Error('Preview cannot enable pixel or room output');
