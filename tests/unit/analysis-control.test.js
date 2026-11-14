@@ -168,6 +168,26 @@ test('analysis completes stopped and a separate current Start runs the prepared 
   });
 });
 
+// Show v3, G1: the Auto show switch is `select`; Auto's music is checked only where Auto would start.
+test('Auto without music: a switch while playing is refused and changes nothing; stopped it is chosen and Start says why', async (t) => {
+  await withApp(t, async ({ call, calls }) => {
+    assert.strictEqual((await sendControl(call, 'start', 'look')).status, 200);
+    const refused = await sendControl(call, 'select', 'auto');
+    assert.strictEqual(refused.status, 409);
+    assert.match(refused.body.error, /^Analyse a track or select a listening live input/);
+    let control = (await call('GET', '/api/control')).body.control;
+    assert.deepStrictEqual([control.programme, control.playing, calls.started], ['look', true, 0]);
+    assert.strictEqual((await sendControl(call, 'stop')).status, 200);
+    const chosen = await sendControl(call, 'select', 'auto');
+    assert.deepStrictEqual([chosen.status, chosen.body.control.programme, chosen.body.control.playing], [200, 'auto', false]);
+    const play = await sendControl(call, 'start');
+    assert.strictEqual(play.status, 409);
+    assert.match(play.body.error, /^Analyse a track or select a listening live input/);
+    control = (await call('GET', '/api/control')).body.control;
+    assert.deepStrictEqual([control.programme, control.playing, calls.started], ['auto', false, 0]);
+  });
+});
+
 test('analysis completion preserves later Stop, Freeze and Blackout and rejects an older Start', async (t) => {
   await withApp(t, async ({ post, call, calls, settle }) => {
     const old = (await call('GET', '/api/control')).body.control;

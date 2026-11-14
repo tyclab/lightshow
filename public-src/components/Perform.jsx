@@ -10,7 +10,7 @@ import { Pads } from './Pads.jsx';
 import { StrobePad } from './StrobePad.jsx';
 import { activeQueue } from './Queue.jsx';
 import { PaletteStrip } from './PaletteStrip.jsx';
-import { Transport } from './Transport.jsx';
+import { SequenceShelf, Transport } from './Transport.jsx';
 import { Matrix } from './Matrix.jsx';
 import { SubTabs, SubPanel, useSubTab } from './setup/SubTabs.jsx';
 import { AudioMeters } from './AudioMeters.jsx';
@@ -200,6 +200,7 @@ export function Perform() {
   return (
     <div class="perform-view">
       <StrobesOff perform />
+      <SequenceShelf />
       <Transport />
       <div class="perform-body">
         <div class="perform-controls">

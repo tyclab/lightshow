@@ -11,7 +11,7 @@ function setup(frame = async () => {}) {
     setBlackout: on => { blackout = on; calls.push(['blackout', on]); },
     validateStart: programme => { if (refuse.has(programme)) throw Object.assign(new Error(`cannot start ${programme}`), { status: 409 }); },
     start: programme => calls.push(['start', programme]), switchTo: programme => calls.push(['switch', programme]),
-    stop: () => calls.push(['stop']), changed() {}, frame });
+    leave: from => calls.push(['leave', from]), stop: () => calls.push(['stop']), changed() {}, frame });
   const refuse = new Set();
   const act = (action, extra = {}) => control.execute({ ...control.snapshot(), action, ...extra });
   return { control, calls, act, refuse };
@@ -45,7 +45,24 @@ test('a switch the next programme cannot start is refused before the playing one
   await act('stop');
   await act('select', { programme: 'sequence' });
   assert.equal(control.programme, 'sequence', 'while stopped, choosing never starts anything');
-  assert.deepEqual(calls.at(-1), ['stop']);
+  assert.deepEqual(calls.slice(-2), [['stop'], ['leave', 'look']], 'it only lets the stopped programme go');
+});
+
+// Show v3, G5: a stopped sequence left for another programme lets its held picture go and starts nothing.
+test('choosing another programme while stopped leaves the stopped one; choosing it again does nothing', async () => {
+  const { control, calls, act } = setup();
+  await act('select', { programme: 'sequence' });
+  await act('select', { programme: 'sequence' });
+  assert.deepEqual(calls, [['leave', 'look']], 'a reselect is no change');
+  calls.length = 0;
+  await act('select', { programme: 'auto' });
+  await act('select', { programme: 'look' });
+  assert.deepEqual(calls, [['leave', 'sequence'], ['leave', 'auto']]);
+  assert.deepEqual([control.programme, control.playing], ['look', false]);
+  calls.length = 0;
+  await act('start', { programme: 'sequence' });
+  assert.deepEqual(calls, [['leave', 'look'], ['start', 'sequence']], 'Start naming another programme lets the stopped one go first');
+  assert.deepEqual([control.programme, control.playing], ['sequence', true]);
 });
 
 test('global hold, blackout, permission and programme actions remain independent', async () => {

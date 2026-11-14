@@ -4,7 +4,7 @@
 // a take becomes a clip.
 
 import { test, expect } from '@playwright/test';
-import { chooseProgramme, control, open, playButton, reset } from './helpers.js';
+import { control, open, playButton, reset, selectSequence } from './helpers.js';
 
 const BASE = {
   id: 'e2e-seq', name: 'E2E', mode: 'arrangement', snap: 1,
@@ -68,8 +68,8 @@ test('a clip added in the editor plays, and the lane cursor moves', async ({ pag
   await page.getByRole('button', { name: 'Edit' }).click();
   await page.getByRole('button', { name: 'Add clip' }).click();
   await expect(page.locator('.seq-block')).toHaveCount(1);
-  await chooseProgramme(page, 'sequence');
-  await playButton(page, 'Start', 'sequence').click();
+  await selectSequence(page, 'sequence');
+  await playButton(page, 'Play', 'sequence', 'E2E').click();
   await expect(page.locator('.seq-now')).toContainText('Playing');
   const before = await cursorLeft(page);
   await expect.poll(() => cursorLeft(page), { timeout: 4000 }).toBeGreaterThan(before);
@@ -89,10 +89,11 @@ test('a sequence starts through global controls, stops and unloads without start
   await length.fill('64');
   await length.press('Enter');
   await expect(page.locator('.seq-block')).toHaveAttribute('aria-label', /beats 0 to 64/);
-  await chooseProgramme(page, 'sequence');
-  await playButton(page, 'Start', 'sequence').click();
+  // A new sequence is loaded and not saved: Perform selects it as it is, and the header plays it by its name.
+  await selectSequence(page, 'sequence');
+  await playButton(page, 'Play', 'sequence', 'New sequence').click();
   await expect(page.locator('.seq-now')).toContainText('Playing');
-  await playButton(page, 'Stop', 'sequence').click();
+  await playButton(page, 'Stop', 'sequence', 'New sequence').click();
   page.once('dialog', (dialog) => dialog.accept());
   await page.getByRole('button', { name: 'Unload' }).click();
   await expect(page.locator('.seq-now')).toContainText('No sequence loaded');
@@ -191,9 +192,9 @@ test('a pad hit while recording is kept as a clip', async ({ page, request }) =>
   const put = await request.put('/api/pads/0/0', { data: { ...pad, content: { kind: 'preset', id: preset.id }, launch: 'once' } });
   expect(put.ok(), await put.text()).toBe(true);
   await open(page, 'sequence');
+  await selectSequence(page, 'sequence');
   await page.getByLabel('Count-in beats').selectOption('0');
-  await chooseProgramme(page, 'sequence');
-  await playButton(page, 'Start', 'sequence').click();
+  await playButton(page, 'Play', 'sequence', 'E2E').click();
   await page.getByRole('button', { name: 'Record' }).click();
   await expect(page.getByRole('button', { name: 'Keep take' })).toBeVisible();
   const hit = await request.post('/api/pads/0/0/once', { data: {} });

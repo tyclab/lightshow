@@ -90,17 +90,24 @@ export async function unloadTrack(request) {
   await request.post('/api/auto/reset', { data: {} });
 }
 
-const PROGRAMME_NAMES = { look: 'Look', auto: 'Auto show', sequence: 'Sequence' };
+const PROGRAMME_NAMES = { look: 'selected picture', auto: 'Auto show', sequence: 'sequence' };
 
-/** The header's one play button: "Start Look" while stopped, "Stop Look" while the programme plays. */
-export function playButton(page, action, programme = 'look') {
-  return page.getByRole('group', { name: 'Global show controls' })
-    .getByRole('button', { name: `${action} ${PROGRAMME_NAMES[programme]}`, exact: true });
+/** The header's one play button: "Play selected picture" while it would start, "Stop selected picture" while it plays; a sequence by its name. */
+export function playButton(page, action, programme = 'look', sequence = '') {
+  const what = programme === 'sequence' && sequence ? `sequence ${sequence}` : PROGRAMME_NAMES[programme];
+  return page.getByRole('group', { name: 'Global show controls' }).getByRole('button', { name: `${action} ${what}`, exact: true });
 }
 
-/** Choose what the play button starts, from its menu, while stopped (while one plays, the choice switches to it). */
-export async function chooseProgramme(page, programme) {
-  await page.getByRole('group', { name: 'Global show controls' }).getByRole('button', { name: 'Programme', exact: true }).click();
-  await page.getByRole('menuitemradio', { name: PROGRAMME_NAMES[programme], exact: true }).click();
-  await expect(playButton(page, 'Start', programme)).toBeVisible();
+/** The header's one Auto show switch. */
+export function autoSwitch(page) {
+  return page.getByRole('group', { name: 'Global show controls' }).getByRole('switch', { name: 'Auto show', exact: true });
+}
+
+/** Choose the sequence on Perform's shelf, as the operator does, then go back to `view` (the page stays loaded). */
+export async function selectSequence(page, view) {
+  await page.evaluate(() => { window.location.hash = '#perform'; });
+  const shelf = page.getByRole('region', { name: 'Sequence shelf' });
+  await shelf.getByRole('button', { name: 'Select sequence', exact: true }).click();
+  await expect(shelf.getByRole('button', { name: 'Sequence selected ✓', exact: true })).toBeVisible();
+  if (view) await page.evaluate((v) => { window.location.hash = `#${v}`; }, view);
 }

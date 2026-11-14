@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { chooseProgramme, open, playButton, reset, state, until } from './helpers.js';
+import { open, playButton, reset, selectSequence, state, until } from './helpers.js';
 
 const ID = 'e2e-workflow';
 const PATTERN = 'e2e-mapped';
@@ -90,21 +90,21 @@ test('six-eight transport and loop inputs count eighth-note beats', async ({ pag
   await expect.poll(async () => (await current(request)).loop).toEqual({ on: true, startBeat: 4.5, endBeat: 7.5 });
 });
 
-test('playlist rows navigate with pointer or keyboard; global Start and Stop control playback', async ({ page, request }) => {
+test('playlist rows navigate with pointer or keyboard; global Play and Stop control playback', async ({ page, request }) => {
   expect((await request.put('/api/sequence', { data: { ...sequence(), mode: 'playlist' } })).ok()).toBe(true);
   await open(page, 'sequence');
   await playButton(page, 'Stop', 'look').click();
   await page.locator('.seq-block').nth(1).click();
   expect((await state(request)).sequence.playing).toBe(false);
-  await chooseProgramme(page, 'sequence');
-  await playButton(page, 'Start', 'sequence').click();
+  await selectSequence(page, 'sequence');
+  await playButton(page, 'Play', 'sequence', 'Workflow').click();
   await until(request, (s) => s.sequence.playing && s.sequence.lanes[0].clip === 'second');
   await page.locator('.seq-block').nth(2).focus();
   await page.keyboard.press('Enter');
   await until(request, (s) => s.sequence.playing && s.sequence.lanes[0].clip === 'third');
   await page.locator('.seq-block').nth(2).click();
   expect((await state(request)).sequence.playing).toBe(true, 'a row never silently stops the programme');
-  await playButton(page, 'Stop', 'sequence').click();
+  await playButton(page, 'Stop', 'sequence', 'Workflow').click();
   await until(request, (s) => !s.control.playing && !s.sequence.playing);
 });
 

@@ -72,7 +72,7 @@ test('background follows Colours on mobile, remains accessible from Stage, and t
   const colours = await page.locator('.show-colours').boundingBox();
   const backgroundBox = await page.locator('.background-controls').boundingBox();
   expect(backgroundBox.y).toBeGreaterThanOrEqual(colours.y + colours.height);
-  for (const control of [page.getByRole('button', { name: 'Programme', exact: true }), page.getByRole('group', { name: 'Picture source' }).getByRole('button').first()]) {
+  for (const control of [page.getByRole('switch', { name: 'Auto show', exact: true }), page.getByRole('group', { name: 'Picture source' }).getByRole('button').first()]) {
     const theme = await control.evaluate((element) => ({ colour: getComputedStyle(element).color, background: getComputedStyle(element).backgroundColor }));
     expect(theme.colour).not.toBe(theme.background);
   }

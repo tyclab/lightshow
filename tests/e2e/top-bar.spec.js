@@ -5,7 +5,8 @@
 import { test, expect } from '@playwright/test';
 import { createRequire } from 'node:module';
 import { io } from 'socket.io-client';
-import { armFromHeader, chooseProgramme, control, loadTrack, open, playButton, reset, set, state, unloadTrack, until } from './helpers.js';
+import { armFromHeader, autoSwitch, control, loadTrack, open, playButton, reset, set, state, unloadTrack, until } from './helpers.js';
+import { VIEWS } from '../../public-src/views.js';
 
 const AXE = createRequire(import.meta.url).resolve('axe-core/axe.min.js');
 const WIDTHS = [[1915, 1367], [1024, 768], [390, 844]];
@@ -80,7 +81,7 @@ for (const [width, height] of WIDTHS) {
     await control(request, 'stop');
     await set(request, { pattern: 'solid' });
     await open(page, 'effects');
-    await expect(playButton(page, 'Start')).toBeVisible();
+    await expect(playButton(page, 'Play')).toBeVisible();
     const before = {};
     for (const [name, locator] of Object.entries(safety(page))) before[name] = await box(locator);
     const { patterns } = await state(request);
@@ -177,39 +178,106 @@ test('an open picker closes when another client chooses the Visualizer, and stay
   await expect(segment).toHaveAttribute('aria-expanded', 'true');
 });
 
-test('the play button names its programme, its menu switches programmes in one go while one plays and always keeps Stop in reach', async ({ page, request }) => {
+// Show v3, words 9: "the removal of look dropdown button. thats for sure".
+test('the header has no Look button and no programme menu', async ({ page }) => {
+  await open(page, 'show');
+  for (const view of VIEWS) {
+    await page.goto(`/#${view.id}`);
+    await page.locator(`#panel-${view.id}`).waitFor();
+    for (const name of [/^Look$/, /Programme/, /^(Start|Stop) Look$/]) await expect(header(page).getByRole('button', { name }), `${view.id}: ${name}`).toHaveCount(0);
+    await expect(header(page).getByRole('menuitemradio')).toHaveCount(0);
+    await expect(header(page).getByRole('menu')).toHaveCount(0);
+    await expect(page.locator('.global-play-main')).not.toHaveAttribute('aria-haspopup');
+  }
+});
+
+// Show v3, words 7: "shoudlnt we not only need a toggle for auto show on off?"
+test('the header has one Auto show switch and it follows the programme', async ({ page, request }) => {
+  await open(page, 'effects');
+  await expect(header(page).getByRole('switch')).toHaveCount(1);
+  await expect(autoSwitch(page)).toHaveAttribute('aria-checked', 'false');
+  await control(request, 'stop');
+  for (const [programme, on] of [['auto', 'true'], ['sequence', 'false'], ['auto', 'true'], ['look', 'false']]) {
+    await control(request, 'select', programme);
+    await expect(autoSwitch(page), `another client chose ${programme}`).toHaveAttribute('aria-checked', on);
+  }
+  let release;
+  const held = new Promise((resolve) => { release = resolve; });
+  await page.route('**/api/control', async (route) => { if (route.request().method() === 'POST') await held; return route.continue(); });
+  await controls(page).getByRole('button', { name: 'Freeze', exact: true }).click();
+  await expect(autoSwitch(page), 'disabled while a control action is pending').toBeDisabled();
+  release();
+  await expect(autoSwitch(page)).toBeEnabled();
+  await page.unroute('**/api/control');
+});
+
+test('a refused Auto switch while playing leaves the programme and the switch as they were', async ({ page, request }) => {
+  await unloadTrack(request);
+  await open(page, 'effects');
+  expect((await state(request)).control).toMatchObject({ programme: 'look', playing: true });
+  await autoSwitch(page).click();
+  await expect(page.locator('.toast:not(.leaving)', { hasText: 'Analyse a track or select a listening live input before starting the auto show' })).toHaveCount(1);
+  expect((await state(request)).control).toMatchObject({ programme: 'look', playing: true });
+  await expect(autoSwitch(page)).toHaveAttribute('aria-checked', 'false');
+  await expect(playButton(page, 'Stop')).toBeVisible();
+});
+
+test('stopped, the Auto switch turns on and Play says why it cannot start', async ({ page, request }) => {
+  await unloadTrack(request);
+  await control(request, 'stop');
+  await open(page, 'effects');
+  await autoSwitch(page).click();
+  await until(request, (s) => s.control.programme === 'auto' && !s.control.pending);
+  await expect(autoSwitch(page)).toHaveAttribute('aria-checked', 'true');
+  expect((await state(request)).control.playing).toBe(false);
+  await playButton(page, 'Play', 'auto').click();
+  await expect(page.locator('.toast:not(.leaving)', { hasText: 'Analyse a track or select a listening live input before starting the auto show' })).toHaveCount(1);
+  expect((await state(request)).control).toMatchObject({ programme: 'auto', playing: false });
+  await expect(playButton(page, 'Play', 'auto')).toBeVisible();
+});
+
+// Show v3, words 4: "why do i need to stop playback for the change from look to auto? any technical reson at all?"
+test('the Auto switch changes the programme and nothing else, playing and stopped, both ways', async ({ page, request }) => {
   await loadTrack(request);
   try {
     await open(page, 'effects');
-    const menuButton = controls(page).getByRole('button', { name: 'Programme', exact: true });
-    await menuButton.click();
-    const menu = page.getByRole('menu', { name: 'Programme' });
-    await expect(menu.getByRole('menuitemradio', { name: 'Look', exact: true })).toHaveAttribute('aria-checked', 'true');
-    await expect(menu.getByRole('menuitemradio', { name: 'Auto show', exact: true })).toBeEnabled();
-    await expect(menu.getByRole('menuitem', { name: /^Stop/ })).toHaveCount(0);
-    await page.keyboard.press('Escape');
-    await expect(menuButton).toBeFocused();
-    // While Look plays, choosing the Auto show switches to it at once: no Stop first, Freeze and Blackout untouched.
-    await control(request, 'freeze');
-    await menuButton.click();
-    await menu.getByRole('menuitemradio', { name: 'Auto show', exact: true }).click();
-    const switched = await until(request, (s) => s.control.playing && s.control.programme === 'auto');
-    expect([switched.control.frozen, switched.control.blackout]).toEqual([true, false]);
-    await expect(playButton(page, 'Stop', 'auto')).toBeVisible();
-    await control(request, 'resume');
-    await playButton(page, 'Stop', 'auto').click();
-    await until(request, (s) => !s.control.playing);
-    await menuButton.click();
-    await expect(menu.getByRole('menuitem', { name: 'Stop and clear pads', exact: true })).toBeEnabled();
-    await page.keyboard.press('Escape');
-    await chooseProgramme(page, 'look');
-    await playButton(page, 'Start').click();
-    await until(request, (s) => s.control.playing && s.control.programme === 'look');
-    expect((await state(request)).control.frozen).toBe(false);
+    for (const playing of [true, false]) {
+      if (!playing) await control(request, 'stop');
+      await control(request, 'resume');
+      const pad = await (await request.post('/api/voices', { data: { effect: { kind: 'energy.glow' }, mode: 'latched' } })).json();
+      expect(pad.id, JSON.stringify(pad)).toBeTruthy();
+      await control(request, 'freeze');
+      const before = (await state(request)).control;
+      expect(before.playing).toBe(playing);
+      for (const programme of ['auto', 'look']) {
+        await autoSwitch(page).click();
+        const after = await until(request, (s) => s.control.programme === programme && !s.control.pending);
+        await expect(autoSwitch(page)).toHaveAttribute('aria-checked', String(programme === 'auto'));
+        for (const key of ['playing', 'frozen', 'blackout', 'armed']) expect(after.control[key], `${playing ? 'playing' : 'stopped'}, ${programme}: ${key}`).toBe(before[key]);
+        expect(after.voices.map((v) => v.id), `${programme}: the pad plays on`).toContain(pad.id);
+      }
+    }
   } finally {
     await control(request, 'stop');
+    await control(request, 'resume');
     await unloadTrack(request);
   }
+});
+
+// Replaces the menu's "Stop and clear pads": one button cannot offer Play and Stop at once, and Stop is the protective one.
+test('Stop is offered while pads light a stopped programme and clears them', async ({ page, request }) => {
+  await control(request, 'stop');
+  await open(page, 'effects');
+  await expect(playButton(page, 'Play')).toBeVisible();
+  const pad = await (await request.post('/api/voices', { data: { effect: { kind: 'energy.glow' }, mode: 'latched' } })).json();
+  expect(pad.id, JSON.stringify(pad)).toBeTruthy();
+  const stop = controls(page).getByRole('button', { name: 'Stop and clear pads', exact: true });
+  await expect(stop).toBeVisible();
+  await expect(stop).toContainText('Stop');
+  await stop.click();
+  const after = await until(request, (s) => s.voices.length === 0 && !s.control.layers && !s.control.pending);
+  expect(after.control.playing).toBe(false);
+  await expect(playButton(page, 'Play')).toBeVisible();
 });
 
 test('BPM and the connection need no tap; the rest of the status and this device\'s tools are one tap away', async ({ page }) => {
@@ -361,7 +429,7 @@ test('the header has no axe violations with its popovers open and the rig armed'
       await open(page, 'effects');
       await page.addScriptTag({ path: AXE });
       for (const opener of [() => source(page).getByRole('button', { name: /^Effects: / }).click(), () => page.locator('.status-chip').click(),
-        () => controls(page).getByRole('button', { name: 'Programme', exact: true }).click(), () => page.getByRole('button', { name: 'This device' }).click()]) {
+        () => page.getByRole('button', { name: 'This device' }).click()]) {
         await opener();
         const violations = await page.evaluate(async () => {
           const result = await window.axe.run(document.querySelector('.app-header'), { resultTypes: ['violations'] });
