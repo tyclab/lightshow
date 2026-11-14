@@ -1912,9 +1912,11 @@ count after the block's newest sample, `at` the wall clock (seconds) when the bl
 was read, `data` the samples as 16-bit little-endian base64, `dropped` how many
 blocks it left out so far. While it wants samples the server writes back, for each
 state and sample line it reads, how far it has read: `{"type": "pcm", "read": <stream
-seconds>}`. A sample line goes out only while the server has read to within 1024
+seconds>}`, and none while more than 4 KiB of them wait unread in the process's
+stdin. A sample line goes out only while the server has read to within 1024
 samples (46 ms) of the block before it; otherwise the block's samples are left out
-and counted. So a server that reads slowly or stops never finds more than that much
+and counted. The count since the server started is `samplesDropped` in the state's
+`live` block (`GET /api/state`, and the Socket.IO state). So a server that reads slowly or stops never finds more than that much
 sample data ahead of fresh samples, and a sample line never fills the pipe the state
 and event lines need: those stay whole, lossless and in order, written by the same
 thread, and keep the pace they have without a subscriber. This rests on the read
@@ -2400,8 +2402,10 @@ the state in protocol 2:
   input as heard: `samples` events `{ g, end, rate, data, at }`, `data` mono 16-bit
   little-endian samples up to the stream's sample count `end` of live input
   process `g`, at most 1024 a packet. `g` is the wall-clock millisecond the process
-  started, strictly increasing, so a restarted server never reuses one; a new
-  process counts its samples from zero. `at` is the server's wall clock (ms) when
+  started, strictly increasing within a server run; a restarted server picks a new
+  one unless the wall clock stepped back since, and Party Visuals also takes a count
+  that starts again below what it holds as a new stream. A new process counts its
+  samples from zero. `at` is the server's wall clock (ms) when
   the newest block was read from the device, a diagnostic only as good as the two
   machines' clock sync. Each packet waits for the client's acknowledgement;
   samples arriving meanwhile are sent with the next one, contiguous, and when more
