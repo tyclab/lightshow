@@ -147,6 +147,9 @@ export function quickDeck(rows, favourites = []) {
   return [...pinned, ...rest.filter((r) => r.user), ...rest.filter((r) => r.party && !r.user)];
 }
 
+/** The catalogue's utility family (strobes, Blinder, UV Wash, Kill, Glow, strobe overlays): Show and the header picker leave it to pads, cues and the API. */
+export const utilityEffect = (row) => !row.user && row.family === 'own.energy';
+
 /** What a plain tap does: puts the row on stage, nothing else. A rapid flash before the acknowledgement asks first. */
 export function tapRow(row, acknowledged, ask = () => {}) {
   if (row.rapidFlash && !acknowledged) {

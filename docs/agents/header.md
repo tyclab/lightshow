@@ -69,12 +69,25 @@ revised in #113 and #126); its full text is in git history. The rulings below st
   under Effects or Colour + motion.
 - Freeze, Blackout and Arm keep their own buttons at fixed positions with 44 px touch targets.
   Keep every current label reachable, and never name the apps the lightshow was ported from.
-- Show also selects effects from a contained, searchable list beside the stage, with the chosen
-  effect pinned above it (approved 2026-11-14). It says Current effect only
-  while the show plays unfrozen, Selected effect otherwise. While the Visualizer source has a
-  picture arriving, the card shows one sentence about it and nothing to choose. Colours sits under the stage; only its
-  wheel folds, from the card's top-right button. Background ends the right column. On a phone
-  the order is Stage, Effects, Colours, Background. The stage opens in 3D; 2D remains selectable.
-  Detailed effect controls stay in Effects. Show scales with the window, no fixed pixel sizes
-  (2026-11-14): its block in style.css has no px, the columns follow the view's own width at
-  35em and 68.75em, and the page scrolls when the minimums do not fit.
+- Show (2026-11-14, 02:29): "the hole color wheel inclusive colour orcder should collapse and just leave
+  the colour pallets, which then could be 2 nex to each other?, but i think would be better to move color
+  pallets to the rtight top and the colour wheel below backround stays and we have effects behind preview 3d
+  window 1-5 next to each other scaling with page width?" The stage over the effects on the left; Palettes,
+  the "Edit colours" fold and Background on the right; on a phone Stage, Effects, Palettes, Edit colours,
+  Background. Effects are name-only tiles, one to five columns by the card's width and the text size, in a
+  contained, searchable list with the chosen effect pinned beside the search; the description is the tile's
+  tooltip, and tiles that share a name show their family on a second line.
+  It says Current effect only while the show plays unfrozen, Selected effect otherwise. While the Visualizer
+  source has a picture arriving, the card shows one sentence about it and nothing to choose. Palettes names
+  the selected palette over its list, two columns where readable; one button folds the colour wheel and the
+  colour order together, folded until it is opened. An effect with a palette per band keeps its Bands card.
+  A cue row under the stage recalls a cue or saves the look as one. The stage opens in 3D; 2D remains
+  selectable. Detailed effect controls stay in Effect settings. Show scales with the window, "we scale
+  dynamic" and "we donnt do hardoced shit": its block in style.css has no px and no script sizes it, widths
+  step only at 35, 47.5, 68.75 and 120em, the columns follow the view's own width at 68.75em, and in two
+  columns a list keeps four rows of tiles and the preview 15rem and a third of its width; when those floors
+  do not fit, the page scrolls.
+- The utility effects (the catalogue's `own.energy` family: the strobes, Blinder, UV Wash, Kill, Glow and
+  the strobe overlays) are not offered on Show or in the header's effect picker (2026-11-14, 02:39: "uv wash
+  is brocken effect? dop we need it at all? we have button for that right?"). Pads, cues, sequences and the
+  API still play them, a look whose effect is one of them is still named, and Effect settings lists them.

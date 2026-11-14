@@ -804,10 +804,12 @@ test('Show keeps effect selection, Background and Bands; a Disco shows its bands
   assert.ok(ambient.params.channels[1].enabled, 'the library preset is untouched');
   givenLibrary({ pattern: 'v2.scatterStrobe' });
   const colours = ui.html(ui.h(ui.Show));
-  assert.match(colours, /class="btn sm wheel-toggle" aria-expanded="true"[^>]*>Colour wheel<\/button>/);
-  assert.match(colours, /colour-wheel-disc/);
-  assert.match(colours, /band-palette-list/);
-  assert.match(colours, /aria-label="Palette colour order"/);
+  // The operator, 2026-11-14: "the hole color wheel inclusive colour orcder should collapse and just leave the colour pallets".
+  const palettes = /<section class="card bands show-palettes" aria-label="Palettes"[^>]*>(.*?)<\/section>/s.exec(colours)[1];
+  assert.match(palettes, /band-palette-list/);
+  assert.match(palettes, /Selected palette/);
+  assert.match(colours, /<button type="button" class="show-fold-toggle" aria-expanded="false"[^>]*>.*?Edit colours/s);
+  assert.doesNotMatch(colours, /colour-wheel-disc|Palette colour order/, 'folded on a fresh page: neither the wheel nor the order');
   const own = /<section class="card bands" aria-label="Colours"[^>]*>(.*?)<\/section>/s.exec(ui.html(ui.h(ui.Bands)))[1];
   assert.match(own, /aria-label="Effect palette"/);
   assert.match(own, /class="colour-wheel-disc adds"/, 'its palette sits on the wheel, and a tap there adds a colour');
@@ -818,23 +820,43 @@ test('Show keeps effect selection, Background and Bands; a Disco shows its bands
   assert.doesNotMatch(card + own, /band-mode|band-for|for Ambient|for Scatter Strobe/, 'neither card names the effect');
 });
 
-test('Show remembers a folded colour wheel while keeping the colour order and palettes', () => {
+test('one button on Show folds the wheel and the colour order: folded first, remembered under its own key, deaf to the old one', () => {
   givenLibrary({ pattern: 'ldj.Swirl' });
-  globalThis.localStorage = { getItem: (key) => (key === 'lightshow.show.colourWheel' ? 'closed' : null) };
+  const stored = new Map([['lightshow.show.colourWheel', 'open']]);
+  globalThis.localStorage = { getItem: (key) => stored.get(key) ?? null, setItem: (key, value) => stored.set(key, String(value)),
+    removeItem: (key) => stored.delete(key) };
+  const toggle = /<button type="button" class="show-fold-toggle" aria-expanded="(true|false)" aria-controls="[^"]+"[^>]*>.*?Edit colours.*?<\/button>/s;
   try {
-    const html = ui.html(ui.h(ui.Bands, { show: true }));
-    assert.match(html, /class="btn sm wheel-toggle" aria-expanded="false"/);
-    assert.match(html, /class="wheel-box" hidden/);
-    assert.match(html, /aria-label="Palette colour order"/);
-    assert.match(html, /aria-label="Search Effect palettes"/);
+    const fresh = ui.html(ui.h(ui.Bands, { show: true }));
+    assert.strictEqual(toggle.exec(fresh)?.[1], 'false', 'the old key changes nothing');
+    assert.doesNotMatch(fresh, /colour-wheel-disc|Palette colour order/);
+    assert.match(fresh, /aria-label="Search Effect palettes"/, 'the palettes stay');
+    assert.strictEqual(count(fresh, 'show-fold-toggle'), 1, 'one button for both');
+    assert.ok(!stored.has('lightshow.show.colourWheel'), 'the old key is removed');
+    stored.set('lightshow.show.colourEditor', 'open');
+    const open = ui.html(ui.h(ui.Bands, { show: true }));
+    assert.strictEqual(toggle.exec(open)?.[1], 'true');
+    assert.match(open, /colour-wheel-disc/);
+    assert.match(open, /aria-label="Palette colour order"/);
     const effects = ui.html(ui.h(ui.Bands));
-    assert.doesNotMatch(effects, /wheel-toggle|wheel-box|folded/);
+    assert.doesNotMatch(effects, /show-fold|show-palettes|Edit colours/, 'the Effect settings view keeps its card');
     assert.match(effects, /colour-wheel-disc/);
     globalThis.localStorage.getItem = () => { throw new Error('storage unavailable'); };
-    assert.match(ui.html(ui.h(ui.Bands, { show: true })), /class="btn sm wheel-toggle" aria-expanded="true"/);
+    assert.strictEqual(toggle.exec(ui.html(ui.h(ui.Bands, { show: true })))?.[1], 'false');
   } finally {
     delete globalThis.localStorage;
   }
+});
+
+test('Show says that Auto holds a look picked by hand while the director holds it', () => {
+  const live = (holding) => ({ running: true, listening: true, bpm: 128, director: { active: true, pattern: 'chase', silent: false, holding } });
+  const effects = (html) => /<section class="card contained-effects[^"]*"[^>]*>(.*?)<\/section>/s.exec(html)[1];
+  givenLibrary({ running: true, live: live(true) });
+  assert.match(effects(ui.html(ui.h(ui.Show))), /<p class="hint contained-hold" role="status">Auto holds the picked look/);
+  givenLibrary({ running: true, live: live(false) });
+  assert.doesNotMatch(effects(ui.html(ui.h(ui.Show))), /holds the picked look/);
+  givenLibrary({ running: true, live: { running: true, listening: true, director: null } });
+  assert.doesNotMatch(effects(ui.html(ui.h(ui.Show))), /holds the picked look/, 'a planned show gets no label');
 });
 
 test('a favourite is pinned first on the deck, whatever it is', () => {

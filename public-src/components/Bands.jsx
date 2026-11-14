@@ -64,6 +64,12 @@ function Toggle({ label, checked, onChange }) {
   </label>;
 }
 
+/** A palette's colours as one strip, as the list and Show's selected palette draw it. */
+function strip(p) {
+  const colours = p.colours.filter((c) => typeof c === 'string').map((c) => c.slice(0, 7));
+  return colours.length > 1 ? `linear-gradient(in oklch 90deg, ${colours.join(', ')})` : colours[0] || '#808080';
+}
+
 /** The palette list: searchable, each row with its colours as a strip, the one in play marked; saved palettes are managed from here too. */
 function PaletteList({ label, palettes, active, range, onRange, onChoose }) {
   const [query, setQuery] = useState('');
@@ -72,10 +78,6 @@ function PaletteList({ label, palettes, active, range, onRange, onChoose }) {
   const lib = librarySig.value;
   const q = query.trim().toLowerCase();
   const rows = palettes.filter((p) => !q || paletteName(p).toLowerCase().includes(q));
-  const strip = (p) => {
-    const colours = p.colours.filter((c) => typeof c === 'string').map((c) => c.slice(0, 7));
-    return colours.length > 1 ? `linear-gradient(in oklch 90deg, ${colours.join(', ')})` : colours[0] || '#808080';
-  };
   return <div class="band-palettes">
     <input type="search" class="band-search" placeholder="Search palettes" aria-label={`Search ${label} palettes`} value={query}
       onInput={(e) => setQuery(e.currentTarget.value)} />
@@ -218,19 +220,26 @@ function BandChannels({ colour, palettes, masked, audio }) {
   </>;
 }
 
+const EDITOR_KEY = 'lightshow.show.colourEditor';
+/** Show's colour editor stays folded until it is opened in this browser; the old wheel-only fold's key is dropped unread. */
+function editorOpen() {
+  try {
+    localStorage.removeItem('lightshow.show.colourWheel');
+    return localStorage.getItem(EDITOR_KEY) === 'open';
+  } catch { return false; }
+}
+
 /** Any other effect: its own palette on the wheel and in order, recoloured, resized or replaced from the list; the effect decides how it plays it. */
-function EffectPalette({ colour, palettes, masked, classic, show }) {
+function EffectPalette({ colour, palettes, masked, classic, show, frozen }) {
   const body = colour.current;
   const entries = body.colours || [];
   const [selected, setSelected] = useState(0);
-  const wheelId = useId();
-  const [wheelOpen, setWheelOpen] = useState(() => {
-    try { return localStorage.getItem('lightshow.show.colourWheel') !== 'closed'; } catch { return true; }
-  });
-  const toggleWheel = () => {
-    const open = !wheelOpen;
-    setWheelOpen(open);
-    try { localStorage.setItem('lightshow.show.colourWheel', open ? 'open' : 'closed'); } catch { /* private mode */ }
+  const editorId = useId();
+  const [editing, setEditing] = useState(show ? editorOpen : false);
+  const toggleEditor = () => {
+    const open = !editing;
+    setEditing(open);
+    try { localStorage.setItem(EDITOR_KEY, open ? 'open' : 'closed'); } catch { /* private mode */ }
   };
   const at = Math.min(selected, entries.length - 1);
   const strings = entries.filter((c) => typeof c === 'string');
@@ -271,29 +280,50 @@ function EffectPalette({ colour, palettes, masked, classic, show }) {
     }}>Add colour</button>}
   </div>;
   const paletteList = <PaletteList label="Effect" palettes={palettes} active={active} range={false} onChoose={choose} />;
+  const reset = s.effectColours && <button type="button" class="btn sm band-reset" onClick={() => send({ effectColours: null })}>Reset</button>;
+  const distribution = colour.modes.length > 0 && <label class="band-distribution">Colour distribution <select aria-label="Colour distribution" value={mode}
+    onChange={(e) => send({ effectColours: { pattern: s.pattern, mode: e.target.value } })}>
+    {colour.modes.map((m) => <option key={m} value={m}>{({ solid: 'First colour', along: 'Across the effect', time: 'Over time', white: 'White emitters',
+      first: 'First colour', palette: 'Cycle palette' })[m]}</option>)}
+  </select></label>;
+  const whiteNote = <p class="muted">White emitters ignore palettes. Choose First colour or Cycle palette for colour.</p>;
+  if (show) {
+    // Show (the operator, 2026-11-14): the palettes stay in view; the wheel and the colour order fold together under one button.
+    const named = active && active !== 'off' ? palettes.find((p) => p.id === active) ?? { id: active } : null;
+    return <>
+      <section class="card bands show-palettes" aria-label="Palettes">
+        {frozen}
+        <div class="card-title band-title"><span>Palettes</span>{reset}</div>
+        {masked && <p class="muted" role="status">{masked}</p>}
+        <div class="show-palette-current">
+          <span class="show-palette-label">Selected palette</span>
+          <strong class="show-palette-name">{named ? paletteName(named) : s.effectColours ? 'Custom colours' : 'The effect’s own colours'}</strong>
+          <span class="show-palette-strip" style={{ background: strip({ colours: strings }) }} aria-hidden="true" />
+        </div>
+        {distribution}
+        {white ? whiteNote : paletteList}
+      </section>
+      {!white && <section class="card show-fold" aria-label="Colour editing">
+        <button type="button" class="show-fold-toggle" aria-expanded={editing} aria-controls={editorId} onClick={toggleEditor}>
+          <span class="show-fold-text"><strong>Edit colours</strong><small>Colour wheel &amp; colour order</small></span>
+          <span class="show-fold-chevron" aria-hidden="true">⌄</span>
+        </button>
+        <div id={editorId} class="show-fold-body" hidden={!editing}>
+          {editing && <div class="band-channel" role="group" aria-label="Effect palette">
+            <div class="band-editor"><div class="band-sequence">{wheel}{order}</div></div>
+          </div>}
+        </div>
+      </section>}
+    </>;
+  }
   return <>
-    <div class="card-title band-title">
-      <span>Colours</span>
-      {s.effectColours && <button type="button" class="btn sm band-reset" onClick={() => send({ effectColours: null })}>Reset</button>}
-      {show && !white && <button type="button" class="btn sm wheel-toggle" aria-expanded={wheelOpen} aria-controls={wheelId}
-        aria-label="Colour wheel" onClick={toggleWheel}>Colour wheel</button>}
-    </div>
+    <div class="card-title band-title"><span>Colours</span>{reset}</div>
     {masked && <p class="muted" role="status">{masked}</p>}
-    {colour.modes.length > 0 && <label class="band-distribution">Colour distribution <select aria-label="Colour distribution" value={mode}
-      onChange={(e) => send({ effectColours: { pattern: s.pattern, mode: e.target.value } })}>
-      {colour.modes.map((m) => <option key={m} value={m}>{({ solid: 'First colour', along: 'Across the effect', time: 'Over time', white: 'White emitters',
-        first: 'First colour', palette: 'Cycle palette' })[m]}</option>)}
-    </select></label>}
-    {white ? <p class="muted">White emitters ignore palettes. Choose First colour or Cycle palette for colour.</p> : <div class="band-channel" role="group" aria-label="Effect palette">
+    {distribution}
+    {white ? whiteNote : <div class="band-channel" role="group" aria-label="Effect palette">
       <div class="band-editor">
-        {show ? <div class={`colours-grid${wheelOpen ? '' : ' folded'}`}>
-          <div id={wheelId} class="wheel-box" hidden={!wheelOpen}>{wheel}</div>
-          {order}
-          {paletteList}
-        </div> : <>
-          <div class="band-sequence">{wheel}{order}</div>
-          {paletteList}
-        </>}
+        <div class="band-sequence">{wheel}{order}</div>
+        {paletteList}
       </div>
     </div>}
   </>;
@@ -326,9 +356,13 @@ export function Bands({ show = false }) {
   const override = colour.s.paletteOverride?.length;
   const masked = override ? `The global palette override (Perform) is playing instead of these ${bands ? 'band colours' : 'colours'}. Turn it Off there to hear them.`
     : bands && colour.spec.palette?.length ? 'This effect’s own palette plays instead of its bands: Reset to play the bands.' : null;
+  const frozen = control?.frozen && <p class="hint">The picture is frozen. Colour edits appear when you Resume.</p>;
+  if (show && !bands) {
+    return <EffectPalette key={colour.s.pattern} colour={colour} palettes={palettes} masked={masked} classic={palette} show frozen={frozen} />;
+  }
   return <section class="card bands" aria-label={bands ? 'Bands' : 'Colours'}>
-    {control?.frozen && <p class="hint">The picture is frozen. Colour edits appear when you Resume.</p>}
+    {frozen}
     {bands ? <BandChannels colour={colour} palettes={palettes} masked={masked} audio={audio} />
-      : <EffectPalette key={colour.s.pattern} colour={colour} palettes={palettes} masked={masked} classic={palette} show={show} />}
+      : <EffectPalette key={colour.s.pattern} colour={colour} palettes={palettes} masked={masked} classic={palette} />}
   </section>;
 }

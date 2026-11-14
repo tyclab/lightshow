@@ -28,9 +28,9 @@ test('the app opens on Show: the room, the looks and global controls', async ({ 
   await expect(controls.getByRole('switch', { name: 'Auto show', exact: true })).toBeVisible();
   await expect(page.getByRole('group', { name: 'Picture source' })).toBeVisible();
   await expect(page.locator('.show-room .stage3d-canvas')).toBeVisible();
-  await expect(page.locator('.show-body > .background-controls')).toBeVisible();
+  await expect(page.locator('.show-side > .background-controls')).toBeVisible();
   await expect(page.locator('.show-colours .bands')).toBeVisible();
-  await expect(page.locator('.show-body > .contained-effects')).toBeVisible();
+  await expect(page.locator('.show-main > .contained-effects')).toBeVisible();
   await expect(page.locator('.command-bar')).toHaveCount(0);
 });
 
