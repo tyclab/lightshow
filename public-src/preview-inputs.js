@@ -47,8 +47,9 @@ export function previewOptions(s, { table = null, library = null } = {}) {
 /**
  * The selected look as a stopped, disarmed stage draws it (Show v3, G6): the live state's effect with its
  * colours, the palette and its override, Background and the look's own flash limit, on the built-in demo
- * beat, each light as it emits. The master scales each fixture's trim, as the engine multiplies them. Safety is always given and
- * acknowledged only when the state says so, so a rapid effect stays dark until the operator acknowledges.
+ * beat, each light as it emits. The master scales each fixture's trim, as the engine multiplies them. The
+ * acknowledgement is the state's answer, given while disarmed as in the engine's own disarmed picture; the
+ * sampler never writes one, and the look's flash limit applies.
  */
 export function demoLookSampler(s, { library = null, space = null } = {}) {
   const base = previewOptions(s, { library });
