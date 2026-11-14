@@ -147,6 +147,11 @@ test('the two tabs are one stop, and the arrow keys move between them only', asy
 });
 
 test('the Setup menu works from the keyboard', async ({ page }) => {
+  // Frames 200 ms late, as on a busy machine: a key pressed right after opening still reaches the menu.
+  await page.addInitScript(() => {
+    const frame = window.requestAnimationFrame.bind(window);
+    window.requestAnimationFrame = (run) => frame(() => setTimeout(() => run(performance.now()), 200));
+  });
   await open(page, 'show');
   const setup = page.getByRole('navigation', { name: 'Views' }).getByRole('button', { name: /^Setup/ });
   const menu = page.getByRole('menu', { name: 'Setup' });

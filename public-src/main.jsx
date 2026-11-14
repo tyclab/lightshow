@@ -1,6 +1,6 @@
 import { Background } from './components/Background.jsx';
 import { render } from 'preact';
-import { useState, useEffect, useRef, useCallback } from 'preact/hooks';
+import { useState, useEffect, useLayoutEffect, useRef, useCallback } from 'preact/hooks';
 import { field } from './state.js';
 import { setUpDevice } from './device.js';
 
@@ -103,16 +103,19 @@ function ModeTabs({ mode, setMode }) {
 // first entry, ArrowUp on its last; the arrows, Home and End move; Escape and a choice give focus back.
 function SetupMenu({ mode, setMode, autoActive }) {
   const [open, setOpen] = useState(false);
-  const [focusAt, setFocusAt] = useState(0);
+  // A new object per request, so a second ArrowDown on the open menu's button moves focus again.
+  const [focusAt, setFocusAt] = useState({ at: 0 });
   const trigger = useRef(null);
   const menu = useRef(null);
   useDismiss(open, () => setOpen(false), trigger, menu);
   useEffect(() => { setOpen(false); }, [mode]);
-  useEffect(() => {
-    if (open) menu.current?.querySelectorAll('[role="menuitem"]')[focusAt]?.focus();
-  }, [open]);
+  // Before the next key arrives: an effect runs after the next frame, and a key pressed right
+  // after Enter would still reach the button.
+  useLayoutEffect(() => {
+    if (open) menu.current?.querySelectorAll('[role="menuitem"]')[focusAt.at]?.focus();
+  }, [open, focusAt]);
   const current = SETUP_VIEWS.find((v) => v.id === mode);
-  const show = (at) => { setFocusAt(at); setOpen(true); };
+  const show = (at) => { setFocusAt({ at }); setOpen(true); };
   const onButtonKey = (e) => {
     if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
     e.preventDefault();
