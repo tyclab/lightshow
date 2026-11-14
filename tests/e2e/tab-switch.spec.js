@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { open, previewLook, reset, set, state } from './helpers.js';
+import { open, openFromSetup, previewLook, reset, set, state } from './helpers.js';
 
 test.beforeEach(async ({ request }) => { await reset(request); });
 
@@ -118,7 +118,7 @@ test('switching between Show and Effects keeps one WebGL context for the room an
     await open(page, 'show');
     await expect(page.locator('.show-room .stage3d-canvas')).toBeVisible();
     for (let round = 0; round < 4; round++) {
-      await page.locator('#tab-effects').click();
+      await openFromSetup(page, 'Effect settings');
       await expect(page.getByRole('group', { name: 'Stage layout, viewed from the audience' })).toBeVisible();
       await page.locator('#tab-show').click();
       await expect(page.getByRole('img', { name: /The rig in 3D/ })).toBeVisible();
@@ -220,8 +220,10 @@ test('the bars above each view are measured again for the sticky offsets after a
       return { name, variable: parseFloat(css.getPropertyValue(`--${name}-height`)), height: element ? element.getBoundingClientRect().height : 0 };
     }).filter(({ variable, height }) => !(Math.abs(variable - height) < 0.5));
   }, bars);
+  const menu = { effects: 'Effect settings', stage: 'Stage', sequence: 'Sequence' };
   for (const view of ['effects', 'show', 'stage', 'effects', 'sequence']) {
-    await page.locator(`#tab-${view}`).click();
+    if (menu[view]) await openFromSetup(page, menu[view]);
+    else await page.locator(`#tab-${view}`).click();
     await page.locator(`#panel-${view}`).waitFor();
     await expect.poll(offsets).toEqual([]);
   }
@@ -296,7 +298,7 @@ test('a return to Show draws the room the scene built, rebuilding and compiling 
     await page.waitForTimeout(500);
     const linked = await page.evaluate(() => window.programLinks.length);
     for (let round = 0; round < 3; round++) {
-      await page.locator('#tab-effects').click();
+      await openFromSetup(page, 'Effect settings');
       await expect(page.getByRole('group', { name: 'Stage layout, viewed from the audience' })).toBeVisible();
       const drawn = await page.evaluate(() => window.draws);
       await page.locator('#tab-show').click();

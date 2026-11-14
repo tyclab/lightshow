@@ -1,7 +1,7 @@
-// The view shell: a real tab strip, a view per hash, keys to switch.
+// The view shell: Show and Perform as tabs, the other views in the Setup menu, a view per hash, keys to switch.
 
 import { test, expect } from '@playwright/test';
-import { control, open, reset } from './helpers.js';
+import { control, loadTrack, open, openFromSetup, reset, unloadTrack } from './helpers.js';
 
 test.beforeEach(async ({ request }) => { await reset(request); });
 
@@ -9,7 +9,7 @@ test('the hash opens a view, and switching views writes it back', async ({ page 
   await open(page, 'perform');
   await expect(page.getByRole('tab', { name: /Perform/ })).toHaveAttribute('aria-selected', 'true');
   await expect(page.locator('.perform-pads')).toBeVisible();
-  await page.getByRole('tab', { name: /Auto Show/ }).click();
+  await openFromSetup(page, 'Auto Show');
   await expect(page).toHaveURL(/#auto(?:\/show)?$/);
   await page.goBack();
   await page.goto('/#effects');
@@ -74,20 +74,146 @@ test('Show\'s room starts in the top half of a tablet, under a header that never
   expect(await page.locator('.global-controls').evaluate((e) => e.scrollWidth - e.clientWidth)).toBeLessThanOrEqual(0);
 });
 
-test('the tab strip is one stop, and the arrow keys move along it', async ({ page }) => {
-  await open(page, 'effects');
-  const manual = page.getByRole('tab', { name: /Effects/ });
-  await manual.focus();
+// Each view: [id, how the strip or the menu names it, its digit, a part of the view only it draws].
+const EVERY_VIEW = [
+  ['show', 'Show', '1', '.show-body'], ['effects', 'Effect settings', '2', '.manual-view'], ['perform', 'Perform', '3', '.perform-view'],
+  ['stage', 'Stage', '4', '#panel-stage'], ['auto', 'Auto Show', '5', '.auto-view'], ['sequence', 'Sequence', '6', '#panel-sequence'],
+  ['rig', 'Rig', '7', '#panel-rig'], ['sources', 'Sources', '8', '#panel-sources'], ['settings', 'Settings', '9', '#panel-settings'],
+  ['preflight', 'Preflight', '0', '#panel-preflight'],
+];
+
+test('the strip has Show, Perform and Setup, and every former view still opens', async ({ page }) => {
+  await open(page, 'show');
+  const nav = page.getByRole('navigation', { name: 'Views' });
+  const tabs = nav.getByRole('tab');
+  await expect(tabs).toHaveCount(2);
+  await expect(tabs.nth(0)).toHaveAccessibleName('Show');
+  await expect(tabs.nth(1)).toHaveAccessibleName('Perform');
+  const setup = nav.getByRole('button', { name: /^Setup/ });
+  await expect(setup).toHaveAttribute('aria-haspopup', 'menu');
+  await expect(setup).toHaveAttribute('aria-expanded', 'false');
+  await setup.click();
+  const menu = page.getByRole('menu', { name: 'Setup' });
+  const entries = menu.getByRole('menuitem');
+  const listed = EVERY_VIEW.filter(([id]) => id !== 'show' && id !== 'perform').map(([, name]) => name);
+  await expect(entries).toHaveCount(listed.length);
+  for (const [i, name] of listed.entries()) await expect(entries.nth(i)).toHaveAccessibleName(name);
+  await page.keyboard.press('Escape');
+  for (const [id, name, key, part] of EVERY_VIEW) {
+    const from = id === 'show' ? 'perform' : 'show';
+    await open(page, from);
+    if (id === 'show' || id === 'perform') await nav.getByRole('tab', { name, exact: true }).click();
+    else await openFromSetup(page, name);
+    await expect(page.locator(part), `${name} from the ${id === 'show' || id === 'perform' ? 'strip' : 'menu'}`).toBeVisible();
+    await expect(page).toHaveURL(new RegExp(`#${id}(?:/[a-z]+)?$`));
+    await expect(menu).toBeHidden();
+    await expect(page.locator(`#panel-${id}`), 'the panel keeps a name without its tab').toHaveAccessibleName(name);
+    await open(page, from);
+    await page.locator('body').press(key);
+    await expect(page.locator(part), `${name} on ${key}`).toBeVisible();
+    await page.goto(`/#${id}`);
+    await expect(page.locator(part), `${name} by its hash`).toBeVisible();
+  }
+  for (const [alias, canonical, part] of [['manual', 'effects', '.manual-view'], ['timeline', 'auto/timeline', '.timeline-view'], ['matrix', 'perform/matrix', '.perform-view']]) {
+    await page.goto(`/#${alias}`);
+    await expect(page.locator(part), `#${alias}`).toBeVisible();
+    await expect(page).toHaveURL(new RegExp(`#${canonical}$`));
+  }
+});
+
+test('the two tabs are one stop, and the arrow keys move between them only', async ({ page }) => {
+  await open(page, 'rig');
+  const nav = page.getByRole('navigation', { name: 'Views' });
+  const show = nav.getByRole('tab', { name: 'Show', exact: true });
+  const perform = nav.getByRole('tab', { name: 'Perform', exact: true });
+  await expect(nav.getByRole('tab', { selected: true })).toHaveCount(0);
+  await expect(show, 'with no tab selected the first is the stop').toHaveAttribute('tabindex', '0');
+  await expect(perform).toHaveAttribute('tabindex', '-1');
+  await show.focus();
   await page.keyboard.press('ArrowRight');
-  await expect(page.getByRole('tab', { name: /Perform/ })).toBeFocused();
+  await expect(perform).toBeFocused();
+  await expect(perform).toHaveAttribute('aria-selected', 'true');
   await expect(page.locator('#panel-perform')).toBeVisible();
-  // The live views, then the setup views: End is the last of them all.
-  await page.keyboard.press('End');
-  await expect(page.getByRole('tab', { name: /Preflight/ })).toHaveAttribute('aria-selected', 'true');
-  await expect(page.locator('#panel-preflight')).toHaveAttribute('aria-labelledby', 'tab-preflight');
-  await expect(page.getByRole('tab', { name: /Effects/ })).toHaveAttribute('tabindex', '-1');
   await page.keyboard.press('ArrowRight');
-  await expect(page.getByRole('tab', { name: /^Show/ })).toBeFocused();
+  await expect(show).toBeFocused();
+  await expect(page.locator('#panel-show')).toBeVisible();
+  await page.keyboard.press('ArrowLeft');
+  await expect(perform).toBeFocused();
+  await page.keyboard.press('Home');
+  await expect(show).toBeFocused();
+  await page.keyboard.press('End');
+  await expect(perform).toBeFocused();
+  await expect(page.locator('#panel-perform')).toHaveAttribute('aria-labelledby', 'tab-perform');
+  await expect(show).toHaveAttribute('tabindex', '-1');
+});
+
+test('the Setup menu works from the keyboard', async ({ page }) => {
+  // Frames 200 ms late, as on a busy machine: a key pressed right after opening still reaches the menu.
+  await page.addInitScript(() => {
+    const frame = window.requestAnimationFrame.bind(window);
+    window.requestAnimationFrame = (run) => frame(() => setTimeout(() => run(performance.now()), 200));
+  });
+  await open(page, 'show');
+  const setup = page.getByRole('navigation', { name: 'Views' }).getByRole('button', { name: /^Setup/ });
+  const menu = page.getByRole('menu', { name: 'Setup' });
+  const item = (name) => menu.getByRole('menuitem', { name, exact: true });
+  for (const key of ['Enter', ' ', 'ArrowDown']) {
+    await setup.focus();
+    await page.keyboard.press(key);
+    await expect(setup).toHaveAttribute('aria-expanded', 'true');
+    await expect(item('Effect settings'), `${key} opens on the first entry`).toBeFocused();
+    await page.keyboard.press('Escape');
+    await expect(menu).toBeHidden();
+    await expect(setup, 'Escape gives focus back').toBeFocused();
+    await expect(setup).toHaveAttribute('aria-expanded', 'false');
+  }
+  await page.keyboard.press('Enter');
+  await page.keyboard.press('ArrowDown');
+  await expect(item('Stage')).toBeFocused();
+  await page.keyboard.press('ArrowUp');
+  await page.keyboard.press('ArrowUp');
+  await expect(item('Preflight'), 'the arrows wrap').toBeFocused();
+  await page.keyboard.press('ArrowDown');
+  await expect(item('Effect settings')).toBeFocused();
+  await page.keyboard.press('End');
+  await expect(item('Preflight')).toBeFocused();
+  await page.keyboard.press('Home');
+  await expect(item('Effect settings')).toBeFocused();
+  for (let i = 0; i < 4; i++) await page.keyboard.press('ArrowDown');
+  await expect(item('Rig')).toBeFocused();
+  await page.keyboard.press('Enter');
+  await expect(page.locator('#panel-rig')).toBeVisible();
+  await expect(menu).toBeHidden();
+  await expect(setup).toBeFocused();
+  await expect(setup).toContainText('Rig');
+  await page.keyboard.press('ArrowDown');
+  await expect(item('Rig'), 'the open view is marked in the menu').toHaveAttribute('aria-current', 'page');
+  await page.keyboard.press('Tab');
+  await expect(menu, 'leaving with Tab closes it').toBeHidden();
+  await setup.click();
+  await expect(menu).toBeVisible();
+  const strip = await page.locator('.mode-nav').boundingBox();
+  await page.mouse.click(strip.x + strip.width - 4, strip.y + strip.height / 2);
+  await expect(menu, 'a press outside closes it').toBeHidden();
+});
+
+test('a busy Auto Show marks the Setup button and its entry', async ({ page, request }) => {
+  await unloadTrack(request);
+  await open(page, 'show');
+  const setup = page.getByRole('navigation', { name: 'Views' }).getByRole('button', { name: /^Setup/ });
+  await expect(setup.locator('.mode-tab-dot')).toHaveCount(0);
+  await loadTrack(request);
+  try {
+    await expect(setup.locator('.mode-tab-dot'), 'visible with the menu closed').toBeVisible();
+    await expect(setup).toHaveAccessibleDescription('Auto Show: Running');
+    await setup.click();
+    const entry = page.getByRole('menu', { name: 'Setup' }).getByRole('menuitem', { name: 'Auto Show', exact: true });
+    await expect(entry.locator('.mode-tab-dot')).toBeVisible();
+    await expect(entry).toHaveAccessibleDescription('Running');
+  } finally {
+    await unloadTrack(request);
+  }
+  await expect(setup.locator('.mode-tab-dot')).toHaveCount(0);
 });
 
 test('the digit keys jump between views, and not while typing', async ({ page }) => {

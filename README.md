@@ -150,7 +150,7 @@ other cards leave and the effects list the height above Background; below the mi
 Stage, Effects, Colours, Background, the stage and the list each two fifths of the window. The stage
 opens in **3D room**, with **2D plot** available beside it. Stop controls remain
 under the stage when pads are playing.
-Effects holds the full catalogue, effect editing and mapping controls,
+Effect settings holds the full catalogue, effect editing and mapping controls,
 the same Bands card and fixture overrides; Perform is the tablet surface for pads, strobes, the Matrix board
 and tempo tools; Sequence arranges clips or runs a playlist; Stage shows the
 rig in 3D with its room bindings or a rehearsal. Arming is a separate action
@@ -295,7 +295,7 @@ Entertainment scope. The detailed fields below describe the data contract as
 well as the browser controls. See [feature coverage](docs/feature-coverage.md)
 for deliberate scope decisions and the fork policy.
 [Effects v2](docs/effects-v2.md) records the spatial framework and compatibility
-decisions. The Effects view lists every current look in one tagged list (see
+decisions. The Effect settings view lists every current look in one tagged list (see
 [Effects catalogue and tags](#effects-catalogue-and-tags)); old effect and palette
 ids remain available to saved shows and integrations.
 
@@ -306,7 +306,7 @@ to effects; pad banks launch effects or patterns over the look.
 | View | Shortcut | Purpose |
 |------|----------|---------|
 | Show | 1 | The room in 3D and the looks beside it |
-| Effects | 2 | Effects catalogue and inspector, cues, the Bands card, fixture overrides and stage preview |
+| Effect settings | 2 | Effects catalogue and inspector, cues, the Bands card, fixture overrides and stage preview |
 | Perform | 3 | Pads and Matrix, transport, strobe, tap, colours, the room picture's colour grade and the intensity fader |
 | Stage | 4 | Monitor the rendered rig in 3D, import a room and bind its lights |
 | Auto Show | 5 | Analyse music, choose its source, run the generated show; Timeline tab for rehearsal and edits |
@@ -315,6 +315,11 @@ to effects; pad banks launch effects or patterns over the look.
 | Sources | 8 | Playback sources, live input, analysis environment and models |
 | Settings | 9 | Show behaviour, safety, MIDI, engine and server access |
 | Preflight | 0 | Run the pre-show checks |
+
+The strip under the header has two tabs, **Show** and **Perform**, and a **Setup** menu with every
+other view under the name in the table; Setup names the view it has open (**Setup · Rig**). A dot
+on Setup, visible with the menu closed, and on its Auto Show entry says that Auto Show has a track
+analysing, ready or playing. Each view keeps its digit and its hash.
 
 The global controls and the picture source appear once in the app header,
 including setup views; choosing a source or an effect never starts the programme
@@ -332,19 +337,20 @@ go without starting anything. **Open the sequence editor** leads to Sequence.
 
 Hashes open a view directly, such as `/#perform` or `/#rig/outputs`.
 Show opens by default. Old `#manual`, `#timeline` and `#matrix` bookmarks redirect
-to Effects, Auto Show → Timeline and Perform → Matrix. The global header stays
+to Effect settings, Auto Show → Timeline and Perform → Matrix. The global header stays
 in one place on every tab. Sequence tools retain timeline Pause and row navigation.
 A paused timeline shows **Resume timeline** in Pause's place, on Perform and in Sequence;
 it carries on from the held beat. The header keeps Stop while the timeline is paused.
 The header's Resume releases only the picture hold.
-The view strip scrolls with its arrow buttons; keyboard arrows, Home and End
-work while a view tab is focused.
+The arrow keys, Home and End move between Show and Perform while a tab is focused. Enter, Space
+or ↓ opens the Setup menu, the arrows, Home and End move in it, and Esc closes it.
 
-The effect picker, Perform, Effects and the stage preview share the same status line:
+The effect picker, Perform, Effect settings and the stage preview share the same status line:
 main effect, sequence transport, visible voices and palette override. The
 highlighted catalogue row, tagged **Main effect**, identifies it; a sequence or
-voice may be above it. Perform and Effects list visible voices with individual Stop
-buttons. Stop all voices also clears latched and off-bank effects.
+voice may be above it. Perform and Effect settings list visible voices with individual Stop
+buttons. Perform's **Stop pads**, and **Stop all voices** on Show and Effect settings, also clear
+latched and off-bank effects; the programme plays on.
 
 Pads with no custom label use the catalogue name on both Perform and the
 command bar. Once, hold and loop are distinct launch modes. The header's ⋮
@@ -2421,10 +2427,11 @@ Press **?** in the app for this list.
 | Key | Action |
 |-----|--------|
 | **Space** | Tap tempo — also right after clicking a button; a control reached with Tab keeps Space for itself |
-| **1** / **2** / **3** | Perform / Effects / Auto Show view |
-| **4** / **5** | Sequence / Stage view |
-| **6** / **7** / **8** / **9** | Rig / Sources / Settings / Preflight view |
-| **←** **→**, **Home** / **End** on the view tabs | Next / previous / first / last view |
+| **1** / **2** / **3** | Show / Effect settings / Perform view |
+| **4** / **5** / **6** | Stage / Auto Show / Sequence view |
+| **7** / **8** / **9** / **0** | Rig / Sources / Settings / Preflight view |
+| **←** **→**, **Home** / **End** on the view tabs | Show / Perform |
+| **Enter**, **Space** or **↓** on Setup; **↑** **↓**, **Home** / **End**, **Esc** in its menu | Open the menu; move in it; close it |
 | **←** **→** / **↑** **↓** on a colour point (**Shift** for 10) | Turn its hue / change its saturation on the wheel |
 | **↑** **↓** on a colour's move handle | Move the colour one place in the order |
 | **Space** or **Enter** on a pad reached with Tab | Hold: play until released; once: play one phrase; loop: start or stop on each press |
