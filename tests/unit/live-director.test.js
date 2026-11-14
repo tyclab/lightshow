@@ -59,7 +59,7 @@ test('it takes the rig with a look chosen from what it hears', () => {
   for (const k of ['colorA', 'colorB', 'colorC', 'colorD']) assert.ok(look[k] >= 0 && look[k] <= 8, 'from the saturated wheel');
   assert.strictEqual(new Set([look.colorA, look.colorB, look.colorC, look.colorD]).size, 4);
   assert.deepStrictEqual([look.fadeMs, look.beatDivision, look.running], [1000, 1, undefined]);
-  assert.deepStrictEqual(t.d.status(), { active: true, pattern: look.pattern, silent: false });
+  assert.deepStrictEqual(t.d.status(), { active: true, pattern: look.pattern, silent: false, holding: false });
   t.event('BEAT');
   assert.strictEqual(t.patches.length, 1, 'the beat is the pattern clock\'s, not a patch');
 });
@@ -203,6 +203,35 @@ test('a look picked by hand holds for half a minute: accents play on, another pi
   const started = t.patches.length;
   for (let i = 0; i < 16; i++) t.event('BAR');
   assert.strictEqual(t.patches.length, started + 1, 'a pick made while it did not play holds nothing');
+});
+
+test('the director reports holding until its next look', () => {
+  const t = director();
+  const holding = () => t.d.status().holding;
+  t.hear({ seconds: 3 });
+  t.d.hold();
+  assert.strictEqual(holding(), false, 'a pick while it does not play holds nothing');
+  t.d.start();
+  assert.strictEqual(holding(), false, 'its own first look is no hold');
+  t.d.hold();
+  assert.strictEqual(holding(), true, 'a hand pick holds');
+  t.run(31_000);
+  assert.strictEqual(holding(), true, 'the time is up before the bar: still the hand\'s look');
+  t.event('TRANSITION', { to: 'high' });
+  assert.strictEqual(holding(), true, 'a section change between bars ends nothing');
+  let during = null;
+  const apply = t.d._apply;
+  t.d._apply = (patch) => { if (patch.pattern) during = holding(); return apply(patch); };
+  t.event('BAR');
+  assert.ok(patternIds.has(t.last().pattern), 'the first bar after the time brings the director\'s next look');
+  assert.strictEqual(during, false, 'the state that carries that look already says the hold is over');
+  assert.strictEqual(holding(), false);
+  t.d.hold();
+  assert.strictEqual(holding(), true);
+  t.d.stop();
+  assert.strictEqual(holding(), false, 'Stop ends it');
+  t.d.start();
+  assert.strictEqual(holding(), false, 'and a new start holds nothing');
 });
 
 // ── When it plays ────────────────────────────────────────────────────────────
