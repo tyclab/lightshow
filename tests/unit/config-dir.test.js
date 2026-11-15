@@ -6,7 +6,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import path from 'node:path';
 import {
-  appDir, dataDir, configDir, configFile, logDir, venvDir, venvPython,
+  dataDir, configDir, configFile, logDir, venvDir, venvPython,
 } from '../../src/server/config-dir.ts';
 
 const ROOT = path.join(import.meta.dirname, '..', '..');
@@ -26,7 +26,6 @@ function withEnv(t, env) {
 
 test('in a checkout, everything is where it always was', (t) => {
   withEnv(t, {});
-  assert.equal(appDir(), ROOT);
   assert.equal(dataDir(), ROOT);
   assert.equal(configDir(), path.join(ROOT, 'config'));
   assert.equal(configFile('settings.json'), path.join(ROOT, 'config', 'settings.json'));
@@ -37,7 +36,6 @@ test('in a checkout, everything is where it always was', (t) => {
 test('external data directories contain mutable data, not application files', (t) => {
   const data = path.resolve('/srv/lightshow-data');
   withEnv(t, { LIGHTSHOW_DATA_DIR: data });
-  assert.equal(appDir(), ROOT);
   assert.equal(dataDir(), data);
   assert.equal(configDir(), path.join(data, 'config'));
   assert.equal(logDir(), path.join(data, 'logs'));

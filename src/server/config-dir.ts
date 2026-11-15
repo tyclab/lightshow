@@ -28,7 +28,3 @@ export function venvDir(): string {
 export function venvPython(venv: string = venvDir(), platform: NodeJS.Platform = process.platform): string {
   return platform === 'win32' ? path.join(venv, 'Scripts', 'python.exe') : path.join(venv, 'bin', 'python');
 }
-
-export function appDir(): string {
-  return APP_ROOT;
-}

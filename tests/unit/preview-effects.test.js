@@ -202,7 +202,6 @@ const LONG = [
   { timeMs: 0, action: 'voice', data: { id: 'count', effect: OWN.probe, targets: [PARS[3].id], tier: 'voice', launchSeq: 1 } },
   { timeMs: 3000, action: 'voice', data: { id: 'pad:t', effect: OWN.twinkle8, targets: [PARS[0].id, LAMP.id], tier: 'voice', launchSeq: 2, durationMs: 9000 } },
   { timeMs: 6100, action: 'patch', data: { colorA: 3, fadeMs: 2000 } },
-  { timeMs: 9000, action: 'seek' },
   { timeMs: 40000, action: 'patch', data: { pattern: 'ldj.StrobeCycle' } },
 ];
 
@@ -212,7 +211,7 @@ test("recent backward seeks replay at most one second", () => {
   const sample = createPreviewSampler(LONG, null, options);
   const fresh = (t) => createPreviewSampler(LONG, null, options)(t, RIG, COLOR_PRESETS, r);
   sample(16000, RIG, COLOR_PRESETS, r);
-  // A second back at a time, on the grid and between frames, across the fade, the seek and the twinkle's flash limit.
+  // A second back at a time, on the grid and between frames, across the fade and the twinkle's flash limit.
   for (let t = 15500; t >= 500; t -= 1000 + 1 / 3) {
     const before = probeRenders;
     const out = sample(t, RIG, COLOR_PRESETS, r);
@@ -225,6 +224,17 @@ test("recent backward seeks replay at most one second", () => {
   const second = sample(10000, RIG, COLOR_PRESETS, r);
   assert.strictEqual(probeRenders - before, 0);
   assert.deepStrictEqual(second, fresh(10000));
+});
+
+// G8: nothing sends a seek since rehearsal went, and the rig no longer re-anchors on one; the preview has none either.
+test('an event nothing sends, a seek, changes nothing the preview draws', () => {
+  const r = buildRig(RIG, getProfile);
+  const options = { resolveEffect, safety: ACK };
+  const withSeek = [...LONG.slice(0, 4), { timeMs: 9000, action: 'seek' }, ...LONG.slice(4)];
+  for (const t of [9500, 12000, 20000]) {
+    assert.deepStrictEqual(createPreviewSampler(withSeek, null, options)(t, RIG, COLOR_PRESETS, r),
+      createPreviewSampler(LONG, null, options)(t, RIG, COLOR_PRESETS, r), `at ${t}`);
+  }
 });
 
 test("preview retains the sixteen most recently used checkpoints", () => {
