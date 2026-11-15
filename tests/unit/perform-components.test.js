@@ -493,7 +493,7 @@ test('whole-picture Freeze stays in global controls and does not create secondar
     const html = ui.html(ui.h(ui.Transport, { initial: { sequence: null } }));
     assert.doesNotMatch(html, /<button|Freeze|Resume|transport-state/);
     const global = ui.html(ui.h(ui.GlobalControls));
-    assert.match(global, /<span class="global-hold"><button[^>]*>Resume<\/button><\/span>/, 'G4: Resume in its slot while frozen');
+    assert.match(global, /aria-label="Master dimmer"[^]*<\/label><button[^>]*global-resume[^>]*>Resume<\/button>/, 'G4, PR 9: Resume after the master while frozen');
     assert.match(global, playing ? /aria-label="Stop selected picture"/ : /aria-label="Play selected picture"/, 'Stop while the programme plays, Play while stopped');
   }
   assert.equal(ui.html(ui.h(ui.Transport, { compact: true })), '');

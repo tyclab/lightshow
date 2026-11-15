@@ -79,11 +79,6 @@ export function GlobalControls() {
   );
   return <div class="global-controls" role="group" aria-label="Global show controls">
     <PlayControl c={c} sequence={sequence} ready={ready} pending={pending} />
-    {/* Freeze has no button (2026-11-15); Resume shows while the picture is frozen, in a slot kept so Blackout and Arm never move. */}
-    <span class="global-hold">
-      {c?.frozen && <button type="button" class="btn global-control global-resume active" disabled={!ready || pending || c?.ready === false}
-        title="The picture is frozen. Resume releases the hold; it does not start a stopped programme." onClick={() => takeControl('resume')}>Resume</button>}
-    </span>
     {button(c?.blackout ? <><span class="global-blackout-state" aria-hidden="true"><span class="global-blackout-dot">● </span>Blackout</span><span>Restore</span></> : 'Blackout',
       c?.blackout ? 'restore' : 'blackout', c?.blackout, !c?.blackout,
       'Blackout darkens every output. Restore reveals the current picture without changing playback or Freeze.',
@@ -104,6 +99,9 @@ export function GlobalControls() {
         onInput={(event) => onDim(Number(event.target.value))} onChange={(event) => commitDim(Number(event.target.value))} />
       <span class="global-master-value">{pct}%</span>
     </label>
+    {/* Freeze has no button (2026-11-15); Resume shows while the picture is frozen, last, so its appearing moves nothing. */}
+    {c?.frozen && <button type="button" class="btn global-control global-resume active" disabled={!ready || pending || c?.ready === false}
+      title="The picture is frozen. Resume releases the hold; it does not start a stopped programme." onClick={() => takeControl('resume')}>Resume</button>}
     <span class="global-status sr-only" role="status">{controlStatus(c ?? {}, ready, pending)}</span>
   </div>;
 }

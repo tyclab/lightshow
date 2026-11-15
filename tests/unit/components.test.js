@@ -208,9 +208,10 @@ test('the Hue pill says when another app holds a bridge, and leads to the bridge
     'a held bridge shows on the chip, without a tap');
 });
 
-// Show v3 fixes, G4: Freeze has no header button; Resume shows while the picture is frozen, in a slot kept for it.
-test('the header shows Resume exactly while the whole picture is frozen, whatever the programme and playback, and never Freeze', () => {
-  const slot = (header) => /<span class="global-hold">(.*?)<\/span>/s.exec(header)?.[1];
+// Show v3 fixes, G4: Freeze has no header button; Resume shows while the picture is frozen. PR 9 (2026-11-15, "fix all
+// bugs"): it stands after the master, and no slot is kept for it.
+test('the header shows Resume exactly while the whole picture is frozen, after the master, whatever the programme and playback, and never Freeze', () => {
+  const resume = (header) => /aria-label="Master dimmer"[^]*?<\/label>(<button[^>]*>Resume<\/button>)?<span class="global-status/.exec(header)?.[1];
   for (const programme of ['look', 'auto', 'sequence']) {
     for (const playing of [false, true]) {
       for (const frozen of [false, true]) {
@@ -218,9 +219,9 @@ test('the header shows Resume exactly while the whole picture is frozen, whateve
         const header = ui.html(ui.h(ui.Header, {}));
         assert.strictEqual(count(header, 'aria-label="Global show controls"'), 1);
         assert.doesNotMatch(header, />Freeze<\/button>/, 'no Freeze button');
-        assert.strictEqual(count(header, 'class="global-hold"'), 1, 'the slot is there either way');
-        if (frozen) assert.match(slot(header), /^<button type="button" class="btn global-control global-resume active"[^>]*>Resume<\/button>$/, `${programme} ${playing}`);
-        else assert.strictEqual(slot(header), '', `${programme} ${playing}: an empty slot`);
+        assert.doesNotMatch(header, /global-hold/, 'no slot kept for it');
+        if (frozen) assert.match(resume(header) ?? '', /^<button type="button" class="btn global-control global-resume active"[^>]*>Resume<\/button>$/, `${programme} ${playing}`);
+        else assert.strictEqual(resume(header), undefined, `${programme} ${playing}: nothing after the master`);
         assert.doesNotMatch(header, /aria-label="Look playback"/);
       }
     }
@@ -228,7 +229,7 @@ test('the header shows Resume exactly while the whole picture is frozen, whateve
   given({ running: false });
   const unavailable = ui.html(ui.h(ui.Header, {}));
   assert.match(unavailable, /<span class="global-status sr-only" role="status">Global controls unavailable<\/span>/);
-  assert.strictEqual(slot(unavailable), '', 'legacy running=false must not masquerade as a whole-picture hold');
+  assert.strictEqual(resume(unavailable), undefined, 'legacy running=false must not masquerade as a whole-picture hold');
 });
 
 test('global blackout and a running voice\'s pad show their independent pressed states', () => {
@@ -1165,14 +1166,14 @@ test('pad labels agree between the deck and command bar', () => {
   assert.strictEqual(labels[0], ui.CATALOGUE.find((row) => row.id === entry.content.id).name);
 });
 
-test('one header row: the picture source first, then play, Resume\'s slot, Blackout, Arm, the master, status and this device', () => {
+test('one header row: the picture source first, then play, Blackout, Arm, the master, status and this device', () => {
   given({ armed: false, picture: { source: 'effects', input: null }, fixtures: [], profiles: {}, families: [],
     pattern: 'swirl', patterns: [{ id: 'swirl', name: 'Swirl' }],
     control: { version: 1, programme: 'look', playing: false, frozen: false, blackout: false, armed: false },
     safety: { photosensitivityAcknowledged: true }, showOn: false, autoShow: { status: 'idle', intensity: 70 } });
   const header = ui.html(ui.h(ui.Header));
   const order = ['aria-label="Picture source"', 'aria-label="Global show controls"', 'aria-label="Auto show"', 'aria-label="Play selected picture"',
-    'class="global-hold"', '>Blackout</button>', 'aria-label="Arm"', 'aria-label="Master dimmer"', '<button type="button" class="status-chip', 'aria-label="This device"'];
+    '>Blackout</button>', 'aria-label="Arm"', 'aria-label="Master dimmer"', '<button type="button" class="status-chip', 'aria-label="This device"'];
   const at = order.map((needle) => header.indexOf(needle));
   assert.ok(at.every((i) => i >= 0), `every control is there: ${order.filter((_, i) => at[i] < 0)}`);
   assert.deepStrictEqual([...at].sort((a, b) => a - b), at, 'in this order');
