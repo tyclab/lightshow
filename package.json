@@ -61,7 +61,7 @@
     "preact-render-to-string": "6.8.3",
     "three": "0.187.0",
     "typescript": "6.0.3",
-    "typescript-eslint": "8.70.1"
+    "typescript-eslint": "8.72.2"
   },
   "overrides": {
     "cookie": "^0.7.2",
