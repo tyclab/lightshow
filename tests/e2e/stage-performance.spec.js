@@ -1,6 +1,7 @@
 import { test, expect } from '@playwright/test';
 import { open, set, state, reset } from './helpers.js';
 import { stageImage } from './stage-image.js';
+import { mainThreadBudget } from './browser-budget.js';
 
 for (const frameInterval of [0, 100]) test(`Stage idles between visible changes and redraws lights and camera input${frameInterval ? ' at 10 Hz' : ''}`, async ({ page, request }) => {
   await page.addInitScript((frameInterval) => {
@@ -70,5 +71,69 @@ for (const frameInterval of [0, 100]) test(`Stage idles between visible changes 
     for (const id of added) await request.delete(`/api/fixtures/${id}`);
     await request.delete(`/api/profiles/${profileId}`);
     await set(request, { pattern: before.pattern, basePalette: before.basePalette, overridePalette: before.overridePalette });
+  }
+});
+
+// A house of 80 rooms in a 10 x 8 grid, walled with doorways: 142 walls, and a lamp in 16 of the rooms.
+function walledRoom(fixtureId) {
+  const size = 1.2, columns = 10, rows = 8, height = 2.5, walls = [], rooms = [], bindings = [];
+  const x0 = -columns * size / 2, z0 = -rows * size / 2;
+  for (let c = 0; c < columns; c++) for (let r = 0; r < rows; r++) {
+    const x = x0 + c * size, z = z0 + r * size, id = `r${c}-${r}`;
+    rooms.push({ id, label: `Room ${c}-${r}`, polygon: [[x, z], [x + size, z], [x + size, z + size], [x, z + size]] });
+    if ((c + r) % 5 === 0) bindings.push({ id: `lamp-${id}`, fixtureId, unit: 0, position: { x: x + size / 2, y: 2.2, z: z + size / 2 }, confidence: 'estimated' });
+    // The wall on this room's east and south side, each with a doorway.
+    if (c < columns - 1) walls.push({ id: `e${id}`, kind: 'box', role: 'wall', position: { x: x + size, y: height / 2, z: z + 0.4 }, size: { x: 0.1, y: height, z: 0.8 } });
+    if (r < rows - 1) walls.push({ id: `s${id}`, kind: 'box', role: 'wall', position: { x: x + 0.4, y: height / 2, z: z + size }, size: { x: 0.8, y: height, z: 0.1 } });
+  }
+  return { version: 1, name: 'Many walls', bounds: { width: columns * size, depth: rows * size, height }, rooms, objects: walls, bindings };
+}
+
+test('a room of many walls rebuilds its shadows, and draws steady frames, within the main-thread budget', async ({ page, request }) => {
+  test.setTimeout(60_000);
+  await reset(request);
+  const before = await state(request);
+  const roomOf = async () => (await request.get('/api/stage/room')).json();
+  const replace = async (next) => {
+    const { revision } = await roomOf();
+    const result = next ? await request.put('/api/stage/room', { headers: { 'If-Match': revision }, data: next })
+      : await request.delete('/api/stage/room', { headers: { 'If-Match': revision } });
+    expect(result.ok()).toBe(true);
+  };
+  const profileId = 'e2e-stage-walls';
+  let added = [];
+  const snapshot = () => page.evaluate(() => window.__lightshowPerformance.snapshot());
+  try {
+    const model = walledRoom(before.fixtures[0].id);
+    expect(model.objects.length).toBe(142);
+    await replace(model);
+    await set(request, { pattern: 'ensemble' });
+    await page.goto('/?performance=1#stage');
+    await page.locator('.offline-veil').waitFor({ state: 'detached' });
+    await expect.poll(async () => (await snapshot()).counts['scene.shadowMaps'] || 0, { timeout: 15_000 }).toBeGreaterThan(0);
+
+    // A rebuild: the patch changes, so the rig is built again and the maps render again.
+    await page.evaluate(() => window.__lightshowPerformance.reset());
+    expect((await request.post('/api/profiles/bar', { data: { id: profileId, name: 'Walls strip', cells: 8, firstChannel: 1, order: 'RGB' } })).ok()).toBe(true);
+    const fixtures = await request.post('/api/fixtures', { data: { profileId, count: 1, universe: 7 } });
+    expect(fixtures.ok()).toBe(true);
+    added = (await fixtures.json()).fixtures;
+    await expect.poll(async () => { const { counts } = await snapshot(); return counts['scene.rigBuilds'] > 0 && counts['scene.shadowMaps'] > 0; },
+      { timeout: 15_000 }).toBe(true);
+    await expect.poll(async () => (await snapshot()).counts['scene.draws'] || 0).toBeGreaterThan(2);
+    const rebuild = await snapshot();
+    expect(mainThreadBudget(rebuild), 'the rebuild').toEqual({ ok: true, failures: [] });
+
+    // Steady frames: the look plays on the demo beat; no map renders again.
+    await page.evaluate(() => window.__lightshowPerformance.reset());
+    await expect.poll(async () => (await snapshot()).counts['scene.draws'] || 0, { timeout: 15_000 }).toBeGreaterThan(20);
+    const steady = await snapshot();
+    expect(mainThreadBudget(steady), 'steady frames').toEqual({ ok: true, failures: [] });
+    expect(steady.counts['scene.shadowMaps'] || 0, 'steady frames render no shadow map').toBe(0);
+  } finally {
+    for (const id of added) await request.delete(`/api/fixtures/${id}`);
+    await request.delete(`/api/profiles/${profileId}`);
+    await replace(null);
+    await set(request, { pattern: before.pattern });
   }
 });

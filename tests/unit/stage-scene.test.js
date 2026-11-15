@@ -17,13 +17,22 @@ const built = await esbuild.build({
   plugins: [{ name: 'stub-renderer', setup(build) {
     build.onResolve({ filter: /^three$/ }, () => ({ path: 'three', namespace: 'stub' }));
     build.onResolve({ filter: /^scene-counts$/ }, () => ({ path: 'counts', namespace: 'stub' }));
-    build.onLoad({ filter: /^counts$/, namespace: 'stub' }, () => ({ contents: 'export const built = { instanced: 0, groups: 0 };' }));
+    build.onLoad({ filter: /^counts$/, namespace: 'stub' }, () => ({ contents: 'export const built = { instanced: 0, groups: 0, shadowMaps: 0 };' }));
     // Real three.js, but no WebGL: InstancedMesh is built per rig, a Group per rig and per room.
     build.onLoad({ filter: /^three$/, namespace: 'stub' }, () => ({ resolveDir: root, contents: `
       import * as THREE from ${three};
       import { built } from 'scene-counts';
       export * from ${three};
-      export class WebGLRenderer { setPixelRatio() {} setClearColor() {} setSize() {} render() {} dispose() {} forceContextLoss() {} }
+      export class WebGLRenderer {
+        shadowMap = { enabled: false, autoUpdate: true, needsUpdate: false };
+        setPixelRatio() {} setClearColor() {} setSize() {} dispose() {} forceContextLoss() {}
+        // As three does: shadow maps render when enabled and asked, which clears the request.
+        render() {
+          if (!this.shadowMap.enabled || !this.shadowMap.autoUpdate && !this.shadowMap.needsUpdate) return;
+          this.shadowMap.needsUpdate = false;
+          built.shadowMaps++;
+        }
+      }
       export class InstancedMesh extends THREE.InstancedMesh { constructor(...args) { super(...args); built.instanced++; } }
       export class Group extends THREE.Group { constructor() { super(); built.groups++; } }` }));
   } }],
@@ -98,4 +107,33 @@ test('a room is lit by a fixed number of lights coloured by the emitters near th
   stage.setRoom(null);
   stage.setRoomLight(true);
   assert.equal(stage.info().roomLights.length, 0, 'the generic venue has no room to light');
+});
+
+test('shadow maps render again when the room, the rig or the lights\' places change, never for a frame, an orbit or the cutaway', () => {
+  const stage = ui.createStageScene(canvas, { room: { width: 12, depth: 8, trussHeight: 4.6 }, lightRGB: ui.lightRGB });
+  const LAMP = { id: 'scene-lamp', name: 'Lamp', channelMap: { red: 0, green: 1, blue: 2 } };
+  const lit = (x) => ({ ...room('Shadowed'), bindings: [{ id: 'lamp', fixtureId: 1, position: { x, y: 2, z: 0 } }] });
+  const patch = [{ id: 1, label: 'Lamp', universe: 1, address: 1, profileId: LAMP.id }];
+  const show = (model) => { const shown = ui.keptRig(patch, { [LAMP.id]: LAMP }, model); stage.setRig(shown.placed, shown.rig.units.length); };
+  const start = ui.built.shadowMaps;
+  const renders = () => { stage.render(); return ui.built.shadowMaps - start; };
+  const first = lit(-1.5);
+  stage.setRoom(first);
+  show(first);
+  assert.equal(renders(), 1, 'the first frame of a room renders its maps');
+  stage.setLights([{ r: 255 }]);
+  assert.equal(renders(), 1, 'a colour frame reuses them');
+  stage.setLights([{ g: 128 }]);
+  stage.nudge({ turn: 0.3 });
+  assert.equal(renders(), 1, 'so does an orbit');
+  stage.setCutaway(false);
+  assert.equal(renders(), 1, 'and the cutaway, which leaves the blockers at full height');
+  const moved = lit(1.5);
+  stage.setRoom(moved);
+  assert.equal(renders(), 2, 'a room edit renders them again');
+  show(moved);
+  assert.equal(renders(), 3, 'so does the rig placed in it');
+  stage.setRoomLight(false);
+  stage.setRoomLight(true);
+  assert.equal(renders(), 4, 'and Room light switched');
 });

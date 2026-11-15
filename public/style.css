@@ -3477,6 +3477,7 @@ input[type=range]::-moz-range-thumb {
 .stage3d-haze { display: inline-flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 700; color: var(--muted); }
 .stage3d-haze input { width: 110px; accent-color: var(--accent); }
 .stage3d-sep { width: 1px; align-self: stretch; background: var(--border); }
+.stage3d-unlit { font-size: .75rem; color: var(--text-amber); }
 .stage3d-scrub { flex: 1 1 160px; min-width: 120px; accent-color: var(--accent); }
 .stage3d-time { font-family: var(--mono); font-size: 11px; color: var(--text-2); white-space: nowrap; }
 /* The canvases paint this ground themselves (timeline-renderer.js, stage3d):

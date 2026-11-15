@@ -2,7 +2,7 @@ import { performanceReport } from '../performance.js';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { roomObjectGeometry } from './room-geometry.js';
-import { meanLightRGB, ROOM_LIGHTS, roomLightAt, roomViews, STAGE_FOV } from './world.js';
+import { meanLightRGB, ROOM_LIGHTS, roomViews, STAGE_FOV } from './world.js';
 
 /**
  * The 3D stage: the rig in a dark, hazy room, drawn with three.js.
@@ -18,9 +18,12 @@ import { meanLightRGB, ROOM_LIGHTS, roomLightAt, roomViews, STAGE_FOV } from './
  *
  * An imported room is lit: its surfaces shade under a dim fill and take the
  * colour of the lights near them from ROOM_LIGHTS point lights, each standing
- * where a cluster of the room's emitters is (world.roomLightClusters) and
- * mixing their live colours. A fixed number of lights keeps every frame and
- * every patch on the same shader programs.
+ * in its room where a cluster of its emitters is (world.roomLights) and mixing
+ * their live colours. A fixed number of lights keeps every frame and every
+ * patch on the same shader programs. The walls, floors and ceilings as built
+ * shadow those lights, drawn full height, cut away or hidden: a mesh of them
+ * that only the lights' shadow cameras see, whose maps render again only when
+ * the room, the rig or a light's place changes.
  *
  * Loaded on its own (three.js is most of it), the first time the Stage view
  * opens. `createStageScene` throws when the browser has no WebGL.
@@ -37,6 +40,11 @@ const DAMPING = 0.08;
 const ROOM_LIGHT_GAIN = 0.9;
 const GLOW = { lamp: 1.1, cell: 0.5 };
 const ROOM_GLOW = { lamp: 0.45, cell: 0.09 };
+// Room light's shadows: 256² maps whose near plane takes in a wall beside a lamp, the receiver moved off a
+// surface the blockers share; slabs just under the floor and over the ceiling; the layer only shadow cameras render.
+const SHADOW = { size: 256, near: 0.05, normalBias: 0.03 };
+const SLAB = { gap: 0.01, depth: 0.02 };
+const BLOCKERS = 1;
 
 const BEAM_VERTEX = /* glsl */`
   varying vec3 vColor;
@@ -73,24 +81,138 @@ const BEAM_FRAGMENT = /* glsl */`
 const POOL_VERTEX = /* glsl */`
   varying vec3 vColor;
   varying vec2 vUv;
+  varying vec3 vWorld;
+  varying vec3 vCentre;
+  flat varying int vPool;
   void main() {
     vColor = instanceColor;
     vUv = uv;
-    gl_Position = projectionMatrix * modelViewMatrix * instanceMatrix * vec4(position, 1.0);
+    vec4 world = modelMatrix * instanceMatrix * vec4(position, 1.0);
+    vWorld = world.xyz;
+    vCentre = (modelMatrix * instanceMatrix * vec4(0.0, 0.0, 0.0, 1.0)).xyz;
+    vPool = gl_InstanceID;
+    gl_Position = projectionMatrix * viewMatrix * world;
   }
 `;
 
+// Each pool's clip (world.js poolClip) as texels of uClip from the pool's own header: its surface box
+// (centre, then three axes with their half sizes), then where its room's edges and its walls' boxes are.
 const POOL_FRAGMENT = /* glsl */`
   uniform float uStrength;
+  uniform sampler2D uClip;
+  uniform int uClipWidth;
   varying vec3 vColor;
   varying vec2 vUv;
+  varying vec3 vWorld;
+  varying vec3 vCentre;
+  flat varying int vPool;
+  vec4 clipAt(int i) { return texelFetch(uClip, ivec2(i % uClipWidth, i / uClipWidth), 0); }
+  bool inBox(vec3 p, int at) {
+    vec3 d = p - clipAt(at).xyz;
+    for (int i = 1; i <= 3; i++) { vec4 axis = clipAt(at + i); if (abs(dot(d, axis.xyz)) > axis.w) return false; }
+    return true;
+  }
+  bool crosses(vec3 from, vec3 to, int at) {
+    vec3 o = from - clipAt(at).xyz, d = to - from;
+    float enter = 0.0, leave = 1.0;
+    for (int i = 1; i <= 3; i++) {
+      vec4 axis = clipAt(at + i);
+      float p = dot(o, axis.xyz), along = dot(d, axis.xyz);
+      if (abs(along) < 1e-9) { if (abs(p) > axis.w) return false; continue; }
+      float a = (-axis.w - p) / along, b = (axis.w - p) / along;
+      enter = max(enter, min(a, b)); leave = min(leave, max(a, b));
+    }
+    return enter <= leave;
+  }
   void main() {
+    int head = vPool * 5;
+    vec4 where = clipAt(head + 4);
+    if (clipAt(head).w > 0.5 && !inBox(vWorld, head)) discard;
+    int edges = int(where.y + 0.5);
+    if (edges > 0) {
+      bool inside = false;
+      for (int i = 0; i < edges; i++) {
+        vec4 e = clipAt(int(where.x + 0.5) + i);
+        if ((e.y > vWorld.z) != (e.w > vWorld.z) && vWorld.x < (e.z - e.x) * (vWorld.z - e.y) / (e.w - e.y) + e.x) inside = !inside;
+      }
+      if (!inside) discard;
+    }
+    int walls = int(where.w + 0.5);
+    for (int i = 0; i < walls; i++) if (crosses(vCentre, vWorld, int(where.z + 0.5) + i * 4)) discard;
     float d = length(vUv - 0.5) * 2.0;
     float fall = pow(clamp(1.0 - d, 0.0, 1.0), 1.8);
     gl_FragColor = vec4(vColor * fall * uStrength, 1.0);
     #include <colorspace_fragment>
   }
 `;
+
+const CLIP_WIDTH = 1024;
+/** uClip's texels for these pars' pools: five per pool, then the room edges and wall boxes they point to. */
+function poolClipTexture(pars) {
+  const texels = [], tail = [];
+  const box = (target, { centre, axes, half }, flag = 0) => {
+    target.push([centre.x, centre.y, centre.z, flag]);
+    axes.forEach((axis, i) => target.push([axis.x, axis.y, axis.z, half[i]]));
+  };
+  const head = pars.length * 5;
+  for (const { pool } of pars) {
+    const clip = pool?.clip;
+    if (clip?.surface) box(texels, clip.surface, 1);
+    else for (let i = 0; i < 4; i++) texels.push([0, 0, 0, 0]);
+    const room = head + tail.length;
+    for (const [i, [x, z]] of (clip?.room || []).entries()) { const [x1, z1] = clip.room[(i + 1) % clip.room.length]; tail.push([x, z, x1, z1]); }
+    const walls = head + tail.length;
+    for (const wall of clip?.walls || []) box(tail, wall);
+    texels.push([room, clip?.room?.length || 0, walls, clip?.walls?.length || 0]);
+  }
+  texels.push(...tail);
+  const height = Math.max(1, Math.ceil(texels.length / CLIP_WIDTH));
+  const data = new Float32Array(CLIP_WIDTH * height * 4);
+  texels.forEach((texel, i) => data.set(texel, i * 4));
+  const texture = new THREE.DataTexture(data, CLIP_WIDTH, height, THREE.RGBAFormat, THREE.FloatType);
+  texture.needsUpdate = true;
+  return texture;
+}
+
+/**
+ * Everything that stops room light, in world space at full height: every wall as built, its openings
+ * open, and a thin slab under each room's floor and over its ceiling (the room box's without polygons).
+ * Only its positions: the shadow pass needs nothing else.
+ */
+function blockerGeometry(model) {
+  const parts = [];
+  const matrix = new THREE.Matrix4(), turn = new THREE.Quaternion(), one = new THREE.Vector3(1, 1, 1);
+  for (const object of model.objects) {
+    if (object.role !== 'wall') continue;
+    const r = object.rotation || { x: 0, y: 0, z: 0 };
+    turn.setFromEuler(new THREE.Euler(r.x, r.y, r.z));
+    parts.push(roomObjectGeometry(object).applyMatrix4(matrix.compose(new THREE.Vector3(object.position.x, object.position.y, object.position.z), turn, one)));
+  }
+  const { width, depth, height } = model.bounds;
+  const outlines = model.rooms?.length ? model.rooms.map((area) => area.polygon)
+    : [[[-width / 2, -depth / 2], [width / 2, -depth / 2], [width / 2, depth / 2], [-width / 2, depth / 2]]];
+  for (const outline of outlines) for (const y of [-SLAB.gap - SLAB.depth, height + SLAB.gap]) {
+    const shape = new THREE.Shape(outline.map(([x, z]) => new THREE.Vector2(x, -z)));
+    parts.push(new THREE.ExtrudeGeometry(shape, { depth: SLAB.depth, bevelEnabled: false }).rotateX(-Math.PI / 2).translate(0, y, 0));
+  }
+  let count = 0;
+  for (const part of parts) count += part.index ? part.index.count : part.attributes.position.count;
+  const positions = new Float32Array(count * 3);
+  let at = 0;
+  for (const part of parts) {
+    const source = part.attributes.position;
+    const n = part.index ? part.index.count : source.count;
+    for (let i = 0; i < n; i++, at += 3) {
+      const k = part.index ? part.index.getX(i) : i;
+      positions[at] = source.getX(k); positions[at + 1] = source.getY(k); positions[at + 2] = source.getZ(k);
+    }
+    part.dispose();
+  }
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+  geometry.computeBoundingSphere();
+  return geometry;
+}
 
 /** A soft round dot, for the glow around lenses, bulbs and cells. */
 function glowTexture() {
@@ -129,6 +251,9 @@ export function createStageScene(canvas, { haze = 0.6, room, lightRGB }) {
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
   renderer.setPixelRatio(Math.min(2, window.devicePixelRatio || 1));
   renderer.setClearColor(BG, 1);
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.autoUpdate = false;
+  const refreshShadows = () => { renderer.shadowMap.needsUpdate = true; };
 
   const scene = new THREE.Scene();
   let dirty = true;
@@ -174,6 +299,11 @@ export function createStageScene(canvas, { haze = 0.6, room, lightRGB }) {
   const roomLights = Array.from({ length: ROOM_LIGHTS }, () => {
     const light = new THREE.PointLight(0xffffff, 0, 0, 2);
     light.visible = false;
+    light.castShadow = true;
+    light.shadow.mapSize.set(SHADOW.size, SHADOW.size);
+    light.shadow.camera.near = SHADOW.near;
+    light.shadow.camera.layers.set(BLOCKERS);
+    light.shadow.normalBias = SHADOW.normalBias;
     scene.add(light);
     return light;
   });
@@ -234,6 +364,7 @@ export function createStageScene(canvas, { haze = 0.6, room, lightRGB }) {
         keepRoom(new THREE.MeshStandardMaterial({ color: 0x2a2d35, roughness: 0.95, side: THREE.DoubleSide })),
       );
       ground.rotation.x = -Math.PI / 2;
+      ground.receiveShadow = true;
       roomGroup.add(ground);
       for (const area of model.rooms) {
         const shape = new THREE.Shape(area.polygon.map(([x, z]) => new THREE.Vector2(x, -z)));
@@ -241,8 +372,15 @@ export function createStageScene(canvas, { haze = 0.6, room, lightRGB }) {
         const material = keepRoom(new THREE.MeshStandardMaterial({ color: area.color || 0x3a3e48, roughness: 0.9, side: THREE.DoubleSide }));
         const mesh = new THREE.Mesh(geometry, material);
         mesh.position.y = 0.003;
+        mesh.receiveShadow = true;
         roomGroup.add(mesh);
       }
+      // Seen by the shadow cameras only, never drawn; kept visible, since the shadow pass skips what is not.
+      const blockers = new THREE.Mesh(keepRoom(blockerGeometry(model)),
+        keepRoom(new THREE.MeshBasicMaterial({ colorWrite: false, depthWrite: false, shadowSide: THREE.DoubleSide })));
+      blockers.layers.set(BLOCKERS);
+      blockers.castShadow = true;
+      roomGroup.add(blockers);
       // A dim fill, so the room reads with its lights off; its lights colour it from there.
       roomGroup.add(keepRoom(new THREE.HemisphereLight(0xc8d0e0, 0x30323a, 0.75)));
       const key = keepRoom(new THREE.DirectionalLight(0xffffff, 0.45));
@@ -260,6 +398,7 @@ export function createStageScene(canvas, { haze = 0.6, room, lightRGB }) {
         mesh.position.set(object.position.x, object.position.y, object.position.z);
         mesh.rotation.set(object.rotation?.x || 0, object.rotation?.y || 0, object.rotation?.z || 0);
         mesh.userData.roomObject = object.id;
+        mesh.receiveShadow = true;
         if (object.kind !== 'mesh' && !object.lightBindingId) {
           const outline = new THREE.LineSegments(keepRoom(new THREE.EdgesGeometry(geometry)),
             keepRoom(new THREE.LineBasicMaterial({ color: 0x171a21, transparent: true, opacity: 0.3 * material.opacity, depthWrite: material.depthWrite })));
@@ -299,8 +438,9 @@ export function createStageScene(canvas, { haze = 0.6, room, lightRGB }) {
     blending: THREE.AdditiveBlending,
     side: THREE.DoubleSide,
   }));
+  let poolClip = poolClipTexture([]);
   const poolMaterial = keep(new THREE.ShaderMaterial({
-    uniforms: { uStrength: { value: 0.9 } },
+    uniforms: { uStrength: { value: 0.9 }, uClip: { value: poolClip }, uClipWidth: { value: CLIP_WIDTH } },
     vertexShader: POOL_VERTEX,
     fragmentShader: POOL_FRAGMENT,
     transparent: true,
@@ -446,6 +586,8 @@ export function createStageScene(canvas, { haze = 0.6, room, lightRGB }) {
       bar.position.set((truss.from + truss.to) / 2, truss.y + 0.11, truss.z);
       rigGroup.add(bar);
     }
+    poolClip.dispose();
+    poolClip = poolMaterial.uniforms.uClip.value = poolClipTexture(pars);
     for (const mesh of [bodies, lenses, beams, pools, bulbMesh, cellMesh]) mesh.instanceMatrix.needsUpdate = true;
     lampGlow.geometry.attributes.position.needsUpdate = true;
     cellGlow.geometry.attributes.position.needsUpdate = true;
@@ -536,12 +678,19 @@ export function createStageScene(canvas, { haze = 0.6, room, lightRGB }) {
    * (unused ones dark), so a patch with fewer clusters never changes the light count the programs were built for. */
   function placeRoomLights() {
     invalidate();
+    refreshShadows();
     roomLights.forEach((light, c) => {
-      const centre = clusters[c];
+      const at = clusters[c];
       light.visible = !!roomModel && roomLightOn;
       light.intensity = 0;
       light.userData.rgb = null;
-      if (centre && roomBounds) { const at = roomLightAt(centre, roomBounds); light.position.set(at.x, at.y, at.z); }
+      if (at && roomBounds) light.position.set(at.x, at.y, at.z);
+      // Out to the room box's farthest corner, a metre past its walls where objects may stand.
+      if (roomBounds) {
+        const { width, depth, height } = roomBounds, p = light.position;
+        light.shadow.camera.far = Math.hypot(width / 2 + 1 + Math.abs(p.x), Math.max(Math.abs(p.y + 1), Math.abs(height + 1 - p.y)), depth / 2 + 1 + Math.abs(p.z));
+        light.shadow.camera.updateProjectionMatrix();
+      }
     });
     lastLights = null;
   }
@@ -661,8 +810,11 @@ export function createStageScene(canvas, { haze = 0.6, room, lightRGB }) {
     if (!dirty) return false;
     dirty = false;
     const started = performanceReport ? performance.now() : 0;
+    const shadows = renderer.shadowMap.needsUpdate;
     renderer.render(scene, camera);
     if (performanceReport) {
+      // three clears the request once the maps are drawn, and keeps it while no light casts a shadow.
+      if (shadows && !renderer.shadowMap.needsUpdate) performanceReport.count('scene.shadowMaps');
       performanceReport.count('scene.draws');
       performanceReport.sample('scene.renderSubmit', performance.now() - started);
     }
@@ -678,6 +830,7 @@ export function createStageScene(canvas, { haze = 0.6, room, lightRGB }) {
     for (const thing of rigDisposables) thing.dispose();
     for (const thing of roomDisposables) thing.dispose();
     if (screenTexture) screenTexture.dispose();
+    poolClip.dispose();
     for (const thing of disposables) if (thing && thing.dispose) thing.dispose();
     renderer.dispose();
     // dispose() frees what the renderer allocated but not the context, which the
