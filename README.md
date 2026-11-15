@@ -2,8 +2,9 @@
 
 Lighting controller for Art-Net, sACN, WLED/DDP, OpenRGB and Philips Hue
 Entertainment. Control it from the browser, MIDI or REST.
-Manual looks, effects, pads and sequences work without Python; analysed shows
-and live audio use the optional analysis environment.
+Manual looks, effects, pads and sequences work without Python; the live input,
+which the auto show and reactive effects follow, runs a Python with the packages
+in `requirements.txt`.
 
 [TycStation Lightshow](https://github.com/tyclab/lightshow) builds on
 [LightD31’s ArtNet Lightshow](https://github.com/LightD31/artnet-lightshow) under
@@ -15,10 +16,9 @@ longer tracked; an upstream release is not a TycStation Lightshow release.
 ```mermaid
 flowchart LR
   Controls[Browser / MIDI / REST] --> Server[Server state and validation]
-  Playback[Playback sources] --> Clock[Musical clock]
-  Audio[Audio file or live input] --> Analysis[Python analysis / live features]
-  Analysis --> Show[Auto show and effect inputs]
-  Analysis --> Clock
+  Audio[Live input: loopback or line-in] --> Analysis[Python live analysis]
+  Analysis --> Show[Auto show by ear and effect inputs]
+  Analysis --> Clock[Musical clock]
   Analysis -->|Samples, while a page subscribes| Samples[Read-only samples topic]
   Samples --> LivePage[Party Visuals live-audio page]
   LivePage --> Screen
@@ -61,10 +61,8 @@ leases: a disarmed start is already dark. Use the global header on any tab or th
 `--no-supervisor` disables the built-in process supervisor.
 `LIGHTSHOW_DATA_DIR` overrides the data location.
 
-The rebrand preserves existing data and model-cache paths, `ARTNET_*` and
-`LIGHTSHOW_*` environment variables, browser storage keys, API/authentication
-headers, analysis schema identifiers, Hue registration names and
-browser-extension IDs. The Python package remains `tycstation-lightshow-analysis`.
+The rebrand preserves existing data paths, `LIGHTSHOW_*` environment variables,
+browser storage keys, API/authentication headers and Hue registration names.
 Existing shows, pairings and integrations continue to
 use those identifiers; no manual data migration is required.
 
@@ -128,8 +126,7 @@ node server.js --no-supervisor
 
 `LIGHTSHOW_SUPERVISOR=0` has the same effect. Without the built-in supervisor,
 restart the process through the service manager; `/api/server/restart`
-returns 409. If a Deezer ARL is configured, an unsupervised Node process needs
-`--openssl-legacy-provider`.
+returns 409.
 
 ## Views and controls
 
@@ -171,7 +168,7 @@ under the stage when pads are playing.
 Effect settings holds the full catalogue, effect editing and mapping controls,
 the same Bands card and fixture overrides; Perform is the tablet surface for pads, strobes, the Matrix board
 and tempo tools; Sequence arranges clips or runs a playlist; Stage shows the
-rig in 3D with its room bindings or a rehearsal. Arming is a separate action
+rig in 3D with its room bindings. Arming is a separate action
 from preparing or previewing a look, and a stage previews by itself. Disarmed and stopped, with no pad,
 held energy effect, Identify or Freeze, Stage and the fixture plot draw the selected look (its effect and
 colours, the palette and its override, the band colours, the master and Background) on the built-in demo
@@ -214,7 +211,7 @@ the same on every view, including while scrolling through Show:
   the new programme takes over in one go (a sequence lets its held picture go; it plays
   from the top next time); stopped, it stays stopped. Pads, a held energy effect,
   Freeze, Blackout and Arm stay as they are. Switching on while a programme plays needs
-  an analysed track or a listening live input, or it is refused and nothing changes;
+  a listening live input, or it is refused and nothing changes;
   stopped, the switch turns on and Play says what is missing. Below 1366 px wide the
   switch drops its On/Off word (the knob shows it); on a phone it reads **Auto** over the knob.
 - **Play** is one button. It reads **■ Stop** whenever Stop would clear something: a
@@ -223,7 +220,7 @@ the same on every view, including while scrolling through Show:
   ends the programme and clears the pads. Otherwise it reads **▶ Play** and its name says
   what it starts: **Play selected picture**, **Play Auto show** or **Play sequence**
   with the loaded sequence's name. A sequence is chosen on Perform, not here; a
-  programme that cannot start (no sequence loaded, no analysed track or live input) is
+  programme that cannot start (no sequence loaded, no listening live input) is
   refused with the reason.
 - **Freeze/Resume**, **Blackout/Restore** and **Arm/Disarm** keep their own 44 px
   buttons at fixed places. Armed shows on the button itself: filled red, **● Armed**
@@ -335,19 +332,19 @@ to effects; pad banks launch effects or patterns over the look.
 |------|----------|---------|
 | Show | 1 | The room in 3D and the looks beside it |
 | Effect settings | 2 | Effects catalogue and inspector, cues, the Bands card, fixture overrides and stage preview |
-| Perform | 3 | Pads and Matrix, transport, strobe, tap, colours, the room picture's colour grade and the intensity fader |
+| Perform | 3 | Pads and Matrix, transport, strobe, tap, colours and the room picture's colour grade |
 | Stage | 4 | Monitor the rendered rig in 3D, import a room and bind its lights |
-| Auto Show | 5 | Analyse music, choose its source, run the generated show; Timeline tab for rehearsal and edits |
+| Auto Show | 5 | What the Auto show does by ear (playing, idle, or waiting for the live input), over the stage |
 | Sequence | 6 | Create/load sequences; timeline tools and recording; lanes, clips and patterns behind Edit |
 | Rig | 7 | Plan, patch, fixture profiles and outputs |
-| Sources | 8 | Playback sources, live input, analysis environment and models |
+| Sources | 8 | The live input: what it hears, Play By Ear, room latency and its Python |
 | Settings | 9 | Show behaviour, safety, MIDI, engine and server access |
 | Preflight | 0 | Run the pre-show checks |
 
 The strip under the header has two tabs, **Show** and **Perform**, and a **Setup** menu with every
 other view under the name in the table; Setup names the view it has open (**Setup · Rig**). A dot
-on Setup, visible with the menu closed, and on its Auto Show entry says that Auto Show has a track
-analysing, ready or playing. Each view keeps its digit and its hash.
+on Setup, visible with the menu closed, and on its Auto Show entry (which then reads **Running**)
+says that the Auto show is playing by ear. Each view keeps its digit and its hash.
 
 The global controls and the picture source appear once in the app header,
 including setup views; choosing a source or an effect never starts the programme
@@ -365,7 +362,7 @@ go without starting anything. **Open the sequence editor** leads to Sequence.
 
 Hashes open a view directly, such as `/#perform` or `/#rig/outputs`.
 Show opens by default. Old `#manual`, `#timeline` and `#matrix` bookmarks redirect
-to Effect settings, Auto Show → Timeline and Perform → Matrix. The global header stays
+to Effect settings, Auto Show and Perform → Matrix. The global header stays
 in one place on every tab. Sequence tools retain timeline Pause and row navigation.
 A paused timeline shows **Resume timeline** in Pause's place, on Perform and in Sequence;
 it carries on from the held beat. The header keeps Stop while the timeline is paused.
@@ -502,10 +499,10 @@ spot still. The live input is mono, so the turn follows the beat, not the stereo
 
 Rising Wall fills from the floor with build-section progress. Falling Wall releases
 that fill from ceiling to floor over one bar before a drop detonates into a shockwave,
-fireworks or colliding orbs. The shows schedule each wall once; picked as a look or
-from a pad, Rising Wall starts again every four bars without section progress and
-Falling Wall releases again on every bar line. The automatic director and default
-pads use these spatial looks. Strobe overlays select all lights, steps, scattered
+fireworks or colliding orbs. On a build-up the live director plays Rising Wall once
+over its own length; picked as a look or from a pad, Rising Wall starts again every
+four bars without section progress and Falling Wall releases again on every bar line.
+The live director and default pads use these spatial looks. Strobe overlays select all lights, steps, scattered
 segments or zones over the underlying look. Popcorn is absent from the chooser; its
 old ids resolve to Scatter Fade so saved sequences still load.
 Automatic shows admit a spatial look after sampling it against the current room
@@ -515,9 +512,8 @@ gap longer than one bar. Each fixture counts once, by the share of its cells lit
 a tenth of full level, so a large panel weighs as much as a single lamp. This is a
 geometric coverage policy without audio, not a hardware limit or a guarantee for
 every later random path. While checking, and when no look passes, automatic shows
-use every look but the particle looks; manual selection remains available. Neural and
-Visualizer looks stay manual choices because their live inputs are not guaranteed by
-track analysis alone.
+use every look but the particle looks; manual selection remains available. Neural
+looks stay manual choices.
 
 Room coordinates are metres: **x** runs across the room, **y is height above the
 floor**, and **z** runs along its depth. Vertical pixel surfaces must have room
@@ -563,7 +559,7 @@ the background level, as a Fixed colour fills them with yours. Either way the fi
 the share the light leaves uncovered. The colour is the first the main effect plays: the
 palette override's while one is on, else its own palette's, else the look's. Beds, Keep
 dark, explicit dark cues, pads, clips, voices and the visualizer pictures are untouched,
-and the rehearsal preview shows the same fill.
+and the browser preview shows the same fill.
 
 A Fixed colour is the layer under everything the show plays: the main effect of every
 family, classic patterns, pattern pads and other voices, sequence clips, and the
@@ -584,10 +580,10 @@ a dimmer-only lamp included.
 fixtures** or **Selected fixtures…**, ticked from the patch. Wash fixtures are the
 single-light fixtures, those whose profile has no cells (lamps, PARs, Hue lamps,
 WLED washes): the part of the rig a look's pattern paints when a pixel pattern takes
-the bars. There is no wash role to assign; the auto show's split wash is a separate
+the bars. There is no wash role to assign; the split wash is a separate
 setting. Fixtures outside the scope keep the effect's own background, as Follow
 effect at 100 % with Between notes off leaves it. Overrides, a fixture's blackout, Kill and the master
-blackout win inside the scope as everywhere, and the rehearsal preview applies the
+blackout win inside the scope as everywhere, and the browser preview applies the
 same scope as the rig. Selected fixtures are stored by fixture id, which belongs to
 one patch: a cue recalled with **Restore saved background on recall** under another
 patch reaches whichever fixtures carry those ids there; the card shows how many.
@@ -795,9 +791,8 @@ them, and is written back without them; its `analysis.pythonPath` becomes
 | `config/sequence-workspace.json` | Recovery copy of the loaded sequence, playhead and pending take |
 | `config/look.json` | Saved look content; playback restarts stopped, Blackout off |
 | `config/stage-room.json` | Optional private Stage geometry and light bindings; mode 0600 |
-| `cache/` | Analysis cache |
 | `logs/` | Structured logs |
-| `.venv/` | Managed analysis environment |
+| `.venv/` | Optional Python environment; with `live.pythonPath` blank the live input tries it first |
 
 Settings and rig files use versioned envelopes. Unversioned files are validated and
 backed up privately as `.pre-v1-*` before they are rewritten in the envelope, and
@@ -806,15 +801,15 @@ writes. Builds from before the envelope cannot read these files; the `.pre-v1-*`
 backups are their copy.
 
 The checkout is the default data directory. `LIGHTSHOW_DATA_DIR` moves the
-whole data tree; `LIGHTSHOW_CONFIG_DIR`, `LIGHTSHOW_CACHE_DIR` and
-`LIGHTSHOW_LOG_DIR` override individual directories. Corrupt or unsupported
+whole data tree; `LIGHTSHOW_CONFIG_DIR` and `LIGHTSHOW_LOG_DIR` override
+individual directories. Corrupt or unsupported
 JSON store files are moved aside as `.invalid-<timestamp>` and defaults load.
 Stored secrets are never returned by the settings API.
 
 A `.env` in the startup directory is still loaded, but output and source
 configuration is not read from it: use the settings API or UI. Supported environment controls are listed in
-[.env.example](.env.example), including `ARTNET_PYTHON`, `DEBUG_MIDI`, log
-settings and data paths.
+[.env.example](.env.example), including `DEBUG_MIDI`, log settings and data
+paths.
 
 ## Rig and outputs
 
@@ -1060,9 +1055,7 @@ connection instead of recompiling them for every capture.
 
 These GPU buffers hold recent live pictures while Chrome finishes reading them;
 they do not pre-render future lighting frames. Spatial effects run on the CPU at
-the lighting engine's 44 Hz. The separate optional GPU analysis worker processes
-music ahead of playback and caches beat, section and stem data, which helps the
-director anticipate a build or drop. That cache also contains no rendered lights.
+the lighting engine's 44 Hz.
 
 Every 30 seconds each output reports a small JSON summary: acknowledged frames
 per second over the whole reporting interval, capture and acknowledgement latency
@@ -1724,9 +1717,8 @@ strobes, rapid sequence content and rapid Matrix modes are refused, and so are
 the seven classic programs that strike flashes (Flash Chase, Flash Scatter,
 Flash Alternate, Flash Burst, Strobe Core, Ring Strobe, Ring Backlit, marked
 Rapid ⚡). Named by hand they are refused; reached any other way (a saved bar
-picture, a track edit) they render and preview dark, and the automatic show
-plans none of them until the acknowledgement, re-planning when it is given and
-when the outputs arm or disarm. REST
+picture) they render and preview dark. A strobe burst the live director picks is
+refused the same way; the director logs the refusal and plays on. REST
 returns `409 photosensitivity acknowledgement required`; socket commands
 return `error-msg`; MIDI reports the refusal. Stop/release remains
 available. Armed without it, the **Strobes locked** indicator in the header's status
@@ -1752,141 +1744,25 @@ hardware rate limit (`maxFlashHz`, 20 Hz for DDP and DMX by default) and, with
 screen itself shows the page as it renders; neither page's screen picture is
 flash-limited.
 
-## Music, analysis and audio
+## Music and audio
 
-### Analysis environment
+### Live input
 
-Sources → Analysis environment installs the locked Python environment using
-uv and Python 3.12. Select CPU, CUDA (`cu128`) or ROCm. uv must
-be on `PATH`.
+The live input hears the music as it plays: what this computer plays (WASAPI
+loopback on Windows, the output's monitor on Linux) or an input, such as a line-in
+off the booth. Enable it in Sources, choose what it listens to and the device, and
+check that it says **Listening**. The server runs `src/live_input.py` as a
+subprocess under a Python that has the packages in `requirements.txt`:
 
 ```bash
-npm run setup:python
-npm run setup:python -- --build cu128
-python scripts/download-models.py --list
-python scripts/download-models.py
+python -m pip install -r requirements.txt
 ```
 
-Download required model weights before the show via Sources → Analysis models
-or the script. Analysis itself does not download missing weights. The managed
-environment supplies yt-dlp, Deno and ffmpeg; a tool already on `PATH` takes
-precedence. The analysis needs torch; manual control does not.
-
-Analysis settings select Demucs or BS-RoFormer separation, structure model,
-GPU memory policy, whether this machine's analyser waits on standby while a GPU
-worker is ready, and timeouts. `analysis.pythonPath` selects an interpreter;
-`ARTNET_PYTHON` overrides discovery. See
-[Audio analysis](docs/audio-analysis.md) for the analysis schema and controls.
-
-On the CPU the worker runs one model pass at a time beside the signal
-processing, in the order the pipeline needs the results. MuQ and MuQ-MuLan
-keep their weights as mapped pages of the checkpoint files, which the kernel can
-reclaim, instead of copies it can only take back by killing the worker. The
-measurements are under [Memory](docs/audio-analysis.md#memory).
-
-```mermaid
-flowchart LR
-  Decode[Decode and preprocess] --> Main[Main thread: features, rhythm, bands, dynamics, structure, events]
-  Main -- features done --> Models[CPU model thread: Beat This, S-KEY, Demucs, MuQ-MuLan and MuQ in turn]
-  Files[(Checkpoint files)] -. mapped weights .-> Models
-  Models -- beats, stems, genre, embeddings, key --> Main
-  Main --> Document[Analysis document]
-```
-
-The analysis package separates preprocessing, frame features, perceptual bands,
-rhythm, structure, dynamics and perception into modules. `events` combines their
-results; `pipeline.analyze()` orchestrates offline analysis and `realtime` uses the
-same event vocabulary for live input. The show engine combines musical events
-with timing, section and feature data to choose and schedule lighting.
-
-`src/analysis/document.schema.json` defines the shared contract. Python validates
-pipeline output through `src/analysis/schema.py`; `npm run gen:analysis-types`
-generates the TypeScript types. Cached 2.x documents remain readable across minor
-versions: fields introduced later are optional and absent from older documents.
-
-### Remote GPU analysis
-
-A PC with an NVIDIA card can analyse tracks for the server. Its worker
-(`tools/remote-analyzer`) connects out to the server, so the PC listens on no
-port; the server sends it the job, the worker fetches the audio from the server,
-runs the same NDJSON worker as the server does in a container on its GPU, and
-posts the document back. The server stays the cache owner. On an RTX 2080
-SUPER a 210 s track took 40 s (49 s from a cold container) instead of
-275 s on its CPU, a 561 s track 170 s instead of 738 s, and the documents are
-the CPU's to within rounding. Setup, provisioning and troubleshooting are in
-[Remote analysis](docs/remote-analysis.md).
-
-```mermaid
-sequenceDiagram
-  participant S as Server (cache owner)
-  participant W as GPU worker
-  W->>S: connect /analysis-worker with the worker token
-  W->>S: hello: name, analysis version, models, available
-  S-->>W: compatible or why not
-  S->>W: job: id, key, size, separator and structure settings
-  W-->>S: accepted, or declined (game in front, GPU memory in use)
-  W->>S: GET /api/analysis-worker/jobs/:id/audio
-  W->>S: POST /api/analysis-worker/jobs/:id/result (document, analysis version)
-  S->>S: refuse another analysis version, else resolve and cache
-```
-
-- **Routing.** An idle worker gets the next job. With no idle worker the
-  playing track starts here at once, and a worker that frees up runs it too:
-  the first answer wins and the other copy is stopped. The playing track also
-  takes a worker from a prefetch, which goes back in the queue. A prefetch waits
-  up to `analysis.remoteWaitMs` for a busy worker, then runs here. Links and
-  anything a worker fails, drops or times out on run here.
-- **Standby.** With `analysis.localWorker: 'standby'` (the default) this
-  machine's analyser process ends, freeing about 0.9 GB, when a compatible
-  worker becomes ready (after the track running here, if there is one, and
-  while the outputs are armed only at the next disarm, so a worker going busy
-  and ready again mid-show does not make each fallback track load it). The
-  next track that runs here starts it and loads the models from disk inside
-  its own time limit; it then stays until a worker becomes ready again. A
-  connected worker that takes no jobs for the moment (stopping a cancelled
-  one, declining, restarting its analyser) changes nothing here. When the
-  last compatible worker disconnects, the analyser is loaded again only while
-  the outputs are disarmed, else at the next disarm; while armed the first
-  track here loads it. At start-up with a worker token set nothing loads
-  until a track needs it or a worker has come and gone; with no token it
-  loads at start-up. `'resident'` keeps it loaded from start-up. A change
-  applies at once.
-- **Version.** The analysis version is `<schema>+<digest>` of the Python
-  package, its launcher, `scripts/download-models.py`, `scripts/setup-panns.py`,
-  `pyproject.toml` and `uv.lock`. A worker takes jobs only at the server's
-  version, with the server's models (it may also hold SongFormer, which
-  structure `auto` uses only on a GPU); the server refuses a result from
-  another version.
-- **Access.** `analysis.workerToken` opens the `/analysis-worker` namespace and
-  `/api/analysis-worker/*` only; it opens nothing else, and the UI token does
-  not open these. A job's audio and result need its own random key too.
-- **Limits.** A remote job has the same per-request limit as one analysed
-  here, from the track's length.
-
-`GET /api/analysis/workers` lists the connected workers, their state and
-counts, the last jobs (worker, track, outcome, seconds), the queue and `local`:
-this machine's analyser, `{ mode, state }` with state `standby` (no process),
-`warm` or `busy`. The log names each job's worker and time under
-`[analyzer] remote …`, and standby under `[analyzer] recycling worker: standby …`
-and `[analyzer] prewarming worker: …`.
-
-### Playback sources
-
-| Source | Setup |
-|--------|-------|
-| Spotify | Configure client id/secret, then Connect Spotify; session persists |
-| Spotify + OS clock | Spotify metadata with the local media-session position |
-| PRO DJ LINK | Enable on the CDJs' network |
-| OS now playing | Windows SMTC or Linux MPRIS through `busctl`; unavailable on macOS |
-| Deezer | Load `browser-extension/` in a Chromium browser; configure server/token |
-| Live input | Enable loopback or input capture and select a device |
-| Timer | Run an analysed track against local time |
-
-For direct Spotify OAuth, register the callback the server prints, normally
-`http://127.0.0.1:3000/auth/spotify/callback`, and authorise in a browser on the
-server machine. For a remote tablet, use the configured OAuth proxy. The
-optional Deezer ARL enables ISRC-matched downloads; its first configuration
-requires restart. Without it, downloads use the search path.
+`live.pythonPath` (Sources → Live input → Python) names the interpreter; blank
+detects one, trying a `.venv` in the data directory first and preferring an
+interpreter that has those packages. Preflight's Python check names what is
+missing. Nothing downloads models. What the live input reads from the sound, its
+events and its tuning are in [Live input analysis](docs/audio-analysis.md).
 
 The live input analyses every hop (256 samples at 22.05 kHz, about 86 a second)
 and reports each one until it has heard 3 s of digital silence under −80 dBFS;
@@ -1912,30 +1788,35 @@ thread, and keep the pace they have without a subscriber. This rests on the read
 receipts, so it holds on every platform; it assumes the pipe holds a few kilobytes
 beyond those 1024 samples (Linux's holds 64 KiB; the Windows pipe was not measured).
 
-Set-list warming accepts one artist/title per line, explicit track objects,
-a Spotify queue or playlist. It prepares analysis ahead of playback. Cache
-management is available in Auto Show and through `/api/auto/cache`.
+The auto show is the live director (`src/show/live-director.ts`). It plays while
+Auto is the programme, the live input listens and **Play By Ear** (`live.director`)
+is on, and answers what it hears: a new look on a section change, cut when the
+music rises and faded when it falls; Rising Wall, or the pattern at double pace,
+over a build-up; a burst on a drop; now and then an accent on a spike; dark in a
+silence, with a new look when the music returns; and a new look after sixteen bars
+without a change. It picks only looks the rig shows (see
+[Spatial effects](#spatial-effects)). A look picked by hand holds as described under
+[Views and controls](#views-and-controls). The state's `live.director` is
+`{ active, pattern, silent, holding }`.
 
 ### Clock and sync
 
-Clock priority is Auto Show → playing PRO DJ LINK deck → analysed current
-track → live beat → Tap. `clock.tempoMode: 'manual'` disables CDJ/Track/Live
-following; the running Auto Show still follows its analysed grid.
+Patterns keep time by the live input's beat while it listens, else by the free
+clock (Tap). `clock.tempoMode: 'manual'` stops following the live input and keeps
+the free clock.
 
-Tap, type or nudge temporarily takes tempo by hand until the source changes.
+Tap, type or nudge takes the tempo by hand until the live input locks to something new.
 Follow, or `POST /api/tempo/auto`, returns immediately to automatic timing.
 BPM accepts 20–300 including fractions. Divisions are 1, 2, 4, 8 and 16.
 A playing or paused sequence and active/pending voices keep the free clock
 running even with `running: false` for the base.
 
-State `clock` is `{ source, bpm, byHand, beatPos, epoch, at }`, with wall-clock
-milliseconds in `at`. Extrapolate as
+State `clock` is `{ source, bpm, byHand, beatPos, epoch, at }`, with `source`
+`live` or `tap` and wall-clock milliseconds in `at`. Extrapolate as
 `beatPos + (now - at) / 60000 * bpm`; reset interpretation on a new `epoch`.
 Do not extrapolate a stopped Tap clock with no base, voice or active sequence.
 
-`auto.syncOffsetMs` moves the generated show relative to track position,
-−2000 to 2000 ms. Live auto-sync can refine alignment against captured audio;
-`live.latencyMs` accounts for the room's audio path. Hue latency separately
+`live.latencyMs` (−500 to 500) accounts for the room's audio path. Hue latency separately
 delays the DMX outputs to align with Hue lamps.
 
 ### Audio modes
@@ -1972,7 +1853,7 @@ map. Merely selecting a layout changes nothing.
 
 Actions cover transport, tap/tempo mode, patterns, colour slots, palettes,
 energy holds, pads (`padPress` with bank/slot), cues, fixture controls and
-master/intensity/sync faders. Additional actions browse patterns, effects, pixel
+master, strobe speed and BPM faders. Additional actions browse patterns, effects, pixel
 pictures, colour slots, palette overrides and beat divisions; adjust fade time
 and held-strobe rate; choose random looks/colours; double/halve BPM; stop effect
 voices; fire a bounded strobe burst; or toggle the auto show. Browse patterns
@@ -1989,7 +1870,9 @@ feedback follows the mapping.
 Motorised fader feedback defaults on; disable `midi.controlFeedback` for an
 echoing loopback. Touch sensors do not count as absolute fader values.
 `midi.clockOutput` sends 24 pulses per beat plus start/stop on its own port.
-`DEBUG_MIDI=1` logs incoming messages.
+`DEBUG_MIDI=1` logs incoming messages. A saved map that binds an action this
+build no longer has (the auto show's intensity and sync faders) loads without
+that binding, one warning in the log each.
 
 ### Default mapping — Behringer X-Touch Compact
 
@@ -2004,7 +1887,6 @@ encoders configured to send relative steps. The actions remain the same.
 | Encoders 3–6 | CC 12–15 (absolute position or detected steps) | Fixture 1–4 dimmer |
 | Encoder 7 | CC 16 (absolute position or detected steps) | Strobe speed |
 | Faders 1–4 | CC 1–4 (absolute) | Fixture 1–4 dimmer |
-| Fader 8 | CC 8 (absolute) | Auto-show intensity |
 | Fader 9 | CC 9 (absolute) | Master dimmer |
 | Encoder push 1 | Note 0 | Tap tempo |
 | Encoder push 2 | Note 1 | Toggle blackout |
@@ -2041,10 +1923,9 @@ are rejected, not queued. If the render worker loses its held picture, the serve
 reports that reason and holds dark until Resume. Blackout always darkens Identify
 as well. Freeze under Blackout holds the underlying scene.
 
-Content edits, cues, analysis completion and recovery cannot start, arm, release
-Freeze or release Blackout. `/api/set` transport fields and analysis `start:true`
-return 409. Global Stop cancels pending auto starts, ends the programme and voices,
-and leaves background settings and the other global controls unchanged.
+Content edits, cues and recovery cannot start, arm, release Freeze or release
+Blackout. `/api/set` transport fields return 409. Global Stop ends the programme
+and voices, and leaves background settings and the other global controls unchanged.
 
 ## Home Assistant integration surface
 
@@ -2260,31 +2141,12 @@ Transport routes answer `{ ok, status }`; with no sequence loaded they answer
 
 ### Auto show
 
-| Method | Path | Description |
-|--------|------|-------------|
-| POST | `/api/auto/analyze` | Analyse a file path, URL or search query |
-| POST | `/api/auto/analyze-spotify` · `-nowplaying` · `-deezer` · `-prolink` | Analyse what's playing on that source |
-| POST | `/api/auto/download-analyze` | Analyse a YouTube URL or search |
-| POST | `/api/auto/analyze-upload` | Analyse an uploaded audio file (multipart `audio`) |
-| POST | `/api/auto/reset` | Clear analysis after stopping the auto programme; legacy start/stop return 409 |
-| POST | `/api/auto/intensity/:value` | Generated-show energy, 0–100 |
-| POST | `/api/auto/palette-size/:value` | Colours per song: 2, 3 or 4 |
-| POST | `/api/auto/sync-offset/:value` | Light/music sync offset in ms, −2000 to 2000 |
-| GET | `/api/auto/state` · `/api/auto/timeline` | Status / generated timeline |
-| GET · DELETE | `/api/auto/cache` | List / clear cached analyses |
-| DELETE | `/api/auto/cache/entry` | Remove one cached analysis (`{ key }`) |
+Auto is a programme of [`/api/control`](#global-control-contract) (`programme: 'auto'`);
+starting it needs a listening live input (409 otherwise). `POST /api/auto/start` and
+`/api/auto/stop` are retired and return 409. The live state's `live.director` says what
+it is doing (see [Live input](#live-input)).
 
-### Set-list warming
-
-| Method | Path | Description |
-|--------|------|-------------|
-| GET | `/api/warm` | Progress: per-track status, counts, what is running |
-| POST | `/api/warm` | Start a run (`{ text }` — one `Artist - Title` per line — or `{ tracks }`) |
-| POST | `/api/warm/spotify-queue` | Warm everything Spotify has queued |
-| POST | `/api/warm/spotify-playlist` | Warm a playlist (`{ playlist }` — link, URI or id) |
-| DELETE | `/api/warm` | Stop a run, or clear a finished one |
-
-### MIDI, PRO DJ LINK, integrations
+### MIDI and integrations
 
 | Method | Path | Description |
 |--------|------|-------------|
@@ -2297,16 +2159,8 @@ Transport routes answer `{ ok, status }`; with no sequence loaded they answer
 | PUT | `/api/midi/map/binding` | Bind or clear one message (`{ kind, number, binding }`) |
 | POST | `/api/midi/learn` | Arm learn; the request is held open until a control moves |
 | POST | `/api/midi/learn/cancel` | Disarm learn |
-| POST | `/api/prolink/enable` · `/disable` · `/toggle` | PRO DJ LINK |
 | GET | `/api/live/devices` | The audio outputs and inputs the live input can hear, and its capture library |
-| GET | `/auth/spotify` · `/auth/spotify/callback` | Spotify OAuth |
 | POST | `/api/preflight` | Run the pre-show check against the live subsystems |
-| GET | `/api/python/setup` | The analysis environment: whether it is ready, uv, the torch build suggested for this machine, and the setup running |
-| POST | `/api/python/setup` · `/api/python/setup/cancel` | Set it up with `{ build }` (`cpu`, `cu128`, `rocm`), and cancel |
-| GET | `/api/spotify/now-playing` · POST `/api/spotify/disconnect` | Spotify |
-| GET | `/api/spotify/playlists` | The connected account's playlists, for the warming picker |
-| POST | `/api/nowplaying/disconnect` | Drop the OS media session source |
-| POST | `/api/deezer/state` · `/api/deezer/disconnect` | Used by the browser extension |
 
 ### Philips Hue
 
@@ -2330,18 +2184,13 @@ back with blank keys keeps the stored ones, an entry left out is forgotten, and
 a file from before several bridges were possible loads its one bridge as
 `bridge-1`.
 
-### Settings and models
+### Settings
 
 | Method | Path | Description |
 |--------|------|-------------|
 | GET | `/api/settings` | Redacted values, secret-presence flags and pending restart keys |
 | PUT | `/api/settings` | Update selected settings groups/fields |
 | POST | `/api/settings/token/suggest` | Generate a token suggestion; apply it through settings |
-| GET | `/api/models` | Model availability and current download job; `?refresh=1` refreshes the listing |
-| GET | `/api/analysis/workers` | [Remote GPU workers](#remote-gpu-analysis): connection, compatibility, availability, counts, recent jobs, the analysis queue, this machine's analyser (`local`: mode, standby/warm/busy) |
-| GET | `/api/analysis-worker/jobs/:id/audio` | A worker's job audio; worker token and job key, not the UI token |
-| POST | `/api/analysis-worker/jobs/:id/result` | A worker's document or error, `{ version, result \| error, recycle?, yielded?, seconds? }`, gzip allowed, up to 64 MB; 409 for another analysis version |
-| POST | `/api/models/download` | Download selected models with `{ ids }` |
 
 ### The server
 
@@ -2354,14 +2203,10 @@ a file from before several bridges were possible loads its one bridge as
 
 ### Socket.IO
 
-Remote GPU workers use the `/analysis-worker` namespace with the worker token
-(`auth: { token }`); see [Remote analysis](docs/remote-analysis.md#protocol).
-The UI token does not open it and the worker token opens nothing else.
-
 The UI uses Socket.IO rather than polling. Clients send `set`, `override`,
 `fixture`, `tap`, `voice-hold`, `energy-hold` and `midi-connect`; the server emits
-`auto-position`, `midi-status`, `midi-map`, `midi-learn` and `error-msg`, and
-the state in protocol 2:
+`midi-status`, `midi-map`, `midi-learn` and `error-msg`, and the state in
+protocol 2:
 
 - **Protocol 2** — asked for with `auth: { protocol: 2 }`; a client that asks
   for none is answered the same way. A `snapshot` on connect (`{ protocol, versions, state }`), then
@@ -2440,9 +2285,8 @@ and cannot be set or changed here.
 ## Pre-show checks and diagnostics
 
 Run `npm run preflight` or use the Preflight view. Checks cover patch/output
-configuration, Art-Net nodes, sACN conflicts, Hue, WLED/OpenRGB, MIDI, playback
-sources, Python imports, models, ffmpeg and download tools. Missing required
-models may be downloaded in the background. Art-Net has nothing to check when
+configuration, Art-Net nodes, sACN conflicts, Hue, WLED/OpenRGB, MIDI, the Python
+the live input runs and the live input's device. Art-Net has nothing to check when
 every fixture goes to its own device (Hue, DDP, OpenRGB) and only an empty
 universe leaves. The live input accepts its device the way the capture opens
 it: by the backend's id (`auto_null`) as well as by name.
@@ -2532,7 +2376,6 @@ Press **?** in the app for this list.
 | **←** **→** **↑** **↓** (**Shift** for bigger steps) | Nudge the focused fixture on the stage plot (on the Rig view's plan, the whole selection) |
 | **[** **]**, **-** **=**, **0** on a bar | Turn it, change its length, back to its default line |
 | **Esc** on the plan | Stop drawing bars; else clear the selection |
-| **←** **→** (**Shift** for 10 s), **Home** / **End** on the timeline | Rehearse from a second later / earlier, the start / the end |
 | **←** **→** **↑** **↓**, **+** / **−** on the 3D stage | Turn and tilt the view, move closer / further |
 | Double-click on the 3D stage | Turn the view around that point |
 | **?** / **Esc** | Show / close the shortcuts overlay |
@@ -2548,7 +2391,6 @@ npm run typecheck
 node --test --test-concurrency=3 tests/unit/*.test.js
 npm run test:performance   # serial render budgets, after other tests finish
 npm run test:e2e
-npm run gen:analysis-types # after changing the analysis document schema
 ```
 
 Server TypeScript runs directly through Node's type stripping. Browser sources
@@ -2596,9 +2438,9 @@ budget and checks that an injected 250 ms renderer stall fails it.
 
 Preserve repository hooks and CI checks.
 
-Python validation uses the analysis environment:
-`python -m unittest discover -s tests/python -v`. Optional model and audio
-dependencies determine which tests can run; report skips alongside results.
+The live input's Python tests run in a Python with the packages in `requirements.txt`:
+`python -m unittest discover -s tests/python -v`. Tests that need numpy, librosa or
+soundfile skip without them; report skips alongside results.
 Repository contribution rules and comment-limit approvals live in [AGENTS.md](AGENTS.md).
 
 ## Hardware capability and admission
