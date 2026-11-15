@@ -1,6 +1,5 @@
-// The header ruled in docs/agents/header.md: one row on a
-// desktop, two on a phone; the picture source and its effect first, then play, Freeze, Blackout, Arm and the
-// master in fixed places, then the status chip and this device's menu.
+// The header ruled in docs/agents/header.md: one row on a desktop, two on a phone; the picture source first, then
+// play, Resume's reserved slot, Blackout, Arm and the master in fixed places, then the status chip and this device's menu.
 
 import { test, expect } from '@playwright/test';
 import { createRequire } from 'node:module';
@@ -10,7 +9,7 @@ import { VIEWS } from '../../public-src/views.js';
 
 const AXE = createRequire(import.meta.url).resolve('axe-core/axe.min.js');
 const WIDTHS = [[1915, 1367], [1024, 768], [390, 844]];
-const SAFETY = ['Freeze', 'Blackout', 'Arm'];
+const SAFETY = ['Blackout', 'Arm'];
 
 test.beforeEach(async ({ request }) => {
   await request.delete('/api/sequence');
@@ -26,9 +25,9 @@ const box = (locator) => locator.evaluate((e) => { const r = e.getBoundingClient
 const header = (page) => page.locator('.app-header');
 const controls = (page) => page.getByRole('group', { name: 'Global show controls' });
 const source = (page) => page.getByRole('group', { name: 'Picture source' });
-const safety = (page) => ({
-  Freeze: page.locator('.global-freeze'), Blackout: page.locator('.global-blackout'), Arm: page.locator('.global-arm'),
-});
+const safety = (page) => ({ Blackout: page.locator('.global-blackout'), Arm: page.locator('.global-arm') });
+// Resume's place, kept while nothing is frozen, so Blackout and Arm never move.
+const hold = (page) => page.locator('.global-hold');
 
 for (const [width, height] of WIDTHS) {
   test(`at ${width}px the header keeps its rows, its budget and 44 px safety buttons`, async ({ page }) => {
@@ -38,7 +37,7 @@ for (const [width, height] of WIDTHS) {
     expect(await header(page).evaluate((e) => e.scrollWidth - e.clientWidth)).toBeLessThanOrEqual(0);
     expect(await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)).toBeLessThanOrEqual(0);
     const parts = {
-      source: source(page), play: page.locator('.global-play'), ...safety(page),
+      source: source(page), play: page.locator('.global-play'), hold: hold(page), ...safety(page),
       master: page.getByRole('slider', { name: 'Master dimmer' }), chip: page.locator('.status-chip'), more: page.getByRole('button', { name: 'This device' }),
     };
     const at = {};
@@ -59,31 +58,33 @@ for (const [width, height] of WIDTHS) {
       const rows = new Set(Object.values(at).map(row));
       expect(Math.max(...rows) - Math.min(...rows)).toBeLessThanOrEqual(2);
       expect(at.source.x).toBeLessThan(at.play.x);
-      // The effect, what the operator changes first, reads in full.
-      expect(await page.locator('.picture-segment-effect').evaluate((e) => e.scrollWidth <= e.clientWidth)).toBe(true);
     } else {
-      // Two rows: the source, the chip and ⋮; then play, Freeze, Blackout, Arm and the master.
+      // Two rows: the source, the chip and ⋮; then play, Resume's slot, Blackout, Arm and the master.
       expect(bar.h).toBeLessThanOrEqual(2 * 56 + 8);
       for (const name of ['chip', 'more']) expect(Math.abs(row(at[name]) - row(at.source))).toBeLessThanOrEqual(2);
-      for (const name of ['play', ...SAFETY, 'master']) expect(Math.abs(row(at[name]) - row(at.play))).toBeLessThanOrEqual(2);
+      for (const name of ['play', 'hold', ...SAFETY, 'master']) expect(Math.abs(row(at[name]) - row(at.play))).toBeLessThanOrEqual(2);
       expect(row(at.play)).toBeGreaterThan(row(at.source) + 30);
     }
     for (let i = 1; i < SAFETY.length; i++) expect(at[SAFETY[i]].x).toBeGreaterThan(at[SAFETY[i - 1]].x);
-    expect(at.play.x).toBeLessThan(at.Freeze.x);
+    expect(at.play.x).toBeLessThan(at.hold.x);
+    expect(at.hold.x).toBeLessThan(at.Blackout.x);
+    expect(at.hold.w, 'Resume\'s slot').toBeGreaterThanOrEqual(44);
     if (width === 1915) {
       // The brief's chrome budget: at most 200 px above the Effects content.
       expect((await box(page.locator('main'))).y).toBeLessThanOrEqual(200);
     }
   });
 
-  test(`at ${width}px Freeze, Blackout and Arm stay put whatever the labels and the effect say`, async ({ page, request }) => {
+  // Show v3 fixes, G4 (words 6): Freeze leaves the header; Resume shows while frozen, in a slot kept for it.
+  test(`at ${width}px Blackout and Arm stay put whether Resume shows or not, whatever the labels and the effect say`, async ({ page, request }) => {
     await page.setViewportSize({ width, height });
     await control(request, 'stop');
     await set(request, { pattern: 'solid' });
     await open(page, 'effects');
     await expect(playButton(page, 'Play')).toBeVisible();
+    await expect(controls(page).getByRole('button', { name: 'Resume', exact: true })).toHaveCount(0);
     const before = {};
-    for (const [name, locator] of Object.entries(safety(page))) before[name] = await box(locator);
+    for (const [name, locator] of Object.entries({ ...safety(page), hold: hold(page) })) before[name] = await box(locator);
     const { patterns } = await state(request);
     const longest = patterns.filter((p) => !p.retired).reduce((a, b) => (b.name.length > a.name.length ? b : a));
     await set(request, { pattern: longest.id });
@@ -93,101 +94,77 @@ for (const [width, height] of WIDTHS) {
     await expect(controls(page).getByRole('button', { name: 'Restore', exact: true })).toBeVisible();
     await expect(controls(page).getByRole('button', { name: 'Resume', exact: true })).toBeVisible();
     await expect(playButton(page, 'Stop')).toBeVisible();
-    for (const [name, locator] of Object.entries(safety(page))) {
+    for (const [name, locator] of Object.entries({ ...safety(page), hold: hold(page) })) {
       const after = await box(locator);
       expect(Math.abs(after.x - before[name].x), `${name} x`).toBeLessThanOrEqual(0.5);
       expect(Math.abs(after.w - before[name].w), `${name} width`).toBeLessThanOrEqual(0.5);
     }
+    const resume = await box(controls(page).getByRole('button', { name: 'Resume', exact: true }));
+    expect(Math.abs(resume.x - before.hold.x), 'Resume fills its slot').toBeLessThanOrEqual(0.5);
+    expect(resume.w).toBeGreaterThanOrEqual(44);
+    expect(resume.h).toBeGreaterThanOrEqual(44);
   });
 }
 
-test('switching effects takes two taps from any view, leaves the picker open for the next, and touches no latch', async ({ page, request }) => {
-  await control(request, 'freeze');
-  await open(page, 'settings');
-  const before = await state(request);
-  const segment = source(page).getByRole('button', { name: /^Effects: / });
-  await segment.click();
-  const picker = page.getByRole('dialog', { name: 'Main effect' });
-  await expect(picker).toBeVisible();
-  await expect(segment).toHaveAttribute('aria-expanded', 'true');
-  await picker.getByRole('group', { name: 'Every effect' }).locator('[data-id="swirl"]').click();
-  await until(request, (s) => s.pattern === 'swirl');
-  await expect(segment).toHaveAccessibleName('Effects: Swirl');
-  await expect(picker).toBeVisible();
-  await picker.getByRole('group', { name: 'Every effect' }).locator('[data-id="solid"]').click();
-  await until(request, (s) => s.pattern === 'solid');
-  const after = await state(request);
-  for (const key of ['frozen', 'blackout', 'armed', 'playing', 'programme']) expect(after.control[key], key).toBe(before.control[key]);
-  await page.keyboard.press('Escape');
-  await expect(picker).toHaveCount(0);
-  await expect(segment).toBeFocused();
-});
-
-test('on Show, E opens the picker with the search ready, and the search narrows the list', async ({ page, request }) => {
+// Show v3 fixes, G3 (2026-11-15): "also why on the top effects open the list? also when going to cm and visuilizer and squid?"
+// Each segment only chooses the picture source; effects are chosen in Show's list.
+test('each picture source segment is a plain choice: the chosen one sends and opens nothing, another sends one request', async ({ page, request }) => {
   await open(page, 'show');
-  await page.locator('body').press('e');
-  const picker = page.getByRole('dialog', { name: 'Main effect' });
-  await expect(picker.getByRole('searchbox', { name: 'Find an effect' })).toBeFocused();
-  await page.keyboard.type('swirl');
-  const list = picker.getByRole('group', { name: 'Every effect' });
-  await expect(list.locator('[data-id="swirl"]')).toBeVisible();
-  await expect(list.locator('[data-id="chase"]')).toHaveCount(0);
-  await expect(list.locator('[data-id="swirl"] .picker-desc'), 'two looks named Swirl say which is which').toBeVisible();
-  await list.locator('[data-id="v2.swirl"]').click();
-  await until(request, (s) => s.pattern === 'v2.swirl');
-  // A press outside the picker closes it.
-  await page.mouse.click(1200, 600);
-  await expect(picker).toHaveCount(0);
-});
-
-test('another picture source is one tap and changes no latch; the Visualizer names no effect and opens no picker', async ({ page, request }) => {
-  await open(page, 'show');
-  const before = (await state(request)).control;
-  await source(page).getByRole('button', { name: 'Visualizer', exact: true }).click();
-  await until(request, (s) => s.picture.source === 'visualizer');
-  const segment = source(page).getByRole('button', { name: 'Visualizer', exact: true });
-  await expect(segment).toHaveAttribute('aria-pressed', 'true');
-  await expect(source(page).getByRole('button', { name: 'Effects', exact: true })).toHaveAttribute('aria-pressed', 'false');
-  const after = (await state(request)).control;
-  for (const key of ['frozen', 'blackout', 'armed', 'playing']) expect(after[key], key).toBe(before[key]);
-  await expect(segment).toHaveText('Visualizer', { useInnerText: true });
-  await expect(segment).toHaveAccessibleDescription('Arm the outputs; the picture needs a live rig');
-  await expect(segment).not.toHaveAttribute('aria-haspopup');
-  await segment.click();
-  await page.keyboard.press('e');
-  // Back on Effects, a picker either of them had opened would show.
-  await request.post('/api/picture/source', { data: { source: 'effects' } });
-  await expect(source(page).getByRole('button', { name: /^Effects: / })).toHaveAttribute('aria-pressed', 'true');
-  await expect(page.getByRole('dialog', { name: 'Main effect' })).toHaveCount(0);
-});
-
-// Show v3 fixes, G9 (2026-11-15): Colour + motion is gone, "if it is not much and easily repromted. i would suggest to just drop it".
-test('the picture source offers Effects, Visualizer and Squid, and no Colour + motion', async ({ page, request }) => {
-  await open(page, 'show');
-  const segments = () => source(page).locator('[data-source]').evaluateAll((els) => els.map((el) => el.dataset.source));
-  await expect.poll(segments, 'no LED panel on this rig: no Squid to offer').toEqual(['effects', 'visualizer']);
-  await request.post('/api/picture/source', { data: { source: 'squid' } });
-  await expect.poll(segments).toEqual(['effects', 'visualizer', 'squid']);
-  await expect(header(page)).not.toContainText(/Colour \+ motion|C\+M/);
-  expect((await request.post('/api/picture/source', { data: { source: 'inspired' } })).status()).toBe(400);
-  expect((await state(request)).picture.source).toBe('squid');
-});
-
-test('an open picker closes when another client chooses the Visualizer, and stays shut on the way back', async ({ page, request }) => {
-  await open(page, 'effects');
-  await page.locator('body').press('e');
-  const picker = page.getByRole('dialog', { name: 'Main effect' });
-  await expect(picker).toBeVisible();
+  const posted = [];
+  page.on('request', (r) => { if (r.method() === 'POST' && r.url().endsWith('/api/picture/source')) posted.push(r.postDataJSON().source); });
+  const NAMES = { effects: 'Effects', visualizer: 'Visualizer', squid: 'Squid' };
+  for (const id of ['effects', 'visualizer', 'squid']) {
+    await request.post('/api/picture/source', { data: { source: id } });
+    const chosen = source(page).locator(`[data-source="${id}"]`);
+    await expect(chosen).toHaveAttribute('aria-pressed', 'true');
+    await expect(chosen, 'it names no effect').toHaveAccessibleName(NAMES[id]);
+    await expect(source(page).locator('[aria-haspopup], [aria-expanded]')).toHaveCount(0);
+    await expect(source(page)).not.toContainText('▾');
+    const before = (await state(request)).control;
+    posted.length = 0;
+    await chosen.click();
+    await expect(page.getByRole('dialog')).toHaveCount(0);
+    const other = id === 'effects' ? 'visualizer' : 'effects';
+    await source(page).locator(`[data-source="${other}"]`).click();
+    await until(request, (s) => s.picture.source === other);
+    expect(posted, `${id}: only the press on ${other} sent anything`).toEqual([other]);
+    await expect(source(page).locator(`[data-source="${other}"]`)).toHaveAttribute('aria-pressed', 'true');
+    const after = (await state(request)).control;
+    for (const key of ['frozen', 'blackout', 'armed', 'playing']) expect(after[key], `${id} → ${other}: ${key}`).toBe(before[key]);
+  }
   await request.post('/api/picture/source', { data: { source: 'visualizer' } });
-  await expect(picker).toHaveCount(0);
-  await expect(source(page).getByRole('button', { name: 'Visualizer', exact: true })).toHaveAttribute('aria-pressed', 'true');
-  await request.post('/api/picture/source', { data: { source: 'squid' } });
-  const segment = source(page).getByRole('button', { name: /^Squid: / });
-  await expect(segment).toHaveAttribute('aria-expanded', 'false');
-  await expect(picker).toHaveCount(0);
-  await page.locator('body').press('e');
-  await expect(picker).toBeVisible();
-  await expect(segment).toHaveAttribute('aria-expanded', 'true');
+  await expect(source(page).locator('[data-source="visualizer"]')).toHaveAccessibleDescription('Arm the outputs; the picture needs a live rig');
+});
+
+// Show v3 fixes, G4 (2026-11-15): "also why do we have plkay and freese? both very close connected?"
+test('Freeze is no header button; frozen, Resume shows on every tab and releases the hold, which Stop and a switch keep', async ({ page, request }) => {
+  await open(page, 'show');
+  const resume = () => controls(page).getByRole('button', { name: 'Resume', exact: true });
+  for (const view of VIEWS) {
+    await page.goto(`/#${view.id}`);
+    await page.locator(`#panel-${view.id}`).waitFor();
+    await expect(page.getByRole('button', { name: 'Freeze', exact: true }), view.id).toHaveCount(0);
+    await expect(resume(), view.id).toHaveCount(0);
+  }
+  await control(request, 'freeze');
+  for (const view of ['show', 'perform', 'settings']) {
+    await page.goto(`/#${view}`);
+    await expect(resume(), view).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Freeze', exact: true }), view).toHaveCount(0);
+  }
+  await control(request, 'stop');
+  await control(request, 'select', 'auto');
+  await control(request, 'select', 'look');
+  expect((await state(request)).control.frozen, 'Stop and a programme switch keep Freeze').toBe(true);
+  await expect(resume()).toBeVisible();
+  await resume().click();
+  await until(request, (s) => s.control.frozen === false);
+  await expect(resume()).toHaveCount(0);
+  expect((await state(request)).control).toMatchObject({ frozen: false, blackout: false });
+  await control(request, 'freeze');
+  await expect(resume()).toBeVisible();
+  await control(request, 'resume');
+  await expect(resume()).toHaveCount(0);
 });
 
 // Show v3, words 9: "the removal of look dropdown button. thats for sure".
@@ -216,7 +193,8 @@ test('the header has one Auto show switch and it follows the programme', async (
   let release;
   const held = new Promise((resolve) => { release = resolve; });
   await page.route('**/api/control', async (route) => { if (route.request().method() === 'POST') await held; return route.continue(); });
-  await controls(page).getByRole('button', { name: 'Freeze', exact: true }).click();
+  await control(request, 'freeze');
+  await controls(page).getByRole('button', { name: 'Resume', exact: true }).click();
   await expect(autoSwitch(page), 'disabled while a control action is pending').toBeDisabled();
   release();
   await expect(autoSwitch(page)).toBeEnabled();
@@ -363,8 +341,10 @@ test('armed is unmistakable on the Arm button itself', async ({ page, request })
   await until(request, (s) => s.armed === false);
 });
 
-test('a refused control shows one toast with Refresh, and the next applied revision takes it away', async ({ page }) => {
+test('a refused control shows one toast with Refresh, and the next applied revision takes it away', async ({ page, request }) => {
+  await control(request, 'freeze');
   await open(page, 'effects');
+  const resume = () => controls(page).getByRole('button', { name: 'Resume', exact: true });
   const message = 'The renderer did not acknowledge this change. Refresh before trying again.';
   let refused = 0;
   await page.route('**/api/control', async (route) => {
@@ -374,13 +354,13 @@ test('a refused control shows one toast with Refresh, and the next applied revis
     }
     return route.continue();
   });
-  await controls(page).getByRole('button', { name: 'Freeze', exact: true }).click();
+  await resume().click();
   const toast = page.locator('.toast:not(.leaving)', { hasText: message });
   await expect(toast).toHaveCount(1);
   await expect(toast.getByRole('button', { name: 'Refresh' })).toBeVisible();
   // The same refusal again replaces the toast rather than adding one.
   await toast.evaluate((element) => { element.dataset.first = 'yes'; });
-  await controls(page).getByRole('button', { name: 'Freeze', exact: true }).click();
+  await resume().click();
   await expect(page.locator('.toast:not(.leaving):not([data-first])', { hasText: message })).toHaveCount(1);
   await expect(toast).toHaveCount(1);
   expect(refused).toBe(2);
@@ -392,11 +372,11 @@ test('a refused control shows one toast with Refresh, and the next applied revis
   await page.route('**/api/control', async (route) => (route.request().method() === 'POST' && refused < 3
     ? (refused++, route.fulfill({ status: 409, json: { ok: false, error: 'Controls changed. Refresh the controls and take the action again.' } }))
     : route.continue()));
-  await controls(page).getByRole('button', { name: 'Freeze', exact: true }).click();
+  await resume().click();
   const second = page.locator('.toast:not(.leaving)', { hasText: 'Controls changed.' });
   await expect(second).toHaveCount(1);
-  await controls(page).getByRole('button', { name: 'Freeze', exact: true }).click();
-  await expect(controls(page).getByRole('button', { name: 'Resume', exact: true })).toBeVisible();
+  await resume().click();
+  await expect(resume()).toHaveCount(0);
   await expect(second).toHaveCount(0);
 });
 
@@ -433,15 +413,16 @@ test('while the visualizer picture arrives the Colours card says the picture set
   }
 });
 
-test('the header has no axe violations with its popovers open and the rig armed', async ({ page, request }) => {
+test('the header has no axe violations with its popovers open, the rig armed and Resume showing', async ({ page, request }) => {
   await control(request, 'arm');
+  await control(request, 'freeze');
   try {
     for (const [width, height] of WIDTHS) {
       await page.setViewportSize({ width, height });
       await open(page, 'effects');
       await page.addScriptTag({ path: AXE });
-      for (const opener of [() => source(page).getByRole('button', { name: /^Effects: / }).click(), () => page.locator('.status-chip').click(),
-        () => page.getByRole('button', { name: 'This device' }).click()]) {
+      await expect(controls(page).getByRole('button', { name: 'Resume', exact: true })).toBeVisible();
+      for (const opener of [() => page.locator('.status-chip').click(), () => page.getByRole('button', { name: 'This device' }).click()]) {
         await opener();
         const violations = await page.evaluate(async () => {
           const result = await window.axe.run(document.querySelector('.app-header'), { resultTypes: ['violations'] });

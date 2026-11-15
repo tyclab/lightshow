@@ -7,7 +7,7 @@ export const SHORTCUTS = [
     group: 'Transport',
     items: [
       { keys: ['Space'], what: 'Tap tempo — tap along to set the BPM (also after clicking a button)' },
-      { keys: ['E'], what: 'Choose the main effect: opens the effect picker in the header, under Effects or Squid' },
+      { keys: ['E'], what: 'Choose the main effect: Show with its effects search ready (not while the Visualizer picture arrives)' },
       ...VIEWS.map((view) => ({ view: view.id, keys: [...(view.shift ? ['Shift'] : []), view.key], what: `${view.label} view` })),
       { keys: ['←', '→'], either: true, what: 'Show or Perform, on the view tabs' },
       { keys: ['↑', '↓'], either: true, what: 'Next or previous entry in the Setup menu; Home and End the first and last' },
