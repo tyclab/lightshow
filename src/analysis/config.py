@@ -1,5 +1,4 @@
-"""The live input's tuning constants: the bands it reports, its tempo estimate and its streaming analyser.
-Fields named *_ratio or *_score are 0..1 fractions."""
+"""The live input's tuning constants: the bands it reports, its tempo estimate and its streaming analyser."""
 
 from dataclasses import dataclass
 from typing import Dict, Tuple
@@ -32,17 +31,13 @@ class RealtimeConfig:
     hop_length: int = 512
     # 46 ms at 22.05 kHz, under the ~80 ms where a lighting cue reads as late.
     n_fft: int = 1024
-    #: Length of the rolling history used for adaptive thresholds, seconds.
     history_sec: float = 10.0
     onset_k: float = 1.6
-    #: Tempo is re-estimated this often, seconds.
     tempo_refresh_sec: float = 2.0
-    #: How often the beat phase is re-fitted to the recent onsets, seconds.
     phase_refresh_sec: float = 0.5
     #: Onset history each re-fit reads, seconds: outvotes a syncopated bar, still follows a drifting tempo.
     phase_window_sec: float = 4.0
     phase_lock_strength: float = 0.5
-    # A larger value lets a syncopated passage drag the tempo.
     frequency_lock_strength: float = 0.012
     #: −80 dBFS: an idle sink's digital silence sits below it, the quietest music the show follows far above.
     quiet_rms: float = 1e-4
