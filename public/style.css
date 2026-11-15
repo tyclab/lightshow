@@ -635,9 +635,6 @@ button.cb-bpm-num:focus-visible { outline: .125rem solid var(--accent); outline-
 .perform-view { display: grid; gap: 12px; }
 
 .perform-now {
-  display: grid;
-  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
-  gap: 16px;
   padding: 14px 16px;
   background: var(--card);
   border: 1px solid var(--border);
@@ -651,22 +648,7 @@ button.cb-bpm-num:focus-visible { outline: .125rem solid var(--accent); outline-
   text-transform: uppercase;
   color: var(--muted);
 }
-.perform-track { display: block; font-size: 24px; font-weight: 750; line-height: 1.2; overflow-wrap: anywhere; }
-.perform-artist { display: block; font-size: 16px; color: var(--text-2); }
-.perform-next-name { display: block; font-size: 17px; font-weight: 650; overflow-wrap: anywhere; }
-.perform-next-state { font-size: 13px; color: var(--muted); }
-.perform-next-state.state-ready { color: var(--green); }
 .perform-view .muted { color: var(--muted); font-weight: 500; }
-.perform-progress {
-  position: relative;
-  height: 24px;
-  margin-top: 10px;
-  background: var(--surface-2);
-  border-radius: var(--radius-sm);
-  overflow: hidden;
-}
-.perform-progress-fill { position: absolute; inset: 0 auto 0 0; background: var(--accent-fill); opacity: .4; }
-.perform-progress-time { position: relative; padding: 0 8px; font: 600 13px/24px var(--mono); }
 
 
 .perform-gate { display: flex; }
@@ -763,33 +745,10 @@ button.cb-bpm-num:focus-visible { outline: .125rem solid var(--accent); outline-
 .perform-latch { grid-column: 1 / -1; display: inline-flex; align-items: center; gap: 10px; min-height: 44px; font-size: 15px; cursor: pointer; }
 .perform-latch input { width: 24px; height: 24px; accent-color: var(--accent); }
 
-.perform-faders {
-  display: flex;
-  gap: 18px;
-  padding: 14px;
-  background: var(--card);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-}
-.perform-fader { display: flex; flex-direction: column; align-items: center; gap: 10px; }
-.perform-fader-label { font-size: 11px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
-.perform-fader-value { font: 650 17px var(--mono); }
-/* A fader that stands up, with a thumb a thumb can find. */
-.perform-fader input[type=range] {
-  writing-mode: vertical-lr;
-  direction: rtl;
-  width: 14px;
-  height: 340px;
-  cursor: pointer;
-}
-.perform-fader input[type=range]::-webkit-slider-thumb { width: 44px; height: 30px; border-radius: var(--radius-sm); }
-.perform-fader input[type=range]::-moz-range-thumb { width: 44px; height: 30px; border-radius: var(--radius-sm); }
-
 /* Clear of the floating shortcuts button. */
 .perform-view { padding-bottom: 48px; }
 
 @media (max-width: 900px) {
-  .perform-now { grid-template-columns: 1fr; }
   /* Keep the pads before the meters and colour libraries. */
   .perform-body { display: flex; flex-direction: column; align-items: stretch; }
   .perform-controls { display: contents; }
@@ -797,16 +756,10 @@ button.cb-bpm-num:focus-visible { outline: .125rem solid var(--accent); outline-
   .perform-live-row { order: 2; }
   .perform-side { order: 3; }
   .perform-override { order: 4; }
-  .perform-faders { justify-content: center; }
-  .perform-fader input[type=range] { height: 240px; }
 }
 @media (max-width: 560px) {
   .perform-pads { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .perform-pad { min-height: 88px; }
-  .perform-faders { flex-direction: column; align-items: stretch; }
-  .perform-fader { flex-direction: row; }
-  .perform-fader input[type=range] { writing-mode: horizontal-tb; direction: ltr; flex: 1; width: auto; height: 14px; }
-  .perform-fader input[type=range]::-webkit-slider-thumb { width: 30px; height: 44px; }
 }
 
 /* =============================================================

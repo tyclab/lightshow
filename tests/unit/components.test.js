@@ -20,7 +20,7 @@ async function load() {
         export { render as html } from 'preact-render-to-string';
         export { h, options } from 'preact';
         export { store } from './public-src/state.js';
-        export { Perform, sourceHealth } from './public-src/components/Perform.jsx';
+        export { Perform } from './public-src/components/Perform.jsx';
         export { Show } from './public-src/components/Show.jsx';
         export { effectsBox } from './public-src/components/ShowEffects.jsx';
         export { Header, StatusDetails } from './public-src/components/Header.jsx';
@@ -120,8 +120,7 @@ test('the Perform view has the bank, the strobe, tap and Stop pads, and leaves t
   assert.match(html, />Main effect<.*>Global override</);
   assert.strictEqual(count(html, 'role="switch"'), 0, 'arm, blackout and the master live in the header');
   assert.doesNotMatch(html, /Master dimmer|Picture source/);
-  assert.match(html, /aria-valuetext="70 percent"/, 'the show\'s intensity');
-  assert.match(html, /Nothing loaded/);
+  assert.doesNotMatch(html, /Intensity|Nothing loaded/, 'no planned show: no intensity fader, no track (G8)');
   assert.doesNotMatch(html, /Latch effects/, 'a pad\'s launch mode says how it plays');
 });
 
@@ -237,19 +236,13 @@ test('global blackout and a running voice\'s pad show their independent pressed 
   assert.match(ui.html(ui.h(ui.Perform, {})), /class="pad-cell lit"[^>]*data-slot="4"[^>]*aria-pressed="true"/);
 });
 
-test('sync health says when the source the show follows is not working', () => {
-  const { sourceHealth } = ui;
-  assert.strictEqual(sourceHealth({ activeSource: 'prolink', prolink: { connected: true } }), 'ok');
-  assert.strictEqual(sourceHealth({ activeSource: 'prolink', prolink: { connected: true, stale: true } }), 'warn');
-  assert.strictEqual(sourceHealth({ activeSource: 'prolink', prolink: { connected: false } }), 'off');
-  assert.strictEqual(sourceHealth({ activeSource: 'spotify', spotify: { authenticated: false } }), 'off');
-  assert.strictEqual(sourceHealth({ activeSource: 'hybrid', hybrid: { driver: 'spotify' } }), 'warn');
-  assert.strictEqual(sourceHealth({ activeSource: 'timer' }), 'none');
-
-  given({ activeSource: 'prolink', prolink: { connected: false }, autoShow: { status: 'idle', error: { message: 'no beats', at: 1 } } });
+test('sync health says whether the live input, which Auto follows, hears the music', () => {
+  given({ live: { listening: false } });
+  assert.match(ui.html(ui.h(ui.Perform, {})), /chip-off.*?Live input.*?not listening.*?\(not working\)/s);
+  given({ live: { listening: true } });
   const html = ui.html(ui.h(ui.Perform, {}));
-  assert.match(html, /chip-off.*?PRO DJ LINK.*?\(not working\)/s);
-  assert.match(html, /chip-warn" title="no beats"/, 'a failed analysis is flagged, with why');
+  assert.match(html, /chip-ok.*?Live input.*?listening/s);
+  assert.doesNotMatch(html, /Intensity|Following|Now and next|perform-progress/, 'nothing of the planned show is left on Perform');
 });
 
 test('command bar exposes tempo and division; the master stays in the header', () => {
