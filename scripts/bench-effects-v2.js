@@ -22,7 +22,6 @@ room.lamps = { slots, lampOf, cellAlong };
 const colour = { r: 255, g: 64, b: 16, w: 0, a: 0, uv: 0 };
 const out = Array.from({ length: n }, () => ({ colour, level: 0, strength: 0 }));
 const frame = { beatPos: 0, bpm: 124, nowMs: 0, dtMs: 1000 / 44, anchorBeat: 0, palette: [colour], lookPalette: [colour],
-  pictureFeatures: { palette: [colour], speed: 1, level: 1, expiresAt: 100000 },
   paletteOverride: null, roll: 0, audio: null, audioMode: 'tempo', master: { ...HD_MASTER_DEFAULTS },
   seed: [1, 2, 3, 4], acknowledged: true, hueStrobe: 'flash' };
 let failed = false;

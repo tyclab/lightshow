@@ -113,7 +113,7 @@ test('an idle disarmed page lets both feeds go at the limit and Resume brings th
   assert.deepEqual(feeds(), []);
   t.mock.timers.tick(1);
   assert.deepEqual(feeds(), ['unsubscribe dmx', 'unsubscribe picture'], 'paused after the limit without input');
-  assert.equal(ui.idlePause.paused.value, 60);
+  assert.deepEqual(ui.idlePause.paused.value, { cause: 'idle', minutes: 60 });
 
   ui.socket.fire('connect');
   show('hidden');
@@ -133,6 +133,28 @@ test('an idle disarmed page lets both feeds go at the limit and Resume brings th
   assert.deepEqual(feeds(), ['unsubscribe dmx', 'unsubscribe picture']);
 });
 
+test('Pause preview lets both feeds go at once, the idle stop off, until Resume or an arm (Show v3 fixes, G1)', (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout', 'Date'], now: 0 });
+  ui.socket.connected = true;
+  show('visible');
+  live({ armed: false, idleStopMin: 0 });
+  const releases = [ui.wantDmx(), ui.wantPicture()];
+  assert.deepEqual(feeds(), ['subscribe dmx', 'subscribe picture']);
+  ui.idlePause.pause();
+  assert.deepEqual(feeds(), ['unsubscribe dmx', 'unsubscribe picture'], 'the button: at once, with the idle stop off');
+  assert.deepEqual(ui.idlePause.paused.value, { cause: 'button' });
+  ui.socket.fire('connect');
+  assert.deepEqual(feeds(), [], 'a reconnect keeps the pause');
+  ui.idlePause.resume();
+  assert.deepEqual(feeds(), ['subscribe dmx', 'subscribe picture']);
+  ui.idlePause.pause();
+  feeds();
+  live({ armed: true, idleStopMin: 0 });
+  assert.deepEqual(feeds(), ['subscribe dmx', 'subscribe picture'], 'arming ends it');
+  for (const release of releases) release();
+  feeds();
+});
+
 test('a hidden page paused and resumed takes its feeds back only when shown', (t) => {
   t.mock.timers.enable({ apis: ['setTimeout', 'Date'], now: 0 });
   ui.socket.connected = true;
@@ -141,7 +163,7 @@ test('a hidden page paused and resumed takes its feeds back only when shown', (t
   const release = ui.wantDmx();
   show('hidden');
   t.mock.timers.tick(MIN);
-  assert.equal(ui.idlePause.paused.value, 1);
+  assert.deepEqual(ui.idlePause.paused.value, { cause: 'idle', minutes: 1 });
   assert.deepEqual(feeds(), ['subscribe dmx', 'unsubscribe dmx']);
   ui.idlePause.resume();
   assert.deepEqual(feeds(), [], 'still hidden');

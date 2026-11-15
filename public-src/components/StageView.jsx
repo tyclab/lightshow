@@ -10,7 +10,7 @@ import { useRehearsalTrack, useRehearsalSampler, useUnitSpace } from '../rehears
 import { hasBeams, lightRGB, STAGE_W, STAGE_D, TRUSS_H } from '../stage3d/world.js';
 import { Audition } from './Audition.jsx';
 import { StagePreview } from './StagePreview.jsx';
-import { PreviewPaused } from './PreviewPaused.jsx';
+import { PausePreview, PreviewPaused } from './PreviewPaused.jsx';
 import { auditionSig, demoBeatSig, setAudition, useAuditionSampler, useDemoLookSampler } from '../audition.js';
 import { StageRoomPanel } from './StageRoomPanel.jsx';
 import { scenePool } from '../stage3d/scene-pool.js';
@@ -50,7 +50,8 @@ export function StageView({ compact = false } = {}) {
   const auditioning = audition.active && !s.armed;
   const rehearsing = !auditioning && ui.rehearsal && !!data;
   const [format, setFormat] = useState('3d');
-  const paused = idlePause.paused.value !== null;
+  const pause = idlePause.paused.value;
+  const paused = pause !== null;
   const mode = stageMode({ rehearsing, connected, armed: s.armed, blackout: s.masterBlackout, paused,
     playing: !!s.control?.playing, layers: !!s.control?.layers, frozen: !!s.control?.frozen });
   const demo = mode.demo && !auditioning;
@@ -293,7 +294,7 @@ export function StageView({ compact = false } = {}) {
   const description = `The rig in 3D from ${VIEW_NAMES[view]}: `
     + `${fixtures.length} fixtures${bars ? `, ${bars} of them bars` : ''}, ${parts} lights, `
     + `${auditioning ? `auditioning ${audition.name || audition.id}; browser only, outputs disarmed` : rehearsing ? `rehearsing the track at ${fmtTime(ui.position)}` : !connected ? 'offline'
-      : paused ? 'preview paused for want of input, lights drawn off' : s.masterBlackout ? 'Blackout is on, every light is dark'
+      : paused ? `preview paused${pause.cause === 'idle' ? ' for want of input' : ''}, lights drawn off` : s.masterBlackout ? 'Blackout is on, every light is dark'
       : s.armed ? 'showing the live output' : demo ? 'previewing the selected look on the demo beat in this browser; nothing is transmitted'
         : 'previewing with outputs disarmed; nothing is transmitted'}.`;
   keys.current = onKeyDown;
@@ -307,6 +308,7 @@ export function StageView({ compact = false } = {}) {
       {!compact && <Audition />}
       <div class="stage3d-tools" role="toolbar" aria-label="Stage view">
         <span class={tagClass}>{auditioning ? 'Audition · browser only' : mode.tag}</span>
+        {mode.pausable && !auditioning && <PausePreview />}
         <div class="segmented" role="group" aria-label="Stage format">
           <button type="button" class="btn sm" aria-pressed={format === '3d'} onClick={() => setFormat('3d')}>3D room</button>
           <button type="button" class="btn sm" aria-pressed={format === 'plot'} onClick={() => setFormat('plot')}>2D plot</button>

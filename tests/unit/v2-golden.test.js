@@ -50,8 +50,8 @@ test('the recorded frames light the room in both forms and differ between them',
   assert.ok(differ.length >= 25, `${differ.length} spatial presets look different in 2D`);
 });
 
-test('demo input drives Neural and Visualizer while missing input leaves both dark', () => {
-  const ids = ['v2.neural', 'v2.neuralDistance', 'v2.visualizerFlow', 'v2.visualizerDrift'];
+test('demo input drives Neural, which missing input leaves dark', () => {
+  const ids = ['v2.neural', 'v2.neuralDistance'];
   const silent = renderGolden(ids, 'synthetic', V2_COMPLETE_BEATS);
   for (const id of ids) {
     assert.ok(golden[id].some((row) => row.some((v) => v > 0)), id);

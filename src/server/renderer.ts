@@ -49,7 +49,6 @@ import type { AudioMode, EffectCommand, EffectSlot, EffectSpec, FrameBase, HdMas
 import type { ChannelDefault, ChannelMap, Colour, Expression, Override, PixelMap, Profile, PulseReading, ShowDynamics, StageFixture } from '../types/rig.ts';
 import type { PixelInputFrame } from '../types/pixel-input.ts';
 import type { PictureFrame } from '../types/picture.ts';
-import type { PictureFeatures } from '../shared/picture-features.ts';
 import { gradeColour, pictureLift } from '../shared/picture-grade.ts';
 import type { PictureGrade, PictureLift } from '../shared/picture-grade.ts';
 
@@ -120,7 +119,6 @@ export interface RenderInput {
   pixelInputs?: PixelInputFrame[];
   /** The room picture, one colour per rig unit, when the show paints from the visualizer. */
   picture?: PictureFrame | null;
-  pictureFeatures?: PictureFeatures | null;
   modulation?: FrameBase['modulation'];
   /** The room picture's colour grade; absent paints the picture as sent. */
   pictureGrade?: PictureGrade | null;
@@ -447,7 +445,6 @@ function createRenderer({ profileOf, profilesRevision = () => 0, now = performan
       lookGradient: input.basePalette,
       overrideGradient: input.overridePalette,
       paletteOverride: input.paletteOverride, audio: input.audio, audioMode: input.audioMode, master: input.master,
-      pictureFeatures: input.pictureFeatures,
       modulation: {
         stems: input.pulse ? { bass: input.pulse.bass, drums: input.pulse.drums,
           vocals: input.pulse.vocals, hats: input.pulse.hats } : undefined,

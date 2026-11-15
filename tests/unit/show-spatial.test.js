@@ -29,7 +29,7 @@ test('automatic candidate set only offers acknowledged-independent room forms', 
     const p = presetById(id);
     assert.equal(p.spec.params.space, 'room');
     assert.equal(requiresAcknowledgement(p.spec), false);
-    assert.ok(!['v2.neural', 'v2.visualizer'].includes(p.spec.kind), 'automatic playback has no guaranteed external audio or picture');
+    assert.notEqual(p.spec.kind, 'v2.neural', 'automatic playback has no guaranteed external audio');
   }
 });
 
@@ -97,7 +97,7 @@ test('automatic shows play particle looks only on measured coverage, independent
       assert.equal(sparse.has(p.id), false, p.id);
       assert.equal(measured.has(p.id), covered.has(p.id), p.id);
     }
-    if (['v2.neural', 'v2.visualizer'].includes(p.spec.kind)) {
+    if (p.spec.kind === 'v2.neural') {
       assert.equal(sparse.has(p.id), false, p.id);
       assert.equal(measured.has(p.id), false, p.id);
     }
@@ -107,12 +107,12 @@ test('automatic shows play particle looks only on measured coverage, independent
     analysis.segments[4].role = seed % 2 ? 'bridge' : 'breakdown';
     const plan = new ShowDirector({ patterns: all, colorPresets: COLOR_PRESETS, pixels: seed % 2 === 0, lamps: 4, intensity: 80 }).plan(analysis);
     for (const scene of plan.intents.filter((i) => i.kind === INTENT.SCENE)) {
-      assert.ok(!['v2.particles', 'v2.neural', 'v2.visualizer'].includes(presetById(scene.pattern)?.spec.kind), scene.pattern);
+      assert.ok(!['v2.particles', 'v2.neural'].includes(presetById(scene.pattern)?.spec.kind), scene.pattern);
     }
     for (const energy of [0.1, 0.5, 0.9]) {
       const id = pickPattern({ available: new Set(all.map((p) => p.id)), seed, pixels: false,
         drive: energy, character: { energy, kick: energy, pulse: energy, vocal: 1 - energy } });
-      assert.ok(!['v2.particles', 'v2.neural', 'v2.visualizer'].includes(presetById(id)?.spec.kind), id);
+      assert.ok(!['v2.particles', 'v2.neural'].includes(presetById(id)?.spec.kind), id);
     }
   }
 });

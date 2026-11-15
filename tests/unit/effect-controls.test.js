@@ -1,4 +1,4 @@
-// The labelled controls (src/shared/effects/controls.ts): every field of the twelve v2 kinds and the strobe
+// The labelled controls (src/shared/effects/controls.ts): every field of the eleven v2 kinds and the strobe
 // is described, inside its schema's bounds, and a field hidden for a shape is one that shape does not read.
 
 import test from 'node:test';
@@ -22,9 +22,9 @@ function fieldsOf(schema, prefix = '') {
     ? fieldsOf(child, `${prefix}${key}.`) : [[`${prefix}${key}`, child]]);
 }
 
-test('the parameterised kinds are the twelve v2 kinds and the strobe', () => {
+test('the parameterised kinds are the eleven v2 kinds and the strobe', () => {
   const v2 = [...KINDS.keys()].filter((kind) => kind.startsWith('v2.'));
-  assert.equal(v2.length, 12);
+  assert.equal(v2.length, 11);
   assert.deepEqual([...CONTROLLED_KINDS].sort(), [...v2, 'strobe'].sort());
 });
 
@@ -102,10 +102,9 @@ function withPath(params, path, value) {
 // The synthetic room with its listener off centre and turned, so the listener and the room centre differ.
 const synthetic = syntheticRoom().room;
 const room = { ...synthetic, space: { ...synthetic.space, listener: { x: 0.8, y: 1.2, z: 0.6, facingDeg: 30 } } };
-// Live sound with the mids under the threshold, a picture feed, a section; played in order so state carries.
-const picture = { palette: [{ r: 255, g: 128, b: 0, w: 0, a: 0, uv: 0 }, { r: 0, g: 64, b: 255, w: 0, a: 0, uv: 0 }], speed: 1, level: 1, expiresAt: Infinity };
+// Live sound with the mids under the threshold and a section; played in order so state carries.
 const FRAMES = [[0.3, 0.9], [1.7, 0.2], [5.2, 0.7]].map(([beat, bass]) => ({ ...frameAt(beat, { audio: audioOf({ full: 0.7, bass, mid: 0.05, high: 0.6 }) }),
-  pictureFeatures: picture, modulation: { sectionProgress: 0.4, section: 'drop' } }));
+  modulation: { sectionProgress: 0.4, section: 'drop' } }));
 // The light each slot gets: whether a dark rest counts as a strobe rest follows the safety rule, not the shape.
 const slot = ({ background, ...rest }) => ({ ...rest, background: background && { ...background, dark: undefined } });
 const lit = new Map();

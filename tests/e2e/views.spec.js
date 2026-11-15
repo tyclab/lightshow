@@ -57,13 +57,30 @@ for (const [name, id] of [['Sequence', 'sequence'], ['Rig', 'rig']]) {
   });
 }
 
+// Review R03 (Show v3 fixes, G6): the same rule inside one view. The page's own sub-tab change comes first, an
+// outside navigation to a third panel of that view second, before the sub-tab's effects run; the navigation wins.
+// Two outside navigations in a row passed before the fix and are not this case.
+test('a hash navigation to another panel right after a sub-tab change is not undone', async ({ page }) => {
+  await page.addInitScript(holdHashChanges);
+  await open(page, 'rig/plan');
+  const outputs = page.getByRole('tab', { name: 'Outputs', exact: true });
+  await outputs.evaluate((button) => { window.holdHashChanges(); button.click(); window.location.hash = '#rig/profiles'; });
+  await expect(outputs).toHaveAttribute('aria-selected', 'true');
+  await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => setTimeout(resolve, 100)))));
+  await page.evaluate(() => window.releaseHashChanges());
+  await expect(page.getByRole('tab', { name: 'Profiles', exact: true }), 'the navigation to #rig/profiles').toHaveAttribute('aria-selected', 'true');
+  await expect(page).toHaveURL(/#rig\/profiles$/);
+  await page.getByRole('tab', { name: 'Plan & patch', exact: true }).click();
+  await expect(page, 'a sub-tab the page chooses still names itself').toHaveURL(/#rig\/plan$/);
+});
+
 test('the app opens on Show: the room, the looks and global controls', async ({ page }) => {
   await page.goto('/');
   await page.locator('.offline-veil').waitFor({ state: 'detached' });
   await expect(page).toHaveURL(/#show$/);
   await expect(page.getByRole('tab', { name: /^Show/ })).toHaveAttribute('aria-selected', 'true');
   const controls = page.getByRole('group', { name: 'Global show controls' });
-  for (const name of ['Stop selected picture', 'Freeze', 'Blackout', 'Arm']) {
+  for (const name of ['Stop selected picture', 'Blackout', 'Arm']) {
     await expect(controls.getByRole('button', { name, exact: true })).toBeVisible();
   }
   await expect(controls.getByRole('switch', { name: 'Auto show', exact: true })).toBeVisible();
@@ -298,11 +315,13 @@ test('a new browser opens Show and the same global Resume releases Freeze in Per
   await expect(page.locator('#panel-perform')).toBeVisible();
   const controls = page.getByRole('group', { name: 'Global show controls' });
   const resume = controls.getByRole('button', { name: 'Resume', exact: true });
-  await expect(resume).toHaveAttribute('aria-pressed', 'true');
+  await expect(resume).toBeVisible();
   await expect(controls.getByRole('status')).toContainText('Frozen');
   await expect(page.getByRole('button', { name: 'Play look', exact: true })).toHaveCount(0);
   await resume.click();
-  await expect(controls.getByRole('button', { name: 'Freeze', exact: true })).toHaveAttribute('aria-pressed', 'false');
+  // G4: Resume goes with the hold, and no Freeze button takes its place.
+  await expect(resume).toHaveCount(0);
+  await expect(controls.getByRole('button', { name: 'Freeze', exact: true })).toHaveCount(0);
   await expect(controls.getByRole('status')).toContainText('Playing');
   await expect(controls.getByRole('status')).not.toContainText('Frozen');
 });

@@ -99,7 +99,8 @@ export class GlobalControl {
             if (!this.playing || hooks.paused?.()) hooks.start(programme);
           }
           this.programme = programme; this.playing = true; break;
-        case 'stop': this.playing = false; hooks.stop(); break;
+        // Stopped only once the hook has stopped it: a hook that throws part way leaves it playing, to be tried again.
+        case 'stop': hooks.stop(); this.playing = false; break;
         case 'freeze': this.frozen = true; break;
         case 'resume': this.frozen = false; this.heldUnavailable = null; break;
         case 'arm': hooks.arm(true, origin); break;

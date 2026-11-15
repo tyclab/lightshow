@@ -9,7 +9,7 @@ import { runtimeRig } from '../tests/helpers/runtime-rig.js';
 
 const { fixtures, profileOf, rig, space, base } = runtimeRig();
 assert.equal(rig.units.length, 3000);
-const ids = new Set(['v2.scatterFade', 'v2.rotation', 'v2.rain.2d', 'v2.speakerShockwave', 'v2.noise', 'v2.stemsSpace', 'v2.visualizerDrift']);
+const ids = new Set(['v2.scatterFade', 'v2.rotation', 'v2.rain.2d', 'v2.speakerShockwave', 'v2.noise', 'v2.stemsSpace']);
 const rows = V2_PRESETS.filter((p) => process.argv.includes('--all') || ids.has(p.id));
 for (const mode of ['orbs', 'rain', 'fireworks']) for (const radiusM of [1, 5]) {
   rows.push({ id: `maximum ${mode} radius ${radiusM}`, spec: validateSpec({ kind: 'v2.particles',
@@ -44,7 +44,6 @@ for (const preset of selected) {
     input.fixtures = structuredClone(fixtures);
     input.audio = DEMO_AUDIO_SOURCE.frameAt(demoAt);
     input.modulation = DEMO_AUDIO_SOURCE.modulationAt(demoAt);
-    input.pictureFeatures = { ...DEMO_AUDIO_SOURCE.pictureAt(demoAt), expiresAt: now + 1000 };
     const cpu0 = process.cpuUsage(), start = performance.now();
     renderer.frame(input, { beatPos: now * DEMO_BPM / 60000, bpm: DEMO_BPM, epoch: 0 }, now, store);
     const elapsed = performance.now() - start, used = process.cpuUsage(cpu0);

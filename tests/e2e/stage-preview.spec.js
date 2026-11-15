@@ -205,10 +205,20 @@ test('a rapid effect is limited in the stopped preview as on the rig, and the pr
   expect((await safetySettings(request)).photosensitivityAcknowledged, 'the preview gave no acknowledgement').toBe(false);
   expect(writes, 'and sent nothing').toEqual([]);
 
+  // The engine's half has its own positive control (Show v3 fixes, G1b): an upper bound alone passes a black feed.
   await page.clock.resume();
+  await safetySet(request, { flashLimit: false });
+  await until(request, (s) => s.flashLimit === false);
   await control(request, 'start', 'look');
   await expect(plotTag(page)).toHaveText('Preview (disarmed)');
-  expect(mostChangesInASecond(await timedFrames(page, 3000)), 'the engine, under the same limit').toBeLessThanOrEqual(LIMIT);
+  expect(mostChangesInASecond(await timedFrames(page, 3000)), 'the engine without the limit changes the room\'s light more often than the rig allows')
+    .toBeGreaterThan(LIMIT);
+  await safetySet(request, { flashLimit: true });
+  await until(request, (s) => s.flashLimit === true);
+  await page.waitForTimeout(500);
+  const engine = mostChangesInASecond(await timedFrames(page, 3000));
+  expect(engine, 'the engine, under the same limit').toBeLessThanOrEqual(LIMIT);
+  expect(engine, 'and still changing the room\'s light: the strobe is limited, not gone').toBeGreaterThanOrEqual(1);
 
   await control(request, 'arm');
   expect((await state(request)).safety.photosensitivityAcknowledged, 'armed after the preview, the acknowledgement is still the operator\'s to give').toBe(false);

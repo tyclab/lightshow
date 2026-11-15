@@ -24,7 +24,7 @@ const resolveEffect = (id) => presetById(id)?.spec ?? null;
 
 test('new generators and showpieces preview the same RGB values as the output renderer in both spaces', () => {
   for (const name of ['wash', 'breathe', 'chase', 'zones', 'noise', 'lightOrbs', 'orbCollision', 'fireworks', 'rain', 'stemsSpace',
-    'risingWall', 'fallingWall', 'visualizerFlow', 'visualizerDrift']) for (const suffix of ['', '.2d']) {
+    'risingWall', 'fallingWall']) for (const suffix of ['', '.2d']) {
     const id = `v2.${name}${suffix}`, renderer = createRenderer({ profileOf: () => profile, now: 0 });
     renderer.setSpace(space);
     const store = universes.createUniverseStore(universes.allocateShared());
@@ -36,7 +36,7 @@ test('new generators and showpieces preview the same RGB values as the output re
     for (let frame = 0; frame <= 110; frame++) {
       const ms = frame * (1000 / 44);
       input.audio = DEMO_AUDIO_SOURCE.frameAt(ms); input.audioMode = 'reactive';
-      input.modulation = DEMO_AUDIO_SOURCE.modulationAt(ms); input.pictureFeatures = DEMO_AUDIO_SOURCE.pictureAt(ms);
+      input.modulation = DEMO_AUDIO_SOURCE.modulationAt(ms);
       renderer.frame(input, { beatPos: ms / 60000 * DEMO_BPM, bpm: DEMO_BPM, epoch: 0 }, ms, store);
       const preview = sample(ms, fixtures, COLOR_PRESETS, rig), bytes = store.getBuffer(0);
       for (let u = 0; u < rig.units.length; u++) {
