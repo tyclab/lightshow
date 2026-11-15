@@ -105,6 +105,57 @@ test('a sequence is selected on Perform and played from the header', async ({ pa
   await expect(playButton(page, 'Play', 'sequence', 'Not saved yet')).toBeVisible();
 });
 
+// Review R04 (Show v3 fixes, G6): two selections could finish in reverse order and leave the earlier one loaded. The
+// load and the select are one pending action: while it waits, the shelf is busy and offers no other sequence.
+test('while a selection loads, the shelf is busy and a second selection sends nothing', async ({ page, request }) => {
+  const sent = [];
+  page.on('request', (r) => {
+    const path = new URL(r.url()).pathname;
+    if ((r.method() === 'PUT' && path === '/api/sequence') || (r.method() === 'POST' && path === '/api/control')) {
+      sent.push(path === '/api/control' ? `control ${r.postDataJSON().action}` : `load ${r.postDataJSON().id}`);
+    }
+  });
+  let release, reached;
+  const gate = new Promise((resolve) => { release = resolve; });
+  const held = new Promise((resolve) => { reached = resolve; });
+  await page.route('**/api/sequence', async (route) => {
+    if (route.request().method() === 'PUT' && route.request().postDataJSON()?.id === 'shelf-a') { reached(); await gate; }
+    await route.continue();
+  });
+  try {
+    await open(page, 'perform');
+    const picker = shelf(page).getByRole('combobox', { name: 'Sequence' });
+    const select = shelf(page).getByRole('button', { name: 'Select sequence', exact: true });
+    await picker.selectOption('shelf-a');
+    await select.click();
+    await held;
+    await expect(select, 'busy across the load').toBeDisabled();
+    await expect(picker.getByRole('option', { name: 'Shelf B', exact: true }), 'the other sequence is not offered').toBeDisabled();
+    await picker.evaluate((element) => { element.value = 'shelf-b'; element.dispatchEvent(new window.Event('change', { bubbles: true })); });
+    await select.click({ force: true });
+    await page.waitForTimeout(300);
+    expect(sent, 'a press while busy sends nothing').toEqual(['load shelf-a']);
+
+    release();
+    await expect(shelf(page).getByRole('button', { name: 'Sequence selected ✓', exact: true })).toBeVisible();
+    let s = await state(request);
+    expect([s.sequence.loaded?.id, s.control.programme], 'the first finishes loaded and selected').toEqual(['shelf-a', 'sequence']);
+    expect(sent).toEqual(['load shelf-a', 'control select']);
+
+    await picker.selectOption('shelf-b');
+    await select.click();
+    await expect(shelf(page).getByRole('button', { name: 'Sequence selected ✓', exact: true })).toBeVisible();
+    s = await state(request);
+    expect([s.sequence.loaded?.id, s.control.programme], 'the second then loads').toEqual(['shelf-b', 'sequence']);
+    await shelf(page).getByRole('button', { name: 'Sequence selected ✓', exact: true }).click();
+    await expect.poll(() => sent.length).toBe(5);
+    expect(sent, 'selecting the loaded sequence again loads nothing').toEqual(['load shelf-a', 'control select', 'load shelf-b', 'control select', 'control select']);
+  } finally {
+    release();
+    await page.unrouteAll({ behavior: 'wait' });
+  }
+});
+
 test('a load refused while the sequence plays changes nothing', async ({ page, request }) => {
   expect((await request.put('/api/sequence', { data: { id: 'shelf-a' } })).ok()).toBe(true);
   await control(request, 'start', 'sequence');
