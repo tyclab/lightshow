@@ -232,3 +232,47 @@ test('no Pause preview while auditioning, on the stage in 3D and 2D and on a plo
     await expect(pauseButton(page), `${where}: the audition closed`).toHaveCount(1);
   }
 });
+
+/** The plot header's boxes: the header's content edges, its overflow, each button and the tag's lines of text. */
+const plotHead = (page) => page.locator('.stage-panel .panel-head').first().evaluate((head) => {
+  const style = getComputedStyle(head), box = head.getBoundingClientRect();
+  const edge = (el) => { const r = el.getBoundingClientRect(); return { left: r.left, right: r.right, top: r.top }; };
+  const button = (name) => [...head.querySelectorAll('button')].find((b) => b.textContent.trim() === name);
+  const tag = head.querySelector('.panel-tag'), range = document.createRange();
+  range.selectNodeContents(tag);
+  const pause = button('Pause preview');
+  return {
+    left: box.left + parseFloat(style.paddingLeft), right: box.right - parseFloat(style.paddingRight),
+    overflow: head.scrollWidth - head.clientWidth, tagLines: new Set([...range.getClientRects()].map((r) => Math.round(r.top))).size,
+    position: edge(button('Position fixtures')), pause: pause ? edge(pause) : null,
+  };
+});
+
+// The plot header was laid out for one button at its right end (F3 of the review of G1): Pause preview sits beside it.
+for (const [width, height] of [[1280, 900], [390, 844]]) {
+  test(`${width} wide, the plot header keeps Position fixtures at its right end and Pause preview beside it`, async ({ page, request }) => {
+    await page.setViewportSize({ width, height });
+    for (const view of ['effects', 'auto']) for (const armed of [false, true]) {
+      await control(request, armed ? 'arm' : 'disarm');
+      await control(request, 'stop');
+      await open(page, view);
+      await expect(pauseButton(page)).toHaveCount(armed ? 0 : 1);
+      const head = await plotHead(page);
+      const what = `${view}, ${width} wide, ${armed ? 'armed, as on main' : 'previewing'}`;
+      expect(head.overflow, `${what}: nothing overflows`).toBeLessThanOrEqual(0);
+      expect(head.tagLines, `${what}: the tag on one line`).toBe(1);
+      expect(Math.abs(head.position.right - head.right), `${what}: Position fixtures at the right end`).toBeLessThanOrEqual(1);
+      for (const b of [head.position, head.pause].filter(Boolean)) {
+        expect(b.left, `${what}: inside the header`).toBeGreaterThanOrEqual(head.left - 1);
+        expect(b.right, `${what}: inside the header`).toBeLessThanOrEqual(head.right + 1);
+      }
+      if (head.pause && head.pause.top === head.position.top) {
+        const gap = head.position.left - head.pause.right;
+        expect(gap, `${what}: Pause preview beside it`).toBeGreaterThanOrEqual(0);
+        expect(gap, `${what}: Pause preview beside it`).toBeLessThanOrEqual(16);
+      } else if (head.pause) {
+        expect(Math.abs(head.pause.right - head.right), `${what}: on a line of its own, Pause preview at the right end`).toBeLessThanOrEqual(1);
+      }
+    }
+  });
+}

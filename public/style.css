@@ -2769,7 +2769,9 @@ input[type=range]::-moz-range-thumb {
   text-align: center;
 }
 
-.stage-panel .panel-head .btn { margin-left: auto; }
+/* The plot header's buttons keep together at its right end, and wrap under the title as one when it is narrow. */
+.stage-panel .panel-head { flex-wrap: wrap; }
+.stage-panel .panel-head .stage-head-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: inherit; margin-left: auto; }
 
 .stage-rehearsal {
   display: flex;
