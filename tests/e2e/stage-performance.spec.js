@@ -2,7 +2,7 @@ import { writeFile } from 'node:fs/promises';
 import { test, expect } from '@playwright/test';
 import { open, set, state, reset } from './helpers.js';
 import { stageImage } from './stage-image.js';
-import { mainThreadBudget, steadyFrameBudget } from './browser-budget.js';
+import { frameBudget, longTaskMsPerFrame } from './browser-budget.js';
 
 for (const frameInterval of [0, 100]) test(`Stage idles between visible changes and redraws lights and camera input${frameInterval ? ' at 10 Hz' : ''}`, async ({ page, request }) => {
   await page.addInitScript((frameInterval) => {
@@ -107,12 +107,6 @@ test('a room of many walls rebuilds its shadows, and draws steady frames, within
     expect(result.ok()).toBe(true);
   };
   const snapshot = () => page.evaluate(() => window.__lightshowPerformance.snapshot());
-  // Every long task in order, so the steady frames are judged on how many of them block (browser-budget.js).
-  await page.addInitScript(() => {
-    window.stageLongTasks = [];
-    new window.PerformanceObserver((list) => { for (const entry of list.getEntries()) window.stageLongTasks.push({ at: entry.startTime, ms: entry.duration }); })
-      .observe({ type: 'longtask' });
-  });
   try {
     const model = walledRoom(before.fixtures[0].id);
     expect(model.objects.length).toBe(142);
@@ -134,10 +128,9 @@ test('a room of many walls rebuilds its shadows, and draws steady frames, within
 
     // Steady frames: the look plays on the demo beat; no map renders again. Then the same with Room light off.
     const steadyFrames = async () => {
-      const from = await page.evaluate(() => { window.__lightshowPerformance.reset(); return performance.now(); });
+      await page.evaluate(() => window.__lightshowPerformance.reset());
       await expect.poll(async () => (await snapshot()).counts['scene.draws'] || 0, { timeout: 15_000 }).toBeGreaterThan(20);
-      return page.evaluate((from) => ({ ...window.__lightshowPerformance.snapshot(),
-        tasks: window.stageLongTasks.filter((task) => task.at >= from).map((task) => task.ms) }), from);
+      return snapshot();
     };
     const steady = await steadyFrames();
     await attach('steady-timing.json', steady);
@@ -147,11 +140,11 @@ test('a room of many walls rebuilds its shadows, and draws steady frames, within
     const unlit = await steadyFrames();
     await attach('steady-unlit-timing.json', unlit);
     const longest = (report) => ({ task: report.timings['longtask.duration']?.max ?? 0, tasks: report.timings['longtask.duration']?.count ?? 0,
-      ...(report.tasks ? { over: report.tasks.filter((ms) => ms >= 200).length } : {}),
+      perFrame: Math.round(longTaskMsPerFrame(report) * 10) / 10,
       submit: Math.round(report.timings['scene.renderSubmit']?.max ?? 0), draws: report.counts['scene.draws'], ms: Math.round(report.elapsedMs) });
     console.log(`stage budget ${JSON.stringify({ rebuild: longest(rebuild), steady: longest(steady), unlit: longest(unlit) })}`);
-    expect(mainThreadBudget(rebuild), 'the rebuild').toEqual({ ok: true, failures: [] });
-    expect(steadyFrameBudget(steady, steady.tasks), 'steady frames').toEqual({ ok: true, failures: [] });
+    expect(frameBudget(rebuild), 'the rebuild').toEqual({ ok: true, failures: [] });
+    expect(frameBudget(steady), 'steady frames').toEqual({ ok: true, failures: [] });
     expect(steady.counts['scene.shadowMaps'] || 0, 'steady frames render no shadow map').toBe(0);
   } finally {
     await replace(null);
