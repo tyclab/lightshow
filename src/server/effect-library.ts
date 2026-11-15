@@ -14,6 +14,7 @@ import { PATTERN_IDS } from './presets.ts';
 import { validate, ValidationError } from './validation.ts';
 import { codeOf, HttpError, messageOf } from '../errors.ts';
 import { JsonStore } from './json-store.ts';
+import { retireLibrary } from './retired-looks.ts';
 import type { CataloguePreset } from '../shared/effects/index.ts';
 import type { EffectSpec } from '../shared/effects/types.ts';
 
@@ -116,7 +117,7 @@ export class EffectLibrary extends JsonStore {
   }
 
   load(): this {
-    const saved = this.readValid(fileSchema);
+    const saved = this.readMigrated(fileSchema, retireLibrary);
     if (saved) {
       this._savedVersion = saved.version;
       this._install(saved.presets.map((preset) => ({ ...preset, spec: migrateEffectSpec(preset.spec, saved.version) })));
