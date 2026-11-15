@@ -6,10 +6,10 @@ import { kindOf, requiresAcknowledgement } from './registry.ts';
 import { legacyKind } from './migrate.ts';
 import type { EffectSpec } from './types.ts';
 
-export type TagId = 'beat' | 'static' | 'bands' | 'level' | 'sections' | 'screen' | 'rig' | 'room' | 'bars' | 'ownColours' | 'energy' | 'rapid';
+export type TagId = 'beat' | 'static' | 'bands' | 'level' | 'sections' | 'rig' | 'room' | 'bars' | 'ownColours' | 'energy' | 'rapid';
 export type TagAxis = 'reacts' | 'surface' | 'colour' | 'use';
-/** Where a reaction's input comes from: the auto show's analysed track, live input in reactive audio mode, or the screen capture. */
-export type TagSource = 'track' | 'live' | 'screen';
+/** Where a reaction's input comes from: the auto show's analysed track, or live input in reactive audio mode. */
+export type TagSource = 'track' | 'live';
 
 export interface LookTags { tags: TagId[]; via: TagSource[] }
 
@@ -19,7 +19,6 @@ export const TAGS: Readonly<Record<TagId, { name: string; axis: TagAxis; desc: s
   bands: { name: 'Bands & drums', axis: 'reacts', desc: 'Follows stems, drum hits or frequency bands' },
   level: { name: 'Audio level', axis: 'reacts', desc: 'Follows the overall loudness' },
   sections: { name: 'Song sections', axis: 'reacts', desc: 'Follows the song section or the build the show sets' },
-  screen: { name: 'Screen', axis: 'reacts', desc: 'Takes its colours and speed from the screen capture' },
   rig: { name: 'Whole rig', axis: 'surface', desc: 'Every light gets the same value at once' },
   room: { name: 'Room-placed', axis: 'surface', desc: 'Placed by room positions in metres: listener, anchors, height' },
   bars: { name: 'Bars & panels', axis: 'surface', desc: 'Drawn cell by cell on bars and panels' },
@@ -29,19 +28,18 @@ export const TAGS: Readonly<Record<TagId, { name: string; axis: TagAxis; desc: s
 });
 
 export const TAG_AXES: readonly { id: TagAxis; name: string; tags: readonly TagId[] }[] = Object.freeze([
-  { id: 'reacts', name: 'Reacts to', tags: ['beat', 'static', 'bands', 'level', 'sections', 'screen'] },
+  { id: 'reacts', name: 'Reacts to', tags: ['beat', 'static', 'bands', 'level', 'sections'] },
   { id: 'surface', name: 'Surface', tags: ['rig', 'room', 'bars'] },
   { id: 'colour', name: 'Colour', tags: ['ownColours'] },
   { id: 'use', name: 'Use & safety', tags: ['energy', 'rapid'] },
 ] as const);
 
-/** The four narrow reactions, shown one by one on a row and folded into one Reactive filter. */
-export const REACTIVE_TAGS: ReadonlySet<TagId> = new Set(['bands', 'level', 'sections', 'screen']);
+/** The three narrow reactions, shown one by one on a row and folded into one Reactive filter. */
+export const REACTIVE_TAGS: ReadonlySet<TagId> = new Set(['bands', 'level', 'sections']);
 
 export const SOURCES: Readonly<Record<TagSource, { name: string; desc: string }>> = Object.freeze({
   track: { name: 'track', desc: 'Reacts only while the auto show plays an analysed track; picked by hand it runs on its clock' },
   live: { name: 'live', desc: 'Reacts in the reactive audio mode with live input' },
-  screen: { name: 'screen', desc: 'Reacts while the picture source is the screen capture' },
 });
 
 const TAG_ORDER = Object.keys(TAGS) as TagId[];
@@ -154,7 +152,6 @@ function reactions(raw: Pick<EffectSpec, 'kind' | 'params'>): LookTags {
   const spec = plain(raw);
   const p = spec.params ?? {};
   if (spec.kind === 'v2.neural') return tagged(['bands'], ['live']);
-  if (spec.kind === 'v2.visualizer') return tagged(['screen'], ['screen']);
   // The globe's rings read the live bands or the live level; without sound the clock plays them.
   if (spec.kind === 'v2.globe') return tagged([p.rings === 'pulse' ? 'level' : 'bands'], ['live']);
   if (spec.kind === 'hd.disco') return tagged(DISCO_READS[String(p.style)] ?? ['bands'], ['live']);

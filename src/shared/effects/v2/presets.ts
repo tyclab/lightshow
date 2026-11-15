@@ -8,7 +8,6 @@ import './step.ts';
 import './zones.ts';
 import './noise.ts';
 import './particles.ts';
-import './visualizer.ts';
 import './globe.ts';
 import { validateSpec } from '../registry.ts';
 import type { EffectSpec } from '../types.ts';
@@ -101,10 +100,6 @@ const RAW: Raw[] = [
     'v2.particles', { mode: 'rain', count: 28, radiusM: 0.7, cycleBeats: 4, speed: 1.8, gravity: 0.8, trail: 3 }],
   ['stemsSpace', 'Stems in Space', 'Bass at the floor and speakers, drums in shockwaves, vocals in front and hats near the ceiling',
     'v2.zones', { partition: 'stems' }],
-  ['visualizerFlow', 'Visualizer Flow', 'Colours and motion speed from the room picture drive a spatial orbit of light around the listener',
-    'v2.visualizer', { profile: 'orbit' }],
-  ['visualizerDrift', 'Visualizer Drift', 'The room picture supplies only palette and motion speed to a drifting three dimensional cloud field',
-    'v2.visualizer', { profile: 'noise' }],
   ['globeSpectrum', 'Globe Spectrum', 'The spectrum in rings round each light, bass at its equator and highs at its poles, two lobes turning a step on every beat and a bright spot marking where they face',
     'v2.globe', { rings: 'spectrum' }],
   ['globePulse', 'Globe Pulse', 'Every beat leaves each light\'s equator for its poles, as strong as the music, while three lobes turn once every two bars',

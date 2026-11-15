@@ -24,8 +24,8 @@ export function pickerKey(e) {
 }
 
 /**
- * The header's first control: what paints the room. Effects, Colour + motion and Squid (whose effect paints all but
- * its panel) name the main effect, and their button opens the effect picker; the Visualizer names none and opens
+ * The header's first control: what paints the room. Effects and Squid (whose effect paints all but its panel)
+ * name the main effect, and their button opens the effect picker; the Visualizer names none and opens
  * nothing. Another source is one tap away.
  */
 export function PictureSource() {

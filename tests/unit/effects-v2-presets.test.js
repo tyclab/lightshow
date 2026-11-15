@@ -12,7 +12,7 @@ const NAMES = ['Scatter Strobe', 'Scatter Fade', 'Scatter Grow', 'Groove Wave', 
   'Impact', 'Vortex', 'Speaker Shockwave', 'Rotation', 'Swirl', 'Beacon', 'Neural', 'Neural Distance',
   'Beat Accent Wash', 'Volume Gate Wash', 'Frequency Burst', 'Wash', 'Breathe', 'Chase', 'Path Runner', 'Surround', 'Zones', 'Surround Answer',
   'Near and Far', 'Drifting Clouds', 'Aurora', 'Fire', 'Rising Wall', 'Falling Wall', 'Light Orbs', 'Orb Collision', 'Fireworks', 'Rain', 'Stems in Space',
-  'Visualizer Flow', 'Visualizer Drift', 'Globe Spectrum', 'Globe Pulse'];
+  'Globe Spectrum', 'Globe Pulse'];
 const room = V2_PRESETS.filter((p) => !p.id.endsWith('.2d'));
 const twinOf = (p) => V2_PRESETS.find((q) => q.id === `${p.id}.2d`);
 
@@ -71,8 +71,7 @@ test('every preset lights the synthetic room within a complete cycle in both for
     const cycle = p.spec.params.cycleBeats ?? 8;
     let state;
     const lit = Array.from({ length: Math.ceil(cycle * 16) }, (_, i) => i / 16).some((beat) => {
-      const rendered = renderKind(p.spec, synthetic, { ...frameAt(beat, { audio }),
-        pictureFeatures: { palette: [{ r: 32, g: 160, b: 255, w: 0, a: 0, uv: 0 }], speed: 1, level: 1, expiresAt: 100000 } }, state);
+      const rendered = renderKind(p.spec, synthetic, frameAt(beat, { audio }), state);
       state = rendered.state;
       return rendered.out.some((s) => s.level > 0.3);
     });

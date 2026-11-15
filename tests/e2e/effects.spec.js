@@ -185,7 +185,7 @@ test.describe('on a touch screen', () => {
 test('the tag chips filter the deck and the list: any chip within an axis, every axis with one, live counts and Clear', async ({ page, request }) => {
   const rows = (await state(request)).patterns.filter((row) => !row.retired && row.id !== 'energy.colorStrobe');
   const has = (row, tags) => tags.some((tag) => row.tags.includes(tag));
-  const REACTIVE = ['bands', 'level', 'sections', 'screen'];
+  const REACTIVE = ['bands', 'level', 'sections'];
   await open(page, 'effects');
   const filters = page.getByRole('group', { name: 'Filters' });
   const chip = (name) => filters.getByRole('button', { name: new RegExp(`^${name}`) });
@@ -227,12 +227,11 @@ test('the tag chips filter the deck and the list: any chip within an axis, every
   await expect(chip('Whole rig')).toBeEnabled();
   await filters.getByRole('button', { name: 'Clear' }).click();
 
-  // Reactive folds the four narrow reactions; each row still says which, and from where.
+  // Reactive folds the three narrow reactions; each row still says which, and from where.
   await chip('Reactive').click();
   const reactive = await listed();
   expect(reactive).toEqual(all.filter((id) => has(rows.find((row) => row.id === id), REACTIVE)));
   await expect(page.locator('.effects-catalogue .pattern-btn[data-id="v2.neural"] .effect-tag').first()).toHaveText('Bands & drums · live');
-  await expect(page.locator('.effects-catalogue .pattern-btn[data-id="v2.visualizerFlow"] .effect-tag').first()).toHaveText('Screen · screen');
   await expect(page.locator('.effects-catalogue .pattern-btn[data-id="radial-pulse"] .effect-tag').first()).toHaveText('Bands & drums · track');
   // The search also reads tag names.
   await filters.getByRole('button', { name: 'Clear' }).click();
@@ -271,7 +270,7 @@ test.describe('on a phone', () => {
     await expect(row.locator('.effect-tag').first()).toBeVisible();
     const id = await row.getAttribute('data-id');
     const reacting = (await state(request)).patterns.find((p) => p.id === id);
-    expect(reacting.tags.some((tag) => ['bands', 'level', 'sections', 'screen'].includes(tag))).toBe(true);
+    expect(reacting.tags.some((tag) => ['bands', 'level', 'sections'].includes(tag))).toBe(true);
     await row.click();
     if (!reacting.rapidFlash) await until(request, (s) => s.pattern === id);
   });

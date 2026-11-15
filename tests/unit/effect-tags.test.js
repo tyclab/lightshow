@@ -16,7 +16,7 @@ import { mappingOf, usesSpatialMapping } from '../../src/shared/effects/mapping.
 import { LEGACY_TAGGED, REACTIVE_TAGS, SOURCES, TAG_AXES, TAG_NOTES, TAGS, browseListOf, legacyTags, specTags } from '../../src/shared/effects/tags.ts';
 
 // What every registered kind reacts to with its default params, counted per tag.
-const KIND_REACTS = { beat: 133, static: 19, bands: 5, level: 2, sections: 0, screen: 1 };
+const KIND_REACTS = { beat: 133, static: 19, bands: 5, level: 2, sections: 0 };
 
 // id: 'tags / sources', in vocabulary order.
 const PINNED = {
@@ -129,8 +129,6 @@ const PINNED = {
   'v2.fireworks': 'beat room',
   'v2.rain': 'beat room',
   'v2.stemsSpace': 'bands room / track live',
-  'v2.visualizerFlow': 'screen room / screen',
-  'v2.visualizerDrift': 'screen room / screen',
   'v2.globeSpectrum': 'bands room / live',
   'v2.globePulse': 'level room / live',
 };
@@ -140,7 +138,7 @@ const pinOf = (row) => `${row.tags.join(' ')}${row.via ? ` / ${row.via.join(' ')
 const count = (rows, tag) => rows.filter((row) => row.tags.includes(tag)).length;
 
 test('every visible look carries the tags pinned for it, and no look is missing or extra', () => {
-  assert.equal(VISIBLE.length, 113);
+  assert.equal(VISIBLE.length, 111);
   assert.deepEqual(VISIBLE.map((row) => row.id).sort(), Object.keys(PINNED).sort(), 'a look added or removed is tagged on purpose');
   for (const row of VISIBLE) assert.equal(pinOf(row), PINNED[row.id], row.id);
 });
@@ -160,20 +158,20 @@ test('every visible look says what it reacts to, and only a reactive one says wh
 
 test('the twelve tags and their counts over the 113 looks', () => {
   assert.deepEqual(TAG_AXES.map((axis) => [axis.name, axis.tags.map((tag) => TAGS[tag].name)]), [
-    ['Reacts to', ['Beat only', 'Static', 'Bands & drums', 'Audio level', 'Song sections', 'Screen']],
+    ['Reacts to', ['Beat only', 'Static', 'Bands & drums', 'Audio level', 'Song sections']],
     ['Surface', ['Whole rig', 'Room-placed', 'Bars & panels']],
     ['Colour', ['Own colours']],
     ['Use & safety', ['Energy', 'Rapid ⚡']],
   ]);
   const counts = Object.fromEntries(Object.keys(TAGS).map((tag) => [tag, count(VISIBLE, tag)]));
   assert.deepEqual(counts, {
-    beat: 79, static: 7, bands: 19, level: 4, sections: 3, screen: 2,
-    rig: 17, room: 41, bars: 21, ownColours: 8, energy: 11, rapid: 16,
+    beat: 79, static: 7, bands: 19, level: 4, sections: 3,
+    rig: 17, room: 39, bars: 21, ownColours: 8, energy: 11, rapid: 16,
   });
   const reactive = VISIBLE.filter((row) => row.tags.some((tag) => REACTIVE_TAGS.has(tag)));
-  assert.equal(reactive.length, 27);
+  assert.equal(reactive.length, 25);
   assert.deepEqual(Object.fromEntries(Object.keys(SOURCES).map((s) => [s, reactive.filter((r) => r.via.includes(s)).length])),
-    { track: 16, live: 10, screen: 2 });
+    { track: 16, live: 10 });
 });
 
 test('tags restate the fields the server already sends: pixel, room mapping, rapid flash, the energy family', () => {
@@ -302,7 +300,7 @@ test('the Strobe pattern is Static by default and its badge says the drawn funct
 test('one rule sorts a row into the MIDI browse lists', () => {
   const rows = [...PATTERNS, ...PRESET_ROWS];
   const lists = (rapid) => rows.filter((r) => !r.retired && (rapid || !r.rapidFlash)).reduce((acc, r) => { acc[browseListOf(r)]++; return acc; }, { pattern: 0, effect: 0, bars: 0 });
-  assert.deepEqual(lists(true), { pattern: 81, effect: 11, bars: 21 });
-  assert.deepEqual(lists(false), { pattern: 77, effect: 4, bars: 16 });
+  assert.deepEqual(lists(true), { pattern: 79, effect: 11, bars: 21 });
+  assert.deepEqual(lists(false), { pattern: 75, effect: 4, bars: 16 });
   assert.deepEqual([{}, { pixel: true }, { tags: ['beat', 'energy'] }].map(browseListOf), ['pattern', 'bars', 'effect']);
 });

@@ -7,7 +7,7 @@ const row = (page, id) => box(page).locator(`.contained-row[data-effect="${id}"]
 // The catalogue's utility family (own.energy): Show and the header picker leave it to pads, cues, sequences and the API.
 const UTILITY = ['energy.whiteStrobe', 'energy.colorStrobe', 'energy.blinder', 'energy.uvWash', 'energy.kill', 'energy.glow', 'palette-strobe',
   'overlay.all', 'overlay.step', 'overlay.scatter', 'overlay.zone'];
-const LISTED = 102;
+const LISTED = 100;
 
 test.beforeEach(async ({ request }) => { await reset(request); });
 test.afterEach(async ({ request }) => { await reset(request); });
@@ -223,9 +223,7 @@ test('the Effects box follows the picture source, the picture, Stop and Freeze, 
     await expect(sentence).toHaveText(painting);
     await request.post('/api/picture/source', { data: { source: 'effects' } });
     await expect(label).toHaveText('Current effect');
-    await request.post('/api/picture/source', { data: { source: 'inspired' } });
     await expect(effects.getByRole('searchbox', { name: 'Search effects' })).toBeVisible();
-    await expect(label, 'Colour + motion still draws the main effect').toHaveText('Current effect');
     await expect(sentence).toHaveCount(0);
 
     await request.post('/api/picture/source', { data: { source: 'visualizer' } });
