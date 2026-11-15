@@ -258,6 +258,8 @@ export function createStageScene(canvas, { haze = 0.6, room, lightRGB }) {
   renderer.setClearColor(BG, 1);
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.autoUpdate = false;
+  // One lookup a light: filtered lookups (PCF) take twice the frame time of these on a software renderer.
+  renderer.shadowMap.type = THREE.BasicShadowMap;
   // A map holds the blockers seen from one place: it renders again when its light moves or the room changes,
   // one light's six faces a frame, and a light shines only while its map shows the room from where it stands.
   let roomBuilt = 0;
