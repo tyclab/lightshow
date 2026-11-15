@@ -65,12 +65,18 @@ export function demoLookSampler(s, { library = null, space = null } = {}) {
     ...base, sequence: null, space, audioSource: DEMO_AUDIO_SOURCE, light: true,
     safety: { acknowledged: s.safety?.photosensitivityAcknowledged === true, hdFlashIntervalMs: s.safety?.hdFlashIntervalMs ?? 350 },
   });
-  const master = Number.isFinite(s.masterDimmer) ? Math.max(0, Math.min(255, s.masterDimmer)) / 255 : 1;
+  return underMaster(sample, s.masterDimmer);
+}
+
+/** `sample` under the master, which scales each fixture's trim as the engine multiplies them (renderer.ts). */
+export function underMaster(sample, masterDimmer) {
+  const master = Number.isFinite(masterDimmer) ? Math.max(0, Math.min(255, masterDimmer)) / 255 : 1;
+  if (master === 1) return sample;
   let given = null, scaled = null;
   return (positionMs, fixtures, presets, rig) => {
     if (fixtures !== given) {
       given = fixtures;
-      scaled = master === 1 ? fixtures : fixtures.map((f) => ({ ...f, maxBrightness: (f.maxBrightness ?? 255) * master }));
+      scaled = fixtures.map((f) => ({ ...f, maxBrightness: (f.maxBrightness ?? 255) * master }));
     }
     return sample(positionMs, scaled, presets, rig);
   };

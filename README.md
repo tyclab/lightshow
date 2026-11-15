@@ -252,7 +252,8 @@ against a deterministic 124 BPM demo: build, drop, breakdown and groove, with
 synthetic beat, bass, mid and high levels. Pause, restart or scrub the demo; switch
 Stage between **3D room** and **2D plot** to inspect the same moment. These are
 simulated audio levels, so no music file or audio input is required. The audition
-uses its own palette and transport. It sends no look, engine, room or output
+uses its own palette and transport under the live master; like the demo beat and a rehearsal, it draws
+each light as it emits, a dimmer channel's level times the emitters. It sends no look, engine, room or output
 commands. It runs only while the outputs are disarmed, so rapid effects audition
 without a question. Arming ends the audition. In the
 inspector, **Audition on Stage** previews an edited draft; **Hold on live rig**
