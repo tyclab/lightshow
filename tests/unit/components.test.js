@@ -26,7 +26,7 @@ async function load() {
         export { Header, StatusDetails } from './public-src/components/Header.jsx';
         export { PictureSource } from './public-src/components/PictureSource.jsx';
         export { Bands } from './public-src/components/Bands.jsx';
-        export { pictureColours } from './public-src/picture-source.js';
+        export { pictureColours, unmetLine, clockTime } from './public-src/picture-source.js';
         export { StagePreview } from './public-src/components/StagePreview.jsx';
         export { NowPlaying, PlayingVoices } from './public-src/components/NowPlaying.jsx';
         export { SHORTCUTS } from './public-src/components/Shortcuts.jsx';
@@ -1230,9 +1230,7 @@ test('every picture source segment reads its own name with its hint as tooltip, 
   const cases = [
     [{ source: 'effects', input: null }, false, 'Effects', 'The show\'s effects paint the room'],
     [{ source: 'squid', input: null }, false, 'Squid', 'The squid plays on the largest LED panel; the effects paint the rest'],
-    [{ source: 'visualizer', input: null }, false, 'Visualizer', 'Arm the outputs; the picture needs a live rig'],
-    [{ source: 'visualizer', input: { units: 4, receiving: true } }, true, 'Visualizer', 'Visualizer picture on 4 lamp cells'],
-    [{ source: 'visualizer', input: { units: 4, receiving: false } }, true, 'Visualizer', 'No picture arriving — effects show meanwhile'],
+    [{ source: 'visualizer', input: { units: 4, receiving: true }, unmet: [] }, true, 'Visualizer', 'Visualizer picture on 4 lamp cells'],
   ];
   for (const [picture, armed, label, hint] of cases) {
     for (const pattern of ['hd.neonDomino', splotch]) {
@@ -1246,6 +1244,44 @@ test('every picture source segment reads its own name with its hint as tooltip, 
         ['effects', 'visualizer', 'squid'].map((id) => [id, id === picture.source ? 'undefined' : 'function']), 'only another source does something');
     }
   }
+});
+
+// G5: "also i dont like the defauilt that the scene just playing until conditions for the visulaisizter or shquid are
+// matched." The chosen segment turns amber with the server's unmet line as its tooltip; the page adds no reason of its own.
+test('an unmet source turns its chosen segment amber, its tooltip the unmet line', () => {
+  const since = Date.UTC(2026, 10, 15, 20, 3, 12);
+  const cases = [
+    [{ source: 'visualizer', input: null, unmet: [{ code: 'no-sender', since }] }, `Visualizer: no picture sender since ${ui.clockTime(since)}`],
+    [{ source: 'visualizer', input: null, unmet: [{ code: 'disarmed', since }, { code: 'no-sender', since }] }, 'Visualizer: outputs disarmed'],
+    [{ source: 'visualizer', input: null, unmet: [{ code: 'unacknowledged', since }] }, 'Visualizer: photosensitivity not acknowledged'],
+    [{ source: 'squid', input: null, unmet: [{ code: 'no-panel', since }] }, 'Squid: no LED panel'],
+  ];
+  for (const [picture, line] of cases) {
+    givenLibrary({ picture, armed: true, ...PANEL });
+    const { chosen } = pictureSource();
+    assert.match(chosen, /class="picture-segment active unmet"/, line);
+    assert.ok(chosen.includes(`title="${line}"`), `${line}: ${chosen}`);
+  }
+  givenLibrary({ picture: { source: 'visualizer', input: { units: 4, receiving: true }, unmet: [] }, armed: true });
+  assert.match(pictureSource().chosen, /class="picture-segment active"/, 'met: not amber');
+});
+
+test('the unmet line names the first fact, with its detail and its time', () => {
+  const since = Date.UTC(2026, 10, 15, 20, 3, 12), at = ui.clockTime(since);
+  assert.match(at, /^\d\d:\d\d:\d\d$/);
+  const line = (source, code, detail) => ui.unmetLine(source, [{ code, since, ...(detail ? { detail } : {}) }]);
+  assert.strictEqual(ui.unmetLine('visualizer', []), null);
+  assert.strictEqual(ui.unmetLine('visualizer', undefined), null);
+  assert.strictEqual(line('visualizer', 'no-frame'), 'Visualizer: the sender has sent no picture yet');
+  assert.strictEqual(line('visualizer', 'rig-changed'), `Visualizer: the rig changed at ${at}; the sender must claim it again`);
+  assert.strictEqual(line('visualizer', 'bad-frame', 'Expected exact RGB24 bytes'), 'Visualizer: the sender\'s picture was refused (Expected exact RGB24 bytes)');
+  assert.strictEqual(line('squid', 'panel-unmapped'), 'Squid: the LED panel has no cell map');
+  assert.strictEqual(line('squid', 'loading'), 'Squid: loading its loops');
+  assert.strictEqual(line('squid', 'loops-failed', 'ENOENT'), 'Squid: its loops did not load (ENOENT)');
+  assert.strictEqual(line('squid', 'no-beat'), 'Squid: no beat from the clock');
+  assert.strictEqual(line('squid', 'unacknowledged'), 'Squid: photosensitivity not acknowledged');
+  assert.strictEqual(line('squid', 'board-problem', 'the board ignores the show'), 'Squid: the board ignores the show');
+  assert.strictEqual(line('effects', 'no-stems'), 'Stems in Space: no stems or reactive bands to follow');
 });
 
 test('Squid is offered once the rig has an LED panel, and stays in view while chosen', () => {
@@ -1271,15 +1307,18 @@ function pressE({ target = { tagName: 'BODY' }, modal = false, ...extra } = {}) 
 }
 
 // Show v3 fixes, G3: E goes to Show's effects search, except in a field, under a modal or while the card offers nothing.
-test('E asks for Show\'s effects search, except while typing, under a modal, with a modifier or while the Visualizer picture arrives', () => {
+// G5: under Visualizer the card offers nothing, met or not.
+test('E asks for Show\'s effects search, except while typing, under a modal, with a modifier or under Visualizer', () => {
   const taken = { taken: true, asked: true, kept: true }, left = { taken: false, asked: false, kept: false };
-  for (const source of ['effects', 'squid', 'visualizer']) {
+  for (const source of ['effects', 'squid']) {
     givenLibrary({ picture: { source, input: null } });
     assert.deepStrictEqual(pressE(), taken, `${source}: the card offers its list`);
     assert.deepStrictEqual(pressE({ key: 'E' }), taken, `${source}: E as a capital`);
   }
-  givenLibrary({ picture: { source: 'visualizer', input: { units: 4, receiving: true } } });
-  assert.deepStrictEqual(pressE(), left, 'the Visualizer picture arrives: nothing to choose');
+  for (const input of [null, { units: 4, receiving: true }]) {
+    givenLibrary({ picture: { source: 'visualizer', input } });
+    assert.deepStrictEqual(pressE(), left, 'Visualizer: nothing to choose');
+  }
   givenLibrary({ picture: { source: 'effects', input: null } });
   for (const tagName of ['INPUT', 'TEXTAREA', 'SELECT']) assert.deepStrictEqual(pressE({ target: { tagName } }), left, tagName);
   assert.deepStrictEqual(pressE({ target: { tagName: 'DIV', isContentEditable: true } }), left, 'contenteditable');
@@ -1328,41 +1367,53 @@ test('the Colours card gives way to one line while the picture sets the colours'
   assert.doesNotMatch(ui.html(ui.h(ui.Bands)), /Colours follow the picture/);
 });
 
-test('Show\'s Effects box names the main effect as current only while it plays, and gives way to one sentence while the Visualizer picture arrives', () => {
-  const picture = 'the Visualizer picture paints the room; the main effect shows again when the picture stops or when Effects is chosen in the header.';
+// G5: under Visualizer the card is one sentence, met or not, and promises no effect while the picture is missing.
+test('Show\'s Effects box names the main effect as current only while it plays, and gives way to one sentence under Visualizer', () => {
+  const picture = 'the Visualizer picture paints the room; effects are chosen here while the picture source is Effects.';
   const rows = [
-    // running, frozen, source, receiving → what the box says
-    [true, false, 'effects', false, { picture: false, label: 'Current effect', hint: null }],
-    [true, false, 'visualizer', false, { picture: false, label: 'Current effect', hint: null }],
-    [true, false, 'squid', true, { picture: false, label: 'Current effect', hint: null }],
-    [true, true, 'effects', false, { picture: false, label: 'Selected effect', hint: 'The picture is frozen. The selected effect plays after Resume.' }],
-    [false, false, 'effects', false, { picture: false, label: 'Selected effect', hint: 'The show is stopped. The selected effect plays when the show plays.' }],
-    [false, true, 'squid', true, { picture: false, label: 'Selected effect',
+    // running, frozen, source → what the box says
+    [true, false, 'effects', { picture: false, label: 'Current effect', hint: null }],
+    [true, false, 'squid', { picture: false, label: 'Current effect', hint: null }],
+    [true, true, 'effects', { picture: false, label: 'Selected effect', hint: 'The picture is frozen. The selected effect plays after Resume.' }],
+    [false, false, 'effects', { picture: false, label: 'Selected effect', hint: 'The show is stopped. The selected effect plays when the show plays.' }],
+    [false, true, 'squid', { picture: false, label: 'Selected effect',
       hint: 'The picture is frozen and the show is stopped. The selected effect plays after Resume and play.' }],
-    [true, false, 'visualizer', true, { picture: true, text: `T${picture.slice(1)}` }],
-    [true, true, 'visualizer', true, { picture: true, text: `The picture is frozen. After Resume, ${picture}` }],
-    [false, false, 'visualizer', true, { picture: true, text: `The show is stopped. When the show plays, ${picture}` }],
-    [false, true, 'visualizer', true, { picture: true, text: `The picture is frozen and the show is stopped. After Resume and play, ${picture}` }],
+    [true, false, 'visualizer', { picture: true, text: `T${picture.slice(1)}` }],
+    [true, true, 'visualizer', { picture: true, text: `The picture is frozen. After Resume, ${picture}` }],
+    [false, false, 'visualizer', { picture: true, text: `The show is stopped. When the show plays, ${picture}` }],
+    [false, true, 'visualizer', { picture: true, text: `The picture is frozen and the show is stopped. After Resume and play, ${picture}` }],
   ];
-  for (const [running, frozen, source, receiving, want] of rows) {
-    assert.deepStrictEqual(ui.effectsBox({ running, frozen, source, receiving }), want, JSON.stringify({ running, frozen, source, receiving }));
+  for (const [running, frozen, source, want] of rows) {
+    assert.deepStrictEqual(ui.effectsBox({ running, frozen, source }), want, JSON.stringify({ running, frozen, source }));
   }
   // Stopped and disarmed, the stage previews the selected effect by itself (G6): the hint says so, and what Play does.
-  for (const source of ['effects', 'visualizer', 'squid']) {
-    assert.deepStrictEqual(ui.effectsBox({ running: false, frozen: false, source, receiving: false, previewing: true }),
+  for (const source of ['effects', 'squid']) {
+    assert.deepStrictEqual(ui.effectsBox({ running: false, frozen: false, source, previewing: true }),
       { picture: false, label: 'Selected effect', hint: 'The show is stopped. The preview shows the selected effect; Play sends it.' }, source);
   }
 
   const effects = (html) => /<section class="card contained-effects[^"]*"[^>]*>(.*?)<\/section>/s.exec(html)[1];
-  givenLibrary({ running: true, picture: { source: 'visualizer', input: { units: 4, receiving: true } }, armed: true });
-  const painting = ui.html(ui.h(ui.Show));
-  assert.match(painting, /class="show-body picture"/);
-  assert.strictEqual(effects(painting).replace(/<[^>]+>/g, ''), `EffectsT${picture.slice(1)}`, 'the title and one sentence: no list, search or switch');
-  givenLibrary({ running: true, picture: { source: 'squid', input: { units: 4, receiving: true } }, armed: true });
+  const unmetLine = (html) => /<p class="hint unmet-line" role="status">([^<]*)<\/p>/.exec(html)?.[1] ?? null;
+  for (const input of [{ units: 4, receiving: true }, null]) {
+    givenLibrary({ running: true, picture: { source: 'visualizer', input, unmet: input ? [] : [{ code: 'no-sender', since: 0 }] }, armed: true });
+    const html = ui.html(ui.h(ui.Show));
+    assert.match(html, /class="show-body picture"/);
+    const card = effects(html);
+    assert.doesNotMatch(card, /Search effects|class="contained-row"|main effect shows again/, 'nothing to choose, no promise');
+    assert.strictEqual(unmetLine(card), input ? null : `Visualizer: no picture sender since ${ui.clockTime(0)}`, 'the amber line only while unmet');
+    assert.ok(card.replace(/<[^>]+>/g, '').startsWith(`EffectsT${picture.slice(1)}`), 'the title and one sentence');
+  }
+  givenLibrary({ running: true, picture: { source: 'squid', input: null, unmet: [] }, armed: true });
   const listed = ui.html(ui.h(ui.Show));
   assert.match(listed, /class="show-body"/);
   assert.match(effects(listed), /Current effect.*Search effects.*class="contained-row"/s);
   assert.doesNotMatch(effects(listed), /picture paints the room|class="hint/);
+  givenLibrary({ running: true, picture: { source: 'squid', input: null, unmet: [{ code: 'no-panel', since: 0 }] }, armed: true });
+  const squid = effects(ui.html(ui.h(ui.Show)));
+  assert.strictEqual(unmetLine(squid), 'Squid: no LED panel');
+  assert.ok(squid.indexOf('unmet-line') < squid.indexOf('class="contained-list"'), 'above the list');
+  givenLibrary({ running: true, picture: { source: 'effects', input: null, unmet: [{ code: 'no-stems', since: 0 }] }, armed: true });
+  assert.strictEqual(unmetLine(effects(ui.html(ui.h(ui.Show)))), 'Stems in Space: no stems or reactive bands to follow');
   givenLibrary({ running: false, control: { version: 1, frozen: true, blackout: false, armed: false }, picture: { source: 'effects', input: null } });
   assert.match(effects(ui.html(ui.h(ui.Show))),
     /<p class="hint contained-hint" role="status">The picture is frozen and the show is stopped\. The selected effect plays after Resume and play\.<\/p>.*Selected effect/s);

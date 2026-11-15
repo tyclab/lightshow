@@ -79,3 +79,22 @@ test('the demo-beat look takes the look\'s own flash limit, and its state\'s ack
   assert.ok(run({ ...strobe, safety: undefined }).every((c) => Math.max(...c) === 0), 'a state without safety is not acknowledged');
   assert.ok(run({ ...strobe, pattern: 'v2.scatterStrobe', safety: null }).every((c) => Math.max(...c) === 0), 'nor for an effect of the catalogue');
 });
+
+// G5: the demo beat draws the units an unmet picture source owns dark, as the rig would while it plays.
+test('the demo beat draws the units an unmet source owns dark, and the rest as before', () => {
+  const unmet = [{ code: 'disarmed', since: 1 }];
+  const all = (look) => demoLookSampler(look)(1000, PARS, PRESETS, RIG).map(rgb);
+  assert.deepEqual(all(LOOK), PARS.map(() => [255, 0, 0]), 'no picture source: the look');
+  assert.deepEqual(all({ ...LOOK, picture: { source: 'visualizer', unmet: [] } }), PARS.map(() => [255, 0, 0]), 'met: the look');
+  assert.deepEqual(all({ ...LOOK, picture: { source: 'visualizer', unmet } }), PARS.map(() => [0, 0, 0]), 'Visualizer owns the room');
+  assert.deepEqual(all({ ...LOOK, picture: { source: 'effects', unmet: [{ code: 'no-stems', since: 1 }] } }), PARS.map(() => [0, 0, 0]),
+    'Stems in Space owns what it draws');
+  const panel = { id: 'panel', channelCount: 12, channelMap: {}, grid: { columns: 2, rows: 2 },
+    cells: [0, 1, 2, 3].map((i) => ({ channelMap: { red: i * 3, green: i * 3 + 1, blue: i * 3 + 2 } })) };
+  const fixtures = [...PARS, { id: 9, profileId: 'panel', address: 13, universe: 1, position: { x: 50, y: 20 }, maxBrightness: 255, output: { protocol: 'ddp' } }];
+  const profiles = { par: PAR, panel };
+  const rig = buildRig(fixtures, (f) => profiles[f.profileId]);
+  const squid = demoLookSampler({ ...LOOK, profiles, fixtures, picture: { source: 'squid', unmet: [{ code: 'loading', since: 1 }] } })(1000, fixtures, PRESETS, rig).map(rgb);
+  assert.deepEqual(squid.slice(0, 4), PARS.map(() => [255, 0, 0]), 'the lamps beside the panel keep the look');
+  assert.deepEqual(squid.slice(4), [[0, 0, 0], [0, 0, 0], [0, 0, 0], [0, 0, 0]], 'the Squid\'s panel is dark');
+});

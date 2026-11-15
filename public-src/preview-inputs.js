@@ -4,6 +4,7 @@ import { playingState } from './now-playing.js';
 import { MAIN_EFFECT, mainEffectText } from './picture-layers.js';
 import { createPreviewSampler } from '../src/shared/preview.ts';
 import { DEMO_AUDIO_SOURCE, DEMO_BPM } from '../src/shared/demo-track.ts';
+import { squidPanel } from '../src/shared/squid.ts';
 
 export function resolverOf(saved = []) {
   const mine = new Map((Array.isArray(saved) ? saved : []).filter((p) => p && p.spec).map((p) => [p.id, p.spec]));
@@ -45,11 +46,23 @@ export function previewOptions(s, { table = null, library = null } = {}) {
 }
 
 /**
+ * The fixtures an unmet picture source owns, as the server reports it (G5): every one under Visualizer and under
+ * Effects (Stems in Space draws every unit), the Squid's panel under Squid; null while the source is met.
+ */
+export function unmetOwned(s) {
+  const picture = s.picture;
+  if (!picture?.unmet?.length) return null;
+  if (picture.source !== 'squid') return 'room';
+  const panel = squidPanel(s.fixtures || [], (f) => s.profiles?.[f.profileId]);
+  return panel ? [panel.fixtureId] : null;
+}
+
+/**
  * The selected look as a stopped, disarmed stage draws it (Show v3, G6): the live state's effect with its
  * colours, the palette and its override, Background and the look's own flash limit, on the built-in demo
  * beat, each light as it emits. The master scales each fixture's trim, as the engine multiplies them. The
  * acknowledgement is the state's answer, given while disarmed as in the engine's own disarmed picture; the
- * sampler never writes one, and the look's flash limit applies.
+ * sampler never writes one, and the look's flash limit applies. The units an unmet source owns are dark, as on the rig (G5).
  */
 export function demoLookSampler(s, { library = null, space = null } = {}) {
   const base = previewOptions(s, { library });
@@ -66,13 +79,20 @@ export function demoLookSampler(s, { library = null, space = null } = {}) {
     safety: { acknowledged: s.safety?.photosensitivityAcknowledged === true, hdFlashIntervalMs: s.safety?.hdFlashIntervalMs ?? 350 },
   });
   const master = Number.isFinite(s.masterDimmer) ? Math.max(0, Math.min(255, s.masterDimmer)) / 255 : 1;
+  const owned = unmetOwned(s);
   let given = null, scaled = null;
   return (positionMs, fixtures, presets, rig) => {
     if (fixtures !== given) {
       given = fixtures;
       scaled = master === 1 ? fixtures : fixtures.map((f) => ({ ...f, maxBrightness: (f.maxBrightness ?? 255) * master }));
     }
-    return sample(positionMs, scaled, presets, rig);
+    const lights = sample(positionMs, scaled, presets, rig);
+    if (owned) {
+      for (let u = 0; u < lights.length; u++) {
+        if (owned === 'room' || owned.includes(fixtures[rig.units[u].fixture]?.id)) lights[u] = { r: 0, g: 0, b: 0 };
+      }
+    }
+    return lights;
   };
 }
 

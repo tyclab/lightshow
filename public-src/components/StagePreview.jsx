@@ -2,6 +2,7 @@ import { performanceReport } from '../performance.js';
 import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
 import { pick, dmxSig, connectedSig, emitFixture, idlePause, latestSent, stagePreviewSig } from '../state.js';
 import { colorToCss, fixtureOutputColor, fixtureCellColors, meanLight, fmtTime, patchedAt, stageMode } from '../utils.js';
+import { pictureUnmetSig } from '../picture-source.js';
 import { useDmxFeed, useDmxPaint } from '../use-dmx.js';
 import { frames } from '../frame-paint.js';
 import { useRehearsalTrack, useRehearsalSampler, useUnitSpace } from '../rehearsal.js';
@@ -88,7 +89,7 @@ export function StagePreview({ controls = true } = {}) {
   // and means losing it does not cost the operator their scrub position.
   const rehearsal = !auditioning && stagePreviewSig.value.rehearsal && !!data;
   const mode = stageMode({ rehearsing: rehearsal, connected, armed: s.armed, blackout: s.masterBlackout, paused: idlePause.paused.value !== null,
-    playing: !!s.control?.playing, layers: !!s.control?.layers, frozen: !!s.control?.frozen });
+    playing: !!s.control?.playing, layers: !!s.control?.layers, frozen: !!s.control?.frozen, unmet: pictureUnmetSig.value });
   // An idle page's lights draw as the blackout draws them: off.
   const shown = mode.lit ? s : { ...s, masterBlackout: true };
   // The timeline data carries the analysed beats, so the chase steps here on
@@ -176,6 +177,7 @@ export function StagePreview({ controls = true } = {}) {
     <header class="panel-head">
       <h2 class="panel-title">Stage preview</h2>
       <span class={`panel-tag${!auditioning && mode.tag === 'Blackout' ? ' blackout' : ''}`}>{auditioning ? 'Audition · browser only' : mode.tag}</span>
+      {controls && !auditioning && mode.unmet && <span class="stage-unmet" role="status">{mode.unmet}</span>}
       <button class={`btn sm ${edit ? 'active' : ''}`} disabled={!connected || auditioning} aria-pressed={edit}
         onClick={() => { setUi({ edit: !edit }); drag.current = null; setDraft(null); }}> {edit ? 'Done positioning' : 'Position fixtures'}</button>
     </header>
