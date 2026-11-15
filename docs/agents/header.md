@@ -42,7 +42,7 @@ history. The rulings below stay.
 - Anti-goals, a failure even if it works: Blackout or Disarm behind a menu; a second play button
   elsewhere; a colour picker that changes nothing; a header that wraps to three rows on a laptop.
 - When the room looks wrong the operator changes the effect first (2026-11-07). The picture source
-  control stays first; its Effects and Colour + motion segments name the main effect with its
+  control stays first; its Effects segment names the main effect with its
   picker one tap away. Switching effects must be the fastest action in the header.
 - One Play/Stop button and one Auto show switch (2026-11-14). Switching the programme never starts
   or stops playback, and keeps pads, Freeze, Blackout and Arm. Stop is offered whenever it would
@@ -70,11 +70,23 @@ history. The rulings below stay.
   itself, so its armed state must be unmistakable, not a status pill (2026-11-07).
 - Visualizer names only the picture source (2026-11-09). The effect family `ldj.visualizer.*` is
   called Audio-reactive; its ids stay, because saved shows, cues and Home Assistant scripts name
-  them. Visualizer Flow and Visualizer Drift keep their names.
+  them.
 - The Visualizer segment names no effect and opens nothing (2026-11-09). It reads "Visualizer",
   with the picture's hint line as its tooltip; E does nothing while it is chosen, and choosing it
   closes an open picker. The main effect, which still shows while no picture arrives, is chosen
-  under Effects or Colour + motion.
+  under Effects.
+- Colour + motion is gone (2026-11-15), with the effect kind only it fed and its looks Visualizer
+  Flow and Visualizer Drift. Asked what it plays when the chosen look ignores the picture, the
+  operator answered: "this never was correctly implemented. that is the real issue. the idea was to
+  have the colour and the effect matched to visualizer output without having directly mirro the
+  output. so this means at least colour should follow the visualizer colour. open is here if aferage
+  max or whatever. how much code/compleity is only for this feature? if it is not much and easily
+  repromted. i would suggest to just drop it. if it is a lot of code and not easly removed, we should
+  investigate what is needed to imlement propper and build it and rollout". It was about 115 lines,
+  so it went. The idea stays for a later build: the effect and at least its colour follow the
+  visualizer's output without mirroring it; how the colour is taken (average, maximum or another
+  rule) is open. Saved looks, clips, pads and cues that named it are migrated when they load, one
+  warning each, and a stored `inspired` source loads as Effects.
 - Freeze, Blackout and Arm keep their own buttons at fixed positions with 44 px touch targets.
   Keep every current label reachable, and never name the apps the lightshow was ported from.
 - Show (2026-11-14, 02:29): "the hole color wheel inclusive colour orcder should collapse and just leave

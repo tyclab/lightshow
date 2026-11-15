@@ -192,10 +192,10 @@ The sticky header is one row on a desktop (two on a phone, 1000 px and narrower)
 the same on every view, including while scrolling through Show:
 
 ```text
-[mark] [Effects: Swirl ▾ | Colour + motion | Visualizer | Squid]  [Auto show Off ○] [▶ Play] [Freeze] [Blackout] [Arm]  Master ━━●━ 100%  [● 120 BPM Online] [⋮]
+[mark] [Effects: Swirl ▾ | Visualizer | Squid]  [Auto show Off ○] [▶ Play] [Freeze] [Blackout] [Arm]  Master ━━●━ 100%  [● 120 BPM Online] [⋮]
 ```
 
-- **Picture source** comes first. **Effects**, **Colour + motion** and **Squid**
+- **Picture source** comes first. **Effects** and **Squid**
   (offered once the rig has an LED panel; see [Squid picture](#squid-picture)) name the
   main effect when chosen (**Effects: Swirl**); pressing that segment, or **E**
   anywhere, opens the effect picker: favourites, your presets and the party
@@ -207,8 +207,8 @@ the same on every view, including while scrolling through Show:
   names no effect and opens nothing: the segment reads **Visualizer**, its
   tooltip says whether the picture arrives, and E does nothing while it is
   chosen. Choosing it closes an open picker. The main effect still shows while no
-  picture arrives and 2 s after the picture stops; choose it under Effects or
-  Colour + motion. The other sources are one tap away.
+  picture arrives and 2 s after the picture stops; choose it under Effects.
+  The other sources are one tap away.
 - **Auto show** is one switch, on exactly while the Auto show is the programme. Off
   goes back to the selected picture. Switching never starts or stops playback: playing,
   the new programme takes over in one go (a sequence lets its held picture go; it plays
@@ -400,7 +400,6 @@ a look appears.
 | | **Bands & drums** | follows stems, drum hits or frequency bands |
 | | **Audio level** | follows the overall loudness |
 | | **Song sections** | follows the song section, or the build the auto show sets |
-| | **Screen** | takes its colours and speed from the screen capture |
 | Surface | **Whole rig** | gives every light the same value at once |
 | | **Room-placed** | is placed by room positions (Mapping: Through room) |
 | | **Bars & panels** | draws cell by cell (a pixel effect) |
@@ -409,9 +408,8 @@ a look appears.
 | | **Rapid ⚡** | with the outputs armed, plays only after the photosensitivity acknowledgement |
 
 A reaction also says where its input comes from: **track** (only while the auto show
-plays an analysed track; picked by hand the look runs on its clock), **live** (the
-Reactive audio mode with live input) or **screen** (the screen capture as picture
-source). The auto show's expression channel is not counted as an input: only the
+plays an analysed track; picked by hand the look runs on its clock) or **live** (the
+Reactive audio mode with live input). The auto show's expression channel is not counted as an input: only the
 running show sets it, it shapes many classic patterns and dims every lamp look alike,
 and picked by hand each of them sees the same resting values. A look laid out along
 the Rig plot (every classic pattern that uses positions) carries no surface tag; a plot
@@ -438,7 +436,7 @@ panels looks, patterns every other look; retired ids are in none.
 
 ### Spatial effects
 
-The Effects list has one entry for each of the 41 spatial looks, over twelve
+The Effects list has one entry for each of the 39 spatial looks, over eleven
 generators. Open an effect's editor to choose its
 **Mapping** when its motion or selection uses positions:
 
@@ -450,7 +448,7 @@ generators. Open an effect's editor to choose its
 Wash, Breathe, strip-path/random stepping, technology/group zones, independent
 random pixels and all-lamp strobing have no mapping switch: moving their positions
 does not change the effect. The switch appears if edited settings make positions
-matter. Every setting of the twelve generators and the strobe has a label, a range
+matter. Every setting of the eleven generators and the strobe has a label, a range
 and a place (`src/shared/effects/controls.ts`): each effect's own variables come
 first (a wave's Shape, Heading, Width and Speed; a wall's Driven by, Length and
 Direction), **Advanced** holds geometry, modulation and output settings, and a
@@ -486,7 +484,6 @@ flowchart LR
 | Zones | alternating, filling, covering in the next colour or swapping colours between sides, height bands, distances, stem regions, odd and even lamps, palette blocks, diagonals, corners, or halves that turn every other step | Zones, Surround Answer, Near and Far, Stems in Space |
 | Noise | continuous clouds, aurora or flames sampled in space | Drifting Clouds, Aurora, Fire |
 | Particles | soft objects and ballistic sparks, trails, falling drops and floor splashes | Light Orbs, Orb Collision, Fireworks, Rain |
-| Visualizer | the incoming picture's palette and motion speed drive an independent spatial field | Visualizer Flow, Visualizer Drift |
 | Globe | each light's own sphere: rings carry the spectrum (bass at the equator, highs at the poles) or the beat leaving the equator, lobes turn a quarter-beat step on every beat, and a white spot marks where they face | Globe Spectrum, Globe Pulse |
 
 Globe reads each light as a sphere. Through the room, a light the Stage room places
@@ -686,18 +683,9 @@ them changes Off, Fixed or Follow output against earlier builds:
   without colour channels outputs only the level (255). Under Reveal background, the
   default, it is unlit.
 
-For an incoming visualizer, select **Picture → Colour + motion** and a Visualizer
-Flow or Drift look. The room sender supplies frames; the effect extracts dominant
-colours and temporal motion, then animates the room or plot itself. Pixel positions
-are not copied. A missing, expired or black feed goes dark. **Visualizer** remains
-the direct-picture mode. The built-in Audition supplies a synthetic picture signal
-so these effects can also be tried while disarmed.
-
 ```mermaid
 flowchart LR
     Music[Beat, bands and section progress] --> Field[Spatial generator]
-    Picture[Incoming visualizer picture] --> Features[Palette and motion speed]
-    Features --> Field
     Room[Metric unit positions and emitter sizes] --> Field
     Field --> Compose[Base, sequence and overlay voices]
     Compose --> Guard[Shared output guard]
@@ -712,6 +700,12 @@ old preset ids intentionally map to modern 2D looks. The alias frame-diff script
 (`node scripts/effects-v2-alias-diff.js [id=preset …]`) records those changes, and
 those of classic ids moved onto v2 presets, without rewriting the golden fixtures. The colour strip offers a curated set and a hue-pair
 generator; **Show all** retains every historical palette id.
+Visualizer Flow and Visualizer Drift left with the Colour + motion picture source
+(2026-11-15). Saved data naming them or their kind is migrated as its file loads, one
+warning in the log each: a saved look leaves the library, a clip its sequence or pattern
+(and a clip group left with one clip dissolves), a pad is emptied, and a cue or the look
+kept for a restart plays the default look with its other fields kept. A settings file
+that chose `inspired` loads as `effects`.
 
 Every generator shares one trigger: the timeline, a beat accent (a pulse per interval,
 as strong as its band with live audio) or a volume gate (the band above its threshold).
@@ -770,7 +764,7 @@ New mapping revisions discard delayed and partially staged colours.
 | `artnet` | `enabled: true`, `host: '2.255.255.255'`, `port: 6454`, `universe: 0`, `discovery: true`, `sync: false` |
 | `sacn` | `enabled: false`, `host: ''` for multicast, `priority: 100`, `sourceName: 'TycStation Lightshow'`, `universeOffset: 1`, `interface: ''`; stable generated `cid` |
 | `hue` | `bridges: []`, `latencyMs: 0`, `strobe: 'flash'`; each paired bridge has an id, address, enabled flag, area and write-only credentials |
-| `picture` | `source: 'effects'`, `'visualizer'`, `'inspired'` (Colour + motion) or `'squid'`; `blackPoint: 0.12`, the peak under which a picture unit stays dark; `decode: false`, sRGB to linear light; `grade`: the room picture's optional colour grade, off by default, `{ enabled: false, whiteLimit: 0, saturation: 1, ceiling: 1, hueCeiling: 1 }`; see [Room picture](#room-picture) |
+| `picture` | `source: 'effects'`, `'visualizer'` or `'squid'`; `blackPoint: 0.12`, the peak under which a picture unit stays dark; `decode: false`, sRGB to linear light; `grade`: the room picture's optional colour grade, off by default, `{ enabled: false, whiteLimit: 0, saturation: 1, ceiling: 1, hueCeiling: 1 }`; see [Room picture](#room-picture) |
 | `outputs` | `armed: false`; always reset to false at startup. `idleDisarmMin: 15`: minutes armed with nothing playing before the outputs disarm themselves; `0` never. `idleStopMin: 60`: minutes disarmed without a control action or page input before a show is stopped as Stop does and an idle page pauses its preview; `0` never |
 | `sources` | `prolink: false`, `smtc: true` |
 | `spotify` | Client id, secret, server-written refresh token; optional `proxyBase`; `allowUnverifiedState: false` |
@@ -1035,9 +1029,6 @@ continues to follow the local Party Visuals switch.
 once per second for a local controller: browser connection, visualizer readiness
 and each output's armed/lease state. Consumers must check its timestamp; a stale
 file does not mean the helper is running. It contains no URLs or credentials.
-**Colour + motion** resumes only the room feed for the spatial Visualizer effects;
-direct curtain and panel streams stay paused so their pictures cannot cover the
-generated animation.
 
 The default mode only manages the display: it does not read the Lightshow token,
 connect to the lighting server or claim a fixture. Add `--curtain` to stream the
@@ -1176,7 +1167,7 @@ feed reads that same canvas without a desktop capture or OBS process.
 
 The same canvas can paint the whole rig. The header's picture source (also
 Settings → Show → Picture Source, or `POST /api/picture/source` with
-`{ "source": "effects" | "visualizer" | "inspired" | "squid" }`) chooses what the base layer paints
+`{ "source": "effects" | "visualizer" | "squid" }`) chooses what the base layer paints
 from. With **Visualizer** selected, a sender claims the room picture over the
 authenticated socket and sends one RGB colour per rig unit, sampled from the
 picture at the unit's plan position: the plot's left-to-right is the picture's
@@ -1198,10 +1189,7 @@ blackouts stay above it, the master and trims still apply, and two seconds
 without a frame shows the effects again. With **Effects** selected the server
 accepts and ignores room frames; the browser helper releases all its light
 inputs instead, including dedicated curtain and panel feeds, and resumes when
-**Visualizer** is selected. **Colour + motion** (`inspired`) keeps the room feed
-for palette/motion extraction and suppresses all direct pixel inputs, including
-an older helper's still-active panel leases, so they cannot cover the spatial
-animation. The updated helper also pauses those captures. Other external
+**Visualizer** is selected. Other external
 pixel-input clients keep independent ownership in Effects and Visualizer modes.
 
 ```powershell
@@ -1488,8 +1476,7 @@ hidden: a band switched off shows only Enabled, Fast Pulse and the fade brightne
 act through Fade, Neural ignores them.
 
 While the picture sets the colours (the **Visualizer** picture source with a picture
-arriving, or **Colour + motion** feeding a spatial Visualizer effect) the card shrinks to
-one line, **Colours follow the picture**: its colour controls would change nothing. Switching
+arriving) the card shrinks to one line, **Colours follow the picture**: its colour controls would change nothing. Switching
 it off chooses **Effects** as the picture source, which gives the colours back to the effect.
 
 A band's colours are either a **hue range** or an ordered sequence of up to eight colours:

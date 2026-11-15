@@ -7,9 +7,10 @@ they are not the current catalogue.
 
 ## Implementation status (2026-10-22)
 
-The operator authorized the full build after reviewing Phase A. There are now 41
-named spatial looks, each in room and plan forms, over twelve generators (the nine
-planned fields plus Neural, visualizer-derived animation and Globe). Pickers show one entry
+The operator authorized the full build after reviewing Phase A. There are now 39
+named spatial looks, each in room and plan forms, over eleven generators (the nine
+planned fields plus Neural and Globe; the visualizer-derived animation and its two looks
+went with Colour + motion on 2026-11-15). Pickers show one entry
 per look; the plan form (`v2.<name>.2d`) is a hidden variant that saved shows, aliases
 and the editor's Mapping choice (Across layout / Through room, offered only when the
 settings use positions) still reach. The additions include
@@ -46,7 +47,7 @@ local Audition and colour sliders. All new-show workflows hide retired rows.
 - **Palettes:** the chooser is curated and includes a hue-pair generator; every
   old palette id remains available through Show all and integrations.
 - **Audition:** a typed, deterministic demo source supplies beat, bands, sections,
-  stems and picture features to a browser-only Stage sampler. It never sends a
+  stems to a browser-only Stage sampler. It never sends a
   live look, room, master or arm mutation.
 - **Catalogue (2026-11-02):** the Effects view lists every current look once, A to Z,
   with the tags its code states: what it reacts to and where that input comes from
