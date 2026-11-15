@@ -137,8 +137,9 @@ floors and ceilings whether they are drawn full height, cut away or hidden.
   the rooms with the most emitters, clustered inside the room. With more than eight, the eight rooms
   with the most emitters get one each (ties in file order) and the rest get no room light: the
   stage's Room light control shows an amber note naming them, and their fixtures' own glow, beams and
-  pools still draw. A light sits inside its own room, inset 0.3 m from its walls toward the room's
-  inside, not toward the room box's origin (`world.js:339-379`). With no polygons, today's clustering
+  pools still draw. A light sits inside its own room, inset up to 0.3 m from its walls as far as the
+  room allows (a room narrower than 0.6 m puts it on its centre line), toward the room's inside, not
+  toward the room box's origin (`world.js:339-379`). With no polygons, today's clustering
   over the whole room stays. Room files accepted before stay accepted.
 - Beams and pools: one blocker rule for aimed lamps and beam-emission fixtures alike
   (`world.js:47-49`, `:253`, `:275`, `:290`): walls of every kind, floor, ceiling and opaque furniture
@@ -149,14 +150,16 @@ floors and ceilings whether they are drawn full height, cut away or hidden.
 Tests:
 - unit, allocation: two rooms split by a wall, each light inside the room of its emitters and the
   count eight; nine occupied rooms, eight lit and the ninth named in the note; no polygons, today's
-  clustering; a concave room and an emitter outside every polygon placed by the rule;
+  clustering; a concave room and an emitter outside every polygon placed by the rule; a room 0.2 m
+  wide, its light on the centre line;
 - unit, a beam stops at a mesh wall, a prism wall, a cylinder, the floor, the ceiling and a mesh
   furniture top, and passes through a mesh wall's opening; a pool beside a wall has no part behind it;
 - e2e, rendered on a two-room test room: the far room's floor pixels are the same with the near
   room's lamp lit and unlit while the wall stands, and differ without the wall (the positive control);
   the same with Cutaway walls on, with the wall hidden, and for a lamp 0.1 m from the wall; through a
   mesh wall's doorway the pixels in line with it differ; a lamp just above the ceiling leaves the floor
-  as dark as with the lamp off, and just below it lights the floor;
+  as dark as with the lamp off, and just below it lights the floor; a lamp just below the floor leaves
+  the walls as dark as with the lamp off, and just above it lights them;
 - e2e, after the maps rendered: moving the wall (room edit) or the lamp (rig edit) changes the far
   floor accordingly; a colour-only frame and a camera orbit render no shadow map (counted on the
   renderer);
@@ -393,13 +396,22 @@ and Visualizer Drift, which only work under it (`src/shared/effects/v2/visualize
 tests, the benchmarks' and golden frames' entries (regenerated, not hand-edited) and the docs.
 `settings.ts:296` and `validation.ts:34` lose the value. A settings file with `picture.source:
 inspired` loads as `effects` with one log line; `POST /api/picture/source` with `inspired` answers
-400 like any unknown source; a saved look of the removed kind is skipped by the library with one
-warning naming it, and the file still loads. hatyc, merged before the rig's pin moves:
+400 like any unknown source. Saved data that names the removed kind or one of the two removed looks
+is migrated before its store validates, entry by entry, each with one warning naming it: a saved
+look leaves the library; an inline or nested (macro) effect leaves its sequence step, and a step left
+with nothing to play leaves its sequence; a pad holding one is emptied; a cue's or the current look's
+pattern becomes the default look, its other fields kept. Nothing else in the file changes, and no
+store is quarantined: today one invalid entry moves the whole sequence file aside and starts with no
+sequences, patterns or pad layouts (`src/server/sequence-store.ts:44-57`, `json-store.ts:45-65`;
+validation at `sequencer.ts:155-161,185`, `src/shared/effects/macro.ts:45-51`,
+`effects/registry.ts:71`). hatyc, merged before the rig's pin moves:
 `lightshow_squid_toggle` drops `inspired` from its sources (`packages/party.yaml:1336`), so a
 remembered `inspired` falls back to `effects` as the script already does for unknown values, and the
 comment at `:448` loses it.
-Tests: unit, an old settings file with `inspired` loads as `effects`; unit, the 400; unit, a saved
-`v2.visualizer` look is skipped with the warning while the rest of the library loads; e2e, the header
+Tests: unit, an old settings file with `inspired` loads as `effects`; unit, the 400; unit, for each
+store (the effect library, sequences with an inline and a nested effect, pads, cues, the current
+look), a file mixing removed entries with kept ones loads with the removed ones migrated as above,
+one warning each, the kept entries identical and no file moved aside; e2e, the header
 shows Effects, Visualizer and Squid; hatyc, leaving Squid with a remembered `inspired` posts `effects`.
 Removed with their code: `tests/unit/picture-features.test.js`, `picture-inspired.test.js` and the
 cases naming the kind.
@@ -422,7 +434,8 @@ cases naming the kind.
 - G7: the groups, names and mapping; Override and Off move to the Rig inspector; bare `#sources`
   opens the Music panel last used.
 - G8: the live Python closure stays (it may move); the interpreter setting migrates.
-- G9: an old `inspired` loads as `effects`; a saved look of the removed kind is skipped with a warning.
+- G9: an old `inspired` loads as `effects`; saved entries naming the removed kind or looks are
+  migrated one by one with a warning, never by quarantining a store.
 
 ## Constraints
 

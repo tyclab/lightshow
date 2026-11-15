@@ -59,14 +59,18 @@ the rig's pin after merges.
 The lanes run on GamerTyc (16 vCPUs; building there is allowed, operator 2026-11-09). tycdev has a
 heavy-job admission lock since 2026-11-15, and these lanes are held off it until the coordinator
 says otherwise; when allowed, a tycdev run is
-`ssh tycdev flock /dev/shm/flakelab-tycdev-heavy.lock <the whole command>`, never nested.
+`ssh tycdev flock /dev/shm/flakelab-tycdev-heavy.lock timeout <bound> <the whole command>`, never
+nested and never around `gate-dev.sh`, and its browsers, servers and workers end with it, since a
+surviving child keeps the lock.
 
 Locally, every heavy command (`npm ci`, `npm run lint`, `npm run typecheck`, `npm test`,
 `npm run build:client`, `npx playwright test …`, the Python tests) runs through the lock the four
-lanes share: `flock /tmp/lightshow-heavy.lock nice -n 10 <command>`, one at a time, e2e with WebGL as
-`docs/agents/validation.md` describes and the lane's own `E2E_PORT`. A lane runs lint, typecheck, the
-unit tests, the build and the e2e specs its pull request touches. The full e2e suite and the
-performance budgets are CI's: never wait for the machine's load.
+lanes share: `flock /tmp/lightshow-heavy.lock timeout 45m nice -n 10 <command>`, one at a time, e2e
+with WebGL as `docs/agents/validation.md` describes and the lane's own `E2E_PORT`. The specs one pull
+request touches run in minutes, so a run still going at 45 minutes is stuck and is holding up the
+other three lanes. After each run none of its browsers or servers is left. A lane runs lint,
+typecheck, the unit tests, the build and the e2e specs its pull request touches. The full e2e suite
+and the performance budgets are CI's: never wait for the machine's load.
 
 ## Review focus
 
@@ -110,7 +114,7 @@ defect, each with its failing test.
   by triangle; pool clipping by room and surface in the pool shaders (`scene.js:73-93`; the vertex
   shader must pass the data).
 - `tests/fixtures/rigs/`: a two-room test room with a box wall, a mesh wall with a doorway and a lamp
-  near the ceiling; a nine-room fixture for the unit test.
+  near the ceiling; a nine-room fixture and a room 0.2 m wide for the unit tests.
 - Tests as the spec lists; `tests/e2e/stage-performance.spec.js` imports `browser-budget.js` and
   measures a rebuild and steady frames apart. Kept: `tab-switch.spec.js:308`; only `:295`'s number
   may change. `stage-scene.test.js:89-100` and `stage-mesh.spec.js` stay unless an assertion
@@ -120,8 +124,10 @@ defect, each with its failing test.
 ## PR 4: G9 (lane C)
 
 - Remove as the spec lists; golden frames regenerated with `scripts/golden-frames.js`, not edited.
-- Settings load: `picture.source: inspired` becomes `effects` with one log line; the effect library
-  skips a saved `v2.visualizer` look with one warning.
+- Settings load: `picture.source: inspired` becomes `effects` with one log line. Every store that can
+  hold an effect spec or a look id (the effect library, the sequence store with inline and nested
+  macro effects and pad layouts, cues, the current look) migrates the entries naming the removed kind
+  or looks before it validates, one warning each, as the spec says; none is quarantined.
 - `docs/agents/header.md` records words 9 verbatim with the idea for a later build; README and
   `docs/agents/visualizer.md` lose the source.
 - hatyc merge request: `packages/party.yaml:1336` and `:448`, with its runtime test; merged before the
@@ -232,7 +238,8 @@ director continues, with Freeze, Blackout and the picture source unchanged.
 The coordinator merges each reviewed, green pull request. hatyc merge requests that stop Home
 Assistant sending something the lightshow will refuse (G9's `inspired`) merge before the pin moves.
 Before the pin carrying PR 4 moves, the coordinator checks the recorded config for `inspired` and
-for saved `v2.visualizer` looks. The pin (`ansible/roles/docker_vm/files/voice/lightshow/
+for saved looks, sequences, pads and cues that name `v2.visualizer`, Visualizer Flow or Visualizer
+Drift. The pin (`ansible/roles/docker_vm/files/voice/lightshow/
 docker-compose.yml`, commit and tag together) moves once the rig is disarmed and Party is off
 (`sensor.house_mode_code`, `binary_sensor.lightshow_armed`), and the coordinator checks the live page
 against the spec.
