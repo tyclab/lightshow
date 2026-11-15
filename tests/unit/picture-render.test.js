@@ -168,3 +168,22 @@ test('after the picture the base effect resumes as if it had played on underneat
   });
   assert.deepEqual([shown.inits, played.inits], [1, 1], 'one state each: the instance outlived the picture');
 });
+
+// A browser visualizer that strobes (a MilkDrop preset can) reaches the rig through this path whichever page
+// draws it: the per-unit hardware rate limit always, the large-area limiter when it is on.
+test('a flashing room picture passes the hardware flash limit and the optional large-area limiter', () => {
+  const hardware = { technologies: { ddp: { maxFlashHz: 2, minTransitionMs: 0 } }, products: {} };
+  const r = rig(), draw = (now, value) => r.draw(now, { hardware, picture: picture(Array(15).fill(value), now + 2000) }).par;
+  assert.deepEqual(draw(0, 255), [255, 255, 255]);
+  assert.deepEqual(draw(50, 0), [0, 0, 0]);
+  assert.deepEqual(draw(100, 255), [0, 0, 0], 'a second flash within half a second is held dark');
+  assert.deepEqual(draw(550, 255), [255, 255, 255]);
+  const guarded = rig(), unguarded = rig();
+  let changed = false;
+  for (let now = 0; now <= 1800; now += 50) {
+    const frame = picture(Array(15).fill(now % 100 === 0 ? 255 : 0), now + 2000);
+    const a = guarded.draw(now, { picture: frame, flashLimit: true }), b = unguarded.draw(now, { picture: frame, flashLimit: false });
+    if (JSON.stringify(a) !== JSON.stringify(b)) changed = true;
+  }
+  assert.ok(changed, 'the large-area limiter holds a flashing room picture back');
+});
