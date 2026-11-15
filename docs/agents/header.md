@@ -38,9 +38,14 @@ history. The rulings below stay.
 
 - "also why on the top effects open the list? also when going to cm and visuilizer and squid?"
 - "also why do we have plkay and freese? both very close connected?"
+- "also i dont like the defauilt that the scene just playing until conditions for the visulaisizter
+  or shquid are matched. that is bullshit and confusion way to basically say precondidtions not met."
 - "Build all" (02:19), the answer to building, among the other fixes, the header's effect picker
-  removed so effects are chosen only in Show's list, and the Freeze button out of the header with
-  Resume shown only while frozen.
+  removed so effects are chosen only in Show's list, the Freeze button out of the header with
+  Resume shown only while frozen, and Visualizer and Squid with unmet preconditions dark with a
+  yellow reason instead of playing the scene. The explanation it answered included the same rule
+  for Stems in Space, and that Home Assistant's party start keeps the stored source, so a stored
+  Visualizer with no sender gives a dark room and the yellow line on the deck.
 
 ## Decisions
 
@@ -52,9 +57,17 @@ history. The rulings below stay.
 - The picture source control stays first and only chooses the source (2026-11-15, replacing the
   2026-11-07 effect picker one tap from the header). Each segment is a plain choice: another source is
   one tap, the chosen one names no effect, shows no ▾ and opens nothing; its tooltip is the source's
-  hint line. Effects are chosen in Show's Effects list, and E on any view opens Show with its search
-  ready, except while typing in a field, under a modal dialog or while Show's card offers nothing to
-  choose (the Visualizer picture arriving). Effect settings keeps the catalogue and its editor.
+  hint line, or its unmet line. Effects are chosen in Show's Effects list, and E on any view opens Show
+  with its search ready, except while typing in a field, under a modal dialog or while Show's card offers
+  nothing to choose (the Visualizer source). Effect settings keeps the catalogue and its editor.
+- An unmet picture source is shown, not masked (2026-11-15). The server reports `picture.unmet`, the
+  facts it observes, each set by one condition and cleared by one event (README, Unmet picture source);
+  the page adds no reason of its own. While the show plays, the units the source owns are dark, never
+  the main effect as a stand-in: the dark takes the picture's place, the Background does not fill it,
+  voices, pads, overrides, Identify, Freeze and Blackout stay above it, and it goes through the outputs'
+  transitions. The chosen segment turns amber with the line as its tooltip, Show's card and the stage
+  say it, and the demo beat draws the owned units dark. Squid without an LED panel is refused (409);
+  every other source is accepted while unmet. Home Assistant's party start never sets the source.
 - One Play/Stop button and one Auto show switch (2026-11-14). Switching the programme never starts
   or stops playback, and keeps pads, Freeze, Blackout and Arm. Stop is offered whenever it would
   clear something: a programme playing or paused, or pads over a stopped programme (the control's
@@ -88,7 +101,8 @@ history. The rulings below stay.
   called Audio-reactive; its ids stay, because saved shows, cues and Home Assistant scripts name
   them.
 - The Visualizer segment reads "Visualizer" (2026-11-09), as every segment reads only its source's
-  name. The main effect, which still shows while no picture arrives, is chosen in Show's list.
+  name. The main effect is chosen in Show's list; under Visualizer it does not show while no picture
+  arrives.
 - Colour + motion is gone (2026-11-15), with the effect kind only it fed and its looks Visualizer
   Flow and Visualizer Drift. Asked what it plays when the chosen look ignores the picture, the
   operator answered: "this never was correctly implemented. that is the real issue. the idea was to
@@ -115,8 +129,9 @@ history. The rulings below stay.
   Background. Effects are name-only tiles, one to five columns by the card's width and the text size, in a
   contained, searchable list with the chosen effect pinned beside the search; the description is the tile's
   tooltip, and tiles that share a name show their family on a second line.
-  It says Current effect only while the show plays unfrozen, Selected effect otherwise. While the Visualizer
-  source has a picture arriving, the card shows one sentence about it and nothing to choose. Palettes names
+  It says Current effect only while the show plays unfrozen, Selected effect otherwise. Under the Visualizer
+  source the card shows one sentence about it and nothing to choose, met or not, with the amber unmet line
+  while it cannot paint; under Squid, and under Effects for Stems in Space, that line sits above the list. Palettes names
   the selected palette over its list, two columns where readable; one button folds the colour wheel and the
   colour order together, folded until it is opened. An effect with a palette per band keeps its Bands card.
   With an Audio-reactive effect selected, playing, frozen or stopped, the Effects card shows its Active and
