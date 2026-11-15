@@ -1,0 +1,209 @@
+{
+ "description": "Two rooms split at x = 0 by a box wall (z -2 to 0) and a one-sided mesh wall with a doorway 0.4 m wide and 2 m high at z 0.8 to 1.2, and one lamp near the ceiling of the near room. Invented values; no installation data.",
+ "profiles": [
+  {
+   "id": "rgb-lamp",
+   "name": "RGB lamp",
+   "channelMap": {
+    "red": 0,
+    "green": 1,
+    "blue": 2
+   }
+  }
+ ],
+ "fixtures": [
+  {
+   "id": 1,
+   "label": "Lamp",
+   "address": 1,
+   "universe": 0,
+   "profileId": "rgb-lamp"
+  }
+ ],
+ "room": {
+  "version": 1,
+  "name": "Two rooms",
+  "bounds": {
+   "width": 6,
+   "depth": 4,
+   "height": 2.5
+  },
+  "rooms": [
+   {
+    "id": "near",
+    "label": "Near",
+    "polygon": [
+     [
+      -3,
+      -2
+     ],
+     [
+      0,
+      -2
+     ],
+     [
+      0,
+      2
+     ],
+     [
+      -3,
+      2
+     ]
+    ]
+   },
+   {
+    "id": "far",
+    "label": "Far",
+    "polygon": [
+     [
+      0,
+      -2
+     ],
+     [
+      3,
+      -2
+     ],
+     [
+      3,
+      2
+     ],
+     [
+      0,
+      2
+     ]
+    ]
+   }
+  ],
+  "objects": [
+   {
+    "id": "wall",
+    "kind": "box",
+    "role": "wall",
+    "position": {
+     "x": 0,
+     "y": 1.25,
+     "z": -1
+    },
+    "size": {
+     "x": 0.1,
+     "y": 2.5,
+     "z": 2
+    }
+   },
+   {
+    "id": "doorway",
+    "kind": "mesh",
+    "role": "wall",
+    "position": {
+     "x": 0,
+     "y": 1.25,
+     "z": 1
+    },
+    "size": {
+     "x": 0.1,
+     "y": 2.5,
+     "z": 2
+    },
+    "mesh": {
+     "vertices": [
+      [
+       0,
+       -0.5,
+       -0.5
+      ],
+      [
+       0,
+       0.5,
+       -0.5
+      ],
+      [
+       0,
+       0.5,
+       -0.1
+      ],
+      [
+       0,
+       -0.5,
+       -0.1
+      ],
+      [
+       0,
+       -0.5,
+       0.1
+      ],
+      [
+       0,
+       0.5,
+       0.1
+      ],
+      [
+       0,
+       0.5,
+       0.5
+      ],
+      [
+       0,
+       -0.5,
+       0.5
+      ],
+      [
+       0,
+       0.3,
+       -0.1
+      ],
+      [
+       0,
+       0.3,
+       0.1
+      ]
+     ],
+     "triangles": [
+      [
+       0,
+       1,
+       2
+      ],
+      [
+       0,
+       2,
+       3
+      ],
+      [
+       4,
+       5,
+       6
+      ],
+      [
+       4,
+       6,
+       7
+      ],
+      [
+       8,
+       2,
+       5
+      ],
+      [
+       8,
+       5,
+       9
+      ]
+     ]
+    }
+   }
+  ],
+  "bindings": [
+   {
+    "id": "lamp",
+    "fixtureId": 1,
+    "unit": 0,
+    "position": {
+     "x": -1.5,
+     "y": 2.3,
+     "z": -1
+    },
+    "confidence": "measured"
+   }
+  ]
+ }
+}

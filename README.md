@@ -279,8 +279,8 @@ Bindings can also carry a `lightTarget` in room metres, with optional
 `lightTargetConfidence` (`estimated` or `measured`). It aims the preview from the
 physical emitter toward the lit surface, overriding the fixture's pan and tilt
 in that room. A strip uses its path midpoint to aim the run. Targets do not move
-the emitter or change output/effect coordinates; the first opaque box wall or
-furniture surface stops the beam. Keep photo-derived targets marked estimated.
+the emitter or change output/effect coordinates; the first wall or opaque furniture
+surface stops the beam. Keep photo-derived targets marked estimated.
 
 In a room, Stage draws every light at its physical size: a bulb about 7 cm across, a strip
 1.4 cm thick, each pixel of a cell map 0.4 of its pitch (a 288-pixel cube is 288 small
@@ -288,12 +288,16 @@ emitters, not one marker). A fixture placed on the Rig plot that no binding name
 where the effects sample it, its plot position scaled into the room, and stays listed for a
 room position; with an explicit cell map it stands in a dark, see-through body spanning its
 pixels, since the room has no object for it. A fixture with no position anywhere is not drawn. The room's surfaces are lit:
-a dim fill shows them with the outputs off, and **Room light** adds eight point lights, each
-at a cluster of the room's emitters and mixing their live colours, so nearby walls and
-furniture take the colours of the lights near them. It is an approximation for the preview
-(no shadows, a bulb counting as much as a hundred pixels or 1.7 m of strip), not a
-photometric model; **Room light** off keeps the shading without it and is remembered in
-this browser. **Eye level** stands 1.5 m behind the room's first listener (or at its front
+a dim fill shows them with the outputs off, and **Room light** adds eight point lights mixing
+the live colours of the emitters near them, so nearby walls and furniture take their colours.
+Each room with emitters gets one, standing among its emitters and 0.3 m in from its walls,
+and the rest go to the rooms with the most; a room file without polygons is lit as one room.
+Walls, floors and ceilings shadow these lights as built, whether drawn full height, cut away
+or hidden; furniture casts no room-light shadow. Past eight rooms with emitters, the eight
+with the most get a light and an amber note beside **Room light** names the others, whose
+fixtures still glow and throw their beams. It is an approximation for the preview (a bulb
+counting as much as a hundred pixels or 1.7 m of strip), not a photometric model; **Room
+light** off keeps the shading without it and is remembered in this browser. **Eye level** stands 1.5 m behind the room's first listener (or at its front
 edge) at 1.6 m; a double-click turns the view around the point under the pointer, and a
 right-drag or two fingers pan within the room.
 
