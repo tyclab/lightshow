@@ -846,6 +846,12 @@ html:has(.show-fold-toggle[aria-expanded="true"]) { scrollbar-gutter: stable; }
 .contained-search-tools input:focus-visible { outline: .15rem solid var(--accent); outline-offset: .15rem; }
 .contained-search-tools .btn { min-width: 4.29rem; height: 3.15rem; }
 .contained-count { color: var(--muted); font-size: .79rem; font-variant-numeric: tabular-nums; }
+/* An Audio-reactive look selected: its family's looks and its colours, between the search and the list. */
+.show-audio-reactive { display: grid; gap: .43rem; margin-bottom: .71rem; }
+.show-audio-reactive-row { display: flex; flex-wrap: wrap; align-items: center; gap: .43rem; }
+.show-audio-reactive-row .btn { min-height: 3.15rem; }
+.show-audio-reactive-label { min-width: 4.5rem; font-size: .79rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+.contained-effects .audio-reactive-colours { margin-bottom: .71rem; }
 .contained-scroll { height: max(var(--show-list-floor), 40svh); min-height: var(--show-list-floor); overflow-y: scroll; overflow-x: hidden; scrollbar-gutter: stable; scrollbar-color: #7483a3 var(--bg); border: var(--hairline) solid var(--border); border-radius: var(--radius-sm); background: var(--bg); }
 .contained-scroll::-webkit-scrollbar { width: .86rem; }
 .contained-scroll::-webkit-scrollbar-track { background: var(--bg); }
@@ -4074,7 +4080,7 @@ input[type=range]::-moz-range-thumb {
 .spatial-fields .insp-field { margin-top: .2rem; }
 
 /* The header (Header.jsx): one row of 56 px on a desktop, two rows on a phone. What paints the room
-   comes first; play, Freeze, Blackout and Arm keep fixed widths, so they never move as labels change. */
+   comes first; play, Resume's slot, Blackout and Arm keep fixed widths, so they never move as labels change. */
 .app-header { flex-wrap: nowrap; gap: 8px; min-height: 56px; padding: 6px 12px; }
 .app-header h1 { flex: none; }
 .app-header .site-wordmark { margin: 0; min-width: 44px; justify-content: center; }
@@ -4096,40 +4102,8 @@ input[type=range]::-moz-range-thumb {
 .picture-segment:focus-visible { outline: .125rem solid var(--accent); outline-offset: -.25rem; }
 .picture-segment.active { flex: 1 1 auto; min-width: 0; background: var(--accent-fill); color: var(--text-on-accent); }
 .picture-segment.active:focus-visible { outline-color: var(--text-on-accent); }
-.picture-segment-effect { min-width: 0; overflow: hidden; text-overflow: ellipsis; font-weight: 800; }
-.picture-segment-caret { margin-left: auto; padding-left: 6px; }
+.picture-segment.active:hover { background: var(--accent-fill); color: var(--text-on-accent); cursor: default; }
 .picture-short { display: none; }
-
-.effect-picker {
-  left: 0; display: flex; flex-direction: column; gap: 8px;
-  width: min(42rem, calc(100vw - 24px)); max-height: calc(100vh - 80px); overflow: auto; overscroll-behavior: contain;
-}
-.picker-head { display: flex; align-items: center; gap: 8px; }
-.picker-now { flex: 1; min-width: 0; font-size: 12px; color: var(--text-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.picker-hint { font-size: 12px; color: var(--muted); }
-.picker-search {
-  min-height: 40px; padding: 6px 10px; background: var(--card); border: 1px solid var(--border-hi);
-  border-radius: var(--radius-sm); color: var(--text); font: inherit;
-}
-.picker-deck { display: grid; grid-template-columns: repeat(auto-fill, minmax(9rem, 1fr)); gap: 6px; }
-.picker-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(11rem, 1fr)); gap: 4px; }
-.picker-choice {
-  display: flex; align-items: center; gap: 6px; min-width: 0; min-height: 40px; padding: 6px 10px;
-  background: var(--card); border: 1px solid var(--border); border-radius: var(--radius-sm);
-  color: var(--text); font: inherit; font-size: 13px; text-align: left; cursor: pointer;
-}
-.picker-choice:hover { border-color: var(--accent); }
-.picker-choice:focus-visible { outline: .125rem solid var(--accent); outline-offset: .125rem; }
-.picker-choice.big { min-height: 52px; font-weight: 700; }
-.picker-choice.active { background: var(--wash-blue); border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
-.picker-icon { flex: none; width: 1.2em; text-align: center; color: var(--muted); }
-.picker-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.picker-desc { display: block; overflow: hidden; text-overflow: ellipsis; font-size: 11px; font-weight: 400; color: var(--muted); }
-.picker-rapid { margin-left: auto; color: var(--text-amber); }
-.picker-audio-reactive { display: grid; gap: 6px; }
-.picker-audio-reactive-row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
-.picker-audio-reactive-label { min-width: 4.5rem; font-size: 11px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
-.effect-picker .audio-reactive-colours { margin: 0; }
 
 .global-controls { display: flex; align-items: center; gap: 6px; flex: none; }
 .global-control { justify-content: center; min-height: 44px; padding: 6px 10px; border-radius: var(--radius-sm); font-size: 13px; }
@@ -4149,7 +4123,8 @@ input[type=range]::-moz-range-thumb {
 .global-play-main:hover:not(:disabled) { background: var(--accent-fill); border-color: var(--ink); color: var(--text-on-accent); }
 .global-play-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .global-play.playing .global-play-main { background: var(--wash-blue); border-color: var(--accent); color: var(--text); }
-.global-freeze { width: 5.5rem; }
+.global-hold { display: flex; flex: none; width: 5.5rem; }
+.global-hold > .global-resume { flex: 1 1 auto; min-width: 0; }
 .global-blackout { width: 6.25rem; }
 /* Blackout is unmistakable on the button itself, as Armed is: filled red, the state over the action. */
 .global-blackout.blackout-active { flex-direction: column; gap: 0; line-height: 1.1; box-shadow: var(--glow-red); }
@@ -4210,20 +4185,14 @@ input[type=range]::-moz-range-thumb {
   .global-control { padding: 6px 8px; }
   .global-auto { width: 8.25rem; }
   .global-play-main { width: 5rem; }
-  .global-freeze { width: 4.5rem; }
+  .global-hold { width: 4.5rem; }
   .global-blackout { width: 5.25rem; }
   /* The narrower button keeps the whole word in the widest UI fonts; the red fill marks the state. */
   .global-blackout-dot { display: none; }
   .global-blackout-state { font-size: 9px; letter-spacing: 0; }
   .global-arm { width: 4.75rem; }
   .global-master input { width: 4rem; }
-  .picture-segment.active { min-width: 7rem; }
   .status-chip.alert .status-chip-conn { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
-  /* The source's name over the effect's: the effect keeps the width. */
-  .picture-segment.active { flex-direction: column; align-items: flex-start; justify-content: center; gap: 0; padding-right: 22px; position: relative; line-height: 1.15; }
-  .picture-segment.active .picture-segment-source { font-size: 10px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
-  .picture-segment.active .picture-segment-effect { max-width: 100%; }
-  .picture-segment.active .picture-segment-caret { position: absolute; right: 8px; top: 50%; transform: translateY(-50%); padding: 0; }
   .status-chip-unit { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
 }
 /* A tablet or a phone: the picture source, the chip and ⋮ on the first row; play, the safety buttons and the master on the second. */
@@ -4238,7 +4207,6 @@ input[type=range]::-moz-range-thumb {
   .global-master { flex: 0 1 16rem; }
   .global-master input { flex: 1; min-width: 0; }
   .header-popover { left: 8px; right: 8px; width: auto; top: calc(100% + 4px); }
-  .effect-picker { max-height: calc(100vh - var(--header-height, 112px) - 16px); }
 }
 @media (max-width: 680px) {
   .global-controls { gap: 4px; }
@@ -4252,15 +4220,12 @@ input[type=range]::-moz-range-thumb {
   .global-auto-long { display: none; }
   .global-control { padding: 4px 6px; font-size: 12px; }
   .global-play-main { flex: 1 1 0; width: auto; min-width: 0; padding: .25rem .375rem; }
-  .global-freeze { width: 4.1rem; }
+  .global-hold { width: 4.1rem; }
   .global-blackout { width: 4.6rem; }
   .global-arm { width: 4.1rem; }
   .global-master { flex: 1 1 0; min-width: 3rem; }
   .global-master-value { display: none; }
   .status-chip-conn { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
-}
-@media (pointer: coarse) {
-  .picker-choice, .picker-search, .picker-audio-reactive .btn { min-height: 44px; }
 }
 
 .picture-layer-link { font: inherit; color: inherit; background: transparent; border: 0; border-left: 1px solid var(--border); border-radius: 0; text-align: left; cursor: pointer; }

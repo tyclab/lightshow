@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { open, reset, set, state, until } from './helpers.js';
+import { control, open, reset, set, state, until } from './helpers.js';
 
 test.beforeEach(async ({ request }) => { await request.delete('/api/sequence'); await request.delete('/api/performance/automation'); await reset(request); });
 test.afterEach(async ({ request }) => { await request.delete('/api/performance/automation'); await request.delete('/api/sequence'); await reset(request); });
@@ -39,20 +39,31 @@ test('live tempo automation applies from Perform and a manual edit ends the sele
   expect((await request.put('/api/performance/automation', { data: { axis: 'tempo', settings: { ...settings, max: 500 } } })).status()).toBe(400);
 });
 
-test('Audio-reactive looks and colour wells in the header\'s effect picker apply immediately and retain white, amber and UV', async ({ page, request }) => {
+// G3: the header's picker is gone; its Audio-reactive rows and colour wells are in Show's Effects card while the
+// selected effect is Audio-reactive, stopped, frozen or playing.
+test('Audio-reactive looks and colour wells in Show\'s Effects card follow the selected look, apply immediately and retain white, amber and UV', async ({ page, request }) => {
   const before = await state(request);
   const { settings } = await (await request.get('/api/settings')).json();
   const acknowledge = (value) => request.put('/api/settings', { data: { safety: { photosensitivityAcknowledged: value } } });
+  const card = () => page.locator('.contained-effects');
   try {
     // Every Audio-reactive look flashes on hits, so it needs the acknowledgement.
     expect((await acknowledge(true)).ok()).toBe(true);
+    await open(page, 'show');
+    await expect(card().getByRole('group', { name: 'Audio-reactive looks' })).toHaveCount(0);
+    await expect(card().getByRole('region', { name: 'Audio-reactive colours' }), 'not for another look').toHaveCount(0);
     await set(request, { pattern: 'ldj.visualizer.solid', overridePalette: { colours: ['#010203040506', '#AABBCC112233'] } });
-    await open(page, 'perform');
-    await expect(page.getByRole('region', { name: 'Audio-reactive colours' })).toHaveCount(0);
-    await page.getByRole('group', { name: 'Picture source' }).getByRole('button', { name: /^Effects: / }).click();
-    const picker = page.getByRole('dialog', { name: 'Main effect' });
-    await expect(picker.getByRole('group', { name: 'Audio-reactive Mellow' }).getByRole('button', { name: 'Audio-reactive Solid' })).toHaveAttribute('aria-pressed', 'true');
-    const wells = picker.getByRole('region', { name: 'Audio-reactive colours' });
+    for (const [label, action] of [['playing', null], ['frozen', 'freeze'], ['stopped and frozen', 'stop'], ['stopped', 'resume']]) {
+      if (action) await control(request, action);
+      await expect(card().getByRole('group', { name: 'Audio-reactive Mellow' }).getByRole('button', { name: 'Audio-reactive Solid' }), label)
+        .toHaveAttribute('aria-pressed', 'true');
+      await expect(card().getByRole('region', { name: 'Audio-reactive colours' }), label).toBeVisible();
+    }
+    expect((await state(request)).control).toMatchObject({ playing: false, frozen: false });
+    await card().getByRole('group', { name: 'Audio-reactive Active' }).getByRole('button', { name: 'Audio-reactive Flash' }).click();
+    await until(request, (s) => s.pattern === 'ldj.visualizer.flash');
+    await expect(card().getByRole('group', { name: 'Audio-reactive Active' }).getByRole('button', { name: 'Audio-reactive Flash' })).toHaveAttribute('aria-pressed', 'true');
+    const wells = card().getByRole('region', { name: 'Audio-reactive colours' });
     await wells.getByLabel('Hit colour', { exact: true }).fill('#ff0000');
     await until(request, (s) => s.paletteOverride?.[1] === '#FF0000112233');
     await wells.getByRole('button', { name: 'Shuffle Audio-reactive colours' }).click();

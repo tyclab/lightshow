@@ -1,6 +1,6 @@
 # Header (top bar), view strip and Show rulings
 
-Read before changing the header, the picture source control, play/stop, Freeze,
+Read before changing the header, the picture source control, play/stop, Resume,
 Blackout, Arm or the master, the view strip under the header, or the Show view. The
 header was built from the 2026-11-05 brief (#108, revised in #113 and #126), the Show
 view and the strip from the 2026-11-14 draft (#204 to #210); their full text is in git
@@ -34,6 +34,14 @@ history. The rulings below stay.
 - "the rest seem alright" (03:11), on the draft that showed Show, Perform and Setup in the strip,
   with the sequence shelf and Stop pads on Perform and one Play/Stop in the header.
 
+2026-11-15 (UTC), on Show v3:
+
+- "also why on the top effects open the list? also when going to cm and visuilizer and squid?"
+- "also why do we have plkay and freese? both very close connected?"
+- "Build all" (02:19), the answer to building, among the other fixes, the header's effect picker
+  removed so effects are chosen only in Show's list, and the Freeze button out of the header with
+  Resume shown only while frozen.
+
 ## Decisions
 
 - Same place on every tab, no duplicates, nothing changes Freeze or Blackout as a side effect.
@@ -41,9 +49,12 @@ history. The rulings below stay.
   colour instead.
 - Anti-goals, a failure even if it works: Blackout or Disarm behind a menu; a second play button
   elsewhere; a colour picker that changes nothing; a header that wraps to three rows on a laptop.
-- When the room looks wrong the operator changes the effect first (2026-11-07). The picture source
-  control stays first; its Effects and Colour + motion segments name the main effect with its
-  picker one tap away. Switching effects must be the fastest action in the header.
+- The picture source control stays first and only chooses the source (2026-11-15, replacing the
+  2026-11-07 effect picker one tap from the header). Each segment is a plain choice: another source is
+  one tap, the chosen one names no effect, shows no ▾ and opens nothing; its tooltip is the source's
+  hint line. Effects are chosen in Show's Effects list, and E on any view opens Show with its search
+  ready, except while typing in a field, under a modal dialog or while Show's card offers nothing to
+  choose (the Visualizer picture arriving). Effect settings keeps the catalogue and its editor.
 - One Play/Stop button and one Auto show switch (2026-11-14). Switching the programme never starts
   or stops playback, and keeps pads, Freeze, Blackout and Arm. Stop is offered whenever it would
   clear something: a programme playing or paused, or pads over a stopped programme (the control's
@@ -75,13 +86,27 @@ history. The rulings below stay.
   itself, so its armed state must be unmistakable, not a status pill (2026-11-07).
 - Visualizer names only the picture source (2026-11-09). The effect family `ldj.visualizer.*` is
   called Audio-reactive; its ids stay, because saved shows, cues and Home Assistant scripts name
-  them. Visualizer Flow and Visualizer Drift keep their names.
-- The Visualizer segment names no effect and opens nothing (2026-11-09). It reads "Visualizer",
-  with the picture's hint line as its tooltip; E does nothing while it is chosen, and choosing it
-  closes an open picker. The main effect, which still shows while no picture arrives, is chosen
-  under Effects or Colour + motion.
-- Freeze, Blackout and Arm keep their own buttons at fixed positions with 44 px touch targets.
-  Keep every current label reachable, and never name the apps the lightshow was ported from.
+  them.
+- The Visualizer segment reads "Visualizer" (2026-11-09), as every segment reads only its source's
+  name. The main effect, which still shows while no picture arrives, is chosen in Show's list.
+- Colour + motion is gone (2026-11-15), with the effect kind only it fed and its looks Visualizer
+  Flow and Visualizer Drift. Asked what it plays when the chosen look ignores the picture, the
+  operator answered: "this never was correctly implemented. that is the real issue. the idea was to
+  have the colour and the effect matched to visualizer output without having directly mirro the
+  output. so this means at least colour should follow the visualizer colour. open is here if aferage
+  max or whatever. how much code/compleity is only for this feature? if it is not much and easily
+  repromted. i would suggest to just drop it. if it is a lot of code and not easly removed, we should
+  investigate what is needed to imlement propper and build it and rollout". It was about 115 lines,
+  so it went. The idea stays for a later build: the effect and at least its colour follow the
+  visualizer's output without mirroring it; how the colour is taken (average, maximum or another
+  rule) is open. Saved looks, clips, pads and cues that named it are migrated when they load, one
+  warning each, and a stored `inspired` source loads as Effects.
+- Blackout and Arm keep their own buttons at fixed positions with 44 px touch targets. Freeze has no
+  button (2026-11-15): while the picture is frozen, one Resume shows where Freeze was, on every tab, so
+  a hold is never hidden; its slot stays reserved while it is hidden, so Blackout and Arm keep their
+  positions and sizes. `freeze` and `resume` stay in `/api/control` with their behaviour (pads refused
+  while frozen, Stop and a programme switch keep Freeze, Home Assistant's party start leaves it). Keep
+  every current label reachable, and never name the apps the lightshow was ported from.
 - Show (2026-11-14, 02:29): "the hole color wheel inclusive colour orcder should collapse and just leave
   the colour pallets, which then could be 2 nex to each other?, but i think would be better to move color
   pallets to the rtight top and the colour wheel below backround stays and we have effects behind preview 3d
@@ -94,6 +119,8 @@ history. The rulings below stay.
   source has a picture arriving, the card shows one sentence about it and nothing to choose. Palettes names
   the selected palette over its list, two columns where readable; one button folds the colour wheel and the
   colour order together, folded until it is opened. An effect with a palette per band keeps its Bands card.
+  With an Audio-reactive effect selected, playing, frozen or stopped, the Effects card shows its Active and
+  Mellow looks and its colour wells between the search and the list (what only the header's picker had).
   A cue row under the stage recalls a cue or saves the look as one. The stage opens in 3D; 2D remains
   selectable. Detailed effect controls stay in Effect settings. Show scales with the window, "we scale
   dynamic" and "we donnt do hardoced shit": its block in style.css has no px and no script sizes it, widths
@@ -108,6 +135,6 @@ history. The rulings below stay.
   the stage keep their height, Background moves down and the effects list takes the added height. That is
   the one height a script reports to Show; no script sets a size.
 - The utility effects (the catalogue's `own.energy` family: the strobes, Blinder, UV Wash, Kill, Glow and
-  the strobe overlays) are not offered on Show or in the header's effect picker (2026-11-14, 02:39: "uv wash
+  the strobe overlays) are not offered on Show (2026-11-14, 02:39: "uv wash
   is brocken effect? dop we need it at all? we have button for that right?"). Pads, cues, sequences and the
   API still play them, a look whose effect is one of them is still named, and Effect settings lists them.

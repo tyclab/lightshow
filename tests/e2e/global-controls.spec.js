@@ -10,10 +10,12 @@ test('one global control set stays visible on every view without changing latche
     await page.goto(`/#${view.id}`);
     await expect(controls).toHaveCount(1);
     await expect(controls).toBeVisible();
-    for (const label of ['Stop selected picture', 'Freeze', 'Blackout', 'Arm']) {
+    for (const label of ['Stop selected picture', 'Blackout', 'Arm']) {
       await expect(controls.getByRole('button', { name: label, exact: true })).toBeVisible();
       await expect(page.getByRole('button', { name: label, exact: true })).toHaveCount(1);
     }
+    // G4: Freeze has no button; Resume shows only while frozen.
+    for (const label of ['Freeze', 'Resume']) await expect(page.getByRole('button', { name: label, exact: true })).toHaveCount(0);
     await expect(controls.getByRole('switch', { name: 'Auto show', exact: true })).toBeVisible();
     await expect(page.getByRole('switch', { name: 'Auto show', exact: true })).toHaveCount(1);
     await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
@@ -34,7 +36,7 @@ test('explicit controls preserve independent states and content edits cannot rel
   await reset(request);
   await open(page, 'show');
   const controls = page.getByRole('group', { name: 'Global show controls' });
-  await controls.getByRole('button', { name: 'Freeze', exact: true }).click();
+  await control(request, 'freeze');
   await until(request, s => s.control.frozen && !s.control.pending);
   await controls.getByRole('button', { name: 'Blackout', exact: true }).click();
   await until(request, s => s.control.blackout && !s.control.pending);
