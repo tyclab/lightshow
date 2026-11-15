@@ -51,7 +51,7 @@ local Audition and colour sliders. All new-show workflows hide retired rows.
   live look, room, master or arm mutation.
 - **Catalogue (2026-11-02):** the Effects view lists every current look once, A to Z,
   with the tags its code states: what it reacts to and where that input comes from
-  (analysed track, live input or the screen), whether it covers the whole rig, is
+  (analysed track or live input), whether it covers the whole rig, is
   placed in the room or draws on bars and panels, whether it plays its own colours,
   and whether it is an energy voice or a rapid flash. Multi-select chips filter by
   them; the Spatial, Own and Classic sections are gone. `src/shared/effects/tags.ts`

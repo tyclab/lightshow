@@ -156,7 +156,7 @@ test('every visible look says what it reacts to, and only a reactive one says wh
   }
 });
 
-test('the twelve tags and their counts over the 113 looks', () => {
+test('the eleven tags and their counts over the 111 looks', () => {
   assert.deepEqual(TAG_AXES.map((axis) => [axis.name, axis.tags.map((tag) => TAGS[tag].name)]), [
     ['Reacts to', ['Beat only', 'Static', 'Bands & drums', 'Audio level', 'Song sections']],
     ['Surface', ['Whole rig', 'Room-placed', 'Bars & panels']],

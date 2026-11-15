@@ -1,4 +1,4 @@
-// The labelled controls (src/shared/effects/controls.ts): every field of the twelve v2 kinds and the strobe
+// The labelled controls (src/shared/effects/controls.ts): every field of the eleven v2 kinds and the strobe
 // is described, inside its schema's bounds, and a field hidden for a shape is one that shape does not read.
 
 import test from 'node:test';

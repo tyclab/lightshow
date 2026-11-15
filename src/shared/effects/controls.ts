@@ -1,4 +1,4 @@
-// Labelled controls for the parameterised kinds: every schema field of the twelve v2 kinds and the strobe,
+// Labelled controls for the parameterised kinds: every schema field of the eleven v2 kinds and the strobe,
 // with a label, a range inside the schema's bounds, a place (above or under Advanced) and when it applies.
 // Fields a kind does not read for the chosen shape are hidden; the values stay in the spec.
 import { HOLD_STROBE_MAX_HZ } from '../look-math.ts';

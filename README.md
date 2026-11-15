@@ -418,7 +418,7 @@ the look changes: on Strobe, that the Ramp, Random and Burst functions follow th
 
 The chips under the search filter the deck and the list. Chips in one row (Reacts to,
 Surface, Colour, Use & safety) show the looks that carry any of them; rows combine,
-so a look must match every row that has a chip on. **Reactive** stands for the four
+so a look must match every row that has a chip on. **Reactive** stands for the three
 reactions. Each chip counts the looks it would show with the other rows as they are
 and is disabled at zero; **Clear** turns every chip off. The search matches name,
 description, id and family, and also the tag names, Reactive and the source marks.
@@ -702,10 +702,12 @@ those of classic ids moved onto v2 presets, without rewriting the golden fixture
 generator; **Show all** retains every historical palette id.
 Visualizer Flow and Visualizer Drift left with the Colour + motion picture source
 (2026-11-15). Saved data naming them or their kind is migrated as its file loads, one
-warning in the log each: a saved look leaves the library, a clip its sequence or pattern
-(and a clip group left with one clip dissolves), a pad is emptied, and a cue or the look
-kept for a restart plays the default look with its other fields kept. A settings file
-that chose `inspired` loads as `effects`.
+warning in the log each: a saved look playing the kind leaves the library, a clip its
+sequence or pattern (and a clip group left with one clip dissolves), a pad is emptied, a
+MIDI binding that selects one is unbound, and a cue or the look kept for a restart plays
+the default look with its other fields kept. A saved look that leaves takes its
+references along the same way. A whole clip or saved look goes, never a step of its
+macro. A settings file that chose `inspired` loads as `effects`.
 
 Every generator shares one trigger: the timeline, a beat accent (a pulse per interval,
 as strong as its band with live audio) or a volume gate (the band above its threshold).

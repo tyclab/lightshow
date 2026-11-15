@@ -420,7 +420,7 @@ test('chips: any chip within an axis, every axis with one on, and counts as the 
   const ids = (active) => ui.filterByChips(rows, active).map((r) => r.id);
   assert.deepStrictEqual(ids([]), rows.map((r) => r.id), 'no chip: everything');
   assert.deepStrictEqual(ids(['beat', 'static']), ['wash', 'wave', 'strobe'], 'OR within an axis');
-  assert.deepStrictEqual(ids(['reactive']), ['bars', 'gate', 'wall'], 'Reactive is any of the four reactions');
+  assert.deepStrictEqual(ids(['reactive']), ['bars', 'gate', 'wall'], 'Reactive is any of the three reactions');
   assert.deepStrictEqual(ids(['reactive', 'room']), ['gate', 'wall'], 'AND across axes');
   assert.deepStrictEqual(ids(['beat', 'static', 'rig']), ['wash', 'strobe']);
   assert.deepStrictEqual(ids(['rig', 'room']), ['wash', 'wave', 'gate', 'strobe', 'wall'], 'two surfaces: either, not both');
@@ -434,7 +434,7 @@ test('chips: any chip within an axis, every axis with one on, and counts as the 
     ['A2', 'a', 'b', 'c9', 'c10'], 'A to Z, numbers in order, one name in the order given');
 });
 
-test('the filters: four axes, Reactive folding the four reactions, a live count on each, Clear only while one is on', () => {
+test('the filters: four axes, Reactive folding the three reactions, a live count on each, Clear only while one is on', () => {
   givenLibrary({});
   const chipsOf = (html) => [...html.matchAll(/class="effects-chip ?(active)?" data-chip="([^"]+)" aria-pressed="(true|false)"([^>]*)>(.*?)<span class="effects-chip-count">(\d+)<\/span>/g)]
     .map((m) => ({ id: m[2], on: m[3] === 'true', disabled: /disabled/.test(m[4]), name: m[5].replace(/<[^>]+>/g, '').replace(/&amp;/g, '&').trim(), n: Number(m[6]) }));
