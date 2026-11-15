@@ -31,8 +31,9 @@ test('the log: what the server has said, filtered, with its health above', async
   await page.getByRole('combobox', { name: 'Show' }).selectOption('error');
   await expect(log.locator('.log-entry.lvl-info')).toHaveCount(0);
 
-  await page.getByRole('button', { name: 'Pause' }).click();
-  await expect(page.getByRole('button', { name: 'Paused' })).toHaveAttribute('aria-pressed', 'true');
+  // The log's own Pause: the stage beside it has a Pause preview (Show v3 fixes, G1).
+  await page.getByRole('button', { name: 'Pause', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Paused', exact: true })).toHaveAttribute('aria-pressed', 'true');
 });
 
 for (const theme of ['dark', 'light', 'red']) {

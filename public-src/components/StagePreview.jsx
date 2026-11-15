@@ -9,7 +9,7 @@ import { useRehearsalTrack, useRehearsalSampler, useUnitSpace } from '../rehears
 import { Audition } from './Audition.jsx';
 import { auditionSig, demoBeatSig, setAudition, useAuditionSampler, useDemoLookSampler } from '../audition.js';
 import { NowPlaying } from './NowPlaying.jsx';
-import { PreviewPaused } from './PreviewPaused.jsx';
+import { PausePreview, PreviewPaused } from './PreviewPaused.jsx';
 import { useTimeline } from '../use-timeline.js';
 import { stagePositions } from '../../src/shared/stage.ts';
 import { buildRig, gridLabel, lineOf, rigSignature } from '../../src/shared/rig.ts';
@@ -178,8 +178,11 @@ export function StagePreview({ controls = true } = {}) {
       <h2 class="panel-title">Stage preview</h2>
       <span class={`panel-tag${!auditioning && mode.tag === 'Blackout' ? ' blackout' : ''}`}>{auditioning ? 'Audition · browser only' : mode.tag}</span>
       {controls && !auditioning && mode.unmet && <span class="stage-unmet" role="status">{mode.unmet}</span>}
-      <button class={`btn sm ${edit ? 'active' : ''}`} disabled={!connected || auditioning} aria-pressed={edit}
-        onClick={() => { setUi({ edit: !edit }); drag.current = null; setDraft(null); }}> {edit ? 'Done positioning' : 'Position fixtures'}</button>
+      <span class="stage-head-actions">
+        {controls && mode.pausable && !auditioning && <PausePreview />}
+        <button class={`btn sm ${edit ? 'active' : ''}`} disabled={!connected || auditioning} aria-pressed={edit}
+          onClick={() => { setUi({ edit: !edit }); drag.current = null; setDraft(null); }}> {edit ? 'Done positioning' : 'Position fixtures'}</button>
+      </span>
     </header>
     {controls && <PreviewPaused />}
     {controls && <Audition compact />}

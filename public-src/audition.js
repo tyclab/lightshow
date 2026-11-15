@@ -1,7 +1,7 @@
 import { effect, signal } from '@preact/signals';
 import { useEffect, useMemo, useRef } from 'preact/hooks';
 import { stateSig, librarySig, stagePreviewSig, field, pick } from './state.js';
-import { demoLookSampler, previewOptions, resolverOf, unmetOwned } from './preview-inputs.js';
+import { demoLookSampler, previewOptions, resolverOf, underMaster, unmetOwned } from './preview-inputs.js';
 import { createPreviewSampler } from '../src/shared/preview.ts';
 import { DEMO_AUDIO_SOURCE, DEMO_BPM, DEMO_DURATION_MS } from '../src/shared/demo-track.ts';
 
@@ -35,8 +35,9 @@ export function startAudition(id, spec = null, name = null) {
   setAudition({ id, spec, name, active: true, playing: true, position: 0 });
 }
 
+/** The audition as a stage draws it: each light as it emits, under the master, as the demo beat (preview-inputs.js). */
 export function useAuditionSampler(space, enabled = true) {
-  const s = pick(['armed', 'hardware', 'profiles', 'safety', 'hueStrobe']), a = auditionSig.value, library = librarySig.value;
+  const s = pick(['armed', 'hardware', 'profiles', 'safety', 'hueStrobe', 'masterDimmer']), a = auditionSig.value, library = librarySig.value;
   useEffect(() => { if (s.armed && a.active) setAudition({ active: false, playing: false }); }, [s.armed, a.active]);
   const active = enabled && a.active && !s.armed;
   const previous = useRef(null);
@@ -57,10 +58,11 @@ export function useAuditionSampler(space, enabled = true) {
     } }], null, {
       hardware: options.hardware, profiles: options.profiles, hueStrobe: options.hueStrobe, space,
       safety: { ...options.safety, acknowledged: a.acknowledged || !!options.safety?.acknowledged },
-      audioSource: DEMO_AUDIO_SOURCE, resolveEffect: (id) => id === a.id && a.spec ? a.spec : resolve(id),
+      audioSource: DEMO_AUDIO_SOURCE, resolveEffect: (id) => id === a.id && a.spec ? a.spec : resolve(id), light: true,
     });
   }, [prepared?.key, prepared?.space]);
-  return active ? sampler : null;
+  const mastered = useMemo(() => sampler && underMaster(sampler, s.masterDimmer), [sampler, s.masterDimmer]);
+  return active ? mastered : null;
 }
 
 // The live look a stopped, disarmed stage draws (Show v3, G6): its keys, so an edit re-samples it.

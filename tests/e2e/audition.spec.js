@@ -1,9 +1,24 @@
 import { test, expect } from '@playwright/test';
-import { control, open, state } from './helpers.js';
+import { control, open, set, state } from './helpers.js';
 import { stageImage } from './stage-image.js';
 import { protectedState, watchControlWrites } from './audition-isolation.js';
 
+// A stopped stage draws the selected look on the demo beat (Show v3), so the look is made black to see the audition light
+// the room. The audition draws a dimmer par as it emits (Show v3 fixes, G1b), dimmer and emitters both: at the drop
+// about a quarter of a percent of the room is brighter than 100, where the emitters alone made more than twice that.
+const OFF = { version: 1, mode: 'off', level: 1, colour: { r: 0, g: 0, b: 0, w: 0, a: 0, uv: 0 } };
+
 test('demo audition animates room and plot while every live control keeps its state', async ({ page, request }) => {
+  const look = await state(request);
+  await set(request, { pattern: 'solid', basePalette: { colours: ['#000000'] }, background: OFF });
+  try {
+    await auditionKeepsState(page, request);
+  } finally {
+    await set(request, { pattern: look.pattern, basePalette: look.basePalette, background: look.background });
+  }
+});
+
+async function auditionKeepsState(page, request) {
   const before = await protectedState(request), writes = watchControlWrites(page);
   expect(before.state.armed).toBe(false);
   // Disarmed, nothing waits for the acknowledgement: a rapid effect auditions without a question.
@@ -19,7 +34,7 @@ test('demo audition animates room and plot while every live control keeps its st
   await expect(page.locator('[data-audition-section]')).toHaveAttribute('data-audition-section', 'drop');
   const room = await stageImage(page);
   expect(room.lum - unlit.lum).toBeGreaterThan(0.5);
-  expect(room.litShare - unlit.litShare).toBeGreaterThan(0.003);
+  expect(room.litShare - unlit.litShare).toBeGreaterThan(0.001);
   await page.getByRole('button', { name: '2D plot', exact: true }).click();
   const surface = page.getByRole('group', { name: 'Stage layout, viewed from the audience' });
   await expect(surface).toBeVisible();
@@ -40,7 +55,7 @@ test('demo audition animates room and plot while every live control keeps its st
   await expect(page.getByLabel('Audition effect', { exact: true })).toHaveCount(0);
   expect(await protectedState(request)).toEqual(before);
   expect(writes).toEqual([]);
-});
+}
 
 test('palette sliders preserve auxiliary emitters and hue pair is a draft until applied', async ({ page, request }) => {
   const before = await protectedState(request), writes = watchControlWrites(page);
