@@ -28,8 +28,7 @@ export const DOMAIN_OF: Readonly<Record<string, Domain>> = {
 
   cues: 'show',
 
-  spotify: 'sources', nowPlaying: 'sources',
-  hybrid: 'sources', deezer: 'sources', prolink: 'sources', live: 'sources',
+  live: 'sources',
   midi: 'sources',
 
   audio: 'audio',

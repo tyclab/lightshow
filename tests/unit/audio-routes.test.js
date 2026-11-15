@@ -66,33 +66,16 @@ async function serve({ now } = {}) {
   const spawned = [];
   const procs = [];
   const live = new LiveInput({ now, spawner: (exe, args) => { spawned.push(args); const p = fakeProcess(); procs.push(p); return p; } });
-  const idle = { onPlaybackUpdate() {}, onTrackChange() {}, getStatus: () => ({}), authenticated: false };
-  const autoShow = {
-    running: false, track: null, syncOffsetMs: 0, autoSyncMs: 0, analysis: null,
-    getPositionMs: () => 0, getClientState: () => ({}), start() {}, stop() {},
-    isCached: () => false, gridFor: () => null, isPrefetching: () => false,
-    applyQueueOrder() {}, setPaletteSize() {}, setIntensity() {}, setSyncOffsetMs() {}, adjustAutoSync() {},
-  };
-  const prolink = {
-    connected: false, stale: false, lastError: null, getNumPeers: () => 0, getFollowed: () => null, getTrack: () => null,
-    getLoadedTracks: () => [], getTempo: () => 0, getPositionMs: () => 0,
-    onTempoChange() {}, onPeersChange() {}, onFollowChange() {}, onTrackChange() {}, onLoadedTracksChange() {}, onAnyTrackLoaded() {},
-  };
   const midi = { enabled: false, sendFeedback() {}, listPorts: () => [], onLearn() {}, close() {}, connect() { return true; }, setControlFeedback() {} };
   const app = express();
   app.use(express.json());
   const server = http.createServer(app);
   const io = new Server(server);
   const integrations = setupIntegrations({
-    io, midi,
-    spotify: { ...idle, startPolling() {}, async getQueue() { return []; } },
-    nowPlaying: idle,
-    deezerSource: { ...idle, getQueue: () => [], updatePlayback() {}, updateQueue() {}, disconnect() {} },
-    prolink, autoShow, liveInput: live,
+    io, midi, liveInput: live,
   });
   const applier = createApplier({
-    midi, spotify: { localCallbackUrl: '', setLoopbackPort() {}, configure() {} }, smtc: { start() {}, stop() {} },
-    live, deezer: { init: async () => {} }, applyPatch() {}, broadcast: () => integrations.broadcast(),
+    midi, live, applyPatch() {}, broadcast: () => integrations.broadcast(),
   });
   attachRoutes(app, { integrations, applier });
   attachSockets(io, { midi, integrations });

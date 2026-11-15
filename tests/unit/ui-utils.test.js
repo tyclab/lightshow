@@ -17,9 +17,9 @@ test('a whole tempo reads whole, anything else to a tenth', () => {
 });
 
 test('the clock badge names every source, and anything else as the free clock', () => {
-  assert.deepEqual(['cdj', 'live', 'tap'].map((id) => utils.clockSource(id).label), ['CDJ', 'LIVE', 'Tap']);
+  assert.deepEqual(['live', 'tap'].map((id) => utils.clockSource(id).label), ['LIVE', 'Tap']);
   assert.equal(utils.clockSource('live').locked, true);
-  assert.equal(utils.clockSource('track').id, 'tap', 'a source that is gone reads as the free clock');
+  for (const gone of ['auto', 'track', 'cdj']) assert.equal(utils.clockSource(gone).id, 'tap', `${gone}, a source that is gone, reads as the free clock`);
   assert.equal(utils.clockSource('tap').locked, false);
   assert.equal(utils.clockSource(undefined).id, 'tap');
   assert.equal(utils.clockSource('toString').id, 'tap', 'not a prototype key');

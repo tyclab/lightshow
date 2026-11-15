@@ -9,7 +9,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
 import { EventEmitter } from 'node:events';
-import { supervise, deezerArlSet, describeExit } from '../../src/supervisor.ts';
+import { supervise, describeExit } from '../../src/supervisor.ts';
 import { EXIT_CONFIG, listenToSupervisor } from '../../src/server/supervised.ts';
 
 const FAKE = path.join(import.meta.dirname, '..', 'helpers', 'fake-server.mjs');
@@ -137,22 +137,10 @@ test('the server hears a stop, and its supervisor going, over the channel', () =
   assert.doesNotThrow(() => listenToSupervisor({ stop() {}, gone() {} }, null), 'without a supervisor, nothing to hear');
 });
 
-test('the legacy OpenSSL provider only when a Deezer ARL is set', async (t) => {
-  const { supervisor, runs } = run(t, '0', { legacyProvider: () => true, execArgv: ['--openssl-legacy-provider', '--max-old-space-size=512'] });
+test('the server runs with the Node flags the supervisor was given', async (t) => {
+  const { supervisor, runs } = run(t, '0', { execArgv: ['--max-old-space-size=512'] });
   await supervisor.done;
-  assert.deepEqual(runs()[0].execArgv, ['--max-old-space-size=512', '--openssl-legacy-provider'], 'once, not twice');
-  const off = run(t, '0', { legacyProvider: () => false, execArgv: ['--openssl-legacy-provider'] });
-  await off.supervisor.done;
-  assert.deepEqual(off.runs()[0].execArgv, []);
-
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'arl-'));
-  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
-  const file = path.join(dir, 'settings.json');
-  assert.equal(deezerArlSet(file), false, 'no file');
-  fs.writeFileSync(file, JSON.stringify({ deezer: { arl: '  ' } }));
-  assert.equal(deezerArlSet(file), false, 'blank');
-  fs.writeFileSync(file, JSON.stringify({ deezer: { arl: 'abc' } }));
-  assert.equal(deezerArlSet(file), true);
+  assert.deepEqual(runs()[0].execArgv, ['--max-old-space-size=512']);
 });
 
 test('why a run ended, in words', () => {

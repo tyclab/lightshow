@@ -145,7 +145,6 @@ const patchSchema = z.object({
   palette: z.string().min(1).max(64).nullable().optional(),
   paletteSize: z.union([z.literal(2), z.literal(3), z.literal(4)]).optional(),
   artnet: artnetSchema.optional(),
-  prolinkEnabled: z.boolean().optional(),
 }).strict();
 
 const overrideSchema = z.object({
@@ -356,24 +355,6 @@ const showSchema = z.object({
   })).optional(),
 }).passthrough();
 
-const deezerTrackSchema = z.object({
-  name: z.string().max(512).optional(),
-  title: z.string().max(512).optional(),
-  artist: z.string().max(512).optional(),
-  album: z.string().max(512).optional(),
-  albumArt: z.string().max(2048).nullable().optional(),
-  isrc: z.string().max(32).nullable().optional(),
-  trackId: z.union([z.string().max(128), z.number()]).nullable().optional(),
-  durationMs: z.number().nonnegative().max(24 * 60 * 60 * 1000).optional(),
-  progressMs: z.number().nonnegative().max(24 * 60 * 60 * 1000).optional(),
-  isPlaying: z.boolean().optional(),
-}).passthrough();
-
-const deezerStateSchema = z.object({
-  current: deezerTrackSchema.nullable().optional(),
-  upcoming: z.array(deezerTrackSchema).max(50).optional(),
-}).passthrough();
-
 const midiConnectSchema = z.object({
   input: z.string().nullable().optional(),
   output: z.string().nullable().optional(),
@@ -467,7 +448,6 @@ export type FixtureEdit = z.output<typeof fixtureMessageSchema>;
 export type FixtureRestore = z.output<typeof fixtureRestoreSchema>;
 export type ProfileInput = z.output<typeof profileSchema>;
 export type ShowFile = z.output<typeof showSchema>;
-export type DeezerState = z.output<typeof deezerStateSchema>;
 
 export {
   pictureSourceSchema,
@@ -477,7 +457,6 @@ export {
   hexColour,
   paletteOverride,
   patchSchema,
-  deezerStateSchema,
   overrideSchema,
   overrideMessageSchema,
   fixtureMessageSchema,

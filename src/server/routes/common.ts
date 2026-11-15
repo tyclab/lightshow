@@ -7,11 +7,7 @@ import { listEntertainmentConfigs, pair } from '../hue.ts';
 import * as output from '../output.ts';
 import type { HueBridgeSettings } from '../settings.ts';
 import type { CueStore } from '../cues.ts';
-import type DeezerSource from '../../deezer-source.ts';
 import type MidiController from '../../midi.ts';
-import type NowPlayingSource from '../../nowplaying-source.ts';
-import type ProLink from '../../prolink.ts';
-import type SpotifyClient from '../../spotify.ts';
 import type { ArmOrigin, createApplier } from '../apply.ts';
 import type { setupIntegrations } from '../integrations.ts';
 import type { WledClient } from '../wled.ts';
@@ -20,10 +16,6 @@ import type { RoomSceneStore } from '../room-scene-store.ts';
 
 export interface RouteDeps {
   midi: MidiController;
-  spotify: SpotifyClient;
-  nowPlaying: NowPlayingSource;
-  deezerSource: DeezerSource;
-  prolink: ProLink;
   integrations: ReturnType<typeof setupIntegrations>;
   applier: ReturnType<typeof createApplier>;
   wled?: WledClient;

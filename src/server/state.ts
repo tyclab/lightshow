@@ -65,7 +65,6 @@ export interface ShowState {
   effectColours: EffectColours | null;
   basePalette: PaletteBody | null;
   overridePalette: PaletteBody | null;
-  prolinkEnabled: boolean;
   fixtures: Fixture[];
   nextFixtureId: number;
   showDynamics: ShowDynamics | null;
@@ -112,7 +111,6 @@ const state: ShowState = {
   effectColours: null,
   basePalette: null,
   overridePalette: null,
-  prolinkEnabled: false,
   fixtures: [],
   // Hue, MIDI and cues refer to fixtures by id, so ids survive deletes and reorders.
   nextFixtureId: 4,
@@ -312,7 +310,7 @@ function clockState(): { source: ClockSource; bpm: number; byHand: boolean; beat
   return { ...conductor.status(), byHand: conductor.byHand(), beatPos, epoch, at };
 }
 
-// The heavyweight fields (the live input, pads, sequences, cues, the track sources), from the integrations.
+// The heavyweight fields (the live input, pads, sequences, cues), from the integrations.
 let extrasProvider: () => Record<string, unknown> = () => ({});
 
 function setExtrasProvider(fn: () => Record<string, unknown>): void { extrasProvider = fn; }

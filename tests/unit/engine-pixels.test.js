@@ -43,11 +43,11 @@ test.before(() => {
   registerProfile(PANEL);
   saved = { fixtures: state.fixtures, artnet: state.artnet.enabled };
   state.artnet.enabled = false;
-  conductor.setProlinkSource(() => ({ beatPos: beat, bpm: 120 }));
+  conductor.setLiveSource(() => ({ beatPos: beat, bpm: 120 }));
 });
 test.after(() => {
   performance.now = realNow;
-  conductor.setProlinkSource(null);
+  conductor.setLiveSource(null);
   state.fixtures = saved.fixtures;
   state.artnet.enabled = saved.artnet;
   resizeFixtureBuffers();

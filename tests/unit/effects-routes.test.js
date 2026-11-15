@@ -55,17 +55,11 @@ async function serve(t, { cues } = {}) {
   const effectLibrary = new EffectLibrary(path.join(dir, 'effects.json')).load();
   // Every random colour an activation rolls comes from this seed, so a test knows the colours.
   const paletteStore = new PaletteStore(path.join(dir, 'palettes.json'), { seed: () => [...SEED] }).load();
-  const idle = { onPlaybackUpdate() {}, onTrackChange() {}, getStatus: () => ({}), authenticated: false };
   const autoShow = {
     running: false, track: null, syncOffsetMs: 0, autoSyncMs: 0, analysis: null,
     getPositionMs: () => 0, getClientState: () => ({}), start() {}, stop() {},
     isCached: () => false, gridFor: () => null, isPrefetching: () => false,
     applyQueueOrder() {}, setPaletteSize() {}, setIntensity() {}, setSyncOffsetMs() {}, adjustAutoSync() {},
-  };
-  const prolink = {
-    connected: false, stale: false, lastError: null, getNumPeers: () => 0, getFollowed: () => null, getTrack: () => null,
-    getLoadedTracks: () => [], getTempo: () => 0, getPositionMs: () => 0,
-    onTempoChange() {}, onPeersChange() {}, onFollowChange() {}, onTrackChange() {}, onLoadedTracksChange() {}, onAnyTrackLoaded() {},
   };
   const midi = { enabled: false, sendFeedback() {}, listPorts: () => [], onLearn() {}, close() {}, connect() { return true; }, setControlFeedback() {} };
   const app = express();
@@ -73,11 +67,7 @@ async function serve(t, { cues } = {}) {
   const server = http.createServer(app);
   const io = new Server(server);
   const integrations = setupIntegrations({
-    io, midi,
-    spotify: { ...idle, startPolling() {}, async getQueue() { return []; } },
-    nowPlaying: idle,
-    deezerSource: { ...idle, getQueue: () => [], updatePlayback() {}, updateQueue() {}, disconnect() {} },
-    prolink, autoShow, effectLibrary, paletteStore, sequenceStore: new SequenceStore(path.join(dir, 'sequences.json')).load(),
+    io, midi, effectLibrary, paletteStore, sequenceStore: new SequenceStore(path.join(dir, 'sequences.json')).load(),
   });
   const applier = { applyChanged() {}, disarmed() {} };
   // The MIDI busking surface drives the production control coordinator, so the routes get the real one.
@@ -105,7 +95,7 @@ async function serve(t, { cues } = {}) {
   const call = (method, route, body) => fetch(`${url}${route}`, {
     method, headers: { 'Content-Type': 'application/json' }, body: body === undefined ? undefined : JSON.stringify(body),
   }).then(async (res) => ({ status: res.status, body: await res.json() }));
-  return { call, integrations, effectLibrary, paletteStore, dir, io, midi, autoShow, url };
+  return { call, integrations, effectLibrary, paletteStore, dir, io, midi, url };
 }
 
 const FADE = { kind: 'ldj.FadeCycle', params: { cadence: 2 } };

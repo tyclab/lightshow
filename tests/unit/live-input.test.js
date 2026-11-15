@@ -630,17 +630,12 @@ test('each process names its samples anew, and a restarted server with a clock t
 
 // ── The pattern clock ─────────────────────────────────────────────────────────
 
-test('the pattern clock follows the live beat when nothing better knows the music', () => {
+test('the pattern clock follows the live beat', () => {
   let now = 1000;
   const conductor = new Conductor({ now: () => now, bpm: 100 });
   let live = { beatPos: 12.25, bpm: 126 };
   conductor.setLiveSource(() => live);
   assert.deepStrictEqual((({ source, beatPos, bpm }) => ({ source, beatPos, bpm }))(conductor.now()), { source: 'live', beatPos: 12.25, bpm: 126 });
-
-  // A deck outranks it.
-  conductor.setProlinkSource(() => ({ beatPos: 3, bpm: 128 }));
-  assert.strictEqual(conductor.now().source, 'cdj');
-  conductor.setProlinkSource(null);
 
   // Lost: the free clock carries on from where the live beat was.
   now += 10;

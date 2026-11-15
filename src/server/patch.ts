@@ -23,8 +23,6 @@ import type { SettingsPatch } from './settings.ts';
 /** What the rest of the server does when a patch touches it (set by integrations). */
 export interface PatchHooks {
   palette(id: string): PaletteBody | null;
-  prolinkEnable(): void;
-  prolinkDisable(): void;
   broadcast(): void;
   showChanged(): void;
   /** A hand on the master or the tempo (not the sequence's own change): the sequencer ends that automation. */
@@ -42,8 +40,6 @@ const hooks: PatchHooks = {
     const { id: _id, name: _name, app: _app, ...body } = entry;
     return materializePalette({ ...body, colours: [...body.colours] });
   },
-  prolinkEnable: () => {},
-  prolinkDisable: () => {},
   broadcast: () => {},
   // Registered by server.js: the show store reads this module, so importing it here is a cycle.
   showChanged: () => {},
@@ -53,7 +49,7 @@ const hooks: PatchHooks = {
 
 function setHooks(partial: Partial<PatchHooks>): void { Object.assign(hooks, partial); }
 
-// Socket edits to Art-Net and PRO DJ LINK persist too, or a restart reverts them.
+// A tempo mode changed over the socket persists too, or a restart reverts it.
 let persist: (partial: SettingsPatch) => void = () => {};
 function setPersist(fn: (partial: SettingsPatch) => void): void { persist = fn; }
 
@@ -206,18 +202,6 @@ function applyPatch(rawData: unknown, { beforeCommit, origin = 'hand', paletteOv
   }
   // An id that is no energy effect takes the latched one off.
   if (data.energyOverride !== undefined) latchEnergy(data.energyOverride);
-
-  if (data.prolinkEnabled !== undefined) {
-    if (data.prolinkEnabled && !state.prolinkEnabled) {
-      state.prolinkEnabled = true;
-      persist({ sources: { prolink: true } });
-      hooks.prolinkEnable();
-    } else if (!data.prolinkEnabled && state.prolinkEnabled) {
-      state.prolinkEnabled = false;
-      persist({ sources: { prolink: false } });
-      hooks.prolinkDisable();
-    }
-  }
 
   if (origin === 'sequence') return data;
   if (data.pattern !== undefined) hooks.handLook();

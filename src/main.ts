@@ -8,14 +8,8 @@ import compression from 'compression';
 import { Server } from 'socket.io';
 
 import MidiController, { openMidiOutput } from './midi.ts';
-import ProLink from './prolink.ts';
 import LiveInput from './live-input.ts';
 import MidiClock from './midi-clock.ts';
-import SpotifyClient from './spotify.ts';
-import NowPlayingSource from './nowplaying-source.ts';
-import { createOsNowPlaying, osNowPlayingKind } from './os-now-playing.ts';
-import DeezerSource from './deezer-source.ts';
-import * as deezer from './deezer.ts';
 
 import { state, voices } from './server/state.ts';
 import { startEngine, stopEngine, publishRigRevision, waitForEngineReady } from './server/engine.ts';
@@ -102,28 +96,20 @@ midi.recallCue = (id) => {
   if (!cues.recall(id)) console.warn(`[MIDI] recallCue: no cue ${id} — it may have been deleted`);
 };
 
-const prolink = new ProLink();
 const liveInput = new LiveInput();
-const spotify = new SpotifyClient();
-const nowPlaying = new NowPlayingSource();
-const deezerSource = new DeezerSource();
 
-const integrations = setupIntegrations({ io, midi, spotify, nowPlaying, deezerSource, prolink, liveInput });
+const integrations = setupIntegrations({ io, midi, liveInput });
 
-conductor.setProlinkSource(() => (state.prolinkEnabled ? prolink.getBeatReading() : null));
 conductor.setLiveSource(() => liveInput.getBeatReading());
 const midiClock = new MidiClock({ open: openMidiOutput, beatPos: () => conductor.peek().beatPos });
 conductor.onTempo((bpm) => { state.bpm = bpm; });
-
-const smtc = createOsNowPlaying();
-smtc.onUpdate((payload) => nowPlaying.updatePlayback(payload));
 
 const patchRestored = showStore.restore();
 // Recovery checks the saved patch, so it opens after the patch is restored.
 integrations.sequence.workspace?.open();
 
 const applier = createApplier({
-  midi, spotify, smtc, live: liveInput, midiClock, deezer, applyPatch,
+  midi, live: liveInput, midiClock, applyPatch,
   broadcast: () => integrations.broadcast(),
 });
 applier.applyAll();
@@ -141,15 +127,9 @@ if (savedLook && putBack(savedLook)) {
   console.log(`[look] put back the look from ${savedLook.savedAt}, before the restart`);
 }
 
-// Persist refresh-token changes because short-lived access tokens cannot survive between shows.
-spotify.onTokens((refreshToken) => {
-  try { settings.update({ spotify: { refreshToken } }); }
-  catch (err) { console.warn(`[spotify] could not save the session: ${messageOf(err)}`); }
-});
-
 configureControls({ integrations, applier }, () => { lookStore.save(currentLook()); });
 
-attachRoutes(app, { midi, spotify, nowPlaying, deezerSource, prolink, integrations, applier, restart: restartServer });
+attachRoutes(app, { midi, integrations, applier, restart: restartServer });
 // Disarmed, a show with no control action and no page input for outputs.idleStopMin minutes is stopped as the header's Stop does.
 const idleStop = createIdleStop({
   now: () => performance.now(),
@@ -189,27 +169,6 @@ startWledWatch({ boards: () => wledBoards(state.fixtures), armed: isArmed });
 // Read-only too: another app streaming on a bridge is reported, never stopped.
 startHueAreaWatch();
 
-// Do not await Spotify sign-in because network failures must not prevent the rig from starting.
-function restoreSpotifySession() {
-  const stored = settings.get('spotify.refreshToken');
-  if (!stored || !spotify.configured) return;
-
-  spotify.restoreSession(stored)
-    .then((ok) => {
-      if (!ok) return;
-      spotify.startPolling();
-      integrations.broadcast();
-      console.log('  Spotify           →  reconnected from the saved session');
-    })
-    .catch((err) => {
-      if (err && err.status >= 400 && err.status < 500) {
-        console.warn(`[spotify] saved session is no longer valid (${err.message}) — reconnect at /auth/spotify`);
-      } else {
-        console.warn(`[spotify] could not reconnect the saved session: ${err.message} — it will be retried on the next start`);
-      }
-    });
-}
-
 const PORT = settings.get('server.port');
 
 server.on('error', (err: NodeJS.ErrnoException) => {
@@ -226,10 +185,8 @@ server.on('error', (err: NodeJS.ErrnoException) => {
 
 server.listen(PORT, HOST, () => {
   startHeartbeat();
-  applier.refreshCallbackUrl();
 
   const shownHost = isLoopback(HOST) ? 'localhost' : HOST;
-  const smtcEnabled = settings.get('sources.smtc');
 
   console.log(`\n  TycStation Lightshow  →  http://${shownHost}:${PORT}`);
   console.log(`  Setup             →  http://${shownHost}:${PORT}/#rig  (the Rig, Sources and Settings views)`);
@@ -247,24 +204,8 @@ server.listen(PORT, HOST, () => {
     + `  [${patchRestored ? `saved patch, ${SHOW_FILE}` : 'default patch — saved as you change it'}]`);
   console.log(`  MIDI              →  ${midi.enabled ? 'connected' : 'not connected (pick a port under Settings → MIDI controller)'}`
     + `  [${midiMap.snapshot().customised ? 'custom map' : 'default X-Touch map'}]`);
-  console.log(`  PRO DJ LINK       →  ${state.prolinkEnabled ? 'enabled' : 'disabled (enable it under Sources)'}`);
-  console.log(`  Spotify           →  ${spotify.configured ? 'configured (visit /auth/spotify to connect)' : 'not configured (add a client ID & secret under Sources)'}`);
-  if (spotify.configured) {
-    console.log(`  Spotify auth      →  ${spotify.usingProxy ? `via proxy ${spotify.proxyBase}` : 'direct (no proxy)'}`);
-    console.log(`  Spotify redirect  →  register this URL in your Spotify dashboard:`);
-    console.log(`                       ${spotify.redirectUri}`);
-  }
-  console.log(`  Deezer            →  ${settings.get('deezer.arl') ? 'configured (ISRC-based downloads)' : 'not configured (add an ARL under Sources — falls back to yt-dlp)'}`);
-  const npKind = osNowPlayingKind();
-  const npStatus = !npKind
-    ? 'unavailable (Windows and Linux only)'
-    : !smtcEnabled ? 'disabled in settings'
-      : npKind === 'SMTC' ? 'reading OS media session (SMTC)' : 'reading MPRIS players on the session bus';
-  console.log(`  Now Playing       →  ${npStatus}`);
   console.log(`  Python            →  ${pythonEnv.describe()}`);
   console.log(`  Auto Show         →  by ear, from the live input\n`);
-
-  restoreSpotifySession();
 
   pythonEnv.warnIfUnusable();
 });
@@ -280,11 +221,6 @@ function shutdown(signal: string, exitCode = 0): void {
   for (const [what, fn] of [
     ['engine', () => { engineDown = stopEngine(); }],
     ['artnet', () => artnetDiscovery.stop()],
-    ['smtc', () => smtc.stop()],
-    ['spotify', () => spotify.disconnect()],
-    ['nowPlaying', () => nowPlaying.disconnect()],
-    ['deezer', () => deezerSource.disconnect()],
-    ['prolink', () => prolink.destroy()],
     ['live input', () => liveInput.stop()],
     ['midi clock', () => midiClock.stop()],
     ['midi', () => midi.close()],

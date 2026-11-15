@@ -28,15 +28,12 @@ import type { DdpOutput, Fixture } from '../types/rig.ts';
 import { cues } from './cues.ts';
 import { midiMap } from './midi-map.ts';
 import * as pythonEnv from '../python-env.ts';
-import * as ytdlp from '../ytdlp.ts';
-import * as tools from '../tools.ts';
 import { codeOf, messageOf } from '../errors.ts';
 import { listLiveDevices, findLiveDevice } from '../live-input.ts';
 import type { LiveDevices } from '../live-input.ts';
 import type { ChildProcessWithoutNullStreams } from 'node:child_process';
 import type { EngineStatus } from './engine.ts';
 import { isLoopback } from './loopback.ts';
-import { osNowPlayingKind } from '../os-now-playing.ts';
 
 export type CheckStatus = 'ok' | 'warn' | 'fail' | 'info';
 
@@ -68,8 +65,6 @@ export interface PreflightReport {
 /** The live subsystems the checks read, when there are any (none from the CLI). */
 export interface PreflightSubjects {
   midi?: { enabled: boolean; listPorts(): { inputs: string[] } } | null;
-  spotify?: { authenticated?: boolean; configured?: boolean } | null;
-  prolink?: { connected?: boolean } | null;
   standalone?: boolean;
 }
 
@@ -78,9 +73,8 @@ export interface PreflightSubjects {
  * The check you run before doors open.
  *
  * Every piece of this stack degrades quietly by design: Art-Net send failures
- * are logged and the render loop carries on, a Python without the live input's
- * packages only surfaces when the input is turned on, an absent ffmpeg only
- * surfaces when the first track downloads. Individually that is the right
+ * are logged and the render loop carries on, and a Python without the live
+ * input's packages only surfaces when the input is turned on. Individually that is the right
  * behaviour — none of it should take the show down mid-set. Collectively it
  * means the first sign of a broken rig is the rig not working, in front of an
  * audience.
@@ -708,55 +702,6 @@ function checkPython(): Check {
   };
 }
 
-async function checkFfmpeg(): Promise<Check> {
-  // On PATH, else the one the analysis environment installs (tools.ts).
-  const found = await tools.ffmpeg();
-  const r = await probeCommand(found ? found.command : 'ffmpeg', ['-version']);
-  if (!r.ok) {
-    return {
-      id: 'ffmpeg', label: 'ffmpeg', status: FAIL,
-      detail: `Not usable — ${r.error}. Downloaded audio cannot be decoded, so no track will analyse.`,
-      fix: 'Set up the analysis environment (Sources → Analysis), which includes one, or install ffmpeg with your '
-        + 'package manager and make sure it is on PATH.',
-    };
-  }
-  const where = found && found.from === 'environment' ? ' — from the analysis environment' : '';
-  return { id: 'ffmpeg', label: 'ffmpeg', status: OK, detail: `${r.version ?? ''}${where}` };
-}
-
-async function checkYtDlp(): Promise<Check> {
-  // On PATH, else the one the analysis environment installs (tools.ts).
-  const found = await ytdlp.find();
-  const r = await probeCommand(found ? found.command : 'yt-dlp', ['--version']);
-  if (!r.ok) {
-    const hasDeezer = !!settings.get('deezer.arl');
-    return {
-      id: 'yt-dlp', label: 'yt-dlp', status: hasDeezer ? WARN : FAIL,
-      detail: `Not usable — ${r.error}. `
-        + (hasDeezer
-          ? 'Deezer is configured, so ISRC-matched tracks still download; anything Deezer cannot match will fail.'
-          : 'Nothing can be downloaded for analysis.'),
-      fix: 'Set up the analysis environment (Sources → Analysis), which installs it, or '
-        + 'pip install -U "yt-dlp[default]"  (or download it from https://github.com/yt-dlp/yt-dlp)',
-    };
-  }
-  // Since 2025.11.12 YouTube needs a JavaScript runtime, which the server
-  // hands yt-dlp itself (see src/ytdlp.ts) — but an older yt-dlp can neither
-  // use one nor keep up with YouTube's current challenges.
-  if (!ytdlp.needsJsRuntime(r.version ?? '')) {
-    return {
-      id: 'yt-dlp', label: 'yt-dlp', status: WARN,
-      detail: `version ${r.version} predates ${ytdlp.JS_RUNTIME_SINCE}; YouTube downloads are likely to fail.`,
-      fix: 'pip install -U "yt-dlp[default]"  (or download the latest from https://github.com/yt-dlp/yt-dlp)',
-    };
-  }
-  const where = found && found.from === 'environment' ? ' from the analysis environment' : '';
-  return {
-    id: 'yt-dlp', label: 'yt-dlp', status: OK,
-    detail: `version ${r.version}${where}, JavaScript runtime: ${ytdlp.runtimeName()}.`,
-  };
-}
-
 function checkMidi(midi: PreflightSubjects['midi']): Check {
   if (!midi) return { id: 'midi', label: 'MIDI', status: INFO, detail: 'Not available.' };
 
@@ -784,26 +729,6 @@ function checkMidi(midi: PreflightSubjects['midi']): Check {
       : `"${wanted}" is not among the available inputs (${ports.inputs.join(', ') || 'none'}).`,
     fix: 'Plug the controller in and reconnect it in Settings → MIDI.',
   };
-}
-
-function checkPlaybackSources({ spotify, prolink }: Pick<PreflightSubjects, 'spotify' | 'prolink'> = {}): Check {
-  const configured: string[] = [];
-  if (spotify && spotify.authenticated) configured.push('Spotify (connected)');
-  else if (spotify && spotify.configured) configured.push('Spotify (configured, not connected — visit /auth/spotify)');
-  if (prolink && prolink.connected) configured.push('PRO DJ LINK (connected)');
-  else if (state.prolinkEnabled) configured.push('PRO DJ LINK (enabled, no CDJs seen yet)');
-  const osKind = osNowPlayingKind();
-  if (settings.get('sources.smtc') && osKind) configured.push(`Now playing (${osKind})`);
-  if (settings.get('deezer.arl')) configured.push('Deezer ARL (exact ISRC audio)');
-
-  if (!configured.length) {
-    return {
-      id: 'sources', label: 'Playback sources', status: WARN,
-      detail: 'None connected. The auto-show can only run against a wall clock (the "timer" source).',
-      fix: 'Connect a source in Settings → Playback Sources, or drive the show manually.',
-    };
-  }
-  return { id: 'sources', label: 'Playback sources', status: OK, detail: configured.join(', ') };
 }
 
 /**
@@ -892,18 +817,16 @@ function checkCues(): Check {
  * callable both from the server (which has live ones) and from the CLI (which
  * has none, and reports the checks that do not need them).
  */
-async function runPreflight({ midi, spotify, prolink, standalone = false }:
+async function runPreflight({ midi, standalone = false }:
   PreflightSubjects = {}): Promise<PreflightReport> {
   // The external-tool probes are independent and each costs a process spawn;
   // run them together rather than serially in front of an operator waiting on
   // the report.
-  const [artnet, hue, wled, openrgb, ffmpeg, ytDlp, live] = await Promise.all([
+  const [artnet, hue, wled, openrgb, live] = await Promise.all([
     checkArtnet(),
     checkHue(),
     checkWled(),
     checkOpenRgb(),
-    checkFfmpeg(),
-    checkYtDlp(),
     checkLiveInput(),
   ]);
 
@@ -924,9 +847,6 @@ async function runPreflight({ midi, spotify, prolink, standalone = false }:
     checkAccess(),
     checkMidi(midi),
     checkPython(),
-    ffmpeg,
-    ytDlp,
-    checkPlaybackSources({ spotify, prolink }),
     live,
     checkCues(),
   ];

@@ -79,15 +79,6 @@ test('stopping the patterns freezes the free clock', () => {
   assert.ok(close(r.c.now().beatPos, 3));
 });
 
-test('a playing CDJ beats the live input', () => {
-  const r = rig();
-  live(r);
-  assert.strictEqual(r.c.now().source, 'live');
-  r.c.setProlinkSource(() => ({ beatPos: 42.5, bpm: 126 }));
-  const reading = r.c.now();
-  assert.deepStrictEqual([reading.source, reading.beatPos, reading.bpm], ['cdj', 42.5, 126]);
-});
-
 // Stopping the auto show mid-song must not make the rig lurch: the free clock
 // picks up the beat and the tempo it had reached.
 test('when a source stops, the free clock carries on from where it was', () => {
@@ -122,21 +113,10 @@ test('a seek or a jump starts a new epoch; steady playback does not', () => {
 // Stopping the auto show on a song the clock then follows by itself is the
 // same beats read off the same grid: the chase must not restart for it. A
 // source that counts from somewhere else entirely is a new start.
-test('a hand-over between sources that agree keeps the count going', () => {
+test('locking onto the live input far from the free count is a new start', () => {
   const r = rig({ bpm: 90 });
   live(r, { beat: 20 });
-  let deck = true;
-  r.c.setProlinkSource(() => (deck ? { beatPos: 20 + ((r.t - 1000) / 60000) * 128, bpm: 128 } : null));
-  const first = r.c.now();
-  assert.strictEqual(first.source, 'cdj');
-
-  deck = false;
-  r.advance(25);
-  const after = r.c.now();
-  assert.strictEqual(after.source, 'live');
-  assert.strictEqual(after.epoch, first.epoch, 'the same beats, no restart');
-
-  // Free-running far from the live count, then locking to it: a new start.
+  assert.strictEqual(r.c.now().source, 'live');
   r.c.setLiveSource(null);
   for (let i = 0; i < 400; i++) { r.advance(25); r.c.now(); }
   const free = r.c.now();

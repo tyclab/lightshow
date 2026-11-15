@@ -12,7 +12,6 @@ import { LookCoverage } from './look-coverage.ts';
 import { guarded } from './guard.ts';
 import { FRAME_MS } from './frame-clock.ts';
 import { cues } from './cues.ts';
-import HybridSource from '../hybrid-source.ts';
 import { messageOf } from '../errors.ts';
 import LiveDirector from '../show/live-director.ts';
 import { SPATIAL_AUTO_PATTERNS } from '../show/look.ts';
@@ -39,14 +38,9 @@ import { setAwakeProvider, setLiveProvider } from './health.ts';
 import { toHex } from '../shared/effects/palette.ts';
 import { configFile } from './config-dir.ts';
 import type { Server } from 'socket.io';
-import type DeezerSource from '../deezer-source.ts';
 import type MidiController from '../midi.ts';
-import type NowPlayingSource from '../nowplaying-source.ts';
-import type ProLink from '../prolink.ts';
 import type LiveInput from '../live-input.ts';
 import type { LiveReading, LiveSamples } from '../live-input.ts';
-import type SpotifyClient from '../spotify.ts';
-import type { DeezerState } from './validation.ts';
 import type { AudioFrame } from '../shared/effects/audio-frame.ts';
 import type { Detectors } from './audio-features.ts';
 import type { EffectSpec } from '../shared/effects/types.ts';
@@ -54,10 +48,6 @@ import type { EffectSpec } from '../shared/effects/types.ts';
 export interface IntegrationDeps {
   io: Server;
   midi: MidiController;
-  spotify: SpotifyClient;
-  nowPlaying: NowPlayingSource;
-  deezerSource: DeezerSource;
-  prolink: ProLink;
   liveInput?: LiveInput | null;
   effectLibrary?: EffectLibrary | null;
   paletteStore?: PaletteStore | null;
@@ -65,7 +55,7 @@ export interface IntegrationDeps {
   sequenceStore?: SequenceStore | null;
 }
 
-function setupIntegrations({ io, midi, spotify, nowPlaying, deezerSource, prolink,
+function setupIntegrations({ io, midi,
   liveInput = null, effectLibrary = null, paletteStore = null, padStore = null, sequenceStore = null }: IntegrationDeps) {
   const library = {
     effects: effectLibrary ?? new EffectLibrary(configFile('effects.json')).load(),
@@ -193,7 +183,6 @@ function setupIntegrations({ io, midi, spotify, nowPlaying, deezerSource, prolin
   });
   setSequenceProvider(() => sequence.sequencer.status());
   setSequenceRuns(() => sequence.sequencer.runs());
-  const hybrid = new HybridSource();
 
   const publisher = createPublisher(io);
   // A stop request outlives identify until the next start, so only fixtures still being identified count.
@@ -215,21 +204,6 @@ function setupIntegrations({ io, midi, spotify, nowPlaying, deezerSource, prolin
 
   function extras() {
     return {
-      spotify: spotify.getStatus(),
-      nowPlaying: nowPlaying.getStatus(),
-      hybrid: hybrid.getStatus(),
-      deezer: deezerSource.getStatus(),
-      prolink: {
-        enabled: state.prolinkEnabled,
-        connected: prolink.connected,
-        peers: prolink.getNumPeers(),
-        followed: prolink.getFollowed(),
-        track: prolink.getTrack(),
-        loadedTracks: prolink.getLoadedTracks(),
-        bpm: prolink.getTempo(),
-        stale: prolink.stale,
-        lastError: prolink.lastError,
-      },
       live: liveInput ? { ...liveInput.status(), director: liveDirector ? liveDirector.status() : null } : null,
       audio: liveAudio(),
       liveAutomation: liveAutomation.status(),
@@ -256,16 +230,6 @@ function setupIntegrations({ io, midi, spotify, nowPlaying, deezerSource, prolin
     broadcast,
     handEdit: (edit) => { sequence.sequencer.handEdit(edit); liveAutomation.handEdit(edit); },
     handLook: () => { if (!directing) holdLook(); },
-    prolinkEnable: () => {
-      prolink.enable().catch((err) => {
-        console.error('PRO DJ LINK enable failed:', messageOf(err));
-        state.prolinkEnabled = false;
-        broadcast();
-      });
-    },
-    prolinkDisable: () => {
-      prolink.disable().catch(() => { /* ignore */ });
-    },
   });
 
   function liveListening(): boolean {
@@ -390,23 +354,6 @@ function setupIntegrations({ io, midi, spotify, nowPlaying, deezerSource, prolin
     return audioSummary(heardThen);
   }
 
-  prolink.onTempoChange((bpm) => {
-    if (!state.prolinkEnabled) return;
-    const tempo = Math.round(bpm * 100) / 100;
-    if (tempo >= 20 && tempo <= 300 && Math.abs(tempo - state.bpm) >= 0.05
-      && conductor.setBpm(tempo, { manual: false })) {
-      state.bpm = tempo;
-      broadcast();
-    }
-  });
-  prolink.onPeersChange((peers) => {
-    console.log(`PRO DJ LINK devices: ${peers}`);
-    broadcast();
-  });
-  prolink.onFollowChange(() => broadcast());
-
-  prolink.onLoadedTracksChange(() => broadcast());
-
   let liveTimer: ReturnType<typeof setInterval> | null = null;
   if (liveInput) {
     liveInput.onStatus(() => broadcast());
@@ -417,16 +364,6 @@ function setupIntegrations({ io, midi, spotify, nowPlaying, deezerSource, prolin
     }), 1000);
     liveTimer.unref();
   }
-
-  spotify.onPlaybackUpdate((playing) => {
-    // Feed the hybrid source even when inactive so switching to it retains a warm clock.
-    hybrid.observeContent(playing,
-      typeof playing.sampledAt === 'number' && Number.isFinite(playing.sampledAt) ? playing.sampledAt : undefined);
-  });
-
-  nowPlaying.onPlaybackUpdate((playing) => {
-    hybrid.observeSession(playing);
-  });
 
   // Sample at the engine's frame period so the Stage preview sees every frame Art-Net sends.
   const dmxFrameTimer = setInterval(guarded('dmx-frame', () => {
@@ -482,20 +419,10 @@ function setupIntegrations({ io, midi, spotify, nowPlaying, deezerSource, prolin
     library,
     pads,
     sequence,
-    hybrid,
     startAutoShow,
     stopAutoShow,
     liveListening,
     lookCoverage,
-    onDeezerState(payload: DeezerState | null | undefined) {
-      if (!payload) return;
-      if (payload.current) deezerSource.updatePlayback(payload.current);
-      deezerSource.updateQueue(payload.upcoming || []);
-    },
-    onDeezerDisconnect() {
-      deezerSource.disconnect();
-      broadcast();
-    },
   };
 }
 

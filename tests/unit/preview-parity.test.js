@@ -214,7 +214,7 @@ test('rig and preview agree on every cell of a bar', () => {
   registerProfile(BARE_BAR);
   const before = state.fixtures;
   let beat = 0;
-  conductor.setProlinkSource(() => ({ beatPos: beat, bpm: 120 }));
+  conductor.setLiveSource(() => ({ beatPos: beat, bpm: 120 }));
   try {
     stopEngine();                                   // one frame at a time from here
     state.fixtures = [
@@ -247,7 +247,7 @@ test('rig and preview agree on every cell of a bar', () => {
       }
     }
   } finally {
-    conductor.setProlinkSource(null);
+    conductor.setLiveSource(null);
     state.fixtures = before;
     resizeFixtureBuffers();
     unregisterProfile('parity-bar');

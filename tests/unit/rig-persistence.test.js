@@ -20,9 +20,7 @@ const original = snapshotShow();
 test.after(() => { applyShow(original); fs.rmSync(dir, { recursive: true, force: true }); });
 const show = (host, universe = 5) => ({ artnet: { ...state.artnet, host, universe }, fixtures: [{ id: 91, address: 1, universe: 42, profileId: 'generic-rgbw' }] });
 const deps = {
-  midi: { close() {}, connect() { return true; }, setControlFeedback() {} },
-  spotify: { localCallbackUrl: '', setLoopbackPort() {}, configure() {} },
-  smtc: { start() {}, stop() {} }, deezer: { init: async () => {} }, applyPatch() {}, broadcast() {},
+  midi: { close() {}, connect() { return true; }, setControlFeedback() {} }, applyPatch() {}, broadcast() {},
 };
 
 // Use a real builtin rather than coupling the fixture shape to a particular catalog name.

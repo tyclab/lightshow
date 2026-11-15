@@ -102,18 +102,6 @@ export const HUE = {
   ],
 };
 
-export const SOURCES = {
-  id: 'sources',
-  title: 'Playback sources',
-  desc: 'Which sources may drive the auto show. Takes effect immediately.',
-  fields: [
-    { path: 'sources.prolink', label: 'PRO DJ LINK', type: 'toggle', help: 'Follow CDJs on the network for tempo and track changes.' },
-    { path: 'sources.smtc', label: 'Now Playing', type: 'toggle',
-      help: 'Read the computer\'s media session — the Windows one, or the MPRIS players on Linux — so any player '
-        + 'drives the show. Not on macOS.' },
-  ],
-};
-
 export const LIVE = {
   id: 'live',
   title: 'Live input',
@@ -160,32 +148,6 @@ export const LIVE = {
         + 'when pip installed into a different Python than the one that gets picked. Used from the live input\'s next start.',
       note: pythonNote },
   ],
-};
-
-export const SPOTIFY = {
-  id: 'spotify',
-  title: 'Spotify',
-  desc: 'Credentials from your Spotify app dashboard. Register the redirect URI shown in the server log — by default '
-    + 'http://127.0.0.1:<port>/auth/spotify/callback.',
-  fields: [
-    { path: 'spotify.clientId', label: 'Client ID', type: 'text' },
-    { path: 'spotify.clientSecret', label: 'Client Secret', type: 'secret' },
-    { path: 'spotify.proxyBase', label: 'OAuth Proxy', type: 'text', placeholder: 'optional',
-      help: 'Leave blank to authorise straight against Spotify — it accepts a 127.0.0.1 redirect, so no relay is needed '
-        + 'when you connect from this machine. Set one only to connect from a different device.' },
-    { path: 'spotify.allowUnverifiedState', label: 'Allow Unverified State', type: 'toggle',
-      help: 'Only if a proxy strips the state parameter. Disables OAuth CSRF protection.' },
-  ],
-};
-
-export const DEEZER = {
-  id: 'deezer',
-  title: 'Deezer',
-  desc: 'An ARL cookie enables exact ISRC-matched audio. Without one, analysis falls back to a yt-dlp search. '
-    + 'The first ARL takes a restart: decrypting Deezer\'s audio needs an OpenSSL module the server only loads when '
-    + 'there is one. Downloading from Deezer this way is against its terms of use — the ARL is from your own account, '
-    + 'and the choice is yours.',
-  fields: [{ path: 'deezer.arl', label: 'ARL Cookie', type: 'secret' }],
 };
 
 export const SHOW = {
@@ -248,7 +210,7 @@ export const ENGINE = {
 export const MIDI_CLOCK = {
   id: 'midiClock',
   title: 'MIDI clock out',
-  desc: 'Send the tempo the lights keep — the show\'s, a CDJ\'s, the live input\'s or a tap — as MIDI clock, so a drum '
+  desc: 'Send the tempo the lights keep — the live input\'s or a tap — as MIDI clock, so a drum '
     + 'machine, a DAW or a visuals app plays in the same time. Takes effect immediately.',
   fields: [
     { path: 'midi.clockOutput', label: 'Clock Port', type: 'select',

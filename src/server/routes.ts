@@ -3,7 +3,7 @@ import { routeContext, errorHandler } from './routes/common.ts';
 import type { RouteDeps } from './routes/common.ts';
 import { attachLookRoutes } from './routes/look.ts';
 import { attachMidiRoutes } from './routes/midi.ts';
-import { attachSourceRoutes } from './routes/sources.ts';
+import { attachLiveRoutes } from './routes/live.ts';
 import { attachFixtureRoutes } from './routes/fixtures.ts';
 import { attachCueRoutes } from './routes/cues.ts';
 import { attachSetupRoutes } from './routes/setup.ts';
@@ -27,7 +27,7 @@ function attachRoutes(app: Express, deps: RouteDeps): void {
   attachControlRoutes(app);
   attachLookRoutes(app, ctx);
   attachMidiRoutes(app, ctx);
-  attachSourceRoutes(app, ctx);
+  attachLiveRoutes(app);
   attachFixtureRoutes(app, ctx);
   attachOpenRgbRoutes(app, ctx);
   attachCueRoutes(app, ctx);

@@ -15,26 +15,10 @@ const built = [];
 const remember = (integrations) => { built.push(integrations); return integrations; };
 test.afterEach(() => { for (const integrations of built.splice(0)) integrations.stopTimers(); });
 
-function source(extra = {}) {
-  return {
-    authenticated: false, configured: true,
-    onPlaybackUpdate() {}, onTrackChange() {}, getStatus: () => ({ configured: true, authenticated: false }), ...extra,
-  };
-}
-
 function build() {
-  const prolink = {
-    connected: false, stale: false, lastError: null,
-    getNumPeers: () => 0, getFollowed: () => null, getTrack: () => null, getLoadedTracks: () => [], getTempo: () => 0, getPositionMs: () => 0,
-    onTempoChange() {}, onPeersChange() {}, onFollowChange() {}, onTrackChange() {}, onLoadedTracksChange() {}, onAnyTrackLoaded() {},
-  };
   return remember(setupIntegrations({
     io: { emit() {} },
     midi: { enabled: false, sendFeedback() {}, listPorts: () => [] },
-    spotify: source({ startPolling() {}, async getQueue() { return []; } }),
-    nowPlaying: source(),
-    deezerSource: source({ getQueue: () => [], updatePlayback() {}, updateQueue() {}, disconnect() {} }),
-    prolink,
   }));
 }
 

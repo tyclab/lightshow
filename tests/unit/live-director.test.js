@@ -236,7 +236,6 @@ test('the director reports holding until its next look', () => {
 // ── When it plays ────────────────────────────────────────────────────────────
 
 function rig({ listening = true } = {}) {
-  const idle = { onPlaybackUpdate() {}, onTrackChange() {}, getStatus: () => ({}), authenticated: false };
   const handlers = {};
   const liveInput = {
     running: true,
@@ -244,26 +243,10 @@ function rig({ listening = true } = {}) {
     onStatus() {}, onReading(fn) { handlers.reading = fn; }, onEvent(fn) { handlers.event = fn; },
     streamNowMs: () => null, recentEnvelope: () => [], getBeatReading: () => null, useBands() {}, refreshBands() {}, onSamples() {}, wantSamples() {},
   };
-  const autoShow = {
-    running: false, track: null, syncOffsetMs: 0, autoSyncMs: 0, analysis: null,
-    getPositionMs: () => 0, getClientState: () => ({}),
-    start() { this.running = true; }, stop() { this.running = false; },
-    isCached: () => false, gridFor: () => null, isPrefetching: () => false,
-    applyQueueOrder() {}, setPaletteSize() {}, setIntensity() {}, setSyncOffsetMs() {}, adjustAutoSync() {},
-  };
-  const prolink = {
-    connected: false, stale: false, lastError: null, getNumPeers: () => 0, getFollowed: () => null, getTrack: () => null,
-    getLoadedTracks: () => [], getTempo: () => 0, getPositionMs: () => 0,
-    onTempoChange() {}, onPeersChange() {}, onFollowChange() {}, onTrackChange() {}, onLoadedTracksChange() {}, onAnyTrackLoaded() {},
-  };
   const integrations = remember(setupIntegrations({
-    io: { emit() {} }, midi: { enabled: false, sendFeedback() {}, listPorts: () => [] },
-    spotify: { ...idle, startPolling() {}, async getQueue() { return []; } },
-    nowPlaying: idle,
-    deezerSource: { ...idle, getQueue: () => [], updatePlayback() {}, updateQueue() {}, disconnect() {} },
-    prolink, autoShow, liveInput,
+    io: { emit() {} }, midi: { enabled: false, sendFeedback() {}, listPorts: () => [] }, liveInput,
   }));
-  return { integrations, autoShow, handlers };
+  return { integrations, handlers };
 }
 
 const TRANSITION = { t: 0, type: 'TRANSITION', confidence: 0.4, intensity: 0.5, duration: 0, effect: 'scene-change', data: { to: 'high' } };

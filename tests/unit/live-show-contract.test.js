@@ -65,18 +65,6 @@ function liveInput() {
 async function serve(t) {
   applyPatch({ running: false, masterBlackout: false, pattern: 'chase' });
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'live-show-'));
-  const idle = { onPlaybackUpdate() {}, onTrackChange() {}, getStatus: () => ({}), authenticated: false };
-  const autoShow = {
-    running: false, track: null, syncOffsetMs: 0, autoSyncMs: 0, analysis: null,
-    getPositionMs: () => 0, getClientState: () => ({}), start() {}, stop() {},
-    isCached: () => false, gridFor: () => null, isPrefetching: () => false,
-    applyQueueOrder() {}, setPaletteSize() {}, setIntensity() {}, setSyncOffsetMs() {}, adjustAutoSync() {},
-  };
-  const prolink = {
-    connected: false, stale: false, lastError: null, getNumPeers: () => 0, getFollowed: () => null, getTrack: () => null,
-    getLoadedTracks: () => [], getTempo: () => 0, getPositionMs: () => 0,
-    onTempoChange() {}, onPeersChange() {}, onFollowChange() {}, onTrackChange() {}, onLoadedTracksChange() {}, onAnyTrackLoaded() {},
-  };
   const midi = { enabled: false, sendFeedback() {}, listPorts: () => [], onLearn() {}, close() {}, connect() { return true; }, setControlFeedback() {} };
   const values = settings._values;
   const ownSave = Object.hasOwn(settings, 'save') ? settings.save : null;
@@ -90,23 +78,18 @@ async function serve(t) {
   const live = liveInput();
   const integrations = setupIntegrations({
     io, midi, liveInput: live,
-    spotify: { ...idle, startPolling() {}, async getQueue() { return []; } },
-    nowPlaying: idle,
-    deezerSource: { ...idle, getQueue: () => [], updatePlayback() {}, updateQueue() {}, disconnect() {} },
-    prolink, autoShow,
     effectLibrary: new EffectLibrary(path.join(dir, 'effects.json')).load(),
     paletteStore: new PaletteStore(path.join(dir, 'palettes.json')).load(),
     padStore: new PadStore(path.join(dir, 'pads.json')).load(),
     sequenceStore: new SequenceStore(path.join(dir, 'sequences.json')).load(),
   });
   const applier = createApplier({
-    midi, spotify: { localCallbackUrl: '', setLoopbackPort() {}, configure() {} }, smtc: { start() {}, stop() {} },
-    deezer: { init: async () => {} }, applyPatch, broadcast: () => integrations.broadcast(),
+    midi, applyPatch, broadcast: () => integrations.broadcast(),
   });
-  installControlRuntime(t, { integrations, applier, autoShow });
+  installControlRuntime(t, { integrations, applier });
   startEngine({ thread: 'main' });
   const cues = new CueStore(path.join(dir, 'cues.json')).load();
-  attachRoutes(app, { integrations, applier, autoShow, cues });
+  attachRoutes(app, { integrations, applier, cues });
   await new Promise((r) => server.listen(0, '127.0.0.1', r));
   const url = `http://127.0.0.1:${server.address().port}`;
   t.after(async () => {

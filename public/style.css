@@ -1915,14 +1915,14 @@ input[type=range]::-moz-range-thumb {
 /* =============================================================
    PROLINK
    ============================================================= */
-.prolink-info {
+.drawer-info {
   display: flex;
   flex-direction: column;
   gap: 4px;
   font-size: 11px;
   color: var(--muted);
 }
-.prolink-info strong { color: var(--text); font-weight: 600; }
+.drawer-info strong { color: var(--text); font-weight: 600; }
 
 /* =============================================================
    RESPONSIVE

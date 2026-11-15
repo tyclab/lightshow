@@ -61,7 +61,7 @@ test('party frames on forty placed fixtures meet the calibrated mean CPU budget'
   const before = { fixtures: state.fixtures, artnet: state.artnet.enabled, playing: control.playing, values: settings._values };
   const ownSave = Object.hasOwn(settings, 'save') ? settings.save : null;
   let beat = 0;
-  conductor.setProlinkSource(() => ({ beatPos: beat, bpm: 128 }));
+  conductor.setLiveSource(() => ({ beatPos: beat, bpm: 128 }));
   state.artnet.enabled = false;
   control.playing = true;
   // The strobe waits for the photosensitivity acknowledgement; settings stay in memory.
@@ -150,7 +150,7 @@ test('party frames on forty placed fixtures meet the calibrated mean CPU budget'
   } finally {
     voices.stopAll();
     setSequenceSource(null);
-    conductor.setProlinkSource(null);
+    conductor.setLiveSource(null);
     settings._values = before.values;
     if (ownSave) settings.save = ownSave;
     else delete settings.save;

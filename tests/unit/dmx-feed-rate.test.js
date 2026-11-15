@@ -17,26 +17,10 @@ const built = [];
 const remember = (integrations) => { built.push(integrations); return integrations; };
 test.afterEach(() => { for (const integrations of built.splice(0)) integrations.stopTimers(); });
 
-const idle = { onPlaybackUpdate() {}, onTrackChange() {}, getStatus: () => ({}), authenticated: false };
-
 function integrations(io = new Server()) {
   return remember(setupIntegrations({
     io,
     midi: { enabled: false, sendFeedback() {}, listPorts: () => [], onLearn() {}, close() {}, connect() { return true; }, setControlFeedback() {} },
-    spotify: { ...idle, startPolling() {}, async getQueue() { return []; } },
-    nowPlaying: idle,
-    deezerSource: { ...idle, getQueue: () => [], updatePlayback() {}, updateQueue() {}, disconnect() {} },
-    prolink: {
-      connected: false, stale: false, lastError: null, getNumPeers: () => 0, getFollowed: () => null, getTrack: () => null,
-      getLoadedTracks: () => [], getTempo: () => 0, getPositionMs: () => 0,
-      onTempoChange() {}, onPeersChange() {}, onFollowChange() {}, onTrackChange() {}, onLoadedTracksChange() {}, onAnyTrackLoaded() {},
-    },
-    autoShow: {
-      running: false, track: null, syncOffsetMs: 0, autoSyncMs: 0, analysis: null,
-      getPositionMs: () => 0, getClientState: () => ({}), start() {}, stop() {},
-      isCached: () => false, gridFor: () => null, isPrefetching: () => false,
-      applyQueueOrder() {}, setPaletteSize() {}, setIntensity() {}, setSyncOffsetMs() {}, adjustAutoSync() {},
-    },
   }));
 }
 

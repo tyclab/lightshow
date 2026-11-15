@@ -9,14 +9,12 @@ import type { Express } from 'express';
 import { asyncHandler, requestOrigin } from './common.ts';
 import type { RouteContext } from './common.ts';
 
-const restartKeysFor = (pending: string[]): string[] =>
-  (pending.includes('deezer.arl') ? [...RESTART_PATHS, 'deezer.arl'] : RESTART_PATHS);
 
 export function attachSetupRoutes(app: Express, ctx: RouteContext): void {
-  const { midi, spotify, prolink, applier } = ctx;
+  const { midi, applier } = ctx;
 
   app.post('/api/preflight', asyncHandler(async (_req, res) => {
-    const report = await runPreflight({ midi, spotify, prolink });
+    const report = await runPreflight({ midi });
     res.json({ ok: true, report });
   }));
 
@@ -27,7 +25,7 @@ export function attachSetupRoutes(app: Express, ctx: RouteContext): void {
       ok: true,
       settings: values,
       secrets,
-      restartKeys: restartKeysFor(pendingRestart),
+      restartKeys: RESTART_PATHS,
       pendingRestart,
       python: pythonEnv.resolve(),
       running: applier.bootValues.server,
@@ -59,7 +57,7 @@ export function attachSetupRoutes(app: Express, ctx: RouteContext): void {
         changed,
         settings: values,
         secrets,
-        restartKeys: restartKeysFor(pendingRestart),
+        restartKeys: RESTART_PATHS,
         pendingRestart,
       });
     } catch (err) {

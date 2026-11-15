@@ -78,8 +78,7 @@ function given(state) {
     bpm: 124.5, beatDivision: 2, running: true, masterDimmer: 128, masterBlackout: false,
     energyEffects: EFFECTS, energyOverride: null, clock: { source: 'tap', bpm: 124.5 },
     palettes: [{ id: 'arctic', name: 'Arctic', colors: { 4: [1, 2, 3, 4] } }, { id: 'volcanic', name: 'Volcanic', colors: { 4: [5, 6, 7, 8] } }],
-    palette: 'volcanic', colorPresets: [], activeSource: 'timer',
-    autoShow: { status: 'idle', intensity: 70 },
+    palette: 'volcanic', colorPresets: [],
     pads: { layout: LAYOUT, lit: Array(16).fill(null) }, voices: [], strobe: STROBE,
     ...state,
   } });
@@ -156,13 +155,13 @@ test('unacknowledged strobe notices follow server safety state', () => {
 test('every status pill keeps its place in every state', () => {
   const LABELS = ['BPM', 'Energy', 'Flash', 'Auto', 'Hue'];
   const STATES = {
-    'nothing known yet': { bpm: null, masterDimmer: undefined, autoShow: undefined },
+    'nothing known yet': { bpm: null, masterDimmer: undefined, live: undefined },
     'disarmed, idle': { armed: false },
     armed: { armed: true },
     'blackout on': { masterBlackout: true },
     'an energy override': { energyOverride: 'blinder' },
     'the flash limit on': { flashLimit: true },
-    'the auto show playing': { showOn: true, autoShow: { status: 'playing', intensity: 70 } },
+    'the auto show playing': { live: { listening: true, director: { active: true } } },
     'a sequence loaded': { sequence: { loaded: { id: 'set', name: 'Set' }, playing: true, lanes: [] } },
     'strobes refused': { safety: { photosensitivityAcknowledged: false, hdFlashIntervalMs: 350, strobeMaxLatchSec: 60 } },
     'strobes allowed': { safety: { photosensitivityAcknowledged: true, hdFlashIntervalMs: 350, strobeMaxLatchSec: 60 } },
@@ -1133,7 +1132,7 @@ test('one header row: the picture source and its effect first, then play, Freeze
   given({ armed: false, picture: { source: 'effects', input: null }, fixtures: [], profiles: {}, families: [],
     pattern: 'swirl', patterns: [{ id: 'swirl', name: 'Swirl' }],
     control: { version: 1, programme: 'look', playing: false, frozen: false, blackout: false, armed: false },
-    safety: { photosensitivityAcknowledged: true }, showOn: false, autoShow: { status: 'idle', intensity: 70 } });
+    safety: { photosensitivityAcknowledged: true } });
   const header = ui.html(ui.h(ui.Header));
   const order = ['aria-label="Picture source"', 'aria-label="Global show controls"', 'aria-label="Auto show"', 'aria-label="Play selected picture"',
     '>Freeze</button>', '>Blackout</button>', 'aria-label="Arm"', 'aria-label="Master dimmer"', '<button type="button" class="status-chip', 'aria-label="This device"'];

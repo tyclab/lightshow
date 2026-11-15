@@ -96,7 +96,7 @@ function engineHash() {
   const pars = crypto.createHash('sha256');
   state.artnet.enabled = false;
   let beat = 0;
-  conductor.setProlinkSource(() => ({ beatPos: beat, bpm: 120 }));
+  conductor.setLiveSource(() => ({ beatPos: beat, bpm: 120 }));
   try {
     withPinnedWorld(({ advance }) => {
       const frames = (n) => {
@@ -165,7 +165,7 @@ function engineHash() {
       scene({ ...base, pattern: 'hit' }, 64);
     });
   } finally {
-    conductor.setProlinkSource(null);
+    conductor.setLiveSource(null);
   }
   return { engine: hash.digest('hex'), pars: pars.digest('hex') };
 }

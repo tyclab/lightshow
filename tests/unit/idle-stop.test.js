@@ -61,18 +61,6 @@ async function until(found, what, ms = 5000) {
 async function serve(t, { minutes = 60, execute } = {}) {
   applyPatch({ running: false, masterBlackout: false });
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'idle-stop-'));
-  const idle = { onPlaybackUpdate() {}, onTrackChange() {}, getStatus: () => ({}), authenticated: false };
-  const autoShow = {
-    running: false, track: null, syncOffsetMs: 0, autoSyncMs: 0, analysis: null,
-    getPositionMs: () => 0, getClientState: () => ({}), start() {}, stop() {},
-    isCached: () => false, gridFor: () => null, isPrefetching: () => false,
-    applyQueueOrder() {}, setPaletteSize() {}, setIntensity() {}, setSyncOffsetMs() {}, adjustAutoSync() {},
-  };
-  const prolink = {
-    connected: false, stale: false, lastError: null, getNumPeers: () => 0, getFollowed: () => null, getTrack: () => null,
-    getLoadedTracks: () => [], getTempo: () => 0, getPositionMs: () => 0,
-    onTempoChange() {}, onPeersChange() {}, onFollowChange() {}, onTrackChange() {}, onLoadedTracksChange() {}, onAnyTrackLoaded() {},
-  };
   const midi = { enabled: false, sendFeedback() {}, listPorts: () => [], onLearn() {}, close() {}, connect() { return true; }, setControlFeedback() {} };
   const values = settings._values;
   const ownSave = Object.hasOwn(settings, 'save') ? settings.save : null;
@@ -84,20 +72,15 @@ async function serve(t, { minutes = 60, execute } = {}) {
   const io = new Server(server);
   const integrations = setupIntegrations({
     io, midi,
-    spotify: { ...idle, startPolling() {}, async getQueue() { return []; } },
-    nowPlaying: idle,
-    deezerSource: { ...idle, getQueue: () => [], updatePlayback() {}, updateQueue() {}, disconnect() {} },
-    prolink, autoShow,
     effectLibrary: new EffectLibrary(path.join(dir, 'effects.json')).load(),
     paletteStore: new PaletteStore(path.join(dir, 'palettes.json')).load(),
     padStore: new PadStore(path.join(dir, 'pads.json')).load(),
     sequenceStore: new SequenceStore(path.join(dir, 'sequences.json')).load(),
   });
   const applier = createApplier({
-    midi, spotify: { localCallbackUrl: '', setLoopbackPort() {}, configure() {} }, smtc: { start() {}, stop() {} },
-    deezer: { init: async () => {} }, applyPatch, broadcast: () => integrations.broadcast(),
+    midi, applyPatch, broadcast: () => integrations.broadcast(),
   });
-  installControlRuntime(t, { integrations, applier, autoShow });
+  installControlRuntime(t, { integrations, applier });
   startEngine({ thread: 'main' });   // a Stop waits for the renderer's frame, as on the server
 
   const s = { at: 0, minutes, stops: [], touches: 0 };
@@ -107,7 +90,7 @@ async function serve(t, { minutes = 60, execute } = {}) {
     minutes: () => s.minutes,
     stopped: (m) => s.stops.push({ at: s.at, minutes: m }),
   });
-  attachRoutes(app, { integrations, applier, autoShow });
+  attachRoutes(app, { integrations, applier });
   attachSockets(io, { midi, integrations, activity: () => { s.touches++; s.idle.touch(); } });
   await new Promise((r) => server.listen(0, '127.0.0.1', r));
   const url = `http://127.0.0.1:${server.address().port}`;
