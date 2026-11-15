@@ -111,12 +111,15 @@ test('voices and overrides stay above the picture; the master dimmer and blackou
   assert.deepEqual(rig().draw(100, { picture: picture(colours), masterBlackout: true }).bar, [0, 0, 0, 0, 0, 0]);
 });
 
-test('an expired, mis-sized or unacknowledged picture falls back to the effect', () => {
-  const r = rig(), plain = r.draw(100);
-  assert.deepEqual(r.draw(2000, { picture: picture(colours, 2000) }).par, rig().draw(2000).par);
-  assert.deepEqual(r.draw(100, { picture: picture(colours.slice(0, 12)) }).par, plain.par);
-  assert.deepEqual(r.draw(100, { picture: picture(colours), safety: { acknowledged: false, hdFlashIntervalMs: 350 } }).par, plain.par);
-  assert.deepEqual(r.draw(100, { picture: null }).par, plain.par);
+// G5: under Visualizer no picture is no longer a cue for the effect; the owned units are dark instead.
+test('an expired, mis-sized or unacknowledged picture leaves the units Visualizer owns dark, not the effect', () => {
+  const r = rig(), dark = { par: [0, 0, 0], bar: [0, 0, 0, 0, 0, 0], grid: [0, 0, 0, 0, 0, 0] }, owns = { pictureOwns: 'room' };
+  assert.notDeepEqual(r.draw(100).par, dark.par, 'the effect lights them under Effects');
+  assert.deepEqual(r.draw(2000, { ...owns, picture: picture(colours, 2000) }), dark);
+  assert.deepEqual(r.draw(100, { ...owns, picture: picture(colours.slice(0, 12)) }), dark);
+  assert.deepEqual(r.draw(100, { ...owns, picture: picture(colours), safety: { acknowledged: false, hdFlashIntervalMs: 350 } }), dark);
+  assert.deepEqual(r.draw(100, { ...owns, picture: null }), dark);
+  assert.deepEqual(r.draw(100, { ...owns, picture: picture(colours) }).par, colours.slice(0, 3), 'a valid one paints');
 });
 
 test('a live grid stream wins, then an expired or incompatible stream falls back to the room picture', () => {
@@ -153,17 +156,20 @@ test('a picture over every unit leaves the base effect undrawn and paints as bef
   assert.equal(probe.renders, before + 1);
 });
 
-// Four seconds under the picture: the stepper drops an instance unseen for two, so only a kept one resumes.
-test('after the picture the base effect resumes as if it had played on underneath', () => {
+// Four seconds under Visualizer: the stepper drops an instance unseen for two, so only a kept one resumes. G5: the picture
+// then stops and the units go dark; the effect comes back when Effects is chosen, as if it had played on underneath.
+test('after Visualizer the base effect resumes as if it had played on underneath', () => {
   const frames = Array.from({ length: 121 }, (_, k) => 100 + k * 50);
   const run = (painted) => {
     const r = rig(), inits = probe.inits;
-    const out = frames.map((now) => r.draw(now, { effect, ...(painted && now >= 600 ? { picture: picture(colours, 4600) } : {}) }));
+    const out = frames.map((now) => r.draw(now, { effect, ...(painted && now >= 600 && now < 4800
+      ? { pictureOwns: 'room', ...(now < 4600 ? { picture: picture(colours, 4600) } : {}) } : {}) }));
     return { out, inits: probe.inits - inits };
   };
   const shown = run(true), played = run(false);
   frames.forEach((now, k) => {
     if (now >= 600 && now < 4600) assert.deepEqual(shown.out[k].bar, colours.slice(3, 9), `the picture at ${now} ms`);
+    else if (now >= 4600 && now < 4800) assert.deepEqual(shown.out[k].bar, [0, 0, 0, 0, 0, 0], `dark without the picture at ${now} ms`);
     else assert.deepEqual(shown.out[k], played.out[k], `the effect at ${now} ms`);
   });
   assert.deepEqual([shown.inits, played.inits], [1, 1], 'one state each: the instance outlived the picture');

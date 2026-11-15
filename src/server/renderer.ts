@@ -119,6 +119,11 @@ export interface RenderInput {
   pixelInputs?: PixelInputFrame[];
   /** The room picture, one colour per rig unit, when the show paints from the visualizer. */
   picture?: PictureFrame | null;
+  /**
+   * The units the chosen picture source owns while the show plays (G5): 'room' every unit without a valid pixel stream
+   * (Visualizer), or these fixtures (the Squid's panel). Without their picture they emit nothing; absent, the effect plays.
+   */
+  pictureOwns?: 'room' | readonly number[] | null;
   modulation?: FrameBase['modulation'];
   /** The room picture's colour grade; absent paints the picture as sent. */
   pictureGrade?: PictureGrade | null;
@@ -222,6 +227,7 @@ export interface Renderer {
 const RANDOM_PATTERNS = new Set(['twinkle', 'sparkle', 'random-flash']);
 
 const SYNC_FLASH_MS = 100;
+const NO_PICTURE = Object.freeze({ colour: Object.freeze({ r: 0, g: 0, b: 0, w: 0, a: 0, uv: 0 }), level: 0 });
 
 const blankUnit = (): UnitLight => ({ r: 0, g: 0, b: 0, w: 0, a: 0, uv: 0, dim: 255, strobe: 0 });
 
@@ -287,6 +293,8 @@ function createRenderer({ profileOf, profilesRevision = () => 0, now = performan
 
   // Fade only the base layer so live bursts and pinned fixtures stay immediate.
   const shown: UnitLight[] = [];     // the pattern layer as it went out last frame, per light
+  // Each unit's last picture owner: its dark keeps that owner, so the change to dark takes the configured transition.
+  const pictureLast: (string | undefined)[] = [];
   let fade: { start: number; ms: number; from: UnitLight[] } | null = null;
   let syncTest: { start: number; until: number } | null = null;
   let identify: { ids: Set<number>; start: number; until: number } | null = null;
@@ -818,7 +826,7 @@ function createRenderer({ profileOf, profilesRevision = () => 0, now = performan
   }
 
   function lightOf(u: number, fix: RenderFixture, energy: EnergyLook | null, fadeT: number,
-    target: ShowDynamics | null, pixel: Colour | null = null, background?: BackgroundSettings, stopped = false, main?: BackgroundUse): LightValue {
+    target: ShowDynamics | null, pixel: Colour | null = null, background?: BackgroundSettings, stopped = false, main?: BackgroundUse, dark = false): LightValue {
     // Keep the shown base under bursts so later fades do not capture the burst.
     const raw = unitColors[u];
     const unchanged = !background || background.mode === 'follow' && background.level === 1;
@@ -832,7 +840,8 @@ function createRenderer({ profileOf, profilesRevision = () => 0, now = performan
     const selected = clip && !unchanged ? composeBackground(clip, clip.dim / 255, seqBackground[u], background) : null;
     if (!stopped || !lastBackground[u]) lastBackground[u] = clip ? seqBackground[u] : shownBackground[u];
     const resting = stopped ? composeBackground(raw, 0, lastBackground[u], clip ? background : main ?? background, true) : null;
-    const picture = pixel && !resting ? underPicture(pixel, background) : null;
+    // An owned unit without its picture is dark, a layer the Background does not fill as it fills a black picture.
+    const picture = pixel && !resting ? dark ? NO_PICTURE : underPicture(pixel, background) : null;
     const below = resting ? { ...resting.colour, dim: resting.level * 255, strobe: 0 }
       : picture ? { ...picture.colour, dim: picture.level * 255, strobe: 0 } : selected ? { ...selected.colour, dim: selected.level * 255, strobe: clip!.strobe } : clip ?? layer;
 
@@ -1033,9 +1042,11 @@ function createRenderer({ profileOf, profilesRevision = () => 0, now = performan
     // The room picture paints units without a live pixel stream, below voices and overrides.
     const art = input.programmePlaying !== false && input.safety.acknowledged && input.picture && now < input.picture.expiresAt
       && input.picture.data instanceof Uint8Array && input.picture.data.length === rigNow.units.length * 3 ? input.picture : null;
-    // A picture on every unit hides the base layer, so it is not drawn unless a command must reach its state.
+    const owns = input.programmePlaying !== false ? input.pictureOwns ?? null : null;
+    const ownsRoom = owns === 'room', ownsFixtures = Array.isArray(owns) && owns.length ? owns : null;
+    // A picture, or its dark, on every unit hides the base layer, so it is not drawn unless a command must reach its state.
     // Sequences still play: a one-shot activation missed under the picture would never fire.
-    const hidden = !!art && !commands.due.length;
+    const hidden = (!!art || ownsRoom) && !commands.due.length;
 
     if (input.effect) renderBaseEffect(input, rigNow, reading, fb!, commands, hidden);
     else {
@@ -1098,9 +1109,10 @@ function createRenderer({ profileOf, profilesRevision = () => 0, now = performan
       const pixel = input.programmePlaying !== false && stream && profile.grid?.columns === stream.width && profile.grid.rows === stream.height
         && !!profile.cells?.length && profile.cells.length <= stream.width * stream.height ? stream : null;
       const painted = art && !pixel ? art : null;
+      const dark = !pixel && !painted && (ownsRoom || !!ownsFixtures?.includes(fix.id));
       const hueGraded = !!painted && !!input.pictureGrade?.enabled && hueLamp(fix);
       let first: EnergyLook | null = sync;
-      let clip = !!pixel || !!painted;
+      let clip = !!pixel || !!painted || dark;
       for (let u = start; u < start + count; u++) {
         if (seqUnits && seqLight[u] && !overridden && !pixel) clip = true;
         const voice = sync || !voiceTop ? null : voiceTop[u];
@@ -1119,8 +1131,12 @@ function createRenderer({ profileOf, profilesRevision = () => 0, now = performan
           const [r, g, b] = gradeColour(levels[rb] * gain, levels[gb] * gain, levels[bb] * gain, input.pictureGrade, hueGraded);
           colour = { r, g, b, w: 0, a: 0, uv: 0 };
           pixelOwners[u] = `picture:${painted.leaseId}`;
+        } else if (dark && !top && !overridden) {
+          colour = NO_PICTURE.colour;
+          pixelOwners[u] = pictureLast[u] ?? 'picture:none';
         }
-        lights.push(lightOf(u, fix, top, fadeT, target, colour, background, input.programmePlaying === false, main));
+        if (colour && !dark) pictureLast[u] = pixelOwners[u]!;
+        lights.push(lightOf(u, fix, top, fadeT, target, colour, background, input.programmePlaying === false, main, dark));
         const kind = top ? (voice ? voice.kind ?? null : null) : overridden || pixelOwners[u] ? null : seqUnits && seqLight[u] ? seqKind[u] : baseKind[u];
         topKind[u] = watch ? kind : null;
         const sequenceCell = input.programmePlaying !== false && seqUnits && seqLight[u];

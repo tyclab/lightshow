@@ -8,6 +8,9 @@ import test from 'node:test';
 import { installControlRuntime, sendControl } from './control-runtime-helpers.js';
 import assert from 'node:assert/strict';
 import express from 'express';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 
 import { createTransmitter } from '../../src/server/transmit.ts';
 import { isArmed } from '../../src/server/armed.ts';
@@ -24,6 +27,8 @@ import { domainOf } from '../../src/server/protocol.ts';
 import { HUE_COLOR_PROFILE_ID, getProfile } from '../../src/server/profiles.ts';
 import { buffer } from '../../src/server/log.ts';
 import { Sequencer } from '../../src/server/sequencer.ts';
+import { CueStore } from '../../src/server/cues.ts';
+import { renderInput } from '../../src/server/engine.ts';
 
 showStore.scheduleSave = () => {};   // never the real show file
 
@@ -305,6 +310,35 @@ test('the acknowledgement is asked at every arm: it holds from the arm to the di
   assert.deepEqual(await told(), [true, false], 'the protective Disarm ends it too');
   assert.equal((await sendControl(call, 'arm')).body.control.armed, true);
   assert.deepEqual(await told(), [false, false], 'the next arm asks again');
+}));
+
+// G5: Home Assistant's party start (acknowledge, arm, cue recall) keeps the stored source. A stored Visualizer with no
+// sender gives a dark room and says why; nothing switches it to Effects behind the operator's back.
+test('a party start keeps the stored picture source and reports what it lacks', (t) => withSettings(async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'party-picture-'));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  const cues = new CueStore(path.join(dir, 'cues.json')).load();
+  cues.create({ name: 'Party' });
+  settings._values = { ...settings._values, picture: { ...settings._values.picture, source: 'visualizer' } };
+  const app = express();
+  app.use(express.json());
+  const deps = { ...controlDeps(createApplier(subsystems([]))), cues };
+  installControlRuntime(t, deps);
+  attachRoutes(app, deps);
+  const server = await new Promise((r) => { const s = app.listen(0, '127.0.0.1', () => r(s)); });
+  t.after(() => new Promise((r) => server.close(r)));
+  const call = (method, path, body) => fetch(`http://127.0.0.1:${server.address().port}${path}`, {
+    method, headers: { 'Content-Type': 'application/json' }, body: body === undefined ? undefined : JSON.stringify(body),
+  }).then(async (res) => ({ status: res.status, body: await res.json() }));
+
+  assert.equal((await call('POST', '/api/safety/acknowledge')).status, 200);
+  assert.equal((await sendControl(call, 'arm')).body.control.armed, true);
+  assert.equal((await call('POST', '/api/cues/by-name/party/recall')).status, 200);
+  assert.equal(settings.get('picture.source'), 'visualizer');
+  assert.equal(renderInput().pictureOwns, 'room', 'the room is the picture\'s, dark without one');
+  const live = (await call('GET', '/api/state/live')).body;
+  assert.equal(live.picture.source, 'visualizer');
+  assert.deepEqual(live.picture.unmet.map((u) => u.code), ['no-sender']);
 }));
 
 test('explicit controls arm and disarm; legacy arm/toggle/settings writes are rejected', (t) => withSettings(async () => {

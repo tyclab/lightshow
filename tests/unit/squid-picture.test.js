@@ -65,18 +65,23 @@ const settle = async (squid, reading, shift = 0) => {
   return null;
 };
 
+// G5: no frame is no longer a cue for the effects to show; it reads as loading, and the panel is dark meanwhile.
 test('the panel gets the frame at the beat, decoded once off the frame loop; leaving the source frees it', async () => {
   let panel = { fixtureId: 53, columns: 68, rows: 42 };
   const squid = new SquidPicture({ now: () => 1000, panel: () => panel });
   assert.equal(squid.frame({ beatPos: 0, bpm: 120 }), null, 'nothing until the loops are decoded');
+  assert.deepEqual(squid.readiness(), { state: 'loading' });
   assert.deepEqual((await settle(squid, { beatPos: 0, bpm: 120 })).data, decoded.breathing.frames[0]);
+  assert.deepEqual(squid.readiness(), { state: 'ready' });
   const frame = squid.frame({ beatPos: 16, bpm: 120 }, 5);
   assert.deepEqual({ ...frame, data: null }, { fixtureId: 53, leaseId: 'squid', width: 68, height: 42, expiresAt: 3005, data: null });
   assert.deepEqual(frame.data, decoded.breathing.frames[100], 'beat 16 of 32 is half way through the 200 frames');
   panel = { fixtureId: 9, columns: 34, rows: 21 };
   assert.equal(squid.frame({ beatPos: 16, bpm: 120 }), null, 'a panel of another size waits a turn for its copy');
+  assert.deepEqual(squid.readiness(), { state: 'loading' }, 'the panel replaced by a rig edit: loading until its copy is made');
   const small = await settle(squid, { beatPos: 16, bpm: 120 });
   assert.deepEqual(small.data, fitFrame(decoded.breathing.frames[100], 68, 42, 34, 21));
+  assert.deepEqual(squid.readiness(), { state: 'ready' });
   assert.equal(squid.stop(), null);
   assert.equal(squid.frame({ beatPos: 16, bpm: 120 }), null, 'stopped: decoded again when chosen again');
   panel = null;
@@ -100,6 +105,12 @@ test('a failed load warns once and paints nothing until the source is chosen aga
   assert.equal(await settle(squid, { beatPos: 0, bpm: 120 }), null);
   assert.equal(warn.mock.callCount(), 1);
   assert.match(warn.mock.calls[0].arguments[0], /\[squid\]/);
+  const failed = squid.readiness();
+  assert.equal(failed.state, 'failed');
+  assert.match(failed.detail, /no-such-squid/, 'the error is the detail');
+  squid.stop();
+  squid.frame({ beatPos: 0, bpm: 120 });
+  assert.deepEqual(squid.readiness(), { state: 'loading' }, 'chosen again: a new load');
 });
 
 test('fitting keeps the whole picture, centred, each cell the mean of the pixels it covers', () => {

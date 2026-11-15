@@ -9,7 +9,9 @@ import { settings } from '../settings.ts';
 import { state, placeAddresslessFixtures } from '../state.ts';
 import { showStore } from '../show-store.ts';
 import { pixelInputs } from '../pixel-input-live.ts';
-import { pictureInput, pictureUnits } from '../picture-live.ts';
+import { pictureInput, pictureState, pictureUnits } from '../picture-live.ts';
+import { getProfile } from '../profiles.ts';
+import { squidPanel } from '../../shared/squid.ts';
 import { pictureGradePatchSchema, pictureSourceSchema } from '../validation.ts';
 import { messageOf } from '../../errors.ts';
 import type { Express } from 'express';
@@ -24,11 +26,15 @@ export function attachOutputRoutes(app: Express, ctx: RouteContext): void {
   app.get('/api/pixel-input', (_req, res) => res.json({ ok: true, inputs: pixelInputs.status() }));
 
   // The room picture: which base the show paints from, its lift and colour grade, who is sending it, and the units a sender samples.
-  const picture = () => ({ ok: true, ...settings.group('picture'), input: pictureInput.status() });
+  const picture = () => ({ ok: true, ...settings.group('picture'), input: pictureInput.status(), unmet: pictureState.unmet });
   app.get('/api/picture', (_req, res) => res.json(picture()));
   app.get('/api/picture/units', (_req, res) => res.json({ ok: true, ...pictureUnits() }));
   app.post('/api/picture/source', (req, res) => {
     const { source } = validate(pictureSourceSchema, req.body, 'picture-source');
+    // Squid without a panel is refused (G5): no sender can bring one. Every other source is accepted while unmet: its sender claims after the choice.
+    if (source === 'squid' && !squidPanel(state.fixtures, getProfile)) {
+      return res.status(409).json({ ok: false, code: 'squid_no_panel', error: 'Squid needs an LED panel (a DDP grid of at least 2 × 2)' });
+    }
     applier.applyChanged(settings.update({ picture: { source } }));
     res.json(picture());
   });
