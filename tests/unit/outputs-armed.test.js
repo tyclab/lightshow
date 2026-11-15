@@ -405,7 +405,6 @@ test('health: disarmed outputs are said, as information, and never a fault', () 
     rssMb: 300,
     errors: { count: 0, last: null },
     supervisor: { supervised: true, restarts: 0, lastExit: null, recovering: false },
-    auto: { status: 'ready', error: null },
   };
   const quiet = assess({ ...fine, armed: false });
   assert.equal(quiet.status, 'ok');

@@ -19,7 +19,6 @@ fs.writeFileSync(path.join(E2E_DIR, 'settings.json'), JSON.stringify({
   live: { pythonPath: python },
 }, null, 2));
 process.env.LIGHTSHOW_CONFIG_DIR = E2E_DIR;
-process.env.LIGHTSHOW_CACHE_DIR = path.join(E2E_DIR, 'cache');
 process.env.LIGHTSHOW_LOG_DIR = path.join(E2E_DIR, 'logs');
 // The server itself, not a supervisor over it: the specs drive one process.
 process.env.LIGHTSHOW_SUPERVISOR = '0';

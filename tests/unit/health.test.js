@@ -16,7 +16,6 @@ const fine = {
   rssMb: 300,
   errors: { count: 0, last: null },
   supervisor: { supervised: true, restarts: 0, lastExit: null, recovering: false },
-  auto: { status: 'ready', error: null },
 };
 
 test('a server doing well is ok, with nothing to say', () => {

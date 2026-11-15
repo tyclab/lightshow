@@ -4,7 +4,7 @@ import assert from 'node:assert';
 import { state } from '../../src/server/state.ts';
 import * as output from '../../src/server/output.ts';
 import {
-  checkPatch, checkSacn, checkHue, checkAccess, checkMidi, checkArtnet, checkLiveInput, probeCommand, STATUSES,
+  checkPatch, checkSacn, checkHue, checkAccess, checkMidi, checkArtnet, checkLiveInput, STATUSES,
 } from '../../src/server/preflight.ts';
 import { buildArtPoll, parseArtPollReply } from '../../src/server/artnet.ts';
 import { settings } from '../../src/server/settings.ts';
@@ -265,20 +265,6 @@ test('no MIDI controller configured is information, not a warning', (t) => {
 test('a connected controller passes', () => {
   const result = checkMidi({ enabled: true, listPorts: () => ({ inputs: ['X-TOUCH'], outputs: [] }) });
   assert.strictEqual(result.status, STATUSES.OK);
-});
-
-test('a missing binary is reported by name rather than as a stack trace', async () => {
-  const result = await probeCommand('definitely-not-a-real-binary-xyz', ['--version']);
-
-  assert.strictEqual(result.ok, false);
-  assert.ok(result.error);
-});
-
-test('a working binary reports its first line of output', async () => {
-  const result = await probeCommand(process.execPath, ['--version']);
-
-  assert.strictEqual(result.ok, true);
-  assert.match(result.version, /^v\d+\./);
 });
 
 // ── Philips Hue ─────────────────────────────────────────────────────────────

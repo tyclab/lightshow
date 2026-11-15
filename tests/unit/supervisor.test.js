@@ -160,12 +160,11 @@ async function startFrom(t, env) {
   fs.writeFileSync(path.join(dir, 'config', 'settings.json'), JSON.stringify({ server: { host: '0.0.0.0', token: '' } }));
   fs.writeFileSync(path.join(dir, '.env'), Object.entries({
     LIGHTSHOW_CONFIG_DIR: path.join(dir, 'config'),
-    LIGHTSHOW_CACHE_DIR: path.join(dir, 'cache'),
     LIGHTSHOW_LOG_DIR: path.join(dir, 'logs'),
     ...env,
   }).map(([k, v]) => `${k}=${v}`).join('\n'));
   const clean = { ...process.env };
-  for (const k of ['LIGHTSHOW_CONFIG_DIR', 'LIGHTSHOW_CACHE_DIR', 'LIGHTSHOW_LOG_DIR', 'LIGHTSHOW_SUPERVISOR',
+  for (const k of ['LIGHTSHOW_CONFIG_DIR', 'LIGHTSHOW_LOG_DIR', 'LIGHTSHOW_SUPERVISOR',
     'LIGHTSHOW_SUPERVISED', 'WATCH_REPORT_DEPENDENCIES', 'NODE_TEST_CONTEXT']) delete clean[k];
   const server = spawn(process.execPath, [path.join(import.meta.dirname, '..', '..', 'server.js')], {
     cwd: dir, env: clean, stdio: ['ignore', 'pipe', 'pipe'],

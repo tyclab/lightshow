@@ -1,5 +1,4 @@
 import { hardwareOf } from '../shared/hardware.ts';
-import { spawn } from 'node:child_process';
 
 import { state, universeOf, wireUniverses, countUniverses } from './state.ts';
 import { hueChannels } from '../shared/hue-lamp.ts';
@@ -28,10 +27,9 @@ import type { DdpOutput, Fixture } from '../types/rig.ts';
 import { cues } from './cues.ts';
 import { midiMap } from './midi-map.ts';
 import * as pythonEnv from '../python-env.ts';
-import { codeOf, messageOf } from '../errors.ts';
+import { messageOf } from '../errors.ts';
 import { listLiveDevices, findLiveDevice } from '../live-input.ts';
 import type { LiveDevices } from '../live-input.ts';
-import type { ChildProcessWithoutNullStreams } from 'node:child_process';
 import type { EngineStatus } from './engine.ts';
 import { isLoopback } from './loopback.ts';
 
@@ -46,13 +44,6 @@ export interface Check {
   fix?: string | null;
   /** The Art-Net check lists the nodes that answered. */
   nodes?: unknown[];
-}
-
-/** What running a command said. */
-export interface ProbeResult {
-  ok: boolean;
-  version?: string;
-  error: string | null;
 }
 
 export interface PreflightReport {
@@ -93,44 +84,6 @@ const OK: CheckStatus = 'ok';
 const WARN: CheckStatus = 'warn';
 const FAIL: CheckStatus = 'fail';
 const INFO: CheckStatus = 'info';
-
-/** Run a command and capture its first line of output. */
-function probeCommand(command: string, args: string[], timeoutMs = 5000): Promise<ProbeResult> {
-  return new Promise((resolve) => {
-    let child: ChildProcessWithoutNullStreams;
-    try {
-      child = spawn(command, args, { windowsHide: true });
-    } catch (err) {
-      resolve({ ok: false, error: messageOf(err) });
-      return;
-    }
-
-    let out = '';
-    let settled = false;
-    const finish = (result: ProbeResult) => {
-      if (settled) return;
-      settled = true;
-      clearTimeout(timer);
-      try { child.kill(); } catch (_) { /* already gone */ }
-      resolve(result);
-    };
-
-    const timer = setTimeout(() => finish({ ok: false, error: `timed out after ${timeoutMs}ms` }), timeoutMs);
-    timer.unref();
-
-    child.stdout.on('data', (d) => { out += d; });
-    child.stderr.on('data', (d) => { out += d; });
-    child.on('error', (err) => finish({
-      ok: false,
-      error: codeOf(err) === 'ENOENT' ? 'not found on PATH' : err.message,
-    }));
-    child.on('close', (code) => finish({
-      ok: code === 0,
-      version: String(out).trim().split(/\r?\n/)[0] || '',
-      error: code === 0 ? null : `exited ${code}`,
-    }));
-  });
-}
 
 // ── Individual checks ───────────────────────────────────────────────────────
 
@@ -819,7 +772,7 @@ function checkCues(): Check {
  */
 async function runPreflight({ midi, standalone = false }:
   PreflightSubjects = {}): Promise<PreflightReport> {
-  // The external-tool probes are independent and each costs a process spawn;
+  // The network and live-input probes are independent and each waits on a reply;
   // run them together rather than serially in front of an operator waiting on
   // the report.
   const [artnet, hue, wled, openrgb, live] = await Promise.all([
@@ -861,7 +814,6 @@ export const STATUSES = { OK, WARN, FAIL, INFO };
 
 export {
   runPreflight,
-  probeCommand,
   checkPatch,
   checkEngine,
   checkOutputsArmed,

@@ -45,7 +45,6 @@ function startSupervisor() {
   const env = {
     ...process.env,
     LIGHTSHOW_CONFIG_DIR: dir,
-    LIGHTSHOW_CACHE_DIR: path.join(dir, 'cache'),
     LIGHTSHOW_LOG_DIR: path.join(dir, 'logs'),
   };
   delete env.LIGHTSHOW_SUPERVISOR;

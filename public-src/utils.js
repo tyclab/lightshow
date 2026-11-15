@@ -22,11 +22,6 @@ export function fmtTime(ms) {
   return `${m}:${(s % 60).toString().padStart(2, '0')}`;
 }
 
-export function fmtPct(v) {
-  if (v == null || !Number.isFinite(v)) return '–';
-  return `${Math.round(v * 100)}%`;
-}
-
 export function formatBpm(bpm) {
   const n = Number(bpm);
   if (bpm == null || !Number.isFinite(n)) return '—';
@@ -42,11 +37,6 @@ const CLOCK_SOURCES = {
 export function clockSource(id) {
   const key = Object.hasOwn(CLOCK_SOURCES, id) ? id : 'tap';
   return { id: key, ...CLOCK_SOURCES[key] };
-}
-
-export function fmtNum(v, digits = 2) {
-  if (v == null || !Number.isFinite(v)) return '–';
-  return v.toFixed(digits);
 }
 
 export const cellsOfProfile = (profile) => (profile && Array.isArray(profile.cells) && profile.cells.length >= 2
