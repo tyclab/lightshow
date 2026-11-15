@@ -860,10 +860,12 @@ html:has(.show-fold-toggle[aria-expanded="true"]) { scrollbar-gutter: stable; }
 .contained-list { list-style: none; margin: 0; padding: var(--show-list-pad); display: grid; gap: var(--show-tile-gap); align-content: start;
   grid-template-columns: repeat(auto-fill, minmax(min(100%, max(var(--show-effect-min), calc((100% - 4 * var(--show-tile-gap)) / 5))), 1fr)); }
 .contained-list > li { display: flex; min-width: 0; }
-.contained-row { position: relative; display: flex; align-items: center; gap: .36rem; width: 100%; min-width: 0; min-height: var(--show-tile); padding: .36rem .57rem; border: var(--hairline) solid var(--border); border-radius: var(--radius-sm); background: var(--card); color: var(--text); text-align: left; font: inherit; cursor: pointer; }
-.contained-row:hover { background: var(--wash-blue); }
-.contained-row:focus-visible { outline: .15rem solid var(--accent); outline-offset: -.22rem; background: rgba(90,162,255,.13); }
-.contained-row[aria-current="true"] { border-color: var(--accent); background: rgba(90,162,255,.14); }
+/* The quick deck (starred, saved here, party looks) over the full list, as the header's picker had it. */
+.contained-deck { border-bottom: var(--hairline) solid var(--border); }
+:is(.contained-row, .contained-quick) { position: relative; display: flex; align-items: center; gap: .36rem; width: 100%; min-width: 0; min-height: var(--show-tile); padding: .36rem .57rem; border: var(--hairline) solid var(--border); border-radius: var(--radius-sm); background: var(--card); color: var(--text); text-align: left; font: inherit; cursor: pointer; }
+:is(.contained-row, .contained-quick):hover { background: var(--wash-blue); }
+:is(.contained-row, .contained-quick):focus-visible { outline: .15rem solid var(--accent); outline-offset: -.22rem; background: rgba(90,162,255,.13); }
+:is(.contained-row, .contained-quick)[aria-current="true"] { border-color: var(--accent); background: rgba(90,162,255,.14); }
 .contained-row-text { flex: 1; min-width: 0; display: grid; gap: .07rem; }
 .contained-row-title { overflow-wrap: anywhere; font-size: .93rem; font-weight: 650; line-height: 1.25; }
 .contained-row-family { color: var(--muted); font-size: .79rem; font-weight: 500; line-height: 1.2; overflow-wrap: anywhere; }

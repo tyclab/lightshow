@@ -43,6 +43,29 @@ test('Show filters the complete effects list and keeps the live selection visibl
   await expect(row(page, 'v2.aurora')).toHaveAttribute('aria-current', 'true');
 });
 
+// Show v3 fixes, PR 9 (operator 2026-11-15, "fix all bugs"): the header's picker listed the quick deck first; Show's list
+// does now, so a starred look is one tap away again. Starring stays in Effect settings.
+test('a look starred in Effect settings leads Show\'s list, the deck stands over every effect A to Z, and a search hides it', async ({ page }) => {
+  await open(page, 'effects');
+  const star = page.locator('#panel-effects').getByRole('button', { name: 'Favourite Aurora', exact: true });
+  await star.first().click();
+  await expect(star.first()).toHaveAttribute('aria-pressed', 'true');
+  await page.goto('/#show');
+  const effects = box(page), deck = effects.getByRole('list', { name: 'Quick effects' }), list = effects.getByRole('list', { name: 'Effects', exact: true });
+  await expect(deck.locator('button').first()).toHaveAttribute('data-effect', 'v2.aurora');
+  const [deckBox, listBox] = await Promise.all([deck.boundingBox(), list.boundingBox()]);
+  expect(deckBox.y + deckBox.height, 'the deck over the full list').toBeLessThanOrEqual(listBox.y + 0.5);
+  expect(await deck.locator('button').count()).toBeGreaterThan(1);
+  await expect(list.locator('button')).toHaveCount(LISTED);
+  await deck.locator('button').first().click();
+  await until(page.request, (s) => s.pattern === 'v2.aurora');
+  await effects.getByRole('searchbox', { name: 'Search effects' }).fill('aurora');
+  await expect(deck).toHaveCount(0);
+  await expect(list.locator('button')).toHaveCount(1);
+  await effects.getByRole('button', { name: 'Clear', exact: true }).click();
+  await expect(deck.locator('button').first()).toHaveAttribute('data-effect', 'v2.aurora');
+});
+
 test('keyboard browsing reaches both ends and selecting keeps the global controls unchanged', async ({ page, request }) => {
   const taps = [];
   page.on('websocket', (socket) => socket.on('framesent', (event) => {
@@ -62,7 +85,7 @@ test('keyboard browsing reaches both ends and selecting keeps the global control
   await page.keyboard.press('Home');
   await expect(rows.first()).toBeFocused();
   // Tiles in columns (the operator, 2026-11-14: "1-5 next to each other"): left and right step, up and down go by a row.
-  const columns = await effects.locator('.contained-list').evaluate((list) => getComputedStyle(list).gridTemplateColumns.split(' ').length);
+  const columns = await effects.getByRole('list', { name: 'Effects', exact: true }).evaluate((list) => getComputedStyle(list).gridTemplateColumns.split(' ').length);
   expect(columns).toBeGreaterThan(1);
   await page.keyboard.press('ArrowRight');
   await expect(rows.nth(1)).toBeFocused();

@@ -32,12 +32,12 @@ async function load() {
         export { SHORTCUTS } from './public-src/components/Shortcuts.jsx';
         export { VIEWS } from './public-src/views.js';
         export { CommandBar } from './public-src/components/CommandBar.jsx';
-        export { Effects, PhotosensitivityConfirm, editingSig, filtersSig, FILTER_AXES, filterByChips, chipCounts, byName, matchesSearch, catalogueRows, quickDeck, tapRow, usePress } from './public-src/components/Effects.jsx';
+        export { Effects, PhotosensitivityConfirm, editingSig, filtersSig, FILTER_AXES, filterByChips, chipCounts, byName, matchesSearch, catalogueRows, catalogueOf, quickDeck, tapRow, usePress, utilityEffect } from './public-src/components/Effects.jsx';
         export { TAGS, legacyTags, specTags, tagFields } from './src/shared/effects/tags.ts';
         export { mappingOf } from './src/shared/effects/mapping.ts';
         export { Inspector, SingleColourField, readRecommendedPreference, savePreset, withRecommended } from './public-src/components/Inspector.jsx';
         export { PaletteEditor, isHexColour, normaliseHex, savePalette } from './public-src/components/PaletteEditor.jsx';
-        export { librarySig, socket, followMusic } from './public-src/state.js';
+        export { librarySig, pick, socket, followMusic } from './public-src/state.js';
         export { Pads, PadEditor, padGlyph, padBody, contentRows, padChoices } from './public-src/components/Pads.jsx';
         export { StrobePad, StrobeSettings, strobeBody, strobeChoices } from './public-src/components/StrobePad.jsx';
         export { createVoiceHolds } from './public-src/hold-control.js';
@@ -875,6 +875,31 @@ test('a favourite is pinned first on the deck, whatever it is', () => {
     assert.deepStrictEqual(deckOf(html).slice(0, 3), ['ldj.Swirl', 'u1', 'position-chase']);
     assert.match(html, /class="effect-star on" aria-pressed="true" aria-label="Favourite Swirl"/);
     assert.match(html, /class="effect-star " aria-pressed="false" aria-label="Favourite Neon Domino"/);
+  } finally {
+    delete globalThis.localStorage;
+  }
+});
+
+// Show v3 fixes, PR 9 (operator 2026-11-15, "fix all bugs"): Show's list starts with the deck the header picker had.
+test('Show\'s Effects card starts with the quick deck in quickDeck\'s order, then lists every effect A to Z', () => {
+  const showDeck = (html) => {
+    const deck = /<ul class="contained-list contained-deck"[^>]*>(.*?)<\/ul>/s.exec(html);
+    return deck ? [...deck[1].matchAll(/data-effect="([^"]+)"/g)].map((m) => m[1]) : null;
+  };
+  givenLibrary({ picture: { source: 'effects', input: null } });
+  globalThis.localStorage = { getItem: (key) => (key === 'lightshow.effects.favourites' ? JSON.stringify(['ldj.Swirl', 'u1', 'energy.uvWash']) : null), setItem() {}, removeItem() {} };
+  try {
+    const html = ui.html(ui.h(ui.ShowEffects));
+    const deck = showDeck(html);
+    assert.ok(deck, 'a deck');
+    assert.ok(html.indexOf('contained-deck') < html.indexOf('class="contained-row"'), 'the deck before the full list');
+    const rows = ui.catalogueOf(ui.pick(['patterns', 'effects', 'pattern']), ui.librarySig.value, ui.FAMILIES, ['ldj.Swirl', 'u1', 'energy.uvWash']);
+    const offered = rows.rows.filter((row) => !ui.utilityEffect(row));
+    assert.deepStrictEqual(deck, ui.quickDeck(offered, rows.pins).map((row) => row.id), 'the order is quickDeck\'s');
+    assert.deepStrictEqual(deck.slice(0, 3), ['ldj.Swirl', 'u1', 'position-chase'], 'the starred looks first, a utility effect left out');
+    assert.deepStrictEqual(deck.slice(0, 3), deckOf(ui.html(ui.h(ui.Effects, {}))).filter((id) => id !== 'energy.uvWash').slice(0, 3), 'as Effect settings orders it');
+    const full = [...html.matchAll(/class="contained-row"[^>]*data-effect="([^"]+)"/g)].map((m) => m[1]);
+    assert.strictEqual(full.length, offered.length, 'then every effect');
   } finally {
     delete globalThis.localStorage;
   }
