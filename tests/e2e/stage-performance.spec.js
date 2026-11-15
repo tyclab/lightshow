@@ -125,13 +125,24 @@ test('a room of many walls rebuilds its shadows, and draws steady frames, within
     await expect.poll(async () => (await snapshot()).counts['scene.shadowMaps'] || 0, { timeout: 15_000 }).toBe(8);
     const rebuild = await snapshot();
     await attach('rebuild-timing.json', rebuild);
-    expect(mainThreadBudget(rebuild), 'the rebuild').toEqual({ ok: true, failures: [] });
 
-    // Steady frames: the look plays on the demo beat; no map renders again.
-    await page.evaluate(() => window.__lightshowPerformance.reset());
-    await expect.poll(async () => (await snapshot()).counts['scene.draws'] || 0, { timeout: 15_000 }).toBeGreaterThan(20);
-    const steady = await snapshot();
+    // Steady frames: the look plays on the demo beat; no map renders again. Then the same with Room light off.
+    const steadyFrames = async () => {
+      await page.evaluate(() => window.__lightshowPerformance.reset());
+      await expect.poll(async () => (await snapshot()).counts['scene.draws'] || 0, { timeout: 15_000 }).toBeGreaterThan(20);
+      return snapshot();
+    };
+    const steady = await steadyFrames();
     await attach('steady-timing.json', steady);
+    // Switching Room light off links the unlit programs once; the frames after it are the ones measured.
+    await page.getByRole('button', { name: 'Room light' }).click();
+    await steadyFrames();
+    const unlit = await steadyFrames();
+    await attach('steady-unlit-timing.json', unlit);
+    const longest = (report) => ({ task: report.timings['longtask.duration']?.max ?? 0, tasks: report.timings['longtask.duration']?.count ?? 0,
+      submit: Math.round(report.timings['scene.renderSubmit']?.max ?? 0), draws: report.counts['scene.draws'], ms: Math.round(report.elapsedMs) });
+    console.log(`stage budget ${JSON.stringify({ rebuild: longest(rebuild), steady: longest(steady), unlit: longest(unlit) })}`);
+    expect(mainThreadBudget(rebuild), 'the rebuild').toEqual({ ok: true, failures: [] });
     expect(mainThreadBudget(steady), 'steady frames').toEqual({ ok: true, failures: [] });
     expect(steady.counts['scene.shadowMaps'] || 0, 'steady frames render no shadow map').toBe(0);
   } finally {
