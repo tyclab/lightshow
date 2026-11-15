@@ -161,16 +161,17 @@ const BLACKOUT_NOTE = 'Blackout is on: every light is dark. Restore, in the head
 
 /** What a stage drawing shows, in order (Show v3, G6): nothing is dark for want of a click. Disarmed and
  * stopped, with no layer and no Freeze, the browser samples the selected look on the demo beat (`demo`);
- * otherwise the server's feed, which carries Blackout and what arming would send. An idle page holds no
- * feed (`paused`) and draws nothing. A stage dark for a reason carries a `note` naming it and what ends it. */
+ * otherwise the server's feed, which carries Blackout and what arming would send. A paused page holds no
+ * feed (`paused`) and draws nothing; the two disarmed previews offer Pause preview (`pausable`). A stage
+ * dark for a reason carries a `note` naming it and what ends it. */
 export function stageMode({ rehearsing, connected, armed, blackout, playing = false, layers = false, frozen = false, paused = false }) {
   if (rehearsing) return { tag: 'Rehearsal', lit: true, demo: false };
   if (!connected) return { tag: 'Offline', lit: true, demo: false };
   if (paused) return { tag: 'Preview paused', lit: false, demo: false };
   if (blackout) return { tag: 'Blackout', lit: true, demo: false, note: BLACKOUT_NOTE };
   if (armed) return { tag: 'Live output', lit: true, demo: false };
-  if (playing || layers || frozen) return { tag: 'Preview (disarmed)', lit: true, demo: false };
-  return { tag: 'Preview · demo beat', lit: true, demo: true };
+  if (playing || layers || frozen) return { tag: 'Preview (disarmed)', lit: true, demo: false, pausable: true };
+  return { tag: 'Preview · demo beat', lit: true, demo: true, pausable: true };
 }
 
 export function rigLights(fixtures, state, dmxSnapshot, rig) {

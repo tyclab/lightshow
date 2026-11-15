@@ -43,7 +43,8 @@ export function useRehearsalSampler(data, space = null, enabled = true) {
   }, [revision]);
   const prepared = useMemo(() => {
     if (!enabled) return previous.current;
-    const options = { ...previewOptions(s, { table, library }), space };
+    // Each light as it emits, a dimmer channel's level times the emitters, as the demo beat draws it.
+    const options = { ...previewOptions(s, { table, library }), space, light: true };
     return previous.current = { options, key: JSON.stringify([space?.revision, s.voices, options.hueStrobe, options.hardware, options.profiles,
       options.paletteOverride, options.background, options.basePalette, options.overridePalette, s.effectColours, options.safety, options.sequence && options.sequence.table.revision, library.user]) };
   }, [enabled, space, s.voices, s.hueStrobe, s.hardware, s.profiles, s.paletteOverride, s.background, s.basePalette,
