@@ -57,6 +57,11 @@ history. The rulings below stay.
   photosensitivity acknowledgement. Playing, a layer or Freeze shows the server's feed as "Preview
   (disarmed)"; armed, only the feed, and arming drops the demo beat at once, in 3D and 2D. Blackout
   outranks both; an idle page draws nothing until Resume preview.
+- A preview can be paused (2026-11-15): "explain to me why the button top stop preview is removed." While
+  disarmed and drawing either preview, the stage toolbar in 3D and 2D shows one "Pause preview". It is the
+  idle pause entered by hand: this page lets its own `dmx` and `picture` feeds go and says "Preview
+  paused." with Resume preview; Resume or Arm ends it. It sends nothing, leaves the show and other pages
+  as they are, works with `outputs.idleStopMin` 0 and is not stored, so a reload previews again.
 - A disarmed show nobody attends stops after 60 minutes (2026-11-14): "if not we should make sure it
   stops automatically, lets say 60min or somethign?? i mean if show is not arm and page is idel or
   closed". `outputs.idleStopMin` (60, 0 never) without a control action or page input ends it with the

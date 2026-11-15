@@ -1,5 +1,6 @@
 // A disarmed page nobody touches pauses its preview after outputs.idleStopMin (public-src/idle-pause.js),
-// on an injected clock; its input reaches the server as `activity`, at most once a minute.
+// on an injected clock; its input reaches the server as `activity`, at most once a minute. Pause preview
+// (Show v3 fixes, G1) enters the same state by hand, and `paused` names which of the two started it.
 
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -7,6 +8,8 @@ import assert from 'node:assert/strict';
 import { createIdlePause } from '../../public-src/idle-pause.js';
 
 const MIN = 60_000;
+const idle = (minutes) => ({ cause: 'idle', minutes });
+const BUTTON = { cause: 'button' };
 
 /** The pause on a fake clock and a fake page; `advance(ms)` runs the timers that fall due, in order. */
 function page({ connected = true } = {}) {
@@ -48,9 +51,9 @@ test('disarmed and untouched, the preview pauses at the limit and says after how
   p.advance(60 * MIN - 1);
   assert.equal(p.paused(), null);
   p.advance(1);
-  assert.equal(p.paused(), 60);
+  assert.deepEqual(p.paused(), idle(60));
   p.advance(24 * 60 * MIN);
-  assert.equal(p.paused(), 60, 'it stays paused until Resume');
+  assert.deepEqual(p.paused(), idle(60), 'it stays paused until Resume');
   assert.deepEqual(p.sends, [], 'a pause sends nothing');
 });
 
@@ -68,7 +71,7 @@ test('input counts the limit from itself and reaches the server at most once a m
   p.advance(60 * MIN - 1);
   assert.equal(p.paused(), null);
   p.advance(1);
-  assert.equal(p.paused(), 60, '60 minutes after the last input');
+  assert.deepEqual(p.paused(), idle(60), '60 minutes after the last input');
 });
 
 test('an activity that could not be sent goes with the next input', () => {
@@ -88,14 +91,14 @@ test('armed the timer does not run; arming resumes, and a disarm starts a full p
   assert.deepEqual([p.paused(), p.timers.size], [null, 0]);
   p.idle.update({ minutes: 60, armed: false });
   p.advance(60 * MIN);
-  assert.equal(p.paused(), 60, 'the armed hours do not count');
+  assert.deepEqual(p.paused(), idle(60), 'the armed hours do not count');
   p.idle.update({ minutes: 60, armed: true });
   assert.equal(p.paused(), null, 'arming resumes');
   p.idle.update({ minutes: 60, armed: false });
   p.advance(60 * MIN - 1);
   assert.equal(p.paused(), null);
   p.advance(1);
-  assert.equal(p.paused(), 60);
+  assert.deepEqual(p.paused(), idle(60));
 });
 
 test('nothing counts before the state says the outputs are disarmed', () => {
@@ -117,7 +120,7 @@ test('Resume starts a full period and sends nothing', () => {
   p.advance(60 * MIN - 1);
   assert.equal(p.paused(), null);
   p.advance(1);
-  assert.equal(p.paused(), 60);
+  assert.deepEqual(p.paused(), idle(60));
   assert.deepEqual(p.sends, []);
 });
 
@@ -129,13 +132,55 @@ test('a changed limit applies at once; 0 never pauses', () => {
   p.advance(5 * MIN - 1);
   assert.equal(p.paused(), null);
   p.advance(1);
-  assert.equal(p.paused(), 15, 'counted from the last input, not from the change');
+  assert.deepEqual(p.paused(), idle(15), 'counted from the last input, not from the change');
   p.idle.resume();
   p.advance(10 * MIN);
   p.idle.update({ minutes: 5, armed: false });
-  assert.equal(p.paused(), 5, 'lowered under the idle time already passed: paused at once');
+  assert.deepEqual(p.paused(), idle(5), 'lowered under the idle time already passed: paused at once');
   p.idle.resume();
   p.idle.update({ minutes: 0, armed: false });
   p.advance(7 * 24 * 60 * MIN);
   assert.deepEqual([p.paused(), p.timers.size], [null, 0]);
+});
+
+test('Pause preview pauses at once, sends nothing, and holds until Resume or an arm', () => {
+  const p = page();
+  p.idle.update({ minutes: 60, armed: false });
+  p.advance(10 * MIN);
+  p.idle.pause();
+  assert.deepEqual(p.paused(), BUTTON);
+  assert.equal(p.timers.size, 0, 'paused, nothing counts');
+  p.advance(24 * 60 * MIN);
+  assert.deepEqual(p.paused(), BUTTON, 'the idle limit does not rename it');
+  p.idle.resume();
+  assert.equal(p.paused(), null);
+  p.advance(60 * MIN - 1);
+  assert.equal(p.paused(), null, 'Resume starts a full period');
+  p.idle.pause();
+  p.idle.update({ minutes: 60, armed: true });
+  assert.equal(p.paused(), null, 'arming ends it');
+  assert.deepEqual(p.sends, []);
+});
+
+test('Pause preview works with the idle stop off, and an idle pause stays the idle one', () => {
+  const p = page();
+  p.idle.update({ minutes: 0, armed: false });
+  p.idle.pause();
+  assert.deepEqual(p.paused(), BUTTON, '0 turns off only the idle trigger');
+  p.idle.update({ minutes: 15, armed: false });
+  assert.deepEqual(p.paused(), BUTTON, 'a changed limit leaves it');
+  p.idle.resume();
+  p.advance(15 * MIN);
+  assert.deepEqual(p.paused(), idle(15));
+  p.idle.pause();
+  assert.deepEqual(p.paused(), idle(15), 'already paused: the note keeps what started it');
+});
+
+test('armed, or before the state says disarmed, Pause preview does nothing', () => {
+  const p = page();
+  p.idle.pause();
+  assert.equal(p.paused(), null, 'the outputs unknown');
+  p.idle.update({ minutes: 60, armed: true });
+  p.idle.pause();
+  assert.equal(p.paused(), null, 'armed');
 });
