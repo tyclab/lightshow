@@ -42,8 +42,6 @@ const ACTIONS: MidiAction[] = [
   { id: 'adjustStrobeSpeed', label: 'Nudge strobe speed', input: 'encoder' },
   { id: 'adjustFixtureDim', label: 'Nudge fixture dimmer', input: 'encoder', param: { key: 'fixture', kind: 'fixture', label: 'Fixture' } },
   { id: 'adjustFixtureMax', label: 'Nudge fixture max brightness', input: 'encoder', param: { key: 'fixture', kind: 'fixture', label: 'Fixture' } },
-  { id: 'adjustAutoIntensity', label: 'Nudge auto-show intensity', input: 'encoder' },
-  { id: 'adjustAutoSync', label: 'Nudge light/music sync', input: 'encoder' },
   { id: 'browsePattern', label: 'Browse patterns', input: 'encoder' },
   { id: 'browseEffect', label: 'Browse effects', input: 'encoder' },
   { id: 'browseColor', label: 'Browse colours', input: 'encoder', param: { key: 'value', kind: 'colorSlot', label: 'Slot' } },
@@ -57,8 +55,6 @@ const ACTIONS: MidiAction[] = [
   { id: 'setBpm', label: 'BPM', input: 'fader' },
   { id: 'setFixtureDim', label: 'Fixture dimmer', input: 'fader', param: { key: 'fixture', kind: 'fixture', label: 'Fixture' } },
   { id: 'setFixtureMax', label: 'Fixture max brightness', input: 'fader', param: { key: 'fixture', kind: 'fixture', label: 'Fixture' } },
-  { id: 'setAutoIntensity', label: 'Auto-show intensity', input: 'fader' },
-  { id: 'setAutoSync', label: 'Light/music sync offset', input: 'fader' },
 ];
 
 const ACTION_IDS = ACTIONS.map((a) => a.id);
@@ -69,6 +65,25 @@ function defaultTypeFor(actionId: string): 'relative' | 'absolute' {
   const action = ACTION_BY_ID.get(actionId);
   if (!action) return 'absolute';
   return action.input === 'encoder' ? 'relative' : 'absolute';
+}
+
+// Actions an earlier build bound and this one has not: the planned track show's intensity and sync offset.
+const RETIRED_ACTIONS = new Set(['setAutoIntensity', 'adjustAutoIntensity', 'setAutoSync', 'adjustAutoSync']);
+
+/** A saved map loses its bindings of retired actions, each said once, and keeps every other. */
+function withoutRetired(raw: unknown, file: string): unknown {
+  if (!raw || typeof raw !== 'object') return raw;
+  const map = raw as Record<string, unknown>;
+  for (const side of ['cc', 'notes']) {
+    const bindings = map[side];
+    if (!bindings || typeof bindings !== 'object') continue;
+    for (const [number, binding] of Object.entries(bindings as Record<string, { action?: unknown }>)) {
+      if (!RETIRED_ACTIONS.has(String(binding?.action))) continue;
+      delete (bindings as Record<string, unknown>)[number];
+      console.warn(`[midi] ${file}: ${side} ${number} was bound to ${String(binding.action)}, which is gone with the planned show; the binding is dropped`);
+    }
+  }
+  return raw;
 }
 
 const bindingSchema = z.object({
@@ -123,7 +138,6 @@ const DEFAULT_MAP: MidiMap = {
     2: { action: 'setFixtureDim', type: 'absolute', fixture: 1 },
     3: { action: 'setFixtureDim', type: 'absolute', fixture: 2 },
     4: { action: 'setFixtureDim', type: 'absolute', fixture: 3 },
-    8: { action: 'setAutoIntensity', type: 'absolute' },
     9: { action: 'setMasterDimmer', type: 'absolute' },
   },
   notes: {
@@ -194,7 +208,7 @@ class MidiMapStore extends JsonStore {
   }
 
   load(): this {
-    const saved = this.readValid(mapSchema);
+    const saved = this.readValid(mapSchema, (raw) => withoutRetired(raw, this.file));
     if (saved) {
       this._map = saved;
       this._customised = true;

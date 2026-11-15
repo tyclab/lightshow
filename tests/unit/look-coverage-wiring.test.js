@@ -22,7 +22,7 @@ function source(extra = {}) {
   };
 }
 
-function build(autoShow) {
+function build() {
   const prolink = {
     connected: false, stale: false, lastError: null,
     getNumPeers: () => 0, getFollowed: () => null, getTrack: () => null, getLoadedTracks: () => [], getTempo: () => 0, getPositionMs: () => 0,
@@ -34,7 +34,7 @@ function build(autoShow) {
     spotify: source({ startPolling() {}, async getQueue() { return []; } }),
     nowPlaying: source(),
     deezerSource: source({ getQueue: () => [], updatePlayback() {}, updateQueue() {}, disconnect() {} }),
-    prolink, autoShow,
+    prolink,
   }));
 }
 
@@ -58,40 +58,32 @@ const settle = async () => { for (let i = 0; i < 8; i++) await new Promise((reso
 
 test('a rig change with the show off renders no particle probe; starting the show measures it', async (t) => {
   withFixtures(t, ring());
-  const rigs = [];
-  const autoShow = {
-    running: false, track: null, syncOffsetMs: 0,
-    getPositionMs: () => 0, getClientState: () => ({}), isCached: () => false, gridFor: () => null, isPrefetching: () => false,
-    prefetch: async () => ({ skipped: true, reason: 'already-cached' }), applyQueueOrder() {},
-    setPaletteSize() {}, setIntensity() {}, setSyncOffsetMs() {},
-    setRig: (rig) => rigs.push(rig.usablePatterns),
-    start() { this.running = true; }, stop() { this.running = false; },
-  };
-  const integrations = build(autoShow);
+  const integrations = build();
+  const allowed = [];
+  const broadcast = () => { integrations.broadcast(); allowed.push(integrations.lookCoverage.allowed); };
   const render = t.mock.method(kindOf('v2.particles'), 'render');
-  integrations.broadcast();
+  broadcast();
   for (const shift of [1, 2, 3]) {
     state.fixtures = ring(shift);
-    integrations.broadcast();
+    broadcast();
     await integrations.lookCoverage.ready;
     await settle();
   }
   assert.equal(render.mock.callCount(), 0, 'no particle render for an edit with the show off');
-  assert.ok(rigs.length >= 4 && rigs.every((set) => set.size === 0), 'and no particle looks for a rig nobody measured');
+  assert.ok(allowed.length === 4 && allowed.every((set) => set.size === 0), 'and no particle looks for a rig nobody measured');
 
   integrations.startAutoShow();
   await integrations.lookCoverage.ready;
   assert.ok(render.mock.callCount() > 0, 'the show measures the rig it found');
   const measured = integrations.lookCoverage.allowed;
-  assert.ok(measured.size > 0);
-  assert.equal(rigs.at(-1), measured, 'the result went out at once');
+  assert.ok(measured.size > 0, 'the live director has looks the rig shows');
 
   integrations.stopAutoShow();
   render.mock.resetCalls();
   state.fixtures = ring(4);
-  integrations.broadcast();
+  broadcast();
   await integrations.lookCoverage.ready;
   await settle();
   assert.equal(render.mock.callCount(), 0, 'stopped again, edits measure nothing');
-  assert.equal(rigs.at(-1).size, 0);
+  assert.equal(allowed.at(-1).size, 0);
 });

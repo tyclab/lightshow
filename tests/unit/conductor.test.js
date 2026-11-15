@@ -4,7 +4,6 @@
 import test from 'node:test';
 import assert from 'node:assert';
 import { Conductor } from '../../src/server/conductor.ts';
-import { makeGrid } from '../../src/shared/beat-clock.ts';
 
 const close = (a, b, eps = 1e-6) => Math.abs(a - b) <= eps;
 
@@ -15,7 +14,13 @@ function rig({ bpm = 120 } = {}) {
   return { c, advance: (ms) => { t += ms; }, get t() { return t; } };
 }
 
-const grid128 = () => makeGrid(Array.from({ length: 512 }, (_, i) => i * (60 / 128)));
+/** A live input locked at `bpm`, `beat` beats in at the conductor's own time t0; `stop()` and it says nothing. */
+function live(r, { bpm = 128, beat = 0, key = 'lock' } = {}) {
+  const at = r.t;
+  const source = { on: true, key, bpm, beat, at };
+  r.c.setLiveSource(() => (source.on ? { beatPos: source.beat + ((r.t - source.at) / 60000) * source.bpm, bpm: source.bpm, key: source.key } : null));
+  return source;
+}
 
 test('with nothing else playing it free-runs at the operator\'s tempo', () => {
   const r = rig({ bpm: 120 });
@@ -45,12 +50,10 @@ test('free tempo stays in the valid range', () => {
     r.c.setBpm(120);
   }
   // A locked source handing back to the free clock passes through the same floor.
-  const grid = makeGrid([0, 0.02, 0.04, 0.06, 0.08, 0.1, 0.12]);
-  let pos = 50;
-  r.c.setTrack({ key: 'burst', grid, positionMs: () => pos });
-  for (let i = 0; i < 4; i++) { r.advance(25); pos += 25; r.c.now(); }
-  assert.ok(r.c.now().bpm > 0 && Number.isFinite(r.c.now().bpm), 'a 20 ms grid reads as a finite positive tempo');
-  r.c.clearTrack({ key: 'burst' });
+  const heard = live(r, { bpm: 3000 });
+  for (let i = 0; i < 4; i++) { r.advance(25); r.c.now(); }
+  assert.strictEqual(r.c.now().bpm, 3000, 'the live input says what it hears');
+  heard.on = false;
   assert.strictEqual(r.c.now().bpm, 300, 'carried on by the free clock, held to its ceiling');
 });
 
@@ -76,25 +79,10 @@ test('stopping the patterns freezes the free clock', () => {
   assert.ok(close(r.c.now().beatPos, 3));
 });
 
-test('the auto show\'s grid wins over everything, and a track over the free clock', () => {
+test('a playing CDJ beats the live input', () => {
   const r = rig();
-  const grid = grid128();
-  let autoPos = null;
-  r.c.setAutoSource(() => (autoPos == null ? null : { grid, positionMs: autoPos }));
-  r.c.setTrack({ key: 't', grid, positionMs: () => 60000 * 4 / 128 });   // beat 4
-  assert.strictEqual(r.c.now().source, 'track');
-  assert.ok(close(r.c.now().beatPos, 4));
-
-  autoPos = 60000 * 10 / 128;                                              // beat 10
-  const reading = r.c.now();
-  assert.strictEqual(reading.source, 'auto');
-  assert.ok(close(reading.beatPos, 10));
-  assert.ok(close(reading.bpm, 128, 1e-6), 'tempo read off the grid');
-});
-
-test('a playing CDJ beats a cached track when the auto show is off', () => {
-  const r = rig();
-  r.c.setTrack({ key: 't', grid: grid128(), positionMs: () => 0 });
+  live(r);
+  assert.strictEqual(r.c.now().source, 'live');
   r.c.setProlinkSource(() => ({ beatPos: 42.5, bpm: 126 }));
   const reading = r.c.now();
   assert.deepStrictEqual([reading.source, reading.beatPos, reading.bpm], ['cdj', 42.5, 126]);
@@ -104,16 +92,12 @@ test('a playing CDJ beats a cached track when the auto show is off', () => {
 // picks up the beat and the tempo it had reached.
 test('when a source stops, the free clock carries on from where it was', () => {
   const r = rig({ bpm: 90 });
-  const grid = grid128();
-  let running = true;
-  let pos = 0;
-  r.c.setAutoSource(() => (running ? { grid, positionMs: pos } : null));
+  const heard = live(r, { beat: 16 });
   let adopted = null;
   r.c.onTempo((bpm) => { adopted = bpm; });
 
-  pos = 60000 * 16 / 128;
   const before = r.c.now();
-  running = false;
+  heard.on = false;
   r.advance(60000 / 128);                   // one more beat of time
   const after = r.c.now();
   assert.strictEqual(after.source, 'tap');
@@ -124,74 +108,15 @@ test('when a source stops, the free clock carries on from where it was', () => {
 
 test('a seek or a jump starts a new epoch; steady playback does not', () => {
   const r = rig();
-  const grid = grid128();
-  let pos = 0;
-  r.c.setAutoSource(() => ({ grid, positionMs: pos }));
+  const heard = live(r);
   const first = r.c.now().epoch;
-  for (let i = 0; i < 100; i++) { r.advance(25); pos += 25; }
+  for (let i = 0; i < 100; i++) { r.advance(25); r.c.now(); }
   assert.strictEqual(r.c.now().epoch, first, 'playing through');
-  pos -= 10000;                             // seek back ten seconds
-  assert.strictEqual(r.c.now().epoch, first + 1, 'a seek');
-  r.advance(25); pos += 25;
-  pos += 60000;                             // jump a minute ahead
+  heard.beat -= 20;                         // back twenty beats
+  assert.strictEqual(r.c.now().epoch, first + 1, 'a jump back');
+  r.advance(25);
+  heard.beat += 128;                        // a minute ahead
   assert.strictEqual(r.c.now().epoch, first + 2, 'a jump forward');
-});
-
-// The operator can always take the tempo back by hand — until the music moves
-// on to the next track, which locks again.
-test('a tap takes over from a locked track until the next track', () => {
-  const r = rig();
-  const grid = grid128();
-  r.c.setTrack({ key: 'song-1', grid, positionMs: () => 5000 });
-  assert.strictEqual(r.c.now().source, 'track');
-  r.c.tap();
-  assert.strictEqual(r.c.now().source, 'tap', 'the tap wins');
-  r.c.setTrack({ key: 'song-1', grid, positionMs: () => 6000 });
-  assert.strictEqual(r.c.now().source, 'tap', 'the same track stays overridden');
-  r.c.setTrack({ key: 'song-2', grid, positionMs: () => 0 });
-  assert.strictEqual(r.c.now().source, 'track', 'a new track locks again');
-
-  r.c.setBpm(100);
-  assert.strictEqual(r.c.now().source, 'tap', 'a typed tempo is an override too');
-  r.c.clearTrack({ key: 'song-3' });
-  r.c.setBpm(101, { manual: false });
-  r.c.setTrack({ key: 'song-4', grid, positionMs: () => 0 });
-  assert.strictEqual(r.c.now().source, 'track', 'a CDJ-reported tempo is not an override');
-});
-
-test('a scene can be anchored at the moment it was scheduled', () => {
-  const r = rig();
-  const grid = grid128();
-  r.c.setAutoSource(() => ({ grid, positionMs: 30000 }));
-  assert.ok(close(r.c.beatAtTrackMs(60000 * 8 / 128), 8));
-  r.c.setAutoSource(() => null);
-  assert.strictEqual(r.c.beatAtTrackMs(1000), null, 'no grid, no anchor time');
-});
-
-// A paused track's position stands still. Locking to it would freeze the rig on
-// one step for the length of the pause, which looks like a crash; the chase
-// carries on at the song's tempo instead, and locks again when it resumes.
-test('a paused track hands over to the free clock, and locks again on resume', () => {
-  const r = rig({ bpm: 90 });
-  const grid = grid128();
-  let pos = 60000 * 8 / 128;
-  r.c.setAutoSource(() => ({ grid, positionMs: pos }));
-  for (let i = 0; i < 10; i++) { r.advance(25); pos += 25; r.c.now(); }
-  assert.strictEqual(r.c.now().source, 'auto');
-
-  const pausedAt = r.c.now().beatPos;
-  for (let i = 0; i < 4; i++) { r.advance(25); r.c.now(); }
-  assert.strictEqual(r.c.now().source, 'auto', 'a frame or two without movement is not a pause');
-  for (let i = 0; i < 8; i++) { r.advance(25); r.c.now(); }
-  const paused = r.c.now();
-  assert.strictEqual(paused.source, 'tap', 'the pause is noticed');
-  r.advance(500);
-  assert.ok(r.c.now().beatPos > pausedAt + 1, 'and the chase keeps moving');
-  assert.ok(close(r.c.now().bpm, 128, 1e-6), 'at the song\'s tempo');
-  assert.strictEqual(r.c.beatAtTrackMs(pos), null, 'no grid to anchor to while paused');
-
-  r.advance(25); pos += 25;
-  assert.strictEqual(r.c.now().source, 'auto', 'playing again, locked again');
 });
 
 // Stopping the auto show on a song the clock then follows by itself is the
@@ -199,56 +124,52 @@ test('a paused track hands over to the free clock, and locks again on resume', (
 // source that counts from somewhere else entirely is a new start.
 test('a hand-over between sources that agree keeps the count going', () => {
   const r = rig({ bpm: 90 });
-  const grid = grid128();
-  let pos = 60000 * 20 / 128;
-  let showRunning = true;
-  r.c.setAutoSource(() => (showRunning ? { grid, positionMs: pos } : null));
-  r.c.setTrack({ key: 'song', grid, positionMs: () => pos });
+  live(r, { beat: 20 });
+  let deck = true;
+  r.c.setProlinkSource(() => (deck ? { beatPos: 20 + ((r.t - 1000) / 60000) * 128, bpm: 128 } : null));
   const first = r.c.now();
-  assert.strictEqual(first.source, 'auto');
+  assert.strictEqual(first.source, 'cdj');
 
-  showRunning = false;
-  r.advance(25); pos += 25;
+  deck = false;
+  r.advance(25);
   const after = r.c.now();
-  assert.strictEqual(after.source, 'track');
+  assert.strictEqual(after.source, 'live');
   assert.strictEqual(after.epoch, first.epoch, 'the same beats, no restart');
 
-  // Free-running far from the song's count, then locking to it: a new start.
-  r.c.clearTrack({ key: 'other' });
+  // Free-running far from the live count, then locking to it: a new start.
+  r.c.setLiveSource(null);
   for (let i = 0; i < 400; i++) { r.advance(25); r.c.now(); }
   const free = r.c.now();
-  r.c.setTrack({ key: 'song-2', grid, positionMs: () => 1000 });
+  live(r, { beat: 2, key: 'another' });
   assert.strictEqual(r.c.now().epoch, free.epoch + 1);
 });
 
 // A typed tempo or a tap takes the clock back from a locked track in time with
 // it: from the beat the music is on, at the tempo the operator asked for.
-test('taking the tempo back from a locked track keeps the beat', () => {
+test('taking the tempo back from the live input keeps the beat', () => {
   const r = rig({ bpm: 90 });
-  const grid = grid128();
-  let pos = 60000 * 16.5 / 128;
-  r.c.setTrack({ key: 'song', grid, positionMs: () => pos });
+  live(r, { beat: 16.5 });
   const locked = r.c.now();
-  assert.strictEqual(locked.source, 'track');
+  assert.strictEqual(locked.source, 'live');
 
   r.c.setBpm(100);
   const typed = r.c.now();
-  assert.deepStrictEqual([typed.source, typed.bpm], ['tap', 100], 'the typed tempo, not the song\'s');
-  assert.ok(close(typed.beatPos, 16.5), `from the beat the song was on: ${typed.beatPos}`);
+  assert.deepStrictEqual([typed.source, typed.bpm], ['tap', 100], 'the typed tempo, not the music\'s');
+  assert.ok(close(typed.beatPos, 16.5), `from the beat the music was on: ${typed.beatPos}`);
   assert.strictEqual(typed.epoch, locked.epoch, 'no restart');
 
-  // A single tap on a fresh song: the beat snaps to the tap, the song's tempo
+  // A single tap on a new lock: the beat snaps to the tap, the music's tempo
   // carries on until a second tap measures a new one.
   let adopted = null;
   r.c.onTempo((bpm) => { adopted = bpm; });
-  r.c.setTrack({ key: 'song-2', grid, positionMs: () => pos });
-  r.advance(25); pos += 25;
-  assert.strictEqual(r.c.now().source, 'track');
+  live(r, { beat: 16.5, key: 'lock-2' });
+  r.advance(25);
+  assert.strictEqual(r.c.now().source, 'live');
   r.c.tap();
   const tapped = r.c.now();
   assert.strictEqual(tapped.source, 'tap');
   assert.strictEqual(tapped.beatPos, 17, 'the next whole beat');
-  assert.ok(close(tapped.bpm, 128, 1e-6) && close(adopted, 128, 1e-6), 'at the song\'s tempo');
+  assert.ok(close(tapped.bpm, 128, 1e-6) && close(adopted, 128, 1e-6), 'at the music\'s tempo');
 });
 
 // The BPM read-out, and the ±1 nudges that start from it, follow the tempo the
@@ -261,10 +182,9 @@ test('the tempo is reported when it moves, not on every frame', () => {
   r.c.now();
   assert.deepStrictEqual(reported, [120], 'once, not per frame');
 
-  let pos = 5000;
-  r.c.setTrack({ key: 'song', grid: makeGrid(Array.from({ length: 256 }, (_, i) => i * (60 / 123.7))), positionMs: () => pos });
-  for (let i = 0; i < 40; i++) { r.advance(25); pos += 25; r.c.now(); }
-  assert.deepStrictEqual(reported, [120, 123.7], 'the song\'s tempo, to a hundredth');
+  live(r, { bpm: 123.7 });
+  for (let i = 0; i < 40; i++) { r.advance(25); r.c.now(); }
+  assert.deepStrictEqual(reported, [120, 123.7], 'the music\'s tempo, to a hundredth');
 
   r.c.setBpm(123.72);
   r.c.now();
@@ -274,16 +194,6 @@ test('the tempo is reported when it moves, not on every frame', () => {
   assert.deepStrictEqual(reported, [120, 123.7, 125]);
 });
 
-test('the auto show\'s reading says which beat its scene was scheduled on', () => {
-  const r = rig();
-  const grid = grid128();
-  r.c.setAutoSource(() => ({ grid, positionMs: 60000 * 10.4 / 128, anchorMs: 60000 * 8 / 128 }));
-  const reading = r.c.now();
-  assert.ok(close(reading.anchorBeat, 8), 'for re-anchoring after a seek');
-  r.c.setAutoSource(() => ({ grid, positionMs: 60000 * 10.4 / 128 }));
-  assert.strictEqual(r.c.now().anchorBeat, undefined, 'and nothing when it does not know');
-});
-
 // ── The phase, for other screens ────────────────────────────────────────────
 // Visuals that keep their own beat read where the clock's is, with its epoch,
 // between the engine's frames: exactly where the next reading will find it,
@@ -291,20 +201,17 @@ test('the auto show\'s reading says which beat its scene was scheduled on', () =
 
 test('the phase is where the next reading will find the beat, and moves nothing', () => {
   const r = rig({ bpm: 90 });
-  const grid = grid128();
-  let showRunning = true;
-  let pos = 60000 * 16 / 128;
-  r.c.setAutoSource(() => (showRunning ? { grid, positionMs: pos } : null));
+  const heard = live(r, { beat: 16 });
   const locked = r.c.now();
 
-  r.advance(10); pos += 10;
+  r.advance(10);
   const between = r.c.phase();
   assert.ok(close(between.beatPos, 16 + 10 * 128 / 60000), `mid-frame: ${between.beatPos}`);
   assert.strictEqual(between.epoch, locked.epoch);
 
-  // The show stops between frames: the next reading carries on from where it
+  // The live input stops between frames: the next reading carries on from where it
   // was, and so does the phase, rather than reading the idle free clock.
-  showRunning = false;
+  heard.on = false;
   r.advance(10);
   const handing = r.c.phase();
   r.c.phase();
@@ -315,7 +222,7 @@ test('the phase is where the next reading will find the beat, and moves nothing'
   // A seek between frames: the jump and the epoch it will bring.
   r.advance(23);
   r.c.now();
-  r.c.setTrack({ key: 'song', grid, positionMs: () => 60000 * 64 / 128 });
+  live(r, { beat: 64, key: 'again' });
   const seeked = r.c.phase();
   assert.ok(close(seeked.beatPos, 64));
   assert.strictEqual(seeked.epoch, next.epoch + 1);

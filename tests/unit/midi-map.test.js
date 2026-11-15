@@ -97,6 +97,26 @@ test('a map naming an action that does not exist is quarantined', () => {
   assert.ok(fs.readdirSync(dir).some((f) => f.includes('.invalid-')));
 });
 
+// The planned track show's intensity and sync offset went with it (G8): a map saved with them loads without them.
+test('a map saved with the planned show\'s actions loads without those bindings and keeps the rest', (t) => {
+  const saved = {
+    cc: { 8: { action: 'setAutoIntensity', type: 'absolute' }, 17: { action: 'adjustAutoIntensity', type: 'relative', scale: 5 },
+      18: { action: 'adjustAutoSync', type: 'relative' }, 19: { action: 'setAutoSync', type: 'absolute' }, 9: { action: 'setMasterDimmer', type: 'absolute' } },
+    notes: { 0: { action: 'tap' } },
+  };
+  fs.writeFileSync(file, JSON.stringify(saved));
+  const warned = [];
+  t.mock.method(console, 'warn', (line) => warned.push(line));
+  const s = store();
+
+  assert.deepStrictEqual(s.get(), { cc: { 9: { action: 'setMasterDimmer', type: 'absolute' } }, notes: { 0: { action: 'tap' } } });
+  assert.strictEqual(s.snapshot().customised, true, 'still the saved map, not the default');
+  assert.ok(!fs.readdirSync(dir).some((f) => f.includes('.invalid-')), 'nothing moved aside');
+  assert.deepStrictEqual(warned.map((line) => line.match(/cc (\d+) was bound to (\w+)/).slice(1)),
+    [['8', 'setAutoIntensity'], ['17', 'adjustAutoIntensity'], ['18', 'adjustAutoSync'], ['19', 'setAutoSync']], 'one line each');
+  assert.ok(!ACTIONS.some((a) => /Auto(Intensity|Sync)$/.test(a.id)), 'and none of them can be bound again');
+});
+
 // Relearning "tap tempo" onto another button should leave one tap button, not
 // two — the old one would otherwise keep firing from wherever it used to be.
 test('relearning an action moves it instead of duplicating it', () => {

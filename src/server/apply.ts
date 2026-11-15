@@ -35,13 +35,12 @@ export interface ApplierDeps {
   live?: { start(options: { source: 'loopback' | 'input'; device?: string; latencyMs?: number }): void; stop(): void } | null;
   midiClock?: { setPort(port: string): void } | null;
   deezer: { init(arl: string): Promise<unknown>; canDecrypt?(): boolean };
-  autoShow?: { restartWorker?(reason: string): void; settleLocalAnalysis?(): void } | null;
   applyPatch(patch: unknown): unknown;
   broadcast(): void;
   voices?: { stopAll(): number };
 }
 
-function createApplier({ midi, spotify, smtc, live = null, midiClock = null, deezer, autoShow, applyPatch, broadcast, voices = liveVoices }: ApplierDeps) {
+function createApplier({ midi, spotify, smtc, live = null, midiClock = null, deezer, applyPatch, broadcast, voices = liveVoices }: ApplierDeps) {
   const bootValues = {
     server: {
       host: settings.get('server.host'),
@@ -157,34 +156,29 @@ function createApplier({ midi, spotify, smtc, live = null, midiClock = null, dee
     applyPatch({ prolinkEnabled: settings.get('sources.prolink') });
   }
 
-  // Invalidate the interpreter probe and recycle its worker so both adopt a changed Python setting.
+  // Invalidate the interpreter probe so a changed Python setting is used from the next start.
   function applyPython() {
     pythonEnv._reset();
     const info = pythonEnv.resolve();
     console.log(`[python] interpreter is now ${pythonEnv.describe()}`);
     pythonEnv.warnIfUnusable();
-    if (autoShow && autoShow.restartWorker) autoShow.restartWorker('interpreter changed');
     return info;
   }
 
   function applySeparator() {
     console.log(`[analysis] separator is now ${settings.get('analysis.separator')}`);
-    if (autoShow && autoShow.restartWorker) autoShow.restartWorker('separator changed');
   }
 
   function applyStructureModel() {
     console.log(`[analysis] structure model is now ${settings.get('analysis.structureModel')}`);
-    if (autoShow && autoShow.restartWorker) autoShow.restartWorker('structure model changed');
   }
 
   function applyGpuMemory() {
     console.log(`[analysis] GPU memory is now ${settings.get('analysis.gpuMemory')}`);
-    if (autoShow && autoShow.restartWorker) autoShow.restartWorker('GPU memory changed');
   }
 
   function applyLocalWorker() {
     console.log(`[analysis] local worker is now ${settings.get('analysis.localWorker')}`);
-    if (autoShow && autoShow.settleLocalAnalysis) autoShow.settleLocalAnalysis();
   }
 
   function applyDeezer() {

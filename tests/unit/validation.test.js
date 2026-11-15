@@ -118,11 +118,10 @@ test('palette patches accept saved ids and bound palette sizes', () => {
   rejects(patchSchema, { palette: 'arctic', paletteSize: 0 });
 });
 
-test('the auto-show intensity is bounded to a percentage', () => {
-  assert.ok(ok(patchSchema, { autoIntensity: 0 }));
-  assert.ok(ok(patchSchema, { autoIntensity: 100 }));
-  rejects(patchSchema, { autoIntensity: -1 });
-  rejects(patchSchema, { autoIntensity: 101 });
+test('the planned show\'s fields are no patch fields', () => {
+  for (const field of ['autoIntensity', 'autoSyncOffsetMs', 'autoSource', 'autoPaletteSize', 'autoPrefetchDepth', 'anchorMs']) {
+    rejects(patchSchema, { [field]: 1 });
+  }
 });
 
 // The trim rides the fixture message rather than the override, so it has to be

@@ -11,7 +11,6 @@ import { PassThrough } from 'node:stream';
 
 import LiveInput, { BAND_HZ_MAX, MAX_BANDS, listLiveDevices, findLiveDevice } from '../../src/live-input.ts';
 import { Conductor } from '../../src/server/conductor.ts';
-import { makeGrid } from '../../src/shared/beat-clock.ts';
 
 const state = (over = {}) => JSON.stringify({
   type: 'state', t: 10, captured: 10.035, beat: 20.5, bpm: 120, phase: 0.5, locked: true,
@@ -638,12 +637,7 @@ test('the pattern clock follows the live beat when nothing better knows the musi
   conductor.setLiveSource(() => live);
   assert.deepStrictEqual((({ source, beatPos, bpm }) => ({ source, beatPos, bpm }))(conductor.now()), { source: 'live', beatPos: 12.25, bpm: 126 });
 
-  // A known track outranks it; the show's grid and a deck do too.
-  const grid = makeGrid(Array.from({ length: 64 }, (_, i) => i * 0.5));
-  conductor.setTrack({ key: 'x', grid, positionMs: () => 4000 + (now - 1000) });
-  now += 10;
-  assert.strictEqual(conductor.now().source, 'track');
-  conductor.clearTrack();
+  // A deck outranks it.
   conductor.setProlinkSource(() => ({ beatPos: 3, bpm: 128 }));
   assert.strictEqual(conductor.now().source, 'cdj');
   conductor.setProlinkSource(null);

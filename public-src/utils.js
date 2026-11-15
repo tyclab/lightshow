@@ -35,10 +35,8 @@ export function formatBpm(bpm) {
 }
 
 const CLOCK_SOURCES = {
-  auto: { label: 'Auto', locked: true, title: 'Patterns step on the auto show\'s analysed beats' },
   cdj: { label: 'CDJ', locked: true, title: 'Patterns step on the playing deck\'s beats (PRO DJ LINK)' },
   live: { label: 'LIVE', locked: true, title: 'Patterns step on the beats heard in the live audio' },
-  track: { label: 'Track', locked: true, title: 'Patterns step on the playing song\'s analysed beats. Tap or set a BPM to take over until the next song' },
   tap: { label: 'Tap', locked: false, title: 'Patterns run free at this BPM: tap tempo, the ± buttons or MIDI set it' },
 };
 

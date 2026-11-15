@@ -1,95 +1,17 @@
 // Panels as a layer of their own: on a rig with a panel — a WLED matrix, its
-// cells in rows — the auto show hands the panels a picture that stands up on
-// a screen (the band's levels, fire, rain) by what the music is doing, while
-// the pars and the bars keep what they were given.
+// cells in rows — the panels draw their own picture while the pars and the
+// bars keep what they were given.
 
 import test from 'node:test';
 import assert from 'node:assert';
-import fs from 'node:fs';
-import path from 'node:path';
 
-import AutoShow from '../../src/auto-show.ts';
-import { COLOR_PRESETS, PATTERNS } from '../../src/server/presets.ts';
 import { buildRig } from '../../src/shared/rig.ts';
 import { renderLayer } from '../../src/shared/layer.ts';
-import { renderIntents } from '../../src/show/render.ts';
 import { state } from '../../src/server/state.ts';
 import { applyPatch } from '../../src/server/patch.ts';
 import { captureLook, recallLook } from '../../src/server/cues.ts';
 
-const TRACKS = path.join(import.meta.dirname, '..', 'fixtures', 'tracks');
-const files = fs.readdirSync(TRACKS).sort();
-const PANEL_LOOKS = new Set(['bars', 'fire', 'rain']);
-
-function plan(file, { pixels = true, panels = true } = {}) {
-  const doc = JSON.parse(fs.readFileSync(path.join(TRACKS, file), 'utf8'));
-  const show = new AutoShow(() => {}, COLOR_PRESETS, PATTERNS);
-  show._worker.shutdown();
-  show.analysis = doc.analysis || doc;
-  show.intensity = 60;
-  show.setRig({ hasPixels: pixels, hasPanels: panels });
-  show.buildTimeline();
-  return show;
-}
-
-const scenes = (show) => show.intents.filter((i) => i.kind === 'SCENE' && i.pattern);
-const strip = (s) => ({ ...s, panelPattern: undefined });
-
 // ── The auto show ───────────────────────────────────────────────────────────
-
-test('on a rig with panels every scene says what the panels draw, by section', () => {
-  const seen = new Map();
-  for (const file of files) {
-    for (const s of scenes(plan(file))) {
-      assert.ok('panelPattern' in s, `${file} ${s.source} at ${s.timeMs}`);
-      if (s.source === 'drop:anchor') {
-        assert.strictEqual(s.panelPattern, null, `${file}: a drop's anchor is still the whole rig at once`);
-        continue;
-      }
-      assert.ok(PANEL_LOOKS.has(s.panelPattern), `${file} ${s.source}: ${s.panelPattern}`);
-      if (!String(s.source).startsWith('section:')) continue;
-      const role = s.source.slice('section:'.length);
-      if (!seen.has(role)) seen.set(role, new Set());
-      seen.get(role).add(s.panelPattern);
-    }
-  }
-  assert.deepStrictEqual([...seen.get('chorus')], ['fire'], 'a chorus burns');
-  assert.deepStrictEqual([...seen.get('verse')], ['bars'], 'a verse is the band\'s levels');
-  for (const role of ['intro', 'outro', 'breakdown']) {
-    for (const look of seen.get(role) || []) assert.strictEqual(look, 'rain', role);
-  }
-});
-
-test('the pars and the bars keep the looks they had without panels', () => {
-  for (const file of files) {
-    const withPanels = scenes(plan(file)).map(strip);
-    const without = scenes(plan(file, { panels: false })).map(strip);
-    assert.deepStrictEqual(withPanels, without, file);
-  }
-});
-
-test('a rig without panels plans nothing for them', () => {
-  for (const file of files) {
-    for (const pixels of [true, false]) {
-      const show = plan(file, { pixels, panels: false });
-      for (const s of scenes(show)) assert.ok(!('panelPattern' in s), `${file} ${s.source}`);
-      for (const ev of show.timeline) assert.ok(!ev.data || !('panelPattern' in ev.data), `${file}: ${JSON.stringify(ev.data)}`);
-    }
-  }
-});
-
-test('the timeline carries the panels\' picture, and gaining panels replans', () => {
-  const file = files[0];
-  const show = plan(file, { panels: false });
-  const before = show.timelineRevision;
-  show.setRig({ hasPixels: true, hasPanels: true });
-  assert.ok(show.timelineRevision !== before, 'replanned for the panels');
-  const patches = show.timeline.filter((ev) => ev.action === 'patch' && ev.data && 'panelPattern' in ev.data);
-  assert.ok(patches.length > 0 && patches.some((ev) => ev.data.panelPattern === 'fire'));
-  assert.ok(show.getTimelineData().timeline.some((ev) => ev.panelPattern === 'fire'), 'and the timeline view shows it');
-  assert.deepStrictEqual(renderIntents([{ kind: 'SCENE', timeMs: 0, pattern: 'solid', panelPattern: 'rain', priority: 0 }])
-    .map((ev) => ev.data.panelPattern), ['rain']);
-});
 
 // ── The layer ───────────────────────────────────────────────────────────────
 

@@ -65,7 +65,6 @@ export function attachSourceRoutes(app: Express, ctx: RouteContext): void {
   app.post('/api/spotify/disconnect', (_req, res) => {
     // Drop the saved session on disconnect so restart cannot silently sign in again.
     spotify.disconnect({ forget: true });
-    integrations.clearSpotifyNext();
     integrations.broadcast();
     res.json({ ok: true });
   });

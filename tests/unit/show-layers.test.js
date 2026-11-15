@@ -1,143 +1,15 @@
-// Pars and bars as two layers: on a rig with LED bars the pars carry the
-// colour and the wash, and the bars carry the movement, with a picture chosen
-// by what the music is doing — the section's role, a build-up, a drop.
+// Pars and bars as two layers: on a rig with LED bars the pars run the look's
+// pattern and the bars their own picture; without bars that picture changes nothing.
 
 import test from 'node:test';
 import assert from 'node:assert';
-import fs from 'node:fs';
-import path from 'node:path';
 
-import AutoShow from '../../src/auto-show.ts';
-import { COLOR_PRESETS, PATTERNS } from '../../src/server/presets.ts';
+import { COLOR_PRESETS } from '../../src/server/presets.ts';
 import { buildRig } from '../../src/shared/rig.ts';
 import { renderLayer } from '../../src/shared/layer.ts';
-import { PATTERN_FUNCS, CELL_PATTERNS } from '../../src/shared/patterns.ts';
+import { CELL_PATTERNS } from '../../src/shared/patterns.ts';
 import { wledProfile, readInfo } from '../../src/server/wled.ts';
 import { createPreviewSampler } from '../../src/shared/preview.ts';
-
-const TRACKS = path.join(import.meta.dirname, '..', 'fixtures', 'tracks');
-const files = fs.readdirSync(TRACKS).sort();
-// Patterns that carry light across the stage lamp by lamp: on a rig with
-// bars, those are the bars' job.
-const TRAVELLING = new Set(['chase', 'chase-rev', 'ping-pong', 'runner', 'pairs', 'stack-up', 'random-flash', 'comet']);
-
-function plan(file, { pixels = true, intensity = 60 } = {}) {
-  const doc = JSON.parse(fs.readFileSync(path.join(TRACKS, file), 'utf8'));
-  const show = new AutoShow(() => {}, COLOR_PRESETS, PATTERNS);
-  show._worker.shutdown();
-  show.analysis = doc.analysis || doc;
-  show.intensity = intensity;
-  show.setRig({ hasPixels: pixels });
-  show.buildTimeline();
-  return show;
-}
-
-const scenes = (show) => show.intents.filter((i) => i.kind === 'SCENE' && i.pattern);
-
-test('every scene on a rig with bars says what the bars draw', () => {
-  for (const file of files) {
-    for (const s of scenes(plan(file))) {
-      assert.ok('pixelPattern' in s, `${file} ${s.source} at ${s.timeMs}`);
-      if (s.pixelPattern) assert.ok(PATTERN_FUNCS[s.pixelPattern], `${file}: ${s.pixelPattern} is a picture the rig can draw`);
-    }
-  }
-});
-
-test('the bars draw what the section is doing', () => {
-  const seen = new Map();
-  for (const file of files) {
-    for (const s of scenes(plan(file))) {
-      if (!String(s.source).startsWith('section:')) continue;
-      const role = s.source.slice('section:'.length);
-      if (!seen.has(role)) seen.set(role, new Set());
-      seen.get(role).add(`${s.pixelPattern}/${s.pixelMap}`);
-    }
-  }
-  assert.deepStrictEqual([...seen.get('verse')], ['gradient/stage'], 'a verse is a slow gradient');
-  // Or, driving as hard as a drop, one of the strobe programs, laid as it is.
-  for (const look of seen.get('chorus')) {
-    assert.ok(/^(comet\/mirror|flash-chase\/mirror|(flash-alternate|ramp|core)\/bar|(ramp|decay)-scatter\/stage)$/.test(look), `a chorus is a mirrored chase: ${look}`);
-  }
-  assert.ok(seen.get('chorus').has('comet/mirror'), 'a chorus that is not driving that hard still chases');
-  assert.deepStrictEqual([...seen.get('drop')], ['impact/stage'], 'a drop is a burst from the centre, sparking on the kick');
-  for (const role of ['intro', 'outro']) {
-    for (const look of seen.get(role) || []) assert.ok(/^(gradient|plasma)\/stage$/.test(look), `${role}: ${look}`);
-  }
-});
-
-test('drops and driving passages lay out strobe bars', () => {
-  const MAPS = { impact: 'stage', 'flash-scatter': 'stage', 'flash-chase': 'mirror',
-    'flash-fill': 'bar', 'flash-alternate': 'bar', ramp: 'bar', core: 'bar' };
-  const dropPrograms = new Set();
-  let strobed = 0;
-  for (const file of files) {
-    const byDrop = new Map();
-    for (const s of scenes(plan(file))) {
-      if (!(s.pixelPattern in MAPS)) continue;
-      strobed++;
-      assert.strictEqual(s.pixelMap, MAPS[s.pixelPattern], `${file} ${s.source}: ${s.pixelPattern}`);
-      const source = String(s.source);
-      if (source.startsWith('drop:')) {
-        dropPrograms.add(s.pixelPattern);
-        // Every scene of one drop plays the same program.
-        const t = Math.round(s.timeMs / 4000);
-        if (byDrop.has(t)) assert.strictEqual(byDrop.get(t), s.pixelPattern, `${file}: one drop, one program`);
-        byDrop.set(t, s.pixelPattern);
-      }
-    }
-  }
-  assert.ok(strobed > 0);
-  assert.ok(dropPrograms.size >= 2, `the drops turn through their programs: ${[...dropPrograms]}`);
-});
-
-test('a build-up is one fill across its scenes, and full as the drop lands', () => {
-  let builds = 0;
-  for (const file of files) {
-    const show = plan(file);
-    const build = scenes(show).filter((s) => String(s.source).startsWith('buildup:'));
-    for (const s of build) {
-      assert.strictEqual(s.pixelPattern, 'rise', `${file} ${s.source}`);
-      assert.ok(s.pixelSpan >= 1, `${file} ${s.source}: a span in beats`);
-    }
-    // Each build starts its fill from empty, and every scene after that in
-    // the same build starts where the fill has got to.
-    for (let i = 1; i < build.length; i++) {
-      if (!build[i].pixelFrom) continue;
-      assert.strictEqual(build[i].pixelSpan, build[i - 1].pixelSpan, `${file}: one build, one span`);
-      assert.ok(build[i].pixelFrom > (build[i - 1].pixelFrom || 0), `${file}: the fill carries on`);
-    }
-    assert.ok(build.every((s) => s.source !== 'buildup:tension' || !s.pixelFrom), `${file}: a build's fill starts empty`);
-    builds += build.length ? 1 : 0;
-  }
-  assert.ok(builds >= 2, 'the fixture tracks have build-ups to check');
-});
-
-test('on a rig with bars the pars hold colour and let the bars travel', () => {
-  for (const file of files) {
-    for (const s of scenes(plan(file))) {
-      if (/^(section|rotation|drop)/.test(s.source) && s.source !== 'drop:anchor') {
-        assert.ok(!TRAVELLING.has(s.pattern), `${file} ${s.source} at ${s.timeMs}: pars on ${s.pattern}`);
-      }
-      assert.strictEqual(s.split, undefined, `${file}: pars and bars are the two layers; no group split`);
-    }
-  }
-});
-
-test('a drop lands on every fixture at once before the bars take over', () => {
-  for (const file of files) {
-    for (const s of scenes(plan(file)).filter((x) => x.source === 'drop:anchor')) {
-      assert.strictEqual(s.pixelPattern, null, `${file} at ${s.timeMs}`);
-    }
-  }
-});
-
-test('a rig of pars plans no pictures for bars', () => {
-  for (const file of files) {
-    const show = plan(file, { pixels: false });
-    for (const s of scenes(show)) assert.ok(!('pixelPattern' in s), `${file} ${s.source}`);
-    for (const ev of show.timeline) assert.ok(!ev.data || !('pixelPattern' in ev.data), `${file}: ${JSON.stringify(ev.data)}`);
-  }
-});
 
 // ── The layer ───────────────────────────────────────────────────────────────
 

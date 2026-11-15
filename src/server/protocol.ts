@@ -26,11 +26,10 @@ export const DOMAIN_OF: Readonly<Record<string, Domain>> = {
 
   artnet: 'rig', universes: 'rig', fixtures: 'rig', profiles: 'rig', rigRevision: 'rig', identify: 'rig', hueBridges: 'rig', hueStrobe: 'rig', hardware: 'rig', armed: 'rig', idleStopMin: 'rig', picture: 'rig', wled: 'rig', hue: 'rig',
 
-  autoIntensity: 'show', autoSyncOffsetMs: 'show', autoSource: 'show', autoPrefetchDepth: 'show',
-  autoShow: 'show', activeSource: 'show', showOn: 'show', cues: 'show', warm: 'show',
+  cues: 'show',
 
-  spotify: 'sources', spotifyNext: 'sources', spotifyPrefetch: 'sources', nowPlaying: 'sources',
-  hybrid: 'sources', deezer: 'sources', deezerPrefetch: 'sources', prolink: 'sources', live: 'sources',
+  spotify: 'sources', nowPlaying: 'sources',
+  hybrid: 'sources', deezer: 'sources', prolink: 'sources', live: 'sources',
   midi: 'sources',
 
   audio: 'audio',
@@ -38,7 +37,7 @@ export const DOMAIN_OF: Readonly<Record<string, Domain>> = {
   sequence: 'sequence', sequences: 'sequence', sequencePatterns: 'sequence',
 
   colorPresets: 'catalogs', patterns: 'catalogs', energyEffects: 'catalogs', strobeFunctions: 'catalogs',
-  palettes: 'catalogs', builtinProfileIds: 'catalogs', hueProfileIds: 'catalogs', syncOffsetLimitMs: 'catalogs',
+  palettes: 'catalogs', builtinProfileIds: 'catalogs', hueProfileIds: 'catalogs',
   families: 'catalogs', builtinPalettes: 'catalogs',
 
   effects: 'library', userPalettes: 'library',

@@ -974,7 +974,7 @@ for (const fn of ['ramp-up', 'random', 'break']) {
 test('a server runs its integrations\' interval timers while it is up', async (t) => {
   assert.equal(liveIntervals(), 0, 'none left over from the tests before');
   await serve(t);
-  assert.equal(liveIntervals(), 6, 'five from the integrations, one from Node\'s HTTP server checking its connections');
+  assert.equal(liveIntervals(), 5, 'four from the integrations, one from Node\'s HTTP server checking its connections');
 });
 
 test('no interval timer outlives the server torn down before it', () => {

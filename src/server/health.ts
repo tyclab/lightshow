@@ -36,7 +36,6 @@ export interface HealthInputs {
   rssMb: number;
   errors: { count: number; last: { component: string | null; msg: string } | null };
   supervisor: Supervision;
-  auto: { status: string; error: string | null } | null;
   /** Whether anything leaves the machine (armed.ts); left out, nothing is said about it. */
   armed?: boolean;
   wled?: WledBoardStatus[];
@@ -53,7 +52,7 @@ const performanceLog = logger('performance');
 /** What is wrong, in words, and the status it adds up to. */
 export function assess(inputs: HealthInputs): { status: HealthStatus; problems: Problem[] } {
   const problems: Problem[] = [];
-  const { engine, eventLoop, errors, supervisor, auto } = inputs;
+  const { engine, eventLoop, errors, supervisor } = inputs;
 
   if (!engine.running) problems.push({ level: 'error', what: 'The engine is not running: nothing is going out to the rig.' });
   if (engine.fellBack) problems.push({ level: 'warn', what: 'The engine could not run on its own thread and fell back to the main one.' });
@@ -69,7 +68,6 @@ export function assess(inputs: HealthInputs): { status: HealthStatus; problems: 
     const last = errors.last ? ` The last: ${errors.last.component ? `[${errors.last.component}] ` : ''}${errors.last.msg.split('\n')[0].slice(0, 160)}` : '';
     problems.push({ level: 'warn', what: `${errors.count} error${errors.count === 1 ? '' : 's'} logged in the last ten minutes.${last}` });
   }
-  if (auto && auto.status === 'error' && auto.error) problems.push({ level: 'warn', what: `The auto show: ${auto.error}` });
   for (const board of inputs.wled || []) if (board.problem) problems.push({ level: 'warn', what: `${board.problem}.` });
   for (const bridge of inputs.hue || []) if (inputs.armed !== false && bridge.enabled && bridge.configured && bridge.status === 'failed') {
     problems.push({ level: 'warn', what: `Hue ${bridge.label || bridge.id}: ${bridge.error || 'The entertainment stream failed.'}` });
@@ -199,13 +197,8 @@ function appVersion(): string {
   return version;
 }
 
-/** The auto show, as far as health needs to know it. */
-export interface HealthDeps {
-  autoShow?: { status?: string; error?: string | null; running?: boolean } | null;
-}
-
 /** The server's health now. */
-export function health({ autoShow = null }: HealthDeps = {}) {
+export function health() {
   const engine = engineStatus();
   const memory = process.memoryUsage();
   const since = Date.now() - RECENT_ERRORS_MS;
@@ -217,7 +210,6 @@ export function health({ autoShow = null }: HealthDeps = {}) {
     rssMb: memory.rss / 1024 / 1024,
     errors: { count: recentErrors.length, last: lastError && { component: lastError.component, msg: lastError.msg } },
     supervisor: supervision(),
-    auto: autoShow ? { status: String(autoShow.status || 'idle'), error: autoShow.error ?? null } : null,
     armed: isArmed(),
     wled: wledStatus(),
     hue: output.getHueStatus(),
@@ -243,7 +235,6 @@ export function health({ autoShow = null }: HealthDeps = {}) {
       hue: inputs.hue,
       wled: inputs.wled,
     },
-    auto: autoShow ? { status: inputs.auto?.status, running: !!autoShow.running, error: inputs.auto?.error ?? null } : null,
     log: { errors10m: recentErrors.length, lastError },
     // Diagnostic only: none of these moves the status.
     counts: counts(),

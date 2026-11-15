@@ -493,7 +493,7 @@ function createRenderer({ profileOf, profilesRevision = () => 0, now = performan
     const source = legacy ? (synthesized ? [synthesized] : []) : input.voices;
     const seen = new Set<string>();
     const voices: VoiceFrame[] = [];
-    const beatNow = reading.anchorBeat !== undefined && Number.isFinite(reading.anchorBeat) ? reading.anchorBeat : reading.beatPos;
+    const beatNow = reading.beatPos;
     for (const v of source) {
       if (!v || typeof v.id !== 'string' || !v.spec || typeof v.spec.kind !== 'string') continue;
       if (!(Number.isFinite(v.startedAtMs) && now >= v.startedAtMs)) continue;
@@ -646,12 +646,7 @@ function createRenderer({ profileOf, profilesRevision = () => 0, now = performan
       anchor = { step: given.step, epoch: given.epoch };
     }
     givenAnchor = given ? { step: given.step, epoch: given.epoch } : null;
-    if (!anchor || anchor.epoch !== reading.epoch) {
-      // Use the scene’s scheduled beat after seeking so phase matches uninterrupted playback.
-      const from = reading.anchorBeat !== undefined && Number.isFinite(reading.anchorBeat)
-        ? reading.anchorBeat : reading.beatPos;
-      anchor = { step: anchorStep(from, division), epoch: reading.epoch };
-    }
+    if (!anchor || anchor.epoch !== reading.epoch) anchor = { step: anchorStep(reading.beatPos, division), epoch: reading.epoch };
     return { step: stepAt(reading.beatPos, anchor.step, division), anchor: anchor.step, division };
   }
 

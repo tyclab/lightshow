@@ -25,10 +25,6 @@ export interface PatchHooks {
   palette(id: string): PaletteBody | null;
   prolinkEnable(): void;
   prolinkDisable(): void;
-  autoPaletteSize(size: NonNullable<Patch['autoPaletteSize']>): void;
-  autoIntensity(value: number): void;
-  autoSyncOffsetMs(value: number): void;
-  autoPrefetchDepth(value: number): void;
   broadcast(): void;
   showChanged(): void;
   /** A hand on the master or the tempo (not the sequence's own change): the sequencer ends that automation. */
@@ -48,10 +44,6 @@ const hooks: PatchHooks = {
   },
   prolinkEnable: () => {},
   prolinkDisable: () => {},
-  autoPaletteSize: () => {},
-  autoIntensity: () => {},
-  autoSyncOffsetMs: () => {},
-  autoPrefetchDepth: () => {},
   broadcast: () => {},
   // Registered by server.js: the show store reads this module, so importing it here is a cycle.
   showChanged: () => {},
@@ -64,25 +56,6 @@ function setHooks(partial: Partial<PatchHooks>): void { Object.assign(hooks, par
 // Socket edits to Art-Net and PRO DJ LINK persist too, or a restart reverts them.
 let persist: (partial: SettingsPatch) => void = () => {};
 function setPersist(fn: (partial: SettingsPatch) => void): void { persist = fn; }
-
-// Saved once the hand comes off, not per 5 ms encoder detent on the thread that renders DMX.
-const SYNC_OFFSET_SAVE_DELAY_MS = 750;
-let syncOffsetSaveTimer: ReturnType<typeof setTimeout> | null = null;
-
-function persistSyncOffsetSoon(): void {
-  if (syncOffsetSaveTimer) clearTimeout(syncOffsetSaveTimer);
-  const timer = setTimeout(flushPendingPersist, SYNC_OFFSET_SAVE_DELAY_MS);
-  if (timer.unref) timer.unref();
-  syncOffsetSaveTimer = timer;
-}
-
-/** Save a change still waiting on its delay. Called on the way down. */
-function flushPendingPersist(): void {
-  if (!syncOffsetSaveTimer) return;
-  clearTimeout(syncOffsetSaveTimer);
-  syncOffsetSaveTimer = null;
-  persist({ auto: { syncOffsetMs: state.autoSyncOffsetMs } });
-}
 
 export interface PatchOptions {
   /** Runs after validation and admission, before any change; a throw refuses the whole patch. */
@@ -146,8 +119,7 @@ function applyPatch(rawData: unknown, { beforeCommit, origin = 'hand', paletteOv
   if (data.bpm !== undefined) {
     // To a hundredth, so a nudge from 123.7 lands on 124.7 rather than float noise.
     data.bpm = Math.round(data.bpm * 100) / 100;
-    // An auto show tempo mark (anchorMs) is no hand, and shows only if the clock took it.
-    if (conductor.setBpm(data.bpm, { manual: data.anchorMs === undefined })) state.bpm = data.bpm;
+    if (conductor.setBpm(data.bpm)) state.bpm = data.bpm;
   }
   if (data.running !== undefined) {
     state.running = data.running;
@@ -155,19 +127,15 @@ function applyPatch(rawData: unknown, { beforeCommit, origin = 'hand', paletteOv
     reconcileFreeClock(true);
   }
 
-  // A scheduled scene counts from its beat, so a late or seek-restored scene lands on the same step.
   const patternChanges = (data.pattern !== undefined && data.pattern !== state.pattern)
     || (data.pixelPattern !== undefined && data.pixelPattern !== state.pixelPattern)
     || (data.panelPattern !== undefined && data.panelPattern !== state.panelPattern);
   const divisionChanges = data.beatDivision !== undefined && data.beatDivision !== state.beatDivision;
-  const scheduled = data.anchorMs !== undefined
-    && (data.pattern !== undefined || data.pixelPattern !== undefined || data.panelPattern !== undefined
-      || data.beatDivision !== undefined);
   if (data.beatDivision !== undefined) state.beatDivision = data.beatDivision;
   if (data.pattern !== undefined) { state.pattern = data.pattern; state.effectColours = null; }
   if (data.effectColours !== undefined) state.effectColours = data.effectColours
     ? { ...state.effectColours, ...data.effectColours } : null;
-  if (patternChanges || divisionChanges || scheduled) anchorPattern(data.anchorMs);
+  if (patternChanges || divisionChanges) anchorPattern();
   // Before the single slots, so "this look, but slot A in red" lands as it reads.
   const wantsPalette = data.palette !== undefined
     || (data.paletteSize !== undefined && state.palette);
@@ -215,14 +183,14 @@ function applyPatch(rawData: unknown, { beforeCommit, origin = 'hand', paletteOv
   if (data.pixelMap !== undefined) state.pixelMap = data.pixelMap;
   if (data.pixelPattern !== undefined) state.pixelPattern = data.pixelPattern;
   // A pattern picked by hand runs the whole rig from its start: bar pictures and spans are the show's.
-  else if (data.pattern !== undefined && data.anchorMs === undefined) {
+  else if (data.pattern !== undefined) {
     state.pixelPattern = null;
     state.pixelSpan = null;
     state.pixelFrom = null;
   }
   // The panels' too; a picture picked for the bars alone leaves theirs.
   if (data.panelPattern !== undefined) state.panelPattern = data.panelPattern;
-  else if (data.pattern !== undefined && data.anchorMs === undefined) state.panelPattern = null;
+  else if (data.pattern !== undefined) state.panelPattern = null;
   if (data.pixelSpan !== undefined) state.pixelSpan = data.pixelSpan;
   if (data.pixelFrom !== undefined) state.pixelFrom = data.pixelFrom;
   if (data.showDynamics !== undefined) {
@@ -238,7 +206,6 @@ function applyPatch(rawData: unknown, { beforeCommit, origin = 'hand', paletteOv
   }
   // An id that is no energy effect takes the latched one off.
   if (data.energyOverride !== undefined) latchEnergy(data.energyOverride);
-  if (data.autoSource !== undefined) state.autoSource = data.autoSource;
 
   if (data.prolinkEnabled !== undefined) {
     if (data.prolinkEnabled && !state.prolinkEnabled) {
@@ -252,28 +219,10 @@ function applyPatch(rawData: unknown, { beforeCommit, origin = 'hand', paletteOv
     }
   }
 
-  if (data.autoPaletteSize !== undefined) hooks.autoPaletteSize(data.autoPaletteSize);
-  if (data.autoIntensity !== undefined) {
-    // Rounded once, so the MIDI encoder ring and the auto show agree.
-    state.autoIntensity = Math.round(data.autoIntensity);
-    hooks.autoIntensity(state.autoIntensity);
-  }
-  if (data.autoSyncOffsetMs !== undefined) {
-    // Persisted: the offset belongs to the room and the rig, not tonight's set.
-    state.autoSyncOffsetMs = Math.round(data.autoSyncOffsetMs);
-    persistSyncOffsetSoon();
-    hooks.autoSyncOffsetMs(state.autoSyncOffsetMs);
-  }
-  if (data.autoPrefetchDepth !== undefined) {
-    state.autoPrefetchDepth = data.autoPrefetchDepth;
-    hooks.autoPrefetchDepth(data.autoPrefetchDepth);
-  }
-
   if (origin === 'sequence') return data;
   if (data.pattern !== undefined) hooks.handLook();
-  // A tempo the auto show schedules (anchorMs) is the music's, not a hand's.
   const masterDimmer = data.masterDimmer !== undefined;
-  const bpm = data.bpm !== undefined && data.anchorMs === undefined;
+  const bpm = data.bpm !== undefined;
   if (masterDimmer || bpm || data.paletteOverride !== undefined || data.overridePalette !== undefined) {
     hooks.handEdit({ masterDimmer, bpm, ...(data.paletteOverride !== undefined || data.overridePalette !== undefined ? { paletteOverride: true } : {}) });
   }
@@ -282,11 +231,9 @@ function applyPatch(rawData: unknown, { beforeCommit, origin = 'hand', paletteOv
 }
 
 // Rounded onto the step grid, so the pattern steps on the beat.
-function anchorPattern(anchorMs: number | undefined): void {
+function anchorPattern(): void {
   const reading = conductor.now();
-  const scheduled = anchorMs !== undefined ? conductor.beatAtTrackMs(anchorMs) : null;
-  const beatPos = scheduled !== null && Number.isFinite(scheduled) ? scheduled : reading.beatPos;
-  state.patternAnchor = { step: anchorStep(beatPos, state.beatDivision || 1), epoch: reading.epoch };
+  state.patternAnchor = { step: anchorStep(reading.beatPos, state.beatDivision || 1), epoch: reading.epoch };
 }
 
 function setOverride(id: number, rawOverride: unknown): boolean {
@@ -347,7 +294,6 @@ function processTap(): void {
 }
 
 export {
-  flushPendingPersist,
   applyPatch,
   applyOverride,
   applyOverrides,

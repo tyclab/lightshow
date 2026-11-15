@@ -4,7 +4,6 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import { messageOf } from './errors.ts';
 import type { Analysis } from './show/score.ts';
-import type { ShowOverlay } from './show/overlay.ts';
 
 export type CacheMeta = Record<string, unknown>;
 
@@ -125,32 +124,6 @@ class AnalysisCache {
 
   _summaryPathFor(key: string): string {
     return this._pathFor(key).replace(/\.json$/, SUMMARY_SUFFIX);
-  }
-
-  _overlayPathFor(key: string): string {
-    return this._pathFor(key).replace(/\.json$/, OVERLAY_SUFFIX);
-  }
-
-  overlay(key: string | null | undefined): ShowOverlay | null {
-    if (!key) return null;
-    try {
-      const parsed = JSON.parse(fs.readFileSync(this._overlayPathFor(key), 'utf8'));
-      return parsed && typeof parsed === 'object' ? parsed.overlay ?? null : null;
-    } catch (_) {
-      return null;
-    }
-  }
-
-  setOverlay(key: string | null | undefined, overlay: ShowOverlay | null): void {
-    if (!key) return;
-    const p = this._overlayPathFor(key);
-    const empty = !overlay || (!overlay.palette && !overlay.sections?.length
-      && !overlay.accents?.add?.length && !overlay.accents?.remove?.length);
-    if (empty) {
-      try { fs.rmSync(p, { force: true }); } catch (_) { /* not there */ }
-      return;
-    }
-    writeAtomicSync(p, JSON.stringify({ key, updatedAt: new Date().toISOString(), overlay }));
   }
 
   _accept(key: string, entry: CacheEntry | null | undefined): Analysis | null {

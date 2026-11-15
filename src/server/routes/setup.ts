@@ -16,10 +16,10 @@ const restartKeysFor = (pending: string[]): string[] =>
   (pending.includes('deezer.arl') ? [...RESTART_PATHS, 'deezer.arl'] : RESTART_PATHS);
 
 export function attachSetupRoutes(app: Express, ctx: RouteContext): void {
-  const { midi, spotify, prolink, analysisCache, applier } = ctx;
+  const { midi, spotify, prolink, applier } = ctx;
 
   app.post('/api/preflight', asyncHandler(async (_req, res) => {
-    const report = await runPreflight({ midi, spotify, prolink, analysisCache, downloadModels: true });
+    const report = await runPreflight({ midi, spotify, prolink, downloadModels: true });
     res.json({ ok: true, report });
   }));
 

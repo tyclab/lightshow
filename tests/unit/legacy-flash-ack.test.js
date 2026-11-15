@@ -4,8 +4,6 @@
 // them, and the automatic show leaves them out of its plan until it is given.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import fs from 'node:fs';
-import path from 'node:path';
 import { createRenderer, withInputDefaults } from '../../src/server/renderer.ts';
 import { createUniverseStore } from '../../src/server/universes.ts';
 import { createPreviewSampler } from '../../src/shared/preview.ts';
@@ -17,12 +15,9 @@ import { settings } from '../../src/server/settings.ts';
 import { stopEngine } from '../../src/server/engine.ts';
 import { ACKNOWLEDGEMENT_REQUIRED } from '../../src/server/safety.ts';
 import { RAPID_PATTERNS } from '../../src/shared/strobe-fx.ts';
-import { ShowDirector } from '../../src/show/director.ts';
 import { acknowledgeFlashes } from '../helpers/acknowledged.js';
 import { armOutputs } from '../helpers/armed.js';
-import AutoShow from '../../src/auto-show.ts';
-import { safety } from '../../src/server/safety.ts';
-import { isArmed, setArmedFlag } from '../../src/server/armed.ts';
+import { isArmed } from '../../src/server/armed.ts';
 import { CATALOGUE, CLASSIC_REDIRECTS, presetById, presetIndex } from '../../src/shared/effects/index.ts';
 import { requiresAcknowledgement, validateSpec } from '../../src/shared/effects/registry.ts';
 
@@ -89,21 +84,6 @@ test('before the acknowledgement the renderer and the preview draw nothing of th
   assert.ok(frames('chase', false).some(({ wire }) => wire.some((v) => v > 0)), 'a pattern that does not flash plays without it');
 });
 
-test('the automatic show plans none of them before the acknowledgement', () => {
-  const dir = path.join(import.meta.dirname, '..', 'fixtures', 'tracks');
-  const used = (acknowledged) => {
-    const seen = new Set();
-    for (const file of fs.readdirSync(dir)) {
-      const doc = JSON.parse(fs.readFileSync(path.join(dir, file), 'utf8'));
-      const director = new ShowDirector({ patterns: PATTERNS, colorPresets: COLOR_PRESETS, intensity: 90, pixels: true, acknowledged });
-      for (const intent of director.plan(doc.analysis || doc).intents) for (const id of [intent.pattern, intent.pixelPattern]) if (id) seen.add(id);
-    }
-    return SEVEN.filter((id) => seen.has(id));
-  };
-  assert.ok(used(true).length > 0, 'negative control: acknowledged, the show reaches for them');
-  assert.deepEqual(used(false), []);
-});
-
 test('disarmed, naming one is taken: nothing reaches the rig, so nothing waits', (t) => {
   const values = settings._values;
   settings._values = { ...values, safety: { ...values.safety, photosensitivityAcknowledged: false } };
@@ -113,43 +93,6 @@ test('disarmed, naming one is taken: nothing reaches the rig, so nothing waits',
     applyPatch({ pattern });
     assert.equal(state.pattern, pattern);
   }
-});
-
-// The plan is built for what the gate answers at that moment, so it is built again when the answer changes (src/main.ts).
-test('the automatic show plans them again when the outputs arm, the acknowledgement is given, and the outputs disarm', (t) => {
-  const values = settings._values;
-  const ownSave = Object.hasOwn(settings, 'save') ? settings.save : null;
-  settings._values = { ...values, safety: { ...values.safety, photosensitivityAcknowledged: false } };
-  settings.save = () => {};
-  const dir = path.join(import.meta.dirname, '..', 'fixtures', 'tracks');
-  const shows = fs.readdirSync(dir).map((file) => {
-    const doc = JSON.parse(fs.readFileSync(path.join(dir, file), 'utf8'));
-    const show = new AutoShow(() => {}, COLOR_PRESETS, PATTERNS);
-    show._worker.shutdown();
-    show.setRig({ hasPixels: true });
-    show.intensity = 90;
-    show.analysis = doc.analysis || doc;
-    show.buildTimeline();
-    return show;
-  });
-  let wired = true;
-  t.after(() => {
-    wired = false;
-    settings._values = values;
-    if (ownSave) settings.save = ownSave;
-    else delete settings.save;
-  });
-  safety.onChange(() => { if (wired) for (const show of shows) show.buildTimeline(); });
-  const planned = () => SEVEN.filter((id) => shows.some((show) => show.intents.some((intent) => intent.pattern === id || intent.pixelPattern === id)));
-  assert.ok(planned().length > 0, 'disarmed, the show reaches for them');
-  armOutputs(t);
-  assert.deepEqual(planned(), [], 'armed without the acknowledgement: none');
-  safety.acknowledge();
-  assert.ok(planned().length > 0, 'acknowledged: planned again');
-  setArmedFlag(false);
-  assert.ok(planned().length > 0, 'disarmed again: still planned, read after the flag fell');
-  setArmedFlag(true);
-  assert.deepEqual(planned(), [], 'the next arm asks again');
 });
 
 // Option C moves classic ids onto v2 presets (CLASSIC_REDIRECTS); a flash program moved there must not lose the gate.

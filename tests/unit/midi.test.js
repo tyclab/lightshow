@@ -23,7 +23,6 @@ function harness(map, refuse = () => null) {
     strobeFunction: 'standard',
     energyOverride: null,
     palette: null,
-    autoIntensity: 50,
     fixtures: [
       { id: 0, label: 'PAR 1', override: null, maxBrightness: 255 },
       { id: 1, label: 'PAR 2', override: null, maxBrightness: 255 },
@@ -542,44 +541,6 @@ test('a max-brightness control is driven to the trim it holds', () => {
 // The energy slider is a percentage, not a DMX level, so the fader scales to
 // 0-100 rather than the 0-255 every other absolute action uses.
 
-test('a fader bound to auto-show intensity sends 0-100, not 0-255', () => {
-  const h = harness({ cc: { 8: { action: 'setAutoIntensity', type: 'absolute' } }, notes: {} });
-
-  h.input.emit('cc', { controller: 8, value: 120, channel: 0 });
-  h.input.emit('cc', { controller: 8, value: 127, channel: 0 });
-  assert.deepStrictEqual(h.patches.at(-1), { autoIntensity: 100 });
-
-  h.input.emit('cc', { controller: 8, value: 0, channel: 0 });
-  assert.deepStrictEqual(h.patches.at(-1), { autoIntensity: 0 });
-
-  h.input.emit('cc', { controller: 8, value: 64, channel: 0 });
-  assert.deepStrictEqual(h.patches.at(-1), { autoIntensity: 50 });
-});
-
-test('an encoder nudges auto-show intensity within 0-100', () => {
-  const h = harness({ cc: { 17: { action: 'adjustAutoIntensity', type: 'relative', scale: 5 } }, notes: {} });
-
-  h.input.emit('cc', { controller: 17, value: 1, channel: 0 });     // +5
-  assert.deepStrictEqual(h.patches.at(-1), { autoIntensity: 55 });
-
-  h.state.autoIntensity = 98;
-  h.input.emit('cc', { controller: 17, value: 1, channel: 0 });
-  assert.deepStrictEqual(h.patches.at(-1), { autoIntensity: 100 }, 'clamped at 100');
-
-  h.state.autoIntensity = 2;
-  h.input.emit('cc', { controller: 17, value: 127, channel: 0 });   // -5
-  assert.deepStrictEqual(h.patches.at(-1), { autoIntensity: 0 }, 'clamped at 0');
-});
-
-test('an intensity control is driven to the slider position', () => {
-  const h = harness({ cc: { 8: { action: 'setAutoIntensity', type: 'absolute' } }, notes: {} });
-  h.sent.length = 0;
-
-  h.state.autoIntensity = 100;
-  h.midi.sendFeedback();
-  assert.deepStrictEqual(h.cc(), [{ type: 'cc', controller: 8, value: 127, channel: 0 }]);
-});
-
 // ── Palettes ────────────────────────────────────────────────────────────────
 
 test('a button bound to a palette selects it', () => {
@@ -789,7 +750,7 @@ test('legacy touch-sensor bindings migrate to their faders', () => {
 test('a fader that is already bound elsewhere is not taken over', () => {
   const h = harness({ cc: {
     101: { action: 'setMasterDimmer', type: 'absolute' },
-    1: { action: 'setAutoIntensity', type: 'absolute' },
+    1: { action: 'setStrobeSpeed', type: 'absolute' },
   }, notes: {} });
   const moved = [];
   h.midi.onRebind = (...args) => moved.push(args);

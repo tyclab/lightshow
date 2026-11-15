@@ -7,7 +7,7 @@ import { buildRig } from '../../src/shared/rig.ts';
 import { roomSceneSchema } from '../../src/shared/room-scene.ts';
 import { buildUnitSpace } from '../../src/shared/space.ts';
 import { syntheticRig, syntheticSpace } from '../../scripts/golden-frames.js';
-import { MEASURED_LOOKS, availableFor } from '../../src/show/look.ts';
+import { MEASURED_LOOKS, automaticPattern } from '../../src/show/look.ts';
 import { kindOf } from '../../src/shared/effects/registry.ts';
 import { V2_PRESETS } from '../../src/shared/effects/v2/presets.ts';
 import { effectRoom, voiceLayout } from '../../src/shared/effects/layer.ts';
@@ -34,7 +34,7 @@ test('a corner pixel pair does not qualify while well-placed whole lamps do', as
   const coverage = await measureLookCoverage(lamps);
   assert.ok(coverage.eligible.has('v2.lightOrbs'));
   assert.ok(coverage.darkBeats.get('v2.lightOrbs') <= 4);
-  assert.ok(availableFor(V2_PRESETS, null, { usable: coverage.eligible }).has('v2.lightOrbs'));
+  assert.ok(automaticPattern('v2.lightOrbs', coverage.eligible), 'an automatic show may pick it');
 });
 
 /** The runtime rig (a wall of 2,400 cells, a keyboard, two strips, thirty lamps) with every unit placed by hand. */
