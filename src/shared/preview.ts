@@ -116,7 +116,6 @@ export interface PreviewAudioSource {
   /** Pure, seekable samples in timeline milliseconds; never reads the live audio input. */
   frameAt(positionMs: number): AudioFrame | null;
   modulationAt?(positionMs: number): FrameBase['modulation'];
-  pictureAt?(positionMs: number): FrameBase['pictureFeatures'];
 }
 
 export interface PreviewOptions {
@@ -772,7 +771,7 @@ function createPreviewSampler(events: readonly PreviewEvent[] = [], grid: GridSo
           ...(s.pixelSpan ? { sectionProgress: Math.max(0, Math.min(1, (s.pixelFrom ?? 0)
             + (beatPos - f.anchor / Math.max(1, s.beatDivision)) / s.pixelSpan)) } : {}),
         },
-        pictureFeatures: options.audioSource?.pictureAt?.(t), master: { ...HD_MASTER_DEFAULTS }, seed: [0, 0, 0, 0], acknowledged, hueStrobe,
+        master: { ...HD_MASTER_DEFAULTS }, seed: [0, 0, 0, 0], acknowledged, hueStrobe,
         manualStrobeActive, expressionLevel: w.expression.level,
         unitSpace: options.space && options.space.n === n ? options.space : null,
       };

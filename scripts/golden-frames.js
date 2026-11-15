@@ -26,7 +26,6 @@ const demoMs = (ms) => ms * BPM / DEMO_BPM;
 export const V2_COMPLETE_OPTIONS = {
   audioAt: (ms) => ({ ...DEMO_AUDIO_SOURCE.frameAt(demoMs(ms)), t: ms }),
   modulationAt: (ms) => DEMO_AUDIO_SOURCE.modulationAt(demoMs(ms)),
-  pictureAt: (ms) => ({ ...DEMO_AUDIO_SOURCE.pictureAt(demoMs(ms)), expiresAt: ms + 1000 }),
 };
 
 /** The committed synthetic room: its fixtures, the profiles they need and the room model. */
@@ -93,7 +92,7 @@ export function roomlessHashes() {
 }
 
 /** Frames per id on a named rig: one row per unit, its channels at each beat in turn. The synthetic rig plays in its room unless `space` is false or a unit space of its own. */
-export function renderGolden(ids, rigName, beats, { space = true, audioAt, modulationAt, pictureAt, effectOf = presetSpec } = {}) {
+export function renderGolden(ids, rigName, beats, { space = true, audioAt, modulationAt, effectOf = presetSpec } = {}) {
   const { fixtures, profileOf } = rigOf(rigName);
   const unitSpace = typeof space === 'object' ? space : space && rigName === 'synthetic' ? syntheticSpace() : null;
   const channels = unitChannels(fixtures, profileOf);
@@ -110,7 +109,6 @@ export function renderGolden(ids, rigName, beats, { space = true, audioAt, modul
         const ms = beatPos * MS_PER_BEAT;
         if (audioAt) { input.audio = audioAt(ms); input.audioMode = 'reactive'; }
         if (modulationAt) input.modulation = modulationAt(ms);
-        if (pictureAt) input.pictureFeatures = pictureAt(ms);
         renderer.frame(input, { beatPos, bpm: BPM, epoch: 0 }, ms, store);
         channels.forEach(({ universe, offsets }, u) => {
           const buffer = store.getBuffer(universe);

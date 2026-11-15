@@ -16,7 +16,6 @@ export function demoInput(ms) {
   const { full, bass, mid, high } = audio.party;
   return {
     audio, audioMode: 'reactive', modulation: DEMO_AUDIO_SOURCE.modulationAt(demoMs(ms)),
-    pictureFeatures: { ...DEMO_AUDIO_SOURCE.pictureAt(demoMs(ms)), expiresAt: ms + 1000 },
     pulse: { mix: full, drums: bass, bass, vocals: mid, other: mid, kick: bass, snare: mid, hats: high },
   };
 }

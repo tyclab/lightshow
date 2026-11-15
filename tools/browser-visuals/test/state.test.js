@@ -58,17 +58,6 @@ test('armed needs fresh state with armed outputs only, so a missing clock or ack
   mirror.snapshot(snapshot()); mirror.reset(); assert.equal(mirror.armed(), false);
 });
 
-test('Colour + motion allows the room feed while panels pause and still requires arm and acknowledgement', () => {
-  const mirror = new StateMirror();
-  const value = snapshot(); value.state.picture = { source: 'inspired' };
-  mirror.snapshot(value);
-  assert.equal(mirror.base().ok, true);
-  assert.equal(mirror.target(options).ok, false);
-  value.state.armed = false; mirror.snapshot(value);
-  assert.equal(mirror.base().ok, false);
-  value.state.armed = true; value.state.safety.photosensitivityAcknowledged = false; mirror.snapshot(value);
-  assert.equal(mirror.base().ok, false);
-});
 test('the built-in Squid needs no helper output: every lease pauses as under Effects', () => {
   const mirror = new StateMirror();
   const value = snapshot(); value.state.picture = { source: 'squid' };

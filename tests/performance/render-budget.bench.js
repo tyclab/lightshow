@@ -143,7 +143,6 @@ test('three thousand lights keep every Spatial preset within the calibrated mean
       const now = frameIndex++ * 1000 / 44, beat = now * DEMO_BPM / 60000;
       input.audio = DEMO_AUDIO_SOURCE.frameAt(now);
       input.modulation = DEMO_AUDIO_SOURCE.modulationAt(now);
-      input.pictureFeatures = DEMO_AUDIO_SOURCE.pictureAt(now);
       const start = performance.now();
       renderer.frame(input, { beatPos: beat, bpm: DEMO_BPM, epoch: 0 }, now, store);
       wall.push(performance.now() - start);

@@ -16,7 +16,7 @@ registerKind({ kind: 'test.audition', app: 'own', schema: z.object({}), defaults
   render(_p, _s, room, frame, out) {
     for (let i = 0; i < room.n; i++) out[i] = { level: 1, strength: 1, colour: {
       r: Math.round((frame.audio?.party.bass ?? 0) * 255),
-      g: Math.round((frame.modulation?.sectionProgress ?? 0) * 255), b: frame.audioMode === 'reactive' ? frame.pictureFeatures?.palette[0].b ?? 0 : 0,
+      g: Math.round((frame.modulation?.sectionProgress ?? 0) * 255), b: frame.audioMode === 'reactive' ? 255 : 0,
     } };
   },
 });
@@ -32,8 +32,6 @@ test('demo source supplies bounded bass/mid/high and deterministic build/drop/br
     assert.ok(Object.values(frame.party).every((v) => Number.isFinite(v) && v >= 0 && v <= 1));
   }
   assert.deepEqual([0, 16, 32, 48].map((beat) => demoPosition(beat * 60000 / DEMO_BPM).section), ['build', 'drop', 'breakdown', 'groove']);
-  assert.equal(DEMO_AUDIO_SOURCE.pictureAt(500).expiresAt, 600);
-  assert.deepEqual(DEMO_AUDIO_SOURCE.pictureAt(500), DEMO_AUDIO_SOURCE.pictureAt(500));
   assert.ok(demoFrameAt(16 * 60000 / DEMO_BPM).party.bass > demoFrameAt(32 * 60000 / DEMO_BPM).party.bass);
 });
 
