@@ -24,7 +24,7 @@ export function engineNote(data) {
 
 /**
  * What the server actually resolved, rather than what the box says. "I ran
- * pip install" and "the analyser can import librosa" are different claims,
+ * pip install" and "the live input can import numpy" are different claims,
  * and on a machine with several Pythons they are about different interpreters.
  */
 export function pythonNote(data) {
@@ -34,7 +34,7 @@ export function pythonNote(data) {
   const where = py.executable || py.exe;
   if (py.missing && py.missing.length) {
     return { ok: false, text: `Currently: ${where} (${py.version}) — missing ${py.missing.join(', ')}. `
-      + `Set it up under Analysis environment, below, or install with: "${where}" -m pip install -r requirements.txt` };
+      + `Install them with: "${where}" -m pip install -r requirements.txt` };
   }
   return { ok: true, text: `Currently: ${where} (${py.version}) — all dependencies present.` };
 }
@@ -117,8 +117,8 @@ export const SOURCES = {
 export const LIVE = {
   id: 'live',
   title: 'Live input',
-  desc: 'Hear the music as it plays. Patterns keep the beat of any track, known or not, and a show made for a known '
-    + 'track lines itself up with what the room hears. Needs the analysis environment (below). Takes effect immediately.',
+  desc: 'Hear the music as it plays: the auto show answers what the room hears, and patterns keep its beat. Needs a '
+    + 'Python with the packages in requirements.txt (Python, below). Takes effect immediately.',
   fields: [
     { path: 'live.enabled', label: 'Enabled', type: 'toggle' },
     { path: 'live.source', label: 'Listen To', type: 'select', resets: ['live.device'],
@@ -155,6 +155,10 @@ export const LIVE = {
     { path: 'live.latencyMs', label: 'Room Latency', type: 'number', unit: 'ms', min: -500, max: 500,
       help: 'How much later the room hears the music than this computer does. Positive when the PA is behind the sound '
         + 'card; negative for a line-in off the booth. 0 is right for most setups.' },
+    { path: 'analysis.pythonPath', label: 'Python', type: 'text', placeholder: 'auto-detect',
+      help: 'Blank auto-detects, preferring an interpreter that can import what the live input needs. Set a full path '
+        + 'when pip installed into a different Python than the one that gets picked. Used from the live input\'s next start.',
+      note: pythonNote },
   ],
 };
 
@@ -182,72 +186,6 @@ export const DEEZER = {
     + 'there is one. Downloading from Deezer this way is against its terms of use — the ARL is from your own account, '
     + 'and the choice is yours.',
   fields: [{ path: 'deezer.arl', label: 'ARL Cookie', type: 'secret' }],
-};
-
-export const ANALYSIS = {
-  id: 'analysis',
-  title: 'Analysis',
-  desc: 'How tracks are analysed, and the limits on the analyser and the track downloader.',
-  fields: [
-    { path: 'analysis.separator', label: 'Separator', type: 'select',
-      options: () => [
-        { value: 'demucs', label: 'Demucs (fast)' },
-        { value: 'bs-roformer', label: 'BS-RoFormer (slow)' },
-      ],
-      help: 'Splits each track into drums, bass, vocals and other. Demucs keeps up with a live set; BS-RoFormer takes '
-        + 'about seven times as long, so the playing track is rarely ready in time. Changing it restarts the analyser; '
-        + 'tracks already analysed keep their result.' },
-    { path: 'analysis.structureModel', label: 'Structure', type: 'select',
-      options: () => [
-        { value: 'auto', label: 'Auto (SongFormer on a GPU)' },
-        { value: 'songformer', label: 'SongFormer, also on CPU (slow)' },
-        { value: 'off', label: 'Self-similarity only' },
-      ],
-      help: 'Names each section: intro, verse, chorus, bridge, outro. SongFormer needs its 2.9 GB of weights (Analysis '
-        + 'models, below) and takes a few seconds a track on a GPU but most of the track\'s length on a CPU. Without it '
-        + 'the sections come from where the music repeats. Changing it restarts the analyser.' },
-    { path: 'analysis.gpuMemory', label: 'GPU memory', type: 'select',
-      options: () => [
-        { value: 'auto', label: 'Auto (in RAM on a card under 12 GB)' },
-        { value: 'offload', label: 'In RAM, on the card for each pass' },
-        { value: 'resident', label: 'On the card all the time' },
-      ],
-      help: 'Where the analysis models wait between passes on an NVIDIA card. An 8 GB card cannot hold them all at once: '
-        + 'kept in RAM, each goes onto the card for its own pass — a fraction of a second, not a reload from disk — and '
-        + 'the card has room for it. A pass that still runs out of memory is run again on the CPU. Changing it restarts '
-        + 'the analyser.' },
-    { path: 'analysis.localWorker', label: 'Local analyser', type: 'select',
-      options: () => [
-        { value: 'standby', label: 'Standby while a GPU worker is ready' },
-        { value: 'resident', label: 'Resident (loaded all the time)' },
-      ],
-      help: 'Standby frees about 0.9 GB while a GPU worker is connected, from the next disarm while the outputs are armed: '
-        + 'the first track that falls back to this machine loads the models first, seconds from disk. When the last worker '
-        + 'disconnects, the analyser loads again only while the outputs are disarmed. Resident keeps it loaded from start-up.' },
-    { path: 'analysis.analyzerTimeoutMs', label: 'Analysis Timeout', type: 'number', unit: 'ms', min: 60000, max: 3600000,
-      help: 'How long one track may analyse before the worker is considered wedged and recycled. A long track gets '
-        + 'longer: see the next field.' },
-    { path: 'analysis.analyzerTimeoutMsPerSec', label: 'Timeout per Second of Audio', type: 'number', unit: 'ms',
-      min: 0, max: 10000,
-      help: 'A track whose length is known may analyse for a minute plus this much per second of it, when that is more '
-        + 'than the Analysis Timeout. A CPU takes up to about 1200 ms a second on a long track. 0 gives every track the '
-        + 'Analysis Timeout.' },
-    { path: 'analysis.downloadTimeoutMs', label: 'Download Timeout', type: 'number', unit: 'ms', min: 10000, max: 3600000,
-      help: 'How long yt-dlp may run before it is killed.' },
-    { path: 'analysis.workerToken', label: 'GPU Worker Token', type: 'secret', generate: true,
-      help: 'Lets a PC with a GPU connect and analyse tracks for this server (README: Remote GPU analysis). The token '
-        + 'opens only the analysis job routes, not this UI or its API. Blank turns remote workers off; a change '
-        + 'disconnects them until they use the new one.' },
-    { path: 'analysis.remoteWaitMs', label: 'Wait for the GPU', type: 'number', unit: 'ms', min: 0, max: 900000,
-      help: 'How long a prefetched track waits for a busy GPU worker before this machine analyses it. The playing '
-        + 'track never waits.' },
-    { path: 'analysis.localRoot', label: 'Library Folder', type: 'text',
-      help: 'Confine "analyse a local file" to this folder. Blank allows any path.' },
-    { path: 'analysis.pythonPath', label: 'Python', type: 'text', placeholder: 'auto-detect',
-      help: 'Blank auto-detects, preferring an interpreter that can import the analyser\'s dependencies. Set a full path '
-        + 'when pip installed into a different Python than the one that gets picked.',
-      note: pythonNote },
-  ],
 };
 
 export const SHOW = {

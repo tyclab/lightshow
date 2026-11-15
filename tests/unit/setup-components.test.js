@@ -23,7 +23,8 @@ async function load() {
         export { rigSelectionSig } from './public-src/rig-ui.js';
         export { lineFromEnds, geometryOf } from './public-src/stage-geometry.js';
         export { SettingsSection } from './public-src/components/setup/Section.jsx';
-        export { SERVER, ENGINE, LIVE, SHOW, ANALYSIS } from './public-src/components/setup/specs.js';
+        export * as specs from './public-src/components/setup/specs.js';
+        export { SERVER, ENGINE, LIVE, SHOW } from './public-src/components/setup/specs.js';
         export { PatchTable, conflictsOf } from './public-src/components/setup/PatchTable.jsx';
         export { Inspector } from './public-src/components/setup/Inspector.jsx';
         export { Outputs } from './public-src/components/setup/Outputs.jsx';
@@ -139,19 +140,13 @@ test('Settings → Show sets the minutes after which a disarmed show nobody atte
   assert.match(html, /0 never stops/);
 });
 
-test('Settings → Analysis offers standby for the analyser here, beside the GPU memory', () => {
-  ui.settingsSig.value = {
-    settings: { analysis: { separator: 'demucs', structureModel: 'auto', gpuMemory: 'auto', localWorker: 'standby', remoteWaitMs: 120000 } },
-    secrets: {},
-  };
-  const html = ui.html(ui.h(ui.SettingsSection, ui.ANALYSIS));
-  const ids = [...html.matchAll(/id="set-(analysis\.[A-Za-z]+)"/g)].map((m) => m[1]);
-  assert.strictEqual(ids[ids.indexOf('analysis.gpuMemory') + 1], 'analysis.localWorker');
-  const select = html.match(/<select id="set-analysis.localWorker"[^>]*>(.*?)<\/select>/);
-  assert.ok(select);
-  assert.deepStrictEqual([...select[1].matchAll(/<option (?:selected )?value="([^"]+)"/g)].map((m) => m[1]), ['standby', 'resident']);
-  assert.match(select[0], /<option selected value="standby"/);
-  assert.match(html, /id="set-analysis.localWorker-help">[^<]*GPU worker[^<]*disarmed/);
+test('Sources → Live input names the Python it runs and offers no analysis settings', () => {
+  ui.settingsSig.value = { settings: { live: { enabled: false, source: 'loopback', device: '' }, analysis: { pythonPath: '' } }, secrets: {} };
+  const html = ui.html(ui.h(ui.SettingsSection, ui.LIVE));
+  const ids = [...html.matchAll(/id="set-([a-z]+\.[A-Za-z]+)"/g)].map((m) => m[1]);
+  assert.ok(ids.includes('analysis.pythonPath'), ids.join(', '));
+  assert.ok(!ids.some((id) => /separator|structureModel|gpuMemory|localWorker|workerToken/.test(id)), ids.join(', '));
+  assert.strictEqual(ui.specs.ANALYSIS, undefined, 'no analysis section left to show');
 });
 
 test('overlaps: on one universe only, and a strip on every universe it runs over', () => {

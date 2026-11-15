@@ -1,13 +1,10 @@
 import { engineStatus } from '../engine.ts';
-import { validate } from '../validation.ts';
 import { settings, RESTART_PATHS, CONFIG_FILE, assertSettingsDomains } from '../settings.ts';
 import { showStore } from '../show-store.ts';
 import { generateToken } from '../auth.ts';
 import { runPreflight } from '../preflight.ts';
-import { modelManager, modelDownloadSchema } from '../model-manager.ts';
-import { pythonSetup, pythonSetupSchema } from '../python-setup.ts';
 import * as pythonEnv from '../../python-env.ts';
-import { HttpError, messageOf, statusOf, codeOf } from '../../errors.ts';
+import { messageOf, statusOf, codeOf } from '../../errors.ts';
 import type { Express } from 'express';
 import { asyncHandler, requestOrigin } from './common.ts';
 import type { RouteContext } from './common.ts';
@@ -19,42 +16,8 @@ export function attachSetupRoutes(app: Express, ctx: RouteContext): void {
   const { midi, spotify, prolink, applier } = ctx;
 
   app.post('/api/preflight', asyncHandler(async (_req, res) => {
-    const report = await runPreflight({ midi, spotify, prolink, downloadModels: true });
+    const report = await runPreflight({ midi, spotify, prolink });
     res.json({ ok: true, report });
-  }));
-
-  app.get('/api/models', asyncHandler(async (req, res) => {
-    try {
-      const listing = await modelManager.list({ refresh: req.query.refresh === '1' });
-      res.json({ ok: true, ...listing, job: modelManager.job() });
-    } catch (err) {
-      res.json({ ok: false, error: messageOf(err), job: modelManager.job() });
-    }
-  }));
-
-  app.post('/api/models/download', asyncHandler(async (req, res) => {
-    const { ids } = validate(modelDownloadSchema, req.body || {}, 'models');
-    const known = new Set((await modelManager.list()).models.map((m) => m.id));
-    const unknown = ids.filter((id) => !known.has(id));
-    if (unknown.length) throw new HttpError(400, `unknown model: ${unknown.join(', ')}`);
-    res.json({ ok: true, job: modelManager.download(ids) });
-  }));
-
-  app.get('/api/python/setup', asyncHandler(async (_req, res) => {
-    res.json({ ok: true, ...(await pythonSetup.status()) });
-  }));
-
-  app.post('/api/python/setup', asyncHandler(async (req, res) => {
-    const { build } = validate(pythonSetupSchema, req.body || {}, 'python setup');
-    const running = pythonSetup.job();
-    if (running && running.ok === null) throw new HttpError(409, 'The analysis environment is already being set up.');
-    const job = pythonSetup.start(build);
-    if (job.ok === false) throw new HttpError(409, job.error || 'The setup could not start.');
-    res.json({ ok: true, job });
-  }));
-
-  app.post('/api/python/setup/cancel', asyncHandler(async (_req, res) => {
-    res.json({ ok: pythonSetup.cancel() });
   }));
 
   app.get('/api/settings', (_req, res) => {

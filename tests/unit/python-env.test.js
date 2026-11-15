@@ -22,6 +22,12 @@ function realPython() {
 const PY = realPython();
 const noPython = { skip: PY ? false : 'no python interpreter available' };
 
+// G8: the offline analysis went; an interpreter is good for this server when the live input can run in it.
+test('the interpreter is judged by what the live input imports, not by an analyser\'s models', () => {
+  assert.deepStrictEqual(pythonEnv.REQUIRED_MODULES, ['numpy', 'soundcard']);
+  assert.strictEqual(pythonEnv.verify, undefined, 'no model stack to verify');
+});
+
 test('probe reports the real interpreter behind a launcher name', noPython, () => {
   const info = pythonEnv.probe(PY);
   assert.ok(info, 'a working interpreter must probe');
@@ -150,9 +156,8 @@ test('detection walks past a working-but-empty interpreter to a usable one',
     }
   });
 
-// `uv sync` makes .venv in the repository from the lockfile: nothing else on
-// the machine was built for this project, so it is tried first.
-test('the project environment uv made is tried before anything on PATH',
+// A .venv in the project folder was made for this project, so it is tried first.
+test('the project environment is tried before anything on PATH',
   { skip: process.platform === 'win32' ? 'uses POSIX shell shims' : (PY ? false : 'no python interpreter available') },
   () => {
     const real = execFileSync(PY, ['-c', 'import sys; print(sys.executable)'], { encoding: 'utf8' }).trim();

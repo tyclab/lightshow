@@ -165,22 +165,6 @@ function createApplier({ midi, spotify, smtc, live = null, midiClock = null, dee
     return info;
   }
 
-  function applySeparator() {
-    console.log(`[analysis] separator is now ${settings.get('analysis.separator')}`);
-  }
-
-  function applyStructureModel() {
-    console.log(`[analysis] structure model is now ${settings.get('analysis.structureModel')}`);
-  }
-
-  function applyGpuMemory() {
-    console.log(`[analysis] GPU memory is now ${settings.get('analysis.gpuMemory')}`);
-  }
-
-  function applyLocalWorker() {
-    console.log(`[analysis] local worker is now ${settings.get('analysis.localWorker')}`);
-  }
-
   function applyDeezer() {
     const arl = settings.get('deezer.arl');
     if (!arl) return;
@@ -232,10 +216,6 @@ function createApplier({ midi, spotify, smtc, live = null, midiClock = null, dee
     { match: (k) => k === 'server.publicUrl', run: refreshCallbackUrl },
     { match: (k) => k === 'deezer.arl', run: applyDeezer },
     { match: (k) => k === 'analysis.pythonPath', run: applyPython },
-    { match: (k) => k === 'analysis.separator', run: applySeparator },
-    { match: (k) => k === 'analysis.structureModel', run: applyStructureModel },
-    { match: (k) => k === 'analysis.gpuMemory', run: applyGpuMemory },
-    { match: (k) => k === 'analysis.localWorker', run: applyLocalWorker },
     { match: (k) => k === 'safety.flashLimit', run: applySafety },
     { match: (k) => k === 'clock.tempoMode', run: applyClock },
     { match: (k) => k === 'outputs.armed', run: (origin) => applyOutputs({ origin }) },

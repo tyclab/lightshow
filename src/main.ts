@@ -10,15 +10,12 @@ import { Server } from 'socket.io';
 import MidiController, { openMidiOutput } from './midi.ts';
 import ProLink from './prolink.ts';
 import LiveInput from './live-input.ts';
-import type { LiveOptions } from './live-input.ts';
 import MidiClock from './midi-clock.ts';
 import SpotifyClient from './spotify.ts';
 import NowPlayingSource from './nowplaying-source.ts';
 import { createOsNowPlaying, osNowPlayingKind } from './os-now-playing.ts';
 import DeezerSource from './deezer-source.ts';
 import * as deezer from './deezer.ts';
-import { analysisVersion } from './analysis-version.ts';
-import { HTTP_BASE as REMOTE_ANALYSIS_HTTP, RemoteAnalysisPool } from './remote-analysis.ts';
 
 import { state, voices } from './server/state.ts';
 import { startEngine, stopEngine, publishRigRevision, waitForEngineReady } from './server/engine.ts';
@@ -41,8 +38,6 @@ import { pixelInputs } from './server/pixel-input-live.ts';
 import { midiMap } from './server/midi-map.ts';
 import { cues } from './server/cues.ts';
 import { showStore, SHOW_FILE } from './server/show-store.ts';
-import { modelManager } from './server/model-manager.ts';
-import { pythonSetup } from './server/python-setup.ts';
 import * as pythonEnv from './python-env.ts';
 import { installProcessSafetyNet } from './server/guard.ts';
 import { startHealthMonitor } from './server/health.ts';
@@ -88,19 +83,10 @@ app.use(compression());
 app.use(sourceMapsForLoopback);
 
 app.use(express.static(path.join(import.meta.dirname, '..', 'public')));
-const remoteAnalysis = new RemoteAnalysisPool({
-  token: () => settings.get('analysis.workerToken'),
-  version: analysisVersion(),
-  serverModels: async () => (await modelManager.list()).models.filter((m) => m.present).map((m) => m.id),
-  jobSettings: () => ({ separator: settings.get('analysis.separator'), structureModel: settings.get('analysis.structureModel') }),
-});
-// GPU workers carry their own token, which opens these job routes and nothing under the rest of /api.
-app.use(REMOTE_ANALYSIS_HTTP, remoteAnalysis.httpRouter());
 app.use('/api', auth.httpMiddleware);   // before express.json: reject first, parse after
 app.use('/api/stage/room', express.json({ limit: ROOM_SCENE_BODY_LIMIT }));
 app.use(express.json());
 io.use(auth.socketMiddleware);
-remoteAnalysis.attach(io);
 
 const midi = new MidiController(state, applyPatch, processTap);
 midi.control = (action) => {
@@ -122,25 +108,8 @@ const spotify = new SpotifyClient();
 const nowPlaying = new NowPlayingSource();
 const deezerSource = new DeezerSource();
 
-settings.onChange((changed) => {
-  if (changed.includes('analysis.workerToken')) remoteAnalysis.disconnectAll('the worker token changed');
-});
 const integrations = setupIntegrations({ io, midi, spotify, nowPlaying, deezerSource, prolink, liveInput });
 
-modelManager.onFinished(() => {
-  remoteAnalysis.refreshModels().catch((err) => console.warn(`[analyzer] remote: ${messageOf(err)}`));
-});
-let liveBeforeSetup: LiveOptions | null = null;
-pythonSetup.onHooks({
-  before: () => {
-    liveBeforeSetup = liveInput.running ? liveInput.options : null;
-    liveInput.stop();
-  },
-  after: () => {
-    if (liveBeforeSetup) liveInput.start(liveBeforeSetup);
-    liveBeforeSetup = null;
-  },
-});
 conductor.setProlinkSource(() => (state.prolinkEnabled ? prolink.getBeatReading() : null));
 conductor.setLiveSource(() => liveInput.getBeatReading());
 const midiClock = new MidiClock({ open: openMidiOutput, beatPos: () => conductor.peek().beatPos });
@@ -180,7 +149,6 @@ spotify.onTokens((refreshToken) => {
 
 configureControls({ integrations, applier }, () => { lookStore.save(currentLook()); });
 
-remoteAnalysis.attachStatusRoute(app, () => ({}));
 attachRoutes(app, { midi, spotify, nowPlaying, deezerSource, prolink, integrations, applier, restart: restartServer });
 // Disarmed, a show with no control action and no page input for outputs.idleStopMin minutes is stopped as the header's Stop does.
 const idleStop = createIdleStop({
@@ -313,7 +281,6 @@ function shutdown(signal: string, exitCode = 0): void {
     ['engine', () => { engineDown = stopEngine(); }],
     ['artnet', () => artnetDiscovery.stop()],
     ['smtc', () => smtc.stop()],
-    ['remote analysis', () => remoteAnalysis.shutdown()],
     ['spotify', () => spotify.disconnect()],
     ['nowPlaying', () => nowPlaying.disconnect()],
     ['deezer', () => deezerSource.disconnect()],

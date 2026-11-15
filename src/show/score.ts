@@ -1,13 +1,5 @@
-import type { AnalysisDocument, Genre, Mood, Section } from '../types/analysis.ts';
-
-export type Segment = Partial<Omit<Section, 'label'>> & { label?: string | null };
-
-// Accept missing analysis fields so older cached documents can still produce a show.
-export type Analysis = Partial<Omit<AnalysisDocument, 'mood' | 'genre' | 'segments'>> & {
-  mood?: Partial<Mood>;
-  genre?: Genre | null;
-  segments?: Segment[];
-};
+// What the live director reads of the music (live-director.ts): a reading of the passage, and the score pickPattern and
+// burstFor accept beside it (the director passes none).
 
 export interface Reading {
   kick: number;

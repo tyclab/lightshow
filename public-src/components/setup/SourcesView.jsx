@@ -1,15 +1,12 @@
 import { pick, api } from '../../state.js';
 import { useSettings, liveDevices } from '../../setup-state.js';
 import { SettingsSection } from './Section.jsx';
-import { SOURCES, LIVE, SPOTIFY, DEEZER, ANALYSIS } from './specs.js';
-import { Models } from './Models.jsx';
-import { PythonSetup } from './PythonSetup.jsx';
+import { SOURCES, LIVE, SPOTIFY, DEEZER } from './specs.js';
 import { RestartBanner } from './RestartBanner.jsx';
 
 /**
- * Where the music comes from, and how it is heard: the players the show may
- * follow, the services it reads tracks from, the live input, and the
- * analysis that turns a track into a show.
+ * Where the music comes from, and how it is heard: the players and services
+ * that report a track, and the live input the auto show follows.
  */
 
 function SpotifyStatus() {
@@ -52,9 +49,6 @@ export function SourcesView() {
         </div>
         <div class="setup-col">
           <SettingsSection {...LIVE} ctx={{ liveDevices: devices }}><LiveStatus /></SettingsSection>
-          <SettingsSection {...ANALYSIS} />
-          <PythonSetup />
-          <Models />
         </div>
       </div>
     </div>

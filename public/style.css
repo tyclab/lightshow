@@ -2026,18 +2026,6 @@ input[type=range]::-moz-range-thumb {
   border: 1px solid var(--border);
 }
 
-.warm-bar {
-  height: 4px;
-  border-radius: 2px;
-  background: var(--surface);
-  overflow: hidden;
-}
-.warm-bar-fill {
-  height: 100%;
-  background: var(--accent-fill);
-  transition: width .3s ease;
-}
-
 /* The `hidden` attribute must win over any display rule a component sets on
    itself. Without this, `.midi-learn-banner { display: flex }` beat the UA's
    `[hidden] { display: none }` and the banner was permanently on screen. */
@@ -2892,37 +2880,8 @@ input[type=range]::-moz-range-thumb {
 .preflight-fix::before { content: '\2192  '; }
 .preflight-view { max-width: 900px; }
 
-/* Analysis models. */
-.models-list { list-style: none; margin: 10px 0 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
-.models-row { border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 8px 10px; }
-.models-head { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
-.models-size { margin-left: auto; font-size: 12px; color: var(--muted); }
-.models-tier.required { color: var(--text-blue); }
-.models-status { margin-top: 6px; display: flex; flex-direction: column; align-items: flex-start; gap: 4px; }
-.models-status .warm-bar { align-self: stretch; }
-.models-here { color: var(--text-green); }
-
-/* The analysis environment: set up by uv, from the page. */
+/* A setting's note on what the server resolved, when it is right. */
 .setting-note.ok { color: var(--text-green); }
-.python-progress { display: flex; flex-direction: column; gap: 4px; margin-top: 10px; }
-.python-where { margin-top: 10px; }
-.python-log-details { margin-top: 10px; }
-.python-log-details summary { cursor: pointer; font-size: 11px; color: var(--muted); }
-.python-log {
-  margin: 6px 0 0;
-  max-height: 220px;
-  overflow: auto;
-  padding: 8px;
-  font-family: var(--mono);
-  font-size: 10px;
-  line-height: 1.5;
-  white-space: pre-wrap;
-  word-break: break-all;
-  color: var(--text-2);
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-}
 
 @media (max-width: 640px) {
   .mode-field { flex-direction: column; align-items: stretch; }

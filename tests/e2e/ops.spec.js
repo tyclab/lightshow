@@ -75,19 +75,10 @@ test('a setting waiting on a restart says so, and restarting says there is no su
   await expect(page.getByRole('region', { name: 'Waiting on a restart' })).toHaveCount(0);
 });
 
-test('the analysis environment says what is here, and how it would be set up', async ({ page }) => {
+test('Sources names the Python the live input runs, and sets up no analysis environment', async ({ page }) => {
   await open(page, 'sources');
-  const panel = page.getByRole('region', { name: 'Analysis environment' });
-  await expect(panel).toContainText(/Ready: Python|Not set up/);
-  // uv is here, with the torch build suggested for this machine, or the page
-  // says how to get it.
-  await expect(panel.getByRole('combobox', { name: 'Torch build' })
-    .or(panel.getByText('uv, which does the setting up, is not installed'))).toBeVisible();
-  await page.addScriptTag({ path: AXE });
-  const violations = await page.evaluate(async () => {
-    const section = document.querySelector('[aria-labelledby="python-title"]');
-    const result = await window.axe.run(section, { resultTypes: ['violations'] });
-    return result.violations.map((v) => `${v.impact} ${v.id}: ${v.nodes.slice(0, 3).map((n) => n.target.join(' ')).join(' | ')}`);
-  });
-  expect(violations).toEqual([]);
+  await expect(page.getByRole('region', { name: 'Analysis environment' })).toHaveCount(0);
+  await expect(page.getByLabel('Python', { exact: true })).toBeVisible();
+  // serve.js names the stand-in Python, which reports 3.12.0 with every module present.
+  await expect(page.getByText(/Currently: .+ \(3\.12\.0\) — all dependencies present/)).toBeVisible();
 });
