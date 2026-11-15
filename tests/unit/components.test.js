@@ -129,7 +129,7 @@ test('the header owns output permission, and the Arm button itself says Armed', 
     given({ armed, control: { version: 1, programme: 'look', playing: false, frozen: false, blackout: false, armed } });
     const header = ui.html(ui.h(ui.Header, {}));
     assert.strictEqual(count(header, 'aria-label="Global show controls"'), 1);
-    const arm = new RegExp(`<button[^>]*class="[^"]*global-arm[^"]*"[^>]*aria-pressed="${armed}" aria-label="${armed ? 'Disarm' : 'Arm'}"[^>]*>(.*?)</button>`).exec(header);
+    const arm = new RegExp(`<button[^>]*class="[^"]*global-arm[^"]*"[^>]*aria-pressed="${armed}" aria-label="${armed ? 'Armed, Disarm' : 'Arm'}"[^>]*>(.*?)</button>`).exec(header);
     assert.ok(arm, `${armed ? 'armed' : 'disarmed'}: one Arm button`);
     assert.strictEqual(/global-arm[^"]*\barmed\b/.test(arm[0]), armed, 'the armed style only while armed');
     assert.strictEqual(arm[1].includes('● Armed'), armed, 'the word Armed on the button while armed');
@@ -143,7 +143,7 @@ test('the header owns output permission, and the Arm button itself says Armed', 
 test('unacknowledged strobe notices follow server safety state', () => {
   const views = () => [ui.html(ui.h(ui.StatusDetails, {})), ui.html(ui.h(ui.Perform, {}))];
   // The status details' pill carries the notice as its accessible name; Perform shows it as text.
-  const notice = /<button type="button" class="[^"]*" data-safety="ask"(?:[^>]*aria-label="Strobes off until acknowledged"[^>]*>|[^>]*>(?:<[^>]+>)*Strobes off until acknowledged)/;
+  const notice = /<button type="button" class="[^"]*" data-safety="ask"(?:[^>]*aria-label="Strobes locked until acknowledged"[^>]*>|[^>]*>(?:<[^>]+>)*Strobes off until acknowledged)/;
   given({ safety: { photosensitivityAcknowledged: false, hdFlashIntervalMs: 350, strobeMaxLatchSec: 60 } });
   for (const html of views()) assert.match(html, notice);
   assert.match(views()[1], /tap to acknowledge/);
@@ -236,9 +236,9 @@ test('global blackout and a running voice\'s pad show their independent pressed 
   lit[4] = 'v7';
   given({ masterBlackout: true, control: { version: 1, programme: 'look', playing: true, frozen: false, blackout: true, armed: false }, pads: { layout: LAYOUT, lit } });
   const header = ui.html(ui.h(ui.Header, {}));
-  assert.match(header, /<button[^>]*aria-pressed="true"[^>]*aria-label="Restore"[^>]*>.*?● .*?Blackout.*?<span>Restore<\/span><\/button>/);
+  assert.match(header, /<button[^>]*aria-pressed="true"[^>]*aria-label="Blackout, Restore"[^>]*>.*?● .*?Blackout.*?<span>Restore<\/span><\/button>/);
   assert.match(header, /Restore reveals the current picture without changing playback or Freeze/);
-  assert.strictEqual(count(header, 'aria-label="Restore"'), 1, 'one Restore');
+  assert.strictEqual(count(header, 'aria-label="Blackout, Restore"'), 1, 'one Restore');
   assert.match(ui.html(ui.h(ui.Perform, {})), /class="pad-cell lit"[^>]*data-slot="4"[^>]*aria-pressed="true"/);
 });
 
@@ -754,7 +754,7 @@ test('the picture layers offer background access outside the main effect live st
   const text = strip[1].replace(/<[^>]+>/g, '').replace(/&amp;/g, '&');
   assert.equal(text, 'Pads and overrides: None activeMain effect: Neon DominoBackground: Fixed colour · Selected (1 of 2)');
   assert.equal(count(strip[1], '<button '), 1, 'one direct path to the background controls');
-  assert.match(strip[1], /aria-label="Edit background lighting"/);
+  assert.match(strip[1], /aria-label="Background: Fixed colour · Selected \(1 of 2\)\. Edit background lighting"/);
 });
 
 test('the Background card offers Fixed colour by hue, saturation and brightness, with white, amber and UV, and says what it reaches', () => {

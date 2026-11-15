@@ -462,12 +462,12 @@ export function PlanEditor() {
             class={`stage-fixture ${bar ? 'bar' : ''} ${isSelected ? 'selected' : ''} ${identifying.has(fix.id) ? 'identifying' : ''}`}
             style={placeAt(point)}
             aria-pressed={isSelected}
-            aria-label={`${fix.label}${shape ? `, ${shape}` : ''}, position ${Math.round(point.x)}, ${Math.round(point.y)}, height ${h} %${height === null ? ' (not set)' : ''}. `
+            aria-label={`${i + 1} ${fix.label}, ${h} % high${height === null ? ' (not set)' : ''}${shape ? `, ${shape}` : ''}, position ${Math.round(point.x)}, ${Math.round(point.y)}. `
               + `Arrow keys move the selection${bar ? '; [ and ] turn it, minus and equals change its length, 0 resets both' : ''}.`}
             title={`${fix.label} · ${patchedAt(fix)}`}
             onClick={(e) => { if (e.detail === 0) { if (e.shiftKey) toggleSelected(fix.id); else selectOnly(fix.id); } }}
             onKeyDown={(e) => onKeyDown(e, fix, i)}>
-            <i class="stage-glow" /><span class="stage-lamp">{i + 1}</span><span class="stage-label">{fix.label}</span>
+            <i class="stage-glow" /><span class="stage-lamp">{i + 1}</span>{' '}<span class="stage-label">{fix.label}</span>{' '}
             <span class={`plan-height${height === null ? ' unset' : ''}`}
               title={height === null ? 'Height not set: mid-room (50 %)' : `Height ${height} % (0 floor, 100 ceiling)`}
               style={{ '--h': h / 100 }} aria-hidden="true">↑{h}</span>

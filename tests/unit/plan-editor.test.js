@@ -101,10 +101,10 @@ test('plot coordinates map top-left lamps to front-left room positions', () => {
 
 test('every lamp shows its number, its name and its height on the plot', () => {
   const out = render([fixture(1, { position: { x: 20, y: 30, height: 80 } }), fixture(2, { position: { x: 60, y: 30 } })]);
-  assert.match(out, /<span class="stage-lamp">1<\/span><span class="stage-label">Lamp 1<\/span>/);
+  assert.match(out, /<span class="stage-lamp">1<\/span> <span class="stage-label">Lamp 1<\/span> /);
   assert.match(out, /class="plan-height" title="Height 80 % \(0 floor, 100 ceiling\)"[^>]*>↑80</);
   assert.match(out, /class="plan-height unset" title="Height not set: mid-room \(50 %\)"[^>]*>↑50</);
-  assert.match(out, /aria-label="Lamp 1, position 20, 30, height 80 %\./);
+  assert.match(out, /aria-label="1 Lamp 1, 80 % high, position 20, 30\./);
 });
 
 test('unplaced lamps are listed beside the plot as chips; placed ones are not', () => {
