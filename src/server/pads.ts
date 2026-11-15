@@ -8,7 +8,7 @@ import { deepFreeze, presetById } from '../shared/effects/index.ts';
 import { canonical } from '../shared/effects/layer.ts';
 import { HttpError, messageOf } from '../errors.ts';
 import { JsonStore } from './json-store.ts';
-import { retirePads } from './retired-looks.ts';
+import { retirePads, retiredBeside } from './retired-looks.ts';
 import { snapshot } from './effect-library.ts';
 import { validate, ValidationError } from './validation.ts';
 import { launchOf, targetsOf } from './voices.ts';
@@ -162,7 +162,7 @@ export class PadStore extends JsonStore {
   // Shapes only: a preset or pattern deleted since, or a fixture gone, leaves
   // the pad assigned (refused at launch), rather than costing the whole layout.
   load(): this {
-    const saved = this.readMigrated(fileSchema, retirePads);
+    const saved = this.readMigrated(fileSchema, (doc) => retirePads(doc, retiredBeside(this.file)));
     if (saved) {
       this._layout = deepFreeze(ordered(saved.pads));
       this._activeLayoutId = saved.activeLayoutId ?? null;

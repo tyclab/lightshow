@@ -14,7 +14,7 @@ import { PATTERN_IDS } from './presets.ts';
 import { validate, ValidationError } from './validation.ts';
 import { codeOf, HttpError, messageOf } from '../errors.ts';
 import { JsonStore } from './json-store.ts';
-import { retireLibrary } from './retired-looks.ts';
+import { retireLibrary, retiredLooks } from './retired-looks.ts';
 import type { CataloguePreset } from '../shared/effects/index.ts';
 import type { EffectSpec } from '../shared/effects/types.ts';
 
@@ -117,6 +117,8 @@ export class EffectLibrary extends JsonStore {
   }
 
   load(): this {
+    // Which saved looks go is read before this rewrites the file: the stores that load later need it too.
+    retiredLooks(this.file);
     const saved = this.readMigrated(fileSchema, retireLibrary);
     if (saved) {
       this._savedVersion = saved.version;

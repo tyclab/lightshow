@@ -21,6 +21,7 @@ const { CueStore } = await import('../../src/server/cues.ts');
 const { LookStore } = await import('../../src/server/look-store.ts');
 const { Sequencer } = await import('../../src/server/sequencer.ts');
 const { SequenceWorkspace } = await import('../../src/server/sequence-workspace.ts');
+const { MidiMapStore } = await import('../../src/server/midi-map.ts');
 
 const json = (value) => JSON.parse(JSON.stringify(value));
 const KEPT = json(presetById('v2.chase').spec);
@@ -177,4 +178,67 @@ test('the sequence workspace: its sequence, baseline and pending take lose the r
   assert.deepEqual(saved(), { ...document, sequence: kept, baseline: kept, take: { ...take, take: [take.take[0]] } });
   assert.equal(warned.length, 3, `the clip in the sequence and in its baseline, and the take's hit:\n${warned.join('\n')}`);
   assert.deepEqual(beside(), ['sequence-workspace.json']);
+});
+
+test('MIDI: a binding that selects a retired look is unbound; the others stay', (t) => {
+  const document = { cc: { 10: { action: 'adjustBpm', type: 'relative', scale: 1 } }, notes: {
+    60: { action: 'setPattern', value: 'v2.visualizerFlow' }, 61: { action: 'setPattern', value: 'v2.chase' },
+    62: { action: 'setPattern', value: 'v2.visualizerDrift.2d' }, 63: { action: 'energyHold', value: 'energy.blinder' } } };
+  const { file, warned, saved, beside } = scene(t, 'midi-map.json', document);
+  const store = new MidiMapStore(file).load();
+  const expected = { cc: document.cc, notes: { 61: document.notes[61], 63: document.notes[63] } };
+  assert.deepEqual(saved(), expected);
+  assert.deepEqual(store.get(), clean(t, 'midi-map.json', expected, (f) => new MidiMapStore(f).load()).get());
+  assert.deepEqual(naming(warned, ['note 60', 'note 62']), [1, 1], warned.join('\n'));
+  assert.equal(warned.length, 2);
+  assert.deepEqual(beside(), ['midi-map.json']);
+});
+
+// The cue store loads at import, before the library: which saved looks are gone cannot wait for the library to load.
+test('a saved look that leaves the library takes every reference to it along, whichever store loads first', (t) => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'retired-looks-saved-'));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  const write = (name, value) => fs.writeFileSync(path.join(dir, name), JSON.stringify(value, null, 2));
+  const read = (name) => JSON.parse(fs.readFileSync(path.join(dir, name), 'utf8'));
+  const at = '2026-11-01T00:00:00.000Z';
+  const preset = (id, name, spec) => ({ id, name, spec, createdAt: at, updatedAt: at });
+  write('effects.json', { version: 4, presets: [preset('user.flow', 'My flow', RETIRED), preset('user.keep', 'Keep me', KEPT)] });
+  const cue = (id, pattern) => ({ id, name: `Cue ${id}`, createdAt: at, updatedAt: at, look: look(pattern) });
+  write('cues.json', { cues: [cue('a', 'user.flow'), cue('b', 'user.keep')] });
+  write('look.json', { savedAt: at, look: look('user.flow') });
+  write('pads.json', { pads: pads({ 0: 'user.flow', 1: 'user.keep' }), activeLayoutId: null });
+  const lanes = [{ id: 'a', kind: 'shared', name: '', mute: false, solo: false }];
+  const clip = (id, startBeat, presetId) => ({ id, laneId: 'a', startBeat, lengthBeats: 8, loopBeats: 8, targets: 'lane', mute: false, presetId });
+  const night = { id: 'night', name: 'Night', mode: 'arrangement', bpm: null, timeSignature: { beats: 4, unit: 4 }, musicMode: null, loop: null,
+    snap: 1, lanes, clips: [clip('f', 0, 'user.flow'), clip('k', 8, 'user.keep')], commands: [], automation: { tempo: null, brightness: null },
+    options: { autoplay: true, shuffle: false, randomPaletteOnLoop: false, initialPalette: null } };
+  write('sequences.json', { version: 1, sequences: [night] });
+  write('sequence-workspace.json', { version: 1, sequence: night, baseline: night, savedSequenceId: 'night', beat: 0, take: null, takeCompatible: false });
+  write('midi-map.json', { cc: {}, notes: { 60: { action: 'setPattern', value: 'user.flow' }, 61: { action: 'setPattern', value: 'user.keep' } } });
+  const warned = [];
+  t.mock.method(console, 'warn', (line) => warned.push(String(line)));
+
+  const cues = new CueStore(path.join(dir, 'cues.json')).load();
+  const library = new EffectLibrary(path.join(dir, 'effects.json')).load();
+  const padStore = new PadStore(path.join(dir, 'pads.json')).load();
+  const sequences = new SequenceStore(path.join(dir, 'sequences.json')).load();
+  const sequencer = new Sequencer({ resolve: (id) => library.resolve(id), fixtureIds: () => [1], pad: () => null, admit: () => {} });
+  const workspace = new SequenceWorkspace(path.join(dir, 'sequence-workspace.json'), sequencer, (id) => sequences.get(id)).open();
+  t.after(() => workspace.close());
+  const kept = new LookStore(path.join(dir, 'look.json')).load();
+  const midi = new MidiMapStore(path.join(dir, 'midi-map.json')).load();
+
+  assert.deepEqual(library.list().user.map((p) => p.id), ['user.keep']);
+  assert.deepEqual(cues.list().map((c) => c.look.pattern), ['chase', 'user.keep']);
+  assert.equal(kept.look.pattern, 'chase');
+  assert.deepEqual(padStore.layout().slice(0, 2).map((pad) => pad.content?.id ?? null), [null, 'user.keep']);
+  assert.deepEqual(sequences.get('night').clips.map((c) => c.id), ['k']);
+  assert.equal(workspace.status().blocked, false, workspace.status().error);
+  assert.deepEqual(sequencer.current().clips.map((c) => c.id), ['k']);
+  assert.doesNotThrow(() => sequencer.load(sequences.get('night')), 'the saved sequence loads');
+  assert.deepEqual(Object.keys(midi.get().notes), ['61']);
+  assert.deepEqual(read('sequence-workspace.json').sequence.clips.map((c) => c.id), ['k']);
+  assert.equal(warned.filter((line) => line.includes('user.flow') || line.includes('My flow')).length, 8,
+    `the look, a cue, the restart look, a pad, the sequence's clip, the workspace's two copies, a MIDI note:\n${warned.join('\n')}`);
+  assert.equal(fs.readdirSync(dir).filter((name) => name.includes('.invalid-') || name.includes('.recovery-')).length, 0, 'nothing moved aside');
 });

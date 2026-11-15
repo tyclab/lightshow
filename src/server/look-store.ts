@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { JsonStore } from './json-store.ts';
-import { retireCurrentLook } from './retired-looks.ts';
+import { retireCurrentLook, retiredBeside } from './retired-looks.ts';
 import { lookSchema, captureLook, recallLook } from './cues.ts';
 import { applyPatch } from './patch.ts';
 import { state } from './state.ts';
@@ -27,7 +27,7 @@ export class LookStore extends JsonStore {
   }
 
   load(): SavedLook | undefined {
-    return this.readMigrated(savedSchema, retireCurrentLook);
+    return this.readMigrated(savedSchema, (doc) => retireCurrentLook(doc, retiredBeside(this.file)));
   }
 
   save(look: Unsaved): boolean {
