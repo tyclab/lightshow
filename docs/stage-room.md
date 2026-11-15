@@ -62,8 +62,12 @@ revision and measurement confidence can be retained in the model.
 
 Objects are `box`, `cylinder`, `prism` or `mesh`, with role `wall` or `furniture`.
 Position is the object's centre; size is its local width, height and depth.
-A `box` wall stops a directional beam and takes its pool; beams pass other
-shapes and stop at the bounds' floor, ceiling and walls.
+Every wall, hidden or not, and opaque furniture (opacity 0.9 or more, not bound to a
+light) stop a directional beam and take its pool: a box by its sides, a prism or
+cylinder by its outline, a mesh by its triangles, so a beam passes a mesh wall's
+openings. The bounds' floor, ceiling and walls stop the rest. A pool shows only on
+the surface it lands on, inside the room polygon that holds its centre, and not
+past a wall from its centre. Walls also shadow **Room light**, whatever the cutaway.
 Optional `rotation` contains `x`, `y`, `z` Euler angles in radians. A cylinder's
 local axis is Y; X/Z sizes are diameters. A prism also needs a local X/Z polygon
 within its width/depth. Room polygons use world X/Z coordinates. Colours are
@@ -104,8 +108,8 @@ It uses the room coordinate frame and must differ from the emitter (the path
 midpoint for strips). Optional `lightTargetConfidence` is `estimated` or
 `measured`; photo-derived directions are estimates. The target overrides fixture
 pan/tilt in this room while keeping its beam spread, with a 100° wash for lamps
-without a beam spread. The first opaque box wall or furniture surface, or room
-boundary, receives the pool. Other object shapes do not stop these beams.
+without a beam spread. The first wall, opaque furniture surface or room boundary
+receives the pool, as for any beam.
 Physical positions, output addressing and effect sampling remain unchanged.
 
 How strongly a lamp lights the room follows its lumen at full white, by one rule. An 806 lm bulb

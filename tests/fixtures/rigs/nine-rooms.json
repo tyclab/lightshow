@@ -1,0 +1,516 @@
+{
+ "description": "Nine rooms of 2 x 2 m in a 3 x 3 grid, each with lamps: two in most, one in Room 3 and Room 9. Invented values; no installation data.",
+ "profiles": [
+  {
+   "id": "rgb-lamp",
+   "name": "RGB lamp",
+   "channelMap": {
+    "red": 0,
+    "green": 1,
+    "blue": 2
+   }
+  }
+ ],
+ "fixtures": [
+  {
+   "id": 1,
+   "label": "Lamp 1",
+   "address": 1,
+   "universe": 0,
+   "profileId": "rgb-lamp"
+  },
+  {
+   "id": 2,
+   "label": "Lamp 2",
+   "address": 4,
+   "universe": 0,
+   "profileId": "rgb-lamp"
+  },
+  {
+   "id": 3,
+   "label": "Lamp 3",
+   "address": 7,
+   "universe": 0,
+   "profileId": "rgb-lamp"
+  },
+  {
+   "id": 4,
+   "label": "Lamp 4",
+   "address": 10,
+   "universe": 0,
+   "profileId": "rgb-lamp"
+  },
+  {
+   "id": 5,
+   "label": "Lamp 5",
+   "address": 13,
+   "universe": 0,
+   "profileId": "rgb-lamp"
+  },
+  {
+   "id": 6,
+   "label": "Lamp 6",
+   "address": 16,
+   "universe": 0,
+   "profileId": "rgb-lamp"
+  },
+  {
+   "id": 7,
+   "label": "Lamp 7",
+   "address": 19,
+   "universe": 0,
+   "profileId": "rgb-lamp"
+  },
+  {
+   "id": 8,
+   "label": "Lamp 8",
+   "address": 22,
+   "universe": 0,
+   "profileId": "rgb-lamp"
+  },
+  {
+   "id": 9,
+   "label": "Lamp 9",
+   "address": 25,
+   "universe": 0,
+   "profileId": "rgb-lamp"
+  },
+  {
+   "id": 10,
+   "label": "Lamp 10",
+   "address": 28,
+   "universe": 0,
+   "profileId": "rgb-lamp"
+  },
+  {
+   "id": 11,
+   "label": "Lamp 11",
+   "address": 31,
+   "universe": 0,
+   "profileId": "rgb-lamp"
+  },
+  {
+   "id": 12,
+   "label": "Lamp 12",
+   "address": 34,
+   "universe": 0,
+   "profileId": "rgb-lamp"
+  },
+  {
+   "id": 13,
+   "label": "Lamp 13",
+   "address": 37,
+   "universe": 0,
+   "profileId": "rgb-lamp"
+  },
+  {
+   "id": 14,
+   "label": "Lamp 14",
+   "address": 40,
+   "universe": 0,
+   "profileId": "rgb-lamp"
+  },
+  {
+   "id": 15,
+   "label": "Lamp 15",
+   "address": 43,
+   "universe": 0,
+   "profileId": "rgb-lamp"
+  },
+  {
+   "id": 16,
+   "label": "Lamp 16",
+   "address": 46,
+   "universe": 0,
+   "profileId": "rgb-lamp"
+  }
+ ],
+ "room": {
+  "version": 1,
+  "name": "Nine rooms",
+  "bounds": {
+   "width": 6,
+   "depth": 6,
+   "height": 2.5
+  },
+  "rooms": [
+   {
+    "id": "room-1",
+    "label": "Room 1",
+    "polygon": [
+     [
+      -3,
+      -3
+     ],
+     [
+      -1,
+      -3
+     ],
+     [
+      -1,
+      -1
+     ],
+     [
+      -3,
+      -1
+     ]
+    ]
+   },
+   {
+    "id": "room-2",
+    "label": "Room 2",
+    "polygon": [
+     [
+      -1,
+      -3
+     ],
+     [
+      1,
+      -3
+     ],
+     [
+      1,
+      -1
+     ],
+     [
+      -1,
+      -1
+     ]
+    ]
+   },
+   {
+    "id": "room-3",
+    "label": "Room 3",
+    "polygon": [
+     [
+      1,
+      -3
+     ],
+     [
+      3,
+      -3
+     ],
+     [
+      3,
+      -1
+     ],
+     [
+      1,
+      -1
+     ]
+    ]
+   },
+   {
+    "id": "room-4",
+    "label": "Room 4",
+    "polygon": [
+     [
+      -3,
+      -1
+     ],
+     [
+      -1,
+      -1
+     ],
+     [
+      -1,
+      1
+     ],
+     [
+      -3,
+      1
+     ]
+    ]
+   },
+   {
+    "id": "room-5",
+    "label": "Room 5",
+    "polygon": [
+     [
+      -1,
+      -1
+     ],
+     [
+      1,
+      -1
+     ],
+     [
+      1,
+      1
+     ],
+     [
+      -1,
+      1
+     ]
+    ]
+   },
+   {
+    "id": "room-6",
+    "label": "Room 6",
+    "polygon": [
+     [
+      1,
+      -1
+     ],
+     [
+      3,
+      -1
+     ],
+     [
+      3,
+      1
+     ],
+     [
+      1,
+      1
+     ]
+    ]
+   },
+   {
+    "id": "room-7",
+    "label": "Room 7",
+    "polygon": [
+     [
+      -3,
+      1
+     ],
+     [
+      -1,
+      1
+     ],
+     [
+      -1,
+      3
+     ],
+     [
+      -3,
+      3
+     ]
+    ]
+   },
+   {
+    "id": "room-8",
+    "label": "Room 8",
+    "polygon": [
+     [
+      -1,
+      1
+     ],
+     [
+      1,
+      1
+     ],
+     [
+      1,
+      3
+     ],
+     [
+      -1,
+      3
+     ]
+    ]
+   },
+   {
+    "id": "room-9",
+    "label": "Room 9",
+    "polygon": [
+     [
+      1,
+      1
+     ],
+     [
+      3,
+      1
+     ],
+     [
+      3,
+      3
+     ],
+     [
+      1,
+      3
+     ]
+    ]
+   }
+  ],
+  "objects": [],
+  "bindings": [
+   {
+    "id": "lamp-1",
+    "fixtureId": 1,
+    "unit": 0,
+    "position": {
+     "x": -2.4,
+     "y": 1.5,
+     "z": -1.8
+    },
+    "confidence": "estimated"
+   },
+   {
+    "id": "lamp-2",
+    "fixtureId": 2,
+    "unit": 0,
+    "position": {
+     "x": -1.5999999999999999,
+     "y": 1.5,
+     "z": -1.8
+    },
+    "confidence": "estimated"
+   },
+   {
+    "id": "lamp-3",
+    "fixtureId": 3,
+    "unit": 0,
+    "position": {
+     "x": -0.4,
+     "y": 1.5,
+     "z": -1.8
+    },
+    "confidence": "estimated"
+   },
+   {
+    "id": "lamp-4",
+    "fixtureId": 4,
+    "unit": 0,
+    "position": {
+     "x": 0.4,
+     "y": 1.5,
+     "z": -1.8
+    },
+    "confidence": "estimated"
+   },
+   {
+    "id": "lamp-5",
+    "fixtureId": 5,
+    "unit": 0,
+    "position": {
+     "x": 1.6,
+     "y": 1.5,
+     "z": -1.8
+    },
+    "confidence": "estimated"
+   },
+   {
+    "id": "lamp-6",
+    "fixtureId": 6,
+    "unit": 0,
+    "position": {
+     "x": -2.4,
+     "y": 1.5,
+     "z": 0.2
+    },
+    "confidence": "estimated"
+   },
+   {
+    "id": "lamp-7",
+    "fixtureId": 7,
+    "unit": 0,
+    "position": {
+     "x": -1.5999999999999999,
+     "y": 1.5,
+     "z": 0.2
+    },
+    "confidence": "estimated"
+   },
+   {
+    "id": "lamp-8",
+    "fixtureId": 8,
+    "unit": 0,
+    "position": {
+     "x": -0.4,
+     "y": 1.5,
+     "z": 0.2
+    },
+    "confidence": "estimated"
+   },
+   {
+    "id": "lamp-9",
+    "fixtureId": 9,
+    "unit": 0,
+    "position": {
+     "x": 0.4,
+     "y": 1.5,
+     "z": 0.2
+    },
+    "confidence": "estimated"
+   },
+   {
+    "id": "lamp-10",
+    "fixtureId": 10,
+    "unit": 0,
+    "position": {
+     "x": 1.6,
+     "y": 1.5,
+     "z": 0.2
+    },
+    "confidence": "estimated"
+   },
+   {
+    "id": "lamp-11",
+    "fixtureId": 11,
+    "unit": 0,
+    "position": {
+     "x": 2.4000000000000004,
+     "y": 1.5,
+     "z": 0.2
+    },
+    "confidence": "estimated"
+   },
+   {
+    "id": "lamp-12",
+    "fixtureId": 12,
+    "unit": 0,
+    "position": {
+     "x": -2.4,
+     "y": 1.5,
+     "z": 2.2
+    },
+    "confidence": "estimated"
+   },
+   {
+    "id": "lamp-13",
+    "fixtureId": 13,
+    "unit": 0,
+    "position": {
+     "x": -1.5999999999999999,
+     "y": 1.5,
+     "z": 2.2
+    },
+    "confidence": "estimated"
+   },
+   {
+    "id": "lamp-14",
+    "fixtureId": 14,
+    "unit": 0,
+    "position": {
+     "x": -0.4,
+     "y": 1.5,
+     "z": 2.2
+    },
+    "confidence": "estimated"
+   },
+   {
+    "id": "lamp-15",
+    "fixtureId": 15,
+    "unit": 0,
+    "position": {
+     "x": 0.4,
+     "y": 1.5,
+     "z": 2.2
+    },
+    "confidence": "estimated"
+   },
+   {
+    "id": "lamp-16",
+    "fixtureId": 16,
+    "unit": 0,
+    "position": {
+     "x": 1.6,
+     "y": 1.5,
+     "z": 2.2
+    },
+    "confidence": "estimated"
+   }
+  ]
+ }
+}
