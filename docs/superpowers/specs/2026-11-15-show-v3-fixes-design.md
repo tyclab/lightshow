@@ -77,7 +77,8 @@ demo beat ("Preview · demo beat") or the server's feed while the show plays, la
 holds ("Preview (disarmed)", `public-src/utils.js:166-174`), the stage toolbar in 3D and in 2D
 (`StageView.jsx`, `StagePreview.jsx`) shows one button, "Pause preview". It enters the state the idle
 pause of #207 already has: this page releases its own `dmx` and `picture` subscriptions, the demo beat
-stops, the stage shows "Preview paused." with "Resume preview". Resume preview, or Arm, ends it. It
+stops, the stage shows "Preview paused." and the toolbar "Resume preview" in Pause preview's box, with
+nothing moved (PR 9, "fix all bugs", replacing a line above the toolbar). Resume preview, or Arm, ends it. It
 changes nothing on the server: no control action; transport, Freeze, Blackout and Arm stay as they
 were; another page keeps receiving and drawing. The pause belongs to the page and is not stored: a
 reload previews again (2026-11-14: no click to see a preview). Idle pause and Pause preview are one

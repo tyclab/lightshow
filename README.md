@@ -186,8 +186,9 @@ once. **Blackout** outranks the rest, armed or not, with a note over the 3D stag
 points to **Restore** in the header.
 A disarmed page nobody touches for `outputs.idleStopMin` minutes (60; Settings → Show, **Stop an
 Unattended Show**) lets its DMX and picture feeds go: every view that draws a stage says **Preview paused
-after 60 minutes without input.**, the stage draws its lights off under **Preview paused**, the demo-beat
-preview included, and **Resume preview** brings the feeds back and starts nothing. Arming resumes it too; armed, a page never pauses.
+after 60 minutes without input.** over the stage, the stage draws its lights off under **Preview paused**, the demo-beat
+preview included, and **Resume preview**, in the toolbar where Pause preview stands, brings the feeds back and
+starts nothing; neither the toolbar nor the stage moves. Arming resumes it too; armed, a page never pauses.
 **Pause preview**, in the stage's toolbar in 3D and 2D while it draws either disarmed preview, does the
 same at once and says **Preview paused.**: only this page stops drawing; the show, Freeze, Blackout, Arm
 and other pages are as they were, and nothing is sent. It works with the idle stop at `0`, and a reload

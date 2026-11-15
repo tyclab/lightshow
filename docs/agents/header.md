@@ -72,13 +72,18 @@ history. The rulings below stay.
 - A preview can be paused (2026-11-15): "explain to me why the button top stop preview is removed." While
   disarmed and drawing either preview, the stage toolbar in 3D and 2D shows one "Pause preview". It is the
   idle pause entered by hand: this page lets its own `dmx` and `picture` feeds go and says "Preview
-  paused." with Resume preview; Resume or Arm ends it. It sends nothing, leaves the show and other pages
-  as they are, works with `outputs.idleStopMin` 0 and is not stored, so a reload previews again.
+  paused."; Resume or Arm ends it. It sends nothing, leaves the show and other pages as they are, works
+  with `outputs.idleStopMin` 0 and is not stored, so a reload previews again. Paused, by the button or by
+  idleness, the toolbar shows "Resume preview" in Pause preview's box, and the note lies over the stage as
+  the Blackout note does, so neither the toolbar nor the stage moves ("fix all bugs", 2026-11-15). The
+  preview's three tags share one box for the same reason. The Rig view's plan, which has no such toolbar,
+  carries the note and its Resume over the plan; a view without a stage (the DMX monitor's fallback) keeps
+  its line and its own Resume.
 - A disarmed show nobody attends stops after 60 minutes (2026-11-14): "if not we should make sure it
   stops automatically, lets say 60min or somethign?? i mean if show is not arm and page is idel or
   closed". `outputs.idleStopMin` (60, 0 never) without a control action or page input ends it with the
   header's Stop; an idle page releases its feeds and says "Preview paused after 60 minutes without
-  input." with Resume preview, which starts nothing. Armed, neither runs.
+  input."; Resume preview, in Pause preview's place, starts nothing. Armed, neither runs.
 - The strip under the header has two tabs, Show and Perform, and a Setup menu that holds every
   other view (2026-11-14). Every view keeps its hash, alias and digit key. Perform carries the
   sequence shelf and Stop pads. A view switch writes its hash once, at the switch: nothing writes
