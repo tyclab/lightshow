@@ -162,15 +162,15 @@ function FixtureCard({ fix, state }) {
         <span class="val">{Math.round((maxDraft / 255) * 100)}%</span>
       </div>
 
-      {/* Where the lamp hangs. In a driving passage the auto show can split the
-          look: one group holds a wash while the rest run the pattern. Needs
-          two groups in use to do anything. */}
+      {/* Where the lamp hangs. A look that splits the rig holds one group on a
+          wash while the rest run the pattern. Needs two groups in use to do
+          anything. */}
       <div class="fixture-max fixture-group">
         <label for={`fix-group-${fix.id}`}>Group</label>
         <select
           id={`fix-group-${fix.id}`}
           value={fix.group || ''}
-          title="In busy passages the auto show can hold one group on a wash while the others run the pattern"
+          title="A look that splits the rig holds one group on a wash while the others run the pattern"
           onChange={(e) => emitFixture({ id: fix.id, group: e.target.value || null })}
         >
           <option value="">None</option>
