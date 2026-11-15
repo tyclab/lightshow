@@ -413,15 +413,18 @@ test('while the visualizer picture arrives the Colours card says the picture set
   }
 });
 
-test('the header has no axe violations with its popovers open, the rig armed and Resume showing', async ({ page, request }) => {
+test('the header has no axe violations with its popovers open, the rig armed, Blackout on and Resume showing', async ({ page, request }) => {
   await control(request, 'arm');
   await control(request, 'freeze');
+  await control(request, 'blackout');
   try {
     for (const [width, height] of WIDTHS) {
       await page.setViewportSize({ width, height });
       await open(page, 'effects');
       await page.addScriptTag({ path: AXE });
       await expect(controls(page).getByRole('button', { name: 'Resume', exact: true })).toBeVisible();
+      await expect(page.locator('.global-blackout.blackout-active')).toBeVisible();
+      await expect(page.locator('.global-arm.armed')).toBeVisible();
       for (const opener of [() => page.locator('.status-chip').click(), () => page.getByRole('button', { name: 'This device' }).click()]) {
         await opener();
         const violations = await page.evaluate(async () => {
@@ -433,6 +436,7 @@ test('the header has no axe violations with its popovers open, the rig armed and
       }
     }
   } finally {
+    await control(request, 'restore');
     await control(request, 'disarm');
   }
 });
