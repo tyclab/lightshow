@@ -245,7 +245,7 @@ against a deterministic 124 BPM demo: build, drop, breakdown and groove, with
 synthetic beat, bass, mid and high levels. Pause, restart or scrub the demo; switch
 Stage between **3D room** and **2D plot** to inspect the same moment. These are
 simulated audio levels, so no music file or audio input is required. The audition
-uses its own palette and transport under the live master; like the demo beat and a rehearsal, it draws
+uses its own palette and transport under the live master; like the demo beat, it draws
 each light as it emits, a dimmer channel's level times the emitters. It sends no look, engine, room or output
 commands. It runs only while the outputs are disarmed, so rapid effects audition
 without a question. Arming ends the audition. In the
@@ -397,7 +397,7 @@ a look appears.
 | | **Static** | follows neither the beat nor any input: constant, or timed by a fixed rate of its own |
 | | **Bands & drums** | follows stems, drum hits or frequency bands |
 | | **Audio level** | follows the overall loudness |
-| | **Song sections** | follows the song section, or the build the auto show sets |
+| | **Song sections** | follows the build-up the auto show sets |
 | Surface | **Whole rig** | gives every light the same value at once |
 | | **Room-placed** | is placed by room positions (Mapping: Through room) |
 | | **Bars & panels** | draws cell by cell (a pixel effect) |
@@ -405,11 +405,12 @@ a look appears.
 | Use & safety | **Energy** | is an energy hold or a strobe voice over the running look |
 | | **Rapid ⚡** | with the outputs armed, plays only after the photosensitivity acknowledgement |
 
-A reaction also says where its input comes from: **track** (only while the auto show
-plays an analysed track; picked by hand the look runs on its clock) or **live** (the
-Reactive audio mode with live input). The auto show's expression channel is not counted as an input: only the
-running show sets it, it shapes many classic patterns and dims every lamp look alike,
-and picked by hand each of them sees the same resting values. A look laid out along
+A reaction also says where its input comes from: **track** (what the auto show sets:
+the progress of a build-up it plays; stems and drum hits come from no source now, and
+picked by hand the look runs on its clock) or **live** (the Reactive audio mode with
+live input). The expression channel (`showDynamics`) is not counted as an input: only a
+patch through the API sets it; when set it shapes many classic patterns and dims every
+lamp look alike, and otherwise each of them sees the same resting values. A look laid out along
 the Rig plot (every classic pattern that uses positions) carries no surface tag; a plot
 variant's card reads **Across layout**. A badge's tooltip adds what a setting outside
 the look changes: on Strobe, that the Ramp, Random and Burst functions follow the beat.

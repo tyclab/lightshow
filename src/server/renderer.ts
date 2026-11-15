@@ -22,7 +22,7 @@ import { PATTERN_FUNCS, paletteOf } from '../shared/patterns.ts';
 import { renderLayer } from '../shared/layer.ts';
 import { buildRig, createRigSignature } from '../shared/rig.ts';
 import { cellPlace, channelPlace, stripOf } from '../shared/placement.ts';
-// Shared with the browser's rehearsal preview so the two cannot drift.
+// Shared with the browser's stage preview so the two cannot drift.
 import { EXPRESSION_REST, blendExpression, blendFixture, cellDrive, HOLD_STROBE } from '../shared/look-math.ts';
 import { anchorStep, stepAt, motionAdvance } from '../shared/beat-clock.ts';
 import { strobeCap, FLASHES_PER_SECOND } from './flash-limit.ts';

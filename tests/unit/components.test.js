@@ -358,7 +358,7 @@ test('Effects lists every look once, A to Z, each with the tags its code states'
   assert.deepStrictEqual(badgesOf(rowOf(html, 'chase')), ['Beat only']);
   assert.deepStrictEqual(badgesOf(rowOf(html, 'energy.whiteStrobe')), ['Beat only', 'Whole rig', 'Own colours', 'Energy', 'Rapid ⚡']);
   assert.match(rowOf(html, 'v2.impact'), /title="Follows stems, drum hits or frequency bands\. Reacts in the reactive audio mode with live input"/);
-  assert.match(rowOf(html, 'radial-pulse'), /title="[^"]*Reacts only while the auto show plays an analysed track; picked by hand it runs on its clock"/);
+  assert.match(rowOf(html, 'radial-pulse'), /title="[^"]*Reacts to what the auto show sets, the progress of a build-up it plays; stems and drum hits come from no source now\. Picked by hand it runs on its clock"/);
   // A rapid flash carries its warning, its ⚡ hidden from screen readers; a slow one does not.
   assert.match(rowOf(html, 'hd.voltageConfetti'), /class="effect-tag badge-rapid" data-tag="rapid"[^>]*>Rapid <span aria-hidden="true">⚡<\/span>/);
   assert.match(rowOf(html, 'ldj.TrueStrobe'), /badge-rapid/);

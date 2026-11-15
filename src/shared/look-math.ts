@@ -115,7 +115,7 @@ function blendExpression(current: Expression, target: ShowDynamics | null | unde
   return next;
 }
 
-// Round and boost emitters here so rig output and rehearsal use the same bytes.
+// Round and boost emitters here so rig output and the stage preview use the same bytes.
 function emitterValues(col: Colour, scale: number): EmitterLevels {
   return {
     r: Math.round((col.r || 0) * scale),

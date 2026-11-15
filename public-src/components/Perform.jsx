@@ -56,7 +56,7 @@ function SyncHealth() {
           </span>
           {c.id === 'clock' && byHand && (
             <button type="button" class="perform-follow" onClick={followMusic}
-              title="The tempo is held by hand: follow the deck, the song or the live beat again">Follow the music</button>
+              title="The tempo is held by hand: follow the live beat again">Follow the music</button>
           )}
           {c.id === 'clock' && <>
             <TempoScale bpm={s.bpm} direction="half" />

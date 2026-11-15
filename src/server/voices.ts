@@ -88,7 +88,7 @@ export interface VoiceSummary {
   mode: VoiceMode;
   tier: VoiceTier;
   kind: string;
-  /** The effect it plays, so the stage preview rehearses it as the rig plays it. */
+  /** The effect it plays, so the stage preview draws it as the rig plays it. */
   spec: EffectSpec;
   targets: 'shared' | number[];
   launchSeq: number;
