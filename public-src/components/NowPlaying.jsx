@@ -15,7 +15,7 @@ export function PictureLayers() {
   };
   return <div class="picture-layers" role="group" aria-label="Picture layers">
     {pictureLayers(pick(PICTURE_LAYER_FIELDS)).map((layer) => layer.id === 'background'
-      ? <button key={layer.id} type="button" class="picture-layer picture-layer-link" data-layer={layer.id} onClick={focusBackground} aria-label="Edit background lighting">
+      ? <button key={layer.id} type="button" class="picture-layer picture-layer-link" data-layer={layer.id} onClick={focusBackground} aria-label={`${layer.name}: ${layer.value}. Edit background lighting`}>
         <span class="picture-layer-name">{layer.name}:</span> {layer.value}
       </button>
       : <span key={layer.id} class="picture-layer" data-layer={layer.id} title={layer.title || undefined}>

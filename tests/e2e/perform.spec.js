@@ -173,7 +173,7 @@ test('blackout, palettes and the master', async ({ page, request }) => {
   // Global controls stay in the header above every view.
   await page.getByRole('group', { name: 'Global show controls' }).getByRole('button', { name: 'Blackout', exact: true }).click();
   await until(request, (s) => s.masterBlackout === true);
-  await page.getByRole('group', { name: 'Global show controls' }).getByRole('button', { name: 'Restore', exact: true }).click();
+  await page.getByRole('group', { name: 'Global show controls' }).getByRole('button', { name: 'Blackout, Restore', exact: true }).click();
   await until(request, (s) => s.masterBlackout === false);
 
   await page.locator('.palette-strip').getByRole('button', { name: 'Main effect', exact: true }).click();

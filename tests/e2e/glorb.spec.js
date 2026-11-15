@@ -109,7 +109,7 @@ test('Read again shows what the server answers: its refusal word for word, a cha
     await expect(row).toContainText('20 × 6');
     await expect(curtainRow).toContainText('2856');
     const status = section.locator('p[role="status"]').last();
-    await row.getByRole('button', { name: 'Read GLORB again from its WLED' }).click();
+    await row.getByRole('button', { name: 'Read again: GLORB, from its WLED' }).click();
     await expect(status).toHaveText(refused.error);
 
     // The curtain's ledmap keeps 1560 of its 2856 places: the server's first answer changes nothing (tests/unit/wled-refresh.test.js).
@@ -122,7 +122,7 @@ test('Read again shows what the server answers: its refusal word for word, a cha
       room: { moved: 1552, dropped: 0 }, fullGrid: { before: true, after: false }, profile: { grid: { columns: 68, rows: 42 } } };
     await answer({ applied: false, ...curtainCells });
     const apply = section.getByRole('button', { name: 'Apply 1560 cells' }), keep = section.getByRole('button', { name: 'Keep as is' });
-    await curtainRow.getByRole('button', { name: 'Read Curtain again from its WLED' }).click();
+    await curtainRow.getByRole('button', { name: 'Read again: Curtain, from its WLED' }).click();
     const warning = '"Curtain" would go from 2856 cells to 1560 cells, from its 68 × 42 ledmap. Nothing has changed yet. It is a full 68 × 42 grid now and would not be after: '
       + 'a pixel feed sized to that grid (the browser helper\'s --panels, the curtain feed) no longer reaches it. The Stage room\'s bindings would follow their cells: 1552 moved, 0 without an LED dropped.';
     await expect(status).toHaveText(warning);
@@ -133,7 +133,7 @@ test('Read again shows what the server answers: its refusal word for word, a cha
     expect(sent).toHaveLength(1);
     expect((await state(request)).profiles[curtainGrid.id].cells).toHaveLength(2856);
 
-    await curtainRow.getByRole('button', { name: 'Read Curtain again from its WLED' }).click();
+    await curtainRow.getByRole('button', { name: 'Read again: Curtain, from its WLED' }).click();
     await expect(status).toHaveText(warning);
     await page.unroute('**/api/wled/refresh');
     await answer({ applied: true, ...curtainCells });
@@ -147,7 +147,7 @@ test('Read again shows what the server answers: its refusal word for word, a cha
       room: { moved: 0, dropped: 0, stale: 80 }, fullGrid: { before: true, after: true }, profile: { grid: { columns: 10, rows: 12 } } };
     sent.length = 0;
     await answer({ applied: false, ...regrid });
-    await row.getByRole('button', { name: 'Read GLORB again from its WLED' }).click();
+    await row.getByRole('button', { name: 'Read again: GLORB, from its WLED' }).click();
     await expect(status).toHaveText('"GLORB" would go from 120 cells on 20 × 6 to 120 cells on 10 × 12. Nothing has changed yet. '
       + '80 Stage room bindings for it would still name its old cells: export the room again.');
     await page.unroute('**/api/wled/refresh');
@@ -167,7 +167,7 @@ test('Read again shows what the server answers: its refusal word for word, a cha
     ];
     for (const [body, text] of applied) {
       await answer({ applied: true, ...body });
-      await row.getByRole('button', { name: 'Read GLORB again from its WLED' }).click();
+      await row.getByRole('button', { name: 'Read again: GLORB, from its WLED' }).click();
       await expect(status).toHaveText(text);
       await expect(apply).toHaveCount(0);
       await page.unroute('**/api/wled/refresh');

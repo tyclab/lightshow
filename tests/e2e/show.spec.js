@@ -102,7 +102,7 @@ test('on Show, a stopped stage previews with nothing to explain, and Blackout na
   const under = await note.evaluate((n) => { const r = n.getBoundingClientRect(); return document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2).className; });
   expect(under, 'a drag on the note turns the stage').toContain('stage3d-canvas');
 
-  await header.getByRole('button', { name: 'Restore', exact: true }).click();
+  await header.getByRole('button', { name: 'Blackout, Restore', exact: true }).click();
   await expect(tag).toHaveText('Preview · demo beat');
   await expect(note).toHaveCount(0);
 });
