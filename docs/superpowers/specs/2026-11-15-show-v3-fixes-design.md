@@ -189,9 +189,11 @@ and `performance-workflows.spec.js` stop opening the picker, naming G3, and keep
 photosensitivity and no-latch-change checks (`top-bar.spec.js:143-160`).
 
 **G4. Freeze leaves the header (words 6).** The header is the picture source, Auto show, Play/Stop,
-Blackout, Arm and the master. While `control.frozen` is true, one "Resume" button shows where Freeze
-was, on every tab, so a hold is never hidden. Its slot stays reserved while it is hidden, so Blackout
-and Arm keep their positions and sizes (`GlobalControls.jsx:82-94`, `public/style.css:4132,4150,
+Blackout, Arm and the master. While `control.frozen` is true, one "Resume" button shows after the
+master, at the end of the global controls, on every tab, so a hold is never hidden; no slot is kept for
+it between Play and Blackout, and its appearing moves nothing (PR 9, the operator's "fix all bugs" on
+the milestone review's list, replacing a slot reserved where Freeze was), so Play, Blackout, Arm and the
+master keep their positions and sizes (`GlobalControls.jsx:82-94`, `public/style.css:4132,4150,
 4211,4253`). `freeze` and `resume` stay in `/api/control` (`src/server/control.ts:103-104`) with
 their behaviour: pads refused while frozen, Stop and a programme switch keep Freeze, Home Assistant's
 party start leaves it. Nothing else changes about Freeze.
@@ -425,8 +427,9 @@ cases naming the kind.
   apart from the drawn walls). New here: blockers of every wall kind on a shadow-only layer, the
   per-room allocation, and past eight occupied rooms an amber note instead of a ninth light.
   Furniture stops beams but casts no room-light shadow (words 8 covered it).
-- G3: E goes to Show's search; the quick deck of favourites leaves the header with the picker.
-- G4: Resume's slot stays reserved so Blackout and Arm never move.
+- G3: E goes to Show's search; the quick deck of favourites leaves the header with the picker and, since
+  PR 9, leads Show's list while the search is empty.
+- G4: Resume stands after the master, so Play, Blackout, Arm and the master never move (PR 9; no slot).
 - G5: dark, not held; the Background does not fill the dark; a bad frame from the lease owner drops
   its picture; the dark goes through the configured transitions; Squid without a panel refused; the
   codes, their names and their clearing events; only facts the server observes.

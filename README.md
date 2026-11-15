@@ -138,7 +138,8 @@ run the night from Show: the room in 3D as the rig paints it, the effects under
 it, and the switches that matter along the top — armed or not, what paints the
 room (the effects or the visualizer picture), the auto show on or off,
 blackout and the master. Choose the main effect from the searchable, scrolling grid
-under the stage: name-only tiles, one to five side by side as the card's width and the text
+under the stage. With the search empty it starts with the quick deck (the favourites starred in
+Effect settings, the presets saved here, then the party looks), then lists every effect: name-only tiles, one to five side by side as the card's width and the text
 size allow, each with its description as a tooltip and ⚡ on a rapid-flashing effect. Tiles that
 share a name add a second line that tells them apart: the family (Spatial, Party Looks, …),
 **Classic** for a classic pattern or **Saved preset**. The count stands in the card's title row,
@@ -194,11 +195,11 @@ The sticky header is one row on a desktop (two on a phone, 1000 px and narrower)
 the same on every view, including while scrolling through Show:
 
 ```text
-[mark] [Effects | Visualizer | Squid]  [Auto show Off ○] [▶ Play] [ ] [Blackout] [Arm]  Master ━━●━ 100%  [● 120 BPM Online] [⋮]
+[mark] [Effects | Visualizer | Squid]  [Auto show Off ○] [▶ Play] [Blackout] [Arm]  Master ━━●━ 100% (Resume)  [● 120 BPM Online] [⋮]
 ```
 
 - **Picture source** comes first: **Effects**, **Visualizer** and **Squid** (offered once the
-  rig has an LED panel; see [Squid picture](#squid-picture)). Each segment only chooses what
+  rig has an LED panel; see [Squid picture](#squid-picture)), each as wide as its name. Each segment only chooses what
   paints the room: another source is one tap away, and the chosen one names no effect and
   opens nothing; its tooltip says what it paints with (for the Visualizer, whether the
   picture arrives). The main effect is chosen in Show's effects list (**E** on any view).
@@ -219,8 +220,9 @@ the same on every view, including while scrolling through Show:
   with the loaded sequence's name. A sequence is chosen on Perform, not here; a
   programme that cannot start (no sequence loaded, no analysed track or live input) is
   refused with the reason.
-- **Resume** shows only while the picture is frozen, in a place kept for it (the empty
-  `[ ]` above), so Blackout and Arm never move; Freeze itself has no button, it is an
+- **Resume** shows only while the picture is frozen, after the master (`(Resume)` above),
+  where its appearing moves nothing (on a phone the end of the second row stays free
+  for it); Freeze itself has no button, it is an
   `/api/control` action (Home Assistant, the API). **Blackout/Restore** and
   **Arm/Disarm** keep their own 44 px buttons at fixed places. Armed shows on the button itself: filled red, **● Armed**
   over **Disarm**; so does Blackout, filled red as well: **● Blackout** over **Restore**
