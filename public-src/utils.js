@@ -163,8 +163,7 @@ const BLACKOUT_NOTE = 'Blackout is on: every light is dark. Restore, in the head
  * stopped, with no layer and no Freeze, the browser samples the selected look on the demo beat (`demo`);
  * otherwise the server's feed, which carries Blackout and what arming would send. An idle page holds no
  * feed (`paused`) and draws nothing. A stage dark for a reason carries a `note` naming it and what ends it. */
-export function stageMode({ rehearsing, connected, armed, blackout, playing = false, layers = false, frozen = false, paused = false }) {
-  if (rehearsing) return { tag: 'Rehearsal', lit: true, demo: false };
+export function stageMode({ connected, armed, blackout, playing = false, layers = false, frozen = false, paused = false }) {
   if (!connected) return { tag: 'Offline', lit: true, demo: false };
   if (paused) return { tag: 'Preview paused', lit: false, demo: false };
   if (blackout) return { tag: 'Blackout', lit: true, demo: false, note: BLACKOUT_NOTE };

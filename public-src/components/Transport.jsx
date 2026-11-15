@@ -21,7 +21,7 @@ export function laneRows(status, sequence, nameOf = (id) => id) {
   });
 }
 
-const GLYPHS = { play: '▶', pause: '❚❚', stop: '■', prev: '⏮', next: '⏭', shuffle: '⤨', loop: '↻', cancel: '×' };
+const GLYPHS = { play: '▶', pause: '❚❚', stop: '■', prev: '⏮', next: '⏭', shuffle: '⤨', loop: '↻' };
 
 export async function runTransport(requests) {
   if (requests.some((r) => r.path === '/api/sequence' && ['PUT', 'DELETE'].includes(r.method))
@@ -81,7 +81,7 @@ export function SequenceShelf() {
 }
 
 export function Transport({ initial, compact = false, prefer = null } = {}) {
-  const s = pick(['sequence', 'sequences', 'effects', 'running', 'showOn', 'autoShow', 'autoSource', 'activeSource', 'control']);
+  const s = pick(['sequence', 'sequences', 'effects', 'running', 'live', 'control']);
   const driver = driverOf(s, prefer);
   const status = s.sequence || null;
   const sequences = s.sequences || [];
@@ -120,7 +120,7 @@ export function Transport({ initial, compact = false, prefer = null } = {}) {
         {state && <span class="transport-state" role="status">{state}</span>}
       </div>}
       <div class="transport-buttons">
-        {buttons.filter((b) => !compact || ['play', 'pause', 'stop', 'cancel'].includes(b.id)).map((b) => (
+        {buttons.filter((b) => !compact || ['play', 'pause', 'stop'].includes(b.id)).map((b) => (
           <button key={b.id} type="button" class="transport-btn" aria-label={b.label} aria-pressed={b.pressed}
             disabled={!b.enabled} onClick={() => (b.control ? takeControl(b.control) : runTransport([b.request]))}>
             <span aria-hidden="true">{GLYPHS[b.control ? 'play' : b.id]}</span><span>{b.label}</span>

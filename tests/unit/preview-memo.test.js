@@ -11,7 +11,7 @@ const root = path.join(import.meta.dirname, '../..');
 const built = await esbuild.build({
   stdin: { contents: `export { store, librarySig } from './public-src/state.js';
     export { startAudition, setAudition, useAuditionSampler } from './public-src/audition.js';
-    export { useRehearsalSampler } from './public-src/rehearsal.js'; export { runner } from 'preact/hooks';`, resolveDir: root },
+    export { runner } from 'preact/hooks';`, resolveDir: root },
   bundle: true, format: 'esm', platform: 'node', write: false, logLevel: 'silent',
   alias: { 'socket.io-client': path.join(root, 'tests/helpers/fake-socket-io.js') },
   plugins: [{ name: 'persistent-hooks', setup(build) {
@@ -74,13 +74,11 @@ test('replaced drafts, wire patches and room coordinates invalidate while identi
 test('inactive samplers do no serialization; enabling and re-enabling produces seekable frames', () => {
   ui.store.applySnapshot({ versions: {}, state: defaults() });
   ui.startAudition('draft:test', spec); ui.setAudition({ playing: false });
-  const audition = ui.runner(), rehearsal = ui.runner();
-  const timeline = { timeline: [{ timeMs: 0, action: 'patch', data: { pattern: 'v2.wash', basePalette: { colours: ['#FFFFFF'] } } }] };
+  const audition = ui.runner();
   const stringify = mock.method(JSON, 'stringify');
   try {
     for (let i = 0; i < 30; i++) {
       assert.equal(audition(() => ui.useAuditionSampler(space, false)), null);
-      assert.equal(rehearsal(() => ui.useRehearsalSampler(timeline, space, false)), null);
     }
     assert.equal(stringify.mock.callCount(), 0);
   } finally { stringify.mock.restore(); }
@@ -90,6 +88,4 @@ test('inactive samplers do no serialization; enabling and re-enabling produces s
   const resumed = audition(() => ui.useAuditionSampler(space, true));
   assert.equal(resumed, first, 'changing views keeps the bounded seek history');
   assert.deepEqual(sample(resumed), expected);
-  const planned = rehearsal(() => ui.useRehearsalSampler(timeline, space, true));
-  assert.ok(sample(planned)[0].r > 0);
 });

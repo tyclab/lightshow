@@ -2,7 +2,6 @@ import { expect } from '@playwright/test';
 // Shared by the end-to-end specs: read and set the server's state over REST,
 // and open the page on a view with a clean look.
 
-import { E2E_TRACK } from './paths.js';
 import { resolveRoute } from '../../public-src/views.js';
 
 export async function state(request) {
@@ -68,19 +67,6 @@ export async function until(request, check, { timeout = 3000 } = {}) {
     await new Promise((r) => setTimeout(r, 50));
   }
   throw new Error(`condition never held; last state: ${JSON.stringify(last).slice(0, 400)}`);
-}
-
-/**
- * Load the analysed track the end-to-end server seeds (serve.js): the show's
- * timeline without Python. `unloadTrack` puts the auto show back as it was.
- */
-export async function loadTrack(request) {
-  const res = await request.post('/api/auto/analyze', { data: { source: E2E_TRACK } });
-  if (!res.ok()) throw new Error(`POST /api/auto/analyze ${res.status()}: ${await res.text()}`);
-}
-
-export async function unloadTrack(request) {
-  await request.post('/api/auto/reset', { data: {} });
 }
 
 async function liveInput(request, enabled) {

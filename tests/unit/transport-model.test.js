@@ -4,7 +4,7 @@ import { chooseDriver, driverOf, playlistRowRequests, transportButtons, transpor
 import { resolveRoute, SETUP_VIEWS, STRIP_VIEWS, VIEWS, viewShortcut } from '../../public-src/views.js';
 
 test('legacy bookmarks retain their instrument', () => {
-  for (const [hash, expected] of [['#manual', 'effects'], ['#timeline', 'auto/timeline'], ['#matrix', 'perform/matrix'], ['#rig/outputs', 'rig/outputs']]) {
+  for (const [hash, expected] of [['#manual', 'effects'], ['#timeline', 'auto'], ['#matrix', 'perform/matrix'], ['#rig/outputs', 'rig/outputs']]) {
     assert.equal(resolveRoute(hash).canonical, expected);
   }
   assert.equal(resolveRoute('#unknown'), null);
@@ -50,7 +50,7 @@ test('sequence transport offers timeline operations and a Pause that turns into 
   assert.equal(transportButtons('sequence', { sequence: loaded })[0].enabled, false);
 });
 
-test('secondary transport names timeline and analysis state without inferring whole-picture Freeze', () => {
+test('secondary transport names the timeline\'s and the auto show\'s state without inferring whole-picture Freeze', () => {
   for (const running of [true, false]) assert.equal(transportState('look', { running }), null);
   const seq = (flags) => transportState('sequence', { sequence: { loaded: { id: 'set', name: 'Set one' }, ...flags } });
   for (const [flags, word] of [[{ playing: true }, 'playing'], [{ playing: true, paused: true }, 'paused'],
@@ -58,7 +58,10 @@ test('secondary transport names timeline and analysis state without inferring wh
     assert.equal(seq(flags), `Timeline · ${word}`);
   }
   assert.equal(transportState('sequence', { sequence: { loaded: null } }), null);
-  assert.equal(transportState('auto', {}), 'Analysis · idle');
+  assert.equal(transportState('auto', {}), 'Auto · Live input not listening');
+  assert.equal(transportState('auto', { live: { listening: true, director: { active: false } } }), 'Auto · Idle');
+  assert.equal(transportState('auto', { live: { listening: true, director: { active: true } } }), 'Auto · By ear');
+  assert.deepEqual(transportButtons('auto', { live: { listening: true } }), [], 'nothing to cancel: no analysis');
 });
 
 test('loading a sequence does not select or start a programme', () => {
@@ -74,12 +77,6 @@ test('analysis source and readiness never create an implicit Start action', () =
   for (const source of ['spotify', 'deezer', 'nowplaying', 'prolink', 'live', 'hybrid']) {
     assert.deepEqual(transportButtons('auto', { autoSource: source, activeSource: source, autoShow: { status: 'ready' } }), []);
   }
-});
-
-test('busy shows expose cancellation and cannot start twice', () => {
-  const buttons = transportButtons('auto', { autoShow: { status: 'analyzing', startPending: true } });
-  assert.deepEqual(buttons.map((b) => b.id), ['cancel']);
-  assert.deepEqual(buttons.find((b) => b.id === 'cancel').request, { path: '/api/auto/cancel', method: 'POST' });
 });
 
 test('sequence looping keeps its saved bounds', () => {

@@ -7,6 +7,7 @@ import { awakeSig, fullscreenSig, setAwake, toggleFullscreen, canFullscreen } fr
 import { StrobesOff, isAcknowledged } from './Photosensitivity.jsx';
 import { BRAND, PRODUCT } from '../brand.js';
 import { controlPending } from '../control.js';
+import { autoStatus } from '../transport-model.js';
 import { useDismiss } from '../popover.js';
 
 // The themes, and what each is for. `system` follows the device's setting.
@@ -96,9 +97,9 @@ export function HuePill({ bridges }) {
 /** Everything the header no longer shows at once, behind the status chip. */
 export function StatusDetails() {
   const connected = connectedSig.value;
-  const s = pick(['bpm', 'clock', 'running', 'energyOverride', 'flashLimit', 'autoShow', 'safety', 'hue', 'control']);
+  const s = pick(['bpm', 'clock', 'running', 'energyOverride', 'flashLimit', 'live', 'safety', 'hue', 'control']);
   const energy = s.energyOverride;
-  const auto = s.autoShow && s.autoShow.status;
+  const auto = autoStatus(s);
   const ready = connected && s.control?.version === 1;
   return (
     <div class="status-details-body">
@@ -119,9 +120,9 @@ export function StatusDetails() {
           <span class="label">Flash</span>
           <span>{s.flashLimit ? '≤ 3/s' : 'off'}</span>
         </div>
-        <div class="stat-pill" title="Auto show status">
+        <div class="stat-pill" title={`Auto show: ${auto.title}`}>
           <span class="label">Auto</span>
-          <span>{auto || '—'}</span>
+          <span>{auto.id === 'playing' ? 'by ear' : 'off'}</span>
         </div>
         <HuePill bridges={s.hue} />
         <div class="stat-pill conn" title={connected ? 'Connected' : 'Disconnected'}>

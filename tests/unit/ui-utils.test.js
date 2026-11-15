@@ -69,7 +69,7 @@ test('a par reads exactly as it always did', () => {
 
 // The operator, 2026-11-14: "so to preview i need to klick look an preview? why? also preview runs local in browser right?"
 // What a stage draws, in the order of the Show v3 table (G6): nothing is dark for want of a click.
-const STOPPED = { rehearsing: false, connected: true, armed: false, blackout: false, playing: false, layers: false, frozen: false, paused: false };
+const STOPPED = { connected: true, armed: false, blackout: false, playing: false, layers: false, frozen: false, paused: false };
 const modeOf = (patch) => {
   const { tag, lit, demo, note } = utils.stageMode({ ...STOPPED, ...patch });
   return { tag, lit, demo, ...(note ? { note } : {}) };
@@ -100,12 +100,9 @@ test('Blackout outranks the outputs and playback: the feed, dark, says why', () 
   for (const patch of [{}, { playing: true }, { armed: true }]) assert.equal(modeOf(patch).note, undefined, 'a lit stage has nothing to explain');
 });
 
-test('an idle page draws nothing, the demo beat included, until Resume preview; rehearsal and offline are as before', () => {
+test('an idle page draws nothing, the demo beat included, until Resume preview; offline is as before', () => {
   for (const patch of [{}, { playing: true }, { blackout: true }, { frozen: true }]) {
     assert.deepEqual(modeOf({ paused: true, ...patch }), { tag: 'Preview paused', lit: false, demo: false }, JSON.stringify(patch));
-  }
-  for (const patch of [{}, { blackout: true }, { armed: true }, { paused: true }]) {
-    assert.deepEqual(modeOf({ rehearsing: true, ...patch }), { tag: 'Rehearsal', lit: true, demo: false }, 'a rehearsal draws the planned show');
   }
   assert.deepEqual(modeOf({ connected: false }), { tag: 'Offline', lit: true, demo: false });
 });

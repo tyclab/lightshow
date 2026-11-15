@@ -2,18 +2,15 @@
 
 import { test, expect } from '@playwright/test';
 import { createRequire } from 'node:module';
-import { open, reset, loadTrack, unloadTrack } from './helpers.js';
+import { open, reset } from './helpers.js';
 
 const AXE = createRequire(import.meta.url).resolve('axe-core/axe.min.js');
 
 test.beforeEach(async ({ request }) => { await reset(request); });
 
 for (const theme of ['dark', 'light', 'red']) {
-  for (const view of ['show', 'effects', 'auto', 'perform', 'perform/matrix', 'auto/timeline', 'sequence', 'stage', 'rig', 'rig/profiles', 'rig/outputs', 'sources', 'settings', 'preflight']) {
-    test(`${view}, ${theme} theme`, async ({ page, request }) => {
-      // The show's views, with a show to show.
-      const withTrack = view === 'auto/timeline' || view === 'stage';
-      if (withTrack) await loadTrack(request);
+  for (const view of ['show', 'effects', 'auto', 'perform', 'perform/matrix', 'sequence', 'stage', 'rig', 'rig/profiles', 'rig/outputs', 'sources', 'settings', 'preflight']) {
+    test(`${view}, ${theme} theme`, async ({ page }) => {
       await open(page, view, { theme });
       if (view === 'preflight') {
         test.setTimeout(60_000);
@@ -26,7 +23,6 @@ for (const theme of ['dark', 'light', 'red']) {
         const result = await window.axe.run(document, { resultTypes: ['violations'] });
         return result.violations.map((v) => `${v.impact} ${v.id}: ${v.nodes.slice(0, 3).map((n) => n.target.join(' ')).join(' | ')}`);
       });
-      if (withTrack) await unloadTrack(request);
       expect(violations).toEqual([]);
     });
   }

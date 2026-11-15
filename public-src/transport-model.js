@@ -15,8 +15,6 @@ export function playlistRowRequests(clipId) {
 }
 
 export function transportButtons(driver, s) {
-  if (driver === 'auto') return ['downloading', 'analyzing'].includes(s.autoShow?.status)
-    ? [{ id: 'cancel', label: 'Cancel analysis', enabled: true, request: post('/api/auto/cancel') }] : [];
   if (driver !== 'sequence') return [];
   const q = s.sequence, loaded = !!q?.loaded, loop = q?.loop, paused = !!q?.paused;
   // The sequencer's pause is one-way: Resume is the control's Start, which carries on from the held beat.
@@ -30,8 +28,20 @@ export function transportButtons(driver, s) {
     button.id === 'loop' && loop ? { ...loop, on: !loop.on } : null) }));
 }
 
+/** What the auto show, the live director, is doing: `id` for the badge, `text` to show, `title` for why. */
+export function autoStatus(s) {
+  const live = s.live;
+  const director = live && live.director;
+  if (director && director.active) {
+    return { id: 'playing', text: 'By ear', title: director.silent ? 'Silence: dark until the music comes back'
+      : director.holding ? 'Holding a look picked by hand until the next change' : 'Answering what the live input hears' };
+  }
+  if (!live || !live.listening) return { id: 'idle', text: 'Live input not listening', title: 'Turn the live input on under Sources: Auto plays what it hears' };
+  return { id: 'idle', text: 'Idle', title: 'Start Auto in the header' };
+}
+
 export function transportState(driver, s) {
   if (driver === 'sequence' && s.sequence?.loaded) return `Timeline · ${sequenceMode(s.sequence)}`;
-  if (driver === 'auto') return `Analysis · ${s.autoShow?.status ?? 'idle'}`;
+  if (driver === 'auto') return `Auto · ${autoStatus(s).text}`;
   return null;
 }
