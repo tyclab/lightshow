@@ -1,5 +1,6 @@
 // Isolate config/cache and disable physical outputs; never touch the live rig or show data.
-// Seed a cached analysis so browser tests need no Python.
+// Seed a cached analysis so browser tests need no Python, and name a stand-in Python for the live input
+// (fake-live-python.js): turned on, it listens without a sound card.
 
 import fs from 'node:fs';
 import path from 'node:path';
@@ -10,11 +11,15 @@ export const E2E_PORT = Number(process.env.E2E_PORT) || 3999;
 
 fs.rmSync(E2E_DIR, { recursive: true, force: true });
 fs.mkdirSync(E2E_DIR);
+const python = path.join(E2E_DIR, 'live-python', 'python3');
+fs.mkdirSync(path.dirname(python));
+fs.writeFileSync(python, `#!/bin/sh\nexec "${process.execPath}" "${path.join(import.meta.dirname, 'fake-live-python.js')}" "$@"\n`, { mode: 0o755 });
 fs.writeFileSync(path.join(E2E_DIR, 'settings.json'), JSON.stringify({
   server: { host: '127.0.0.1', port: E2E_PORT, token: '' },
   artnet: { enabled: false },
   sacn: { enabled: false },
   sources: { prolink: false, smtc: false },
+  analysis: { pythonPath: python },
 }, null, 2));
 process.env.LIGHTSHOW_CONFIG_DIR = E2E_DIR;
 process.env.LIGHTSHOW_CACHE_DIR = path.join(E2E_DIR, 'cache');

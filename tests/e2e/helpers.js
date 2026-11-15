@@ -83,6 +83,16 @@ export async function unloadTrack(request) {
   await request.post('/api/auto/reset', { data: {} });
 }
 
+async function liveInput(request, enabled) {
+  const res = await request.put('/api/settings', { data: { live: { enabled } } });
+  if (!res.ok()) throw new Error(`PUT /api/settings ${res.status()}: ${await res.text()}`);
+  await until(request, (s) => !!s.live?.listening === enabled, { timeout: 10_000 });
+}
+
+/** The live input on, through the stand-in Python serve.js names: it listens, so Auto can start. */
+export const listenLive = (request) => liveInput(request, true);
+export const stopListening = (request) => liveInput(request, false);
+
 const PROGRAMME_NAMES = { look: 'selected picture', auto: 'Auto show', sequence: 'sequence' };
 
 /** The header's one play button: "Play selected picture" while it would start, "Stop selected picture" while it plays; a sequence by its name. */
