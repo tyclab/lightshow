@@ -3526,6 +3526,14 @@ input[type=range]::-moz-range-thumb {
   background: var(--card); color: var(--text-amber); font-size: .857rem; line-height: 1.5;
 }
 .preview-paused .btn { margin-inline-start: auto; }
+.preview-paused.over { position: absolute; inset: auto .75rem .75rem; z-index: 3; cursor: default; }
+/* Pause preview and Resume preview share one box, as wide as the longer label. */
+.preview-toggle { flex-direction: column; gap: 0; }
+.preview-toggle::after { content: attr(data-other); height: 0; overflow: hidden; visibility: hidden; }
+.stage-tag { display: inline-flex; flex-direction: column; align-items: center; }
+.stage-tag::before, .stage-tag::after { height: 0; overflow: hidden; visibility: hidden; }
+.stage-tag::before { content: attr(data-alt-a); }
+.stage-tag::after { content: attr(data-alt-b); }
 
 /* =============================================================
    TIMELINE — the show, to read and rehearse

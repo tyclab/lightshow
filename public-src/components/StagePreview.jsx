@@ -8,7 +8,7 @@ import { useRehearsalTrack, useRehearsalSampler, useUnitSpace } from '../rehears
 import { Audition } from './Audition.jsx';
 import { auditionSig, demoBeatSig, setAudition, useAuditionSampler, useDemoLookSampler } from '../audition.js';
 import { NowPlaying } from './NowPlaying.jsx';
-import { PausePreview, PreviewPaused } from './PreviewPaused.jsx';
+import { PreviewToggle, StageTag } from './PreviewPaused.jsx';
 import { useTimeline } from '../use-timeline.js';
 import { stagePositions } from '../../src/shared/stage.ts';
 import { buildRig, gridLabel, lineOf, rigSignature } from '../../src/shared/rig.ts';
@@ -87,7 +87,7 @@ export function StagePreview({ controls = true } = {}) {
   // flag in an effect keeps the panel honest the moment the analysis goes away,
   // and means losing it does not cost the operator their scrub position.
   const rehearsal = !auditioning && stagePreviewSig.value.rehearsal && !!data;
-  const mode = stageMode({ rehearsing: rehearsal, connected, armed: s.armed, blackout: s.masterBlackout, paused: idlePause.paused.value !== null,
+  const mode = stageMode({ rehearsing: rehearsal, connected, armed: s.armed, blackout: s.masterBlackout, paused: idlePause.paused.value,
     playing: !!s.control?.playing, layers: !!s.control?.layers, frozen: !!s.control?.frozen });
   // An idle page's lights draw as the blackout draws them: off.
   const shown = mode.lit ? s : { ...s, masterBlackout: true };
@@ -175,14 +175,13 @@ export function StagePreview({ controls = true } = {}) {
   return <section class="panel stage-panel">
     <header class="panel-head">
       <h2 class="panel-title">Stage preview</h2>
-      <span class={`panel-tag${!auditioning && mode.tag === 'Blackout' ? ' blackout' : ''}`}>{auditioning ? 'Audition · browser only' : mode.tag}</span>
+      <StageTag class={`panel-tag${!auditioning && mode.tag === 'Blackout' ? ' blackout' : ''}`} tag={auditioning ? 'Audition · browser only' : mode.tag} />
       <span class="stage-head-actions">
-        {controls && mode.pausable && !auditioning && <PausePreview />}
+        {controls && <PreviewToggle pausable={mode.pausable && !auditioning} />}
         <button class={`btn sm ${edit ? 'active' : ''}`} disabled={!connected || auditioning} aria-pressed={edit}
           onClick={() => { setUi({ edit: !edit }); drag.current = null; setDraft(null); }}> {edit ? 'Done positioning' : 'Position fixtures'}</button>
       </span>
     </header>
-    {controls && <PreviewPaused />}
     {controls && <Audition compact />}
     <div ref={surface} class={`stage-surface ${edit ? 'editing' : ''}`} role="group"
       aria-label="Stage layout, viewed from the audience"

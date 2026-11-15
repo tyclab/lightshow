@@ -404,7 +404,6 @@ export function PlanEditor() {
         <h2 class="panel-title" id="plan-title">Plan</h2>
         <span class="panel-tag">{fixtures.length} fixture{fixtures.length === 1 ? '' : 's'}{rig.hasPixels ? ` · ${rig.units.length} lights` : ''}</span>
       </header>
-      <PreviewPaused />
       <div class="plan-tools" role="toolbar" aria-label="Plan tools">
         <div class="segmented" role="group" aria-label="Tool">
           <button type="button" class={`segmented-btn ${tool === 'select' ? 'active' : ''}`} aria-pressed={tool === 'select'}
@@ -442,6 +441,7 @@ export function PlanEditor() {
         onPointerDown={onPointerDown} onPointerMove={onPointerMove}
         onPointerUp={(e) => finish(e, true)} onPointerCancel={(e) => finish(e, false)}>
         <span class="plan-grid" aria-hidden="true" style={plotBox} />
+        <PreviewPaused over />
         <span class="stage-back plan-edge-top" aria-hidden="true">{STAGE_EDGES.top}</span>
         <span class="plan-edge plan-edge-left" aria-hidden="true">{STAGE_EDGES.left}</span>
         <span class="plan-edge plan-edge-right" aria-hidden="true">{STAGE_EDGES.right}</span>

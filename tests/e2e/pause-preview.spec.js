@@ -27,6 +27,8 @@ test.afterEach(async ({ request }) => {
 const awake = async (request) => (await (await request.get('/api/health')).json()).engine.awake;
 const controlOf = async (request) => (await (await request.get('/api/control')).json()).control;
 const pauseButton = (page) => page.getByRole('button', { name: 'Pause preview', exact: true });
+// PR 9: Resume preview stands in the stage's toolbar, in Pause preview's box; the notice is the note alone.
+const resumeButton = (page) => page.getByRole('button', { name: 'Resume preview', exact: true });
 const notice = (page) => page.getByRole('status').filter({ hasText: /^Preview paused\./ });
 const tag = (page) => page.locator('.stage3d-tools .panel-tag');
 
@@ -94,14 +96,14 @@ for (const format of FORMATS) {
     expect(await moves(page, format, 'demo'), 'the demo beat moves').toBe(true);
 
     await pauseButton(page).click();
-    await expect(notice(page)).toHaveText('Preview paused.Resume preview');
+    await expect(notice(page)).toHaveText('Preview paused.');
     await expect(tag(page)).toHaveText('Preview paused');
     await expect(pauseButton(page), 'paused, nothing more to pause').toHaveCount(0);
     await expect.poll(() => socket.topics).toEqual({ dmx: 'unsubscribe', picture: 'unsubscribe' });
     await expect.poll(() => awake(request)).not.toContain('dmx');
     await stillAndDark(page, format);
 
-    await notice(page).getByRole('button', { name: 'Resume preview', exact: true }).click();
+    await resumeButton(page).click();
     await expect(notice(page)).toHaveCount(0);
     await expect(tag(page)).toHaveText(DEMO);
     await expect.poll(() => socket.topics).toEqual({ dmx: 'subscribe', picture: 'subscribe' });
@@ -190,7 +192,7 @@ for (const format of FORMATS) {
     await useFormat(page, format);
     await expect(tag(page)).toHaveText(DEMO);
     await pauseButton(page).click();
-    await expect(notice(page)).toHaveText('Preview paused.Resume preview');
+    await expect(notice(page)).toHaveText('Preview paused.');
     await expect.poll(() => socket.topics).toEqual({ dmx: 'unsubscribe', picture: 'unsubscribe' });
     await stillAndDark(page, format);
 
@@ -211,7 +213,7 @@ test('the stage of every other view offers the one button too', async ({ page, r
     await expect(pauseButton(page), view).toHaveCount(1);
     await pauseButton(page).click();
     await expect(notice(page), view).toHaveCount(1);
-    await notice(page).getByRole('button', { name: 'Resume preview', exact: true }).click();
+    await resumeButton(page).click();
     await expect(notice(page), view).toHaveCount(0);
   }
 });
@@ -275,4 +277,49 @@ for (const [width, height] of [[1280, 900], [390, 844]]) {
       }
     }
   });
+}
+
+// PR 9 (the operator, 2026-11-15: "fix all bugs"): paused by the button or by idleness, Resume preview stands in the box
+// Pause preview had, and the note shows over the stage as the Blackout note does, so neither the toolbar nor the stage moves.
+const rect = (locator) => locator.evaluate((e) => { const r = e.getBoundingClientRect(); return { x: r.x, y: r.y, w: r.width, h: r.height }; });
+for (const [view, format] of [['show', '3D'], ['stage', '3D'], ['stage', '2D']]) {
+  for (const cause of ['button', 'idle']) {
+    test(`${view} ${format}: paused by ${cause === 'idle' ? 'idleness' : 'the button'}, Resume preview stands where Pause preview stood and nothing moves`, async ({ page, request }) => {
+      await control(request, 'stop');
+      if (cause === 'idle') await page.clock.install();
+      await open(page, view);
+      await useFormat(page, format);
+      const stage = format === '3D' ? page.locator(`#panel-${view} .stage3d-wrap`) : page.getByRole('group', { name: 'Stage layout, viewed from the audience' });
+      const toolbar = page.locator(`#panel-${view} .stage3d-tools`);
+      await expect(pauseButton(page)).toHaveCount(1);
+      if (format === '3D') await expect(page.locator(`#panel-${view} .stage3d-canvas`)).toBeVisible();
+      const before = { button: await rect(pauseButton(page)), stage: await rect(stage), toolbar: await rect(toolbar) };
+      if (cause === 'idle') await page.clock.fastForward('01:00:00');
+      else await pauseButton(page).click();
+      const text = cause === 'idle' ? 'Preview paused after 60 minutes without input.' : 'Preview paused.';
+      const note = page.getByRole('status').filter({ hasText: text });
+      await expect(note).toHaveCount(1);
+      await expect(resumeButton(page)).toHaveCount(1);
+      await expect(pauseButton(page)).toHaveCount(0);
+      const after = { button: await rect(resumeButton(page)), stage: await rect(stage), toolbar: await rect(toolbar) };
+      for (const key of ['x', 'y', 'w', 'h']) {
+        expect(Math.abs(after.button[key] - before.button[key]), `Resume preview in Pause preview's box: ${key}`).toBeLessThanOrEqual(1);
+        expect(Math.abs(after.toolbar[key] - before.toolbar[key]), `the toolbar: ${key}`).toBeLessThanOrEqual(0.5);
+      }
+      expect(Math.abs(after.stage.y - before.stage.y), 'the stage\'s top edge').toBeLessThanOrEqual(0.5);
+      await expect(note, 'the note alone, its Resume in the toolbar').toHaveText(text);
+      const noted = await rect(note);
+      if (format === '3D') {
+        expect(noted.y, 'the note over the stage').toBeGreaterThanOrEqual(after.stage.y);
+        expect(noted.y + noted.h).toBeLessThanOrEqual(after.stage.y + after.stage.h + 0.5);
+      } else {
+        expect(noted.y, 'the note under the plot, as the Blackout note').toBeGreaterThanOrEqual(after.stage.y + after.stage.h);
+      }
+      await resumeButton(page).click();
+      await expect(pauseButton(page)).toHaveCount(1);
+      await expect(note).toHaveCount(0);
+      const back = await rect(pauseButton(page));
+      for (const key of ['x', 'y', 'w', 'h']) expect(Math.abs(back[key] - before.button[key]), `Pause preview back in its box: ${key}`).toBeLessThanOrEqual(1);
+    });
+  }
 }

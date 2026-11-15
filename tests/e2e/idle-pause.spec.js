@@ -37,7 +37,8 @@ test('an idle disarmed page releases its feeds and Resume brings them back', asy
 
   await page.clock.fastForward('01:00:00');
   expect(socket.sent.some((f) => f.includes('"activity"')), 'no input yet: no activity').toBe(false);
-  await expect(notice(page)).toHaveText('Preview paused after 60 minutes without input.Resume preview');
+  // PR 9: the note alone; Resume preview stands in the stage's toolbar.
+  await expect(notice(page)).toHaveText('Preview paused after 60 minutes without input.');
   await expect.poll(() => awake(request)).not.toContain('dmx');
   await expect(page.locator('#panel-show .stage3d-tools .panel-tag')).toHaveText('Preview paused');
   expect(await playing(request), 'the page pauses only itself').toBe(true);
@@ -54,7 +55,7 @@ test('an idle disarmed page releases its feeds and Resume brings them back', asy
   await page.evaluate(() => { window.location.hash = '#show'; });
   expect(await awake(request)).not.toContain('dmx');
 
-  await notice(page).getByRole('button', { name: 'Resume preview' }).click();
+  await page.getByRole('button', { name: 'Resume preview', exact: true }).click();
   await expect(notice(page)).toHaveCount(0);
   await expect.poll(() => awake(request)).toContain('dmx');
   await expect(page.locator('#panel-show .stage3d-tools .panel-tag')).not.toHaveText('Preview paused');
@@ -80,7 +81,7 @@ test('a changed limit, 0 included, reaches a page that never opened Settings', a
   await expect.poll(has(1)).toBe(true);
   await page.clock.fastForward('01:00');
   await expect(notice(page)).toContainText('Preview paused after 1 minute without input.');
-  await notice(page).getByRole('button', { name: 'Resume preview' }).click();
+  await page.getByRole('button', { name: 'Resume preview', exact: true }).click();
   await expect(notice(page)).toHaveCount(0);
 
   expect((await request.put('/api/settings', { data: { outputs: { idleStopMin: 0 } } })).ok()).toBe(true);
@@ -90,4 +91,26 @@ test('a changed limit, 0 included, reaches a page that never opened Settings', a
   await expect(page.locator('.offline-veil')).toHaveCount(0);
   await expect(notice(page), '0: never paused').toHaveCount(0);
   await expect.poll(() => awake(request)).toContain('dmx');
+});
+
+// PR 9 (the operator, 2026-11-15: "fix all bugs"; a notice that moves controls when it appears): the Rig view's plan has no
+// toolbar Resume, so its note and Resume lie over the plan, and the plan's tools and the plan keep their places.
+test('on the Rig view the idle note lies over the plan and moves neither its tools nor the plan', async ({ page }) => {
+  await page.clock.install();
+  await open(page, 'rig');
+  const tools = page.getByRole('toolbar', { name: 'Plan tools' }), plan = page.locator('.plan-surface');
+  await expect(plan).toBeVisible();
+  const rect = (l) => l.evaluate((e) => { const r = e.getBoundingClientRect(); return { x: r.x, y: r.y, w: r.width, h: r.height }; });
+  const was = { tools: await rect(tools), plan: await rect(plan) };
+  await page.clock.fastForward('01:00:00');
+  await expect(notice(page)).toHaveCount(1);
+  const now = { tools: await rect(tools), plan: await rect(plan), note: await rect(notice(page)) };
+  for (const part of ['tools', 'plan']) for (const key of ['x', 'y', 'w', 'h']) {
+    expect(Math.abs(now[part][key] - was[part][key]), `${part} ${key}`).toBeLessThanOrEqual(0.5);
+  }
+  expect(now.note.y, 'over the plan').toBeGreaterThanOrEqual(now.plan.y);
+  expect(now.note.y + now.note.h).toBeLessThanOrEqual(now.plan.y + now.plan.h + 0.5);
+  await notice(page).getByRole('button', { name: 'Resume preview', exact: true }).click();
+  await expect(notice(page)).toHaveCount(0);
+  await expect(page.locator('.plan-surface .stage-fixture.selected'), 'the press selected nothing on the plan').toHaveCount(0);
 });

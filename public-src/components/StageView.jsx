@@ -10,7 +10,7 @@ import { useRehearsalTrack, useRehearsalSampler, useUnitSpace } from '../rehears
 import { hasBeams, lightRGB, STAGE_W, STAGE_D, TRUSS_H } from '../stage3d/world.js';
 import { Audition } from './Audition.jsx';
 import { StagePreview } from './StagePreview.jsx';
-import { PausePreview, PreviewPaused } from './PreviewPaused.jsx';
+import { PreviewToggle, StageTag } from './PreviewPaused.jsx';
 import { auditionSig, demoBeatSig, setAudition, useAuditionSampler, useDemoLookSampler } from '../audition.js';
 import { StageRoomPanel } from './StageRoomPanel.jsx';
 import { scenePool } from '../stage3d/scene-pool.js';
@@ -52,7 +52,7 @@ export function StageView({ compact = false } = {}) {
   const [format, setFormat] = useState('3d');
   const pause = idlePause.paused.value;
   const paused = pause !== null;
-  const mode = stageMode({ rehearsing, connected, armed: s.armed, blackout: s.masterBlackout, paused,
+  const mode = stageMode({ rehearsing, connected, armed: s.armed, blackout: s.masterBlackout, paused: pause,
     playing: !!s.control?.playing, layers: !!s.control?.layers, frozen: !!s.control?.frozen });
   const demo = mode.demo && !auditioning;
   const dark = auditioning ? null : mode.note;
@@ -302,13 +302,12 @@ export function StageView({ compact = false } = {}) {
 
   return (
     <div class={`stage3d-view${compact ? ' compact' : ''}`}>
-      <PreviewPaused />
       {!compact && <Background />}
       {!compact && <StageRoomPanel snapshot={roomState} coverage={room ? placed : null} fixtures={fixtures} rig={rig} onChange={setRoomState} />}
       {!compact && <Audition />}
       <div class="stage3d-tools" role="toolbar" aria-label="Stage view">
-        <span class={tagClass}>{auditioning ? 'Audition · browser only' : mode.tag}</span>
-        {mode.pausable && !auditioning && <PausePreview />}
+        <StageTag class={tagClass} tag={auditioning ? 'Audition · browser only' : mode.tag} />
+        <PreviewToggle pausable={mode.pausable && !auditioning} />
         <div class="segmented" role="group" aria-label="Stage format">
           <button type="button" class="btn sm" aria-pressed={format === '3d'} onClick={() => setFormat('3d')}>3D room</button>
           <button type="button" class="btn sm" aria-pressed={format === 'plot'} onClick={() => setFormat('plot')}>2D plot</button>
