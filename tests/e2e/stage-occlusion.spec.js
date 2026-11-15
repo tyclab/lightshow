@@ -46,10 +46,11 @@ const script = buildSync({
       light(colour) { scene.setLights(Array.from({ length: units }, () => colour)); },
       orbit() { scene.nudge({ turn: 0.4 }); },
       info() { return { ...scene.info(), shadowBinds: window.shadowBinds }; },
-      // Draw now and read the luminance at a grid of points over each region (corner, two edges, in metres).
+      // Draw until every map is rendered, as the page's frames do, and read the luminance at a grid of points
+      // over each region (corner, two edges, in metres).
       frame(regions = {}) {
         scene.resize();
-        scene.render();
+        while (scene.render());
         copy.width = canvas.width; copy.height = canvas.height;
         const ctx = copy.getContext('2d');
         ctx.drawImage(canvas, 0, 0);
@@ -139,7 +140,7 @@ test('a lamp just above the ceiling leaves the floor dark and just below it ligh
   expect(changed(onFloor.off.all, onFloor.on.all), 'just above the floor').toBeGreaterThan(500);
 });
 
-test('after the maps rendered, a room edit or a rig edit moves the shadows; a colour frame or an orbit renders no map', async ({ page }) => {
+test('after the maps rendered, a room edit or a rig edit moves the shadows; a colour frame, an orbit or Room light renders no map', async ({ page }) => {
   const lit = (regions) => page.evaluate((regions) => {
     window.stage.light(null);
     const off = window.stage.frame(regions);
@@ -164,9 +165,10 @@ test('after the maps rendered, a room edit or a rig edit moves the shadows; a co
   const green = await page.evaluate((regions) => { window.stage.light({ r: 0, g: 255, b: 0 }); return window.stage.frame(regions); }, REGIONS);
   expect(changed(frames.on.far, green.far), 'the colour frame was drawn').toBeGreaterThan(60);
   await page.evaluate(() => { window.stage.orbit(); window.stage.frame(); });
-  expect(await page.evaluate(() => window.stage.info().shadowBinds), 'a colour frame and an orbit render no shadow map').toBe(binds);
-  await page.evaluate(() => { window.stage.roomLight(false); window.stage.roomLight(true); window.stage.frame(); });
-  expect(await page.evaluate(() => window.stage.info().shadowBinds), 'Room light switched renders them again').toBeGreaterThan(binds);
+  await page.evaluate(() => { window.stage.roomLight(false); window.stage.roomLight(true); window.stage.light({ r: 0, g: 255, b: 0 }); window.stage.frame(); });
+  expect(await page.evaluate(() => window.stage.info().shadowBinds), 'a colour frame, an orbit and Room light switched back render no map').toBe(binds);
+  await page.evaluate((lamp) => { window.stage.rig([lamp]); window.stage.frame(); }, binding({ x: 1.5, y: 2.3, z: 1 }));
+  expect(await page.evaluate(() => window.stage.info().shadowBinds), 'the lamp moved renders its map again').toBeGreaterThan(binds);
 });
 
 test('a pool beside a hidden wall shows nothing behind it, cut by the room and by the wall', async ({ page }) => {

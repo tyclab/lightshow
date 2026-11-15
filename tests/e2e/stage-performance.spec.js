@@ -1,3 +1,4 @@
+import { writeFile } from 'node:fs/promises';
 import { test, expect } from '@playwright/test';
 import { open, set, state, reset } from './helpers.js';
 import { stageImage } from './stage-image.js';
@@ -89,8 +90,13 @@ function walledRoom(fixtureId) {
   return { version: 1, name: 'Many walls', bounds: { width: columns * size, depth: rows * size, height }, rooms, objects: walls, bindings };
 }
 
-test('a room of many walls rebuilds its shadows, and draws steady frames, within the main-thread budget', async ({ page, request }) => {
+test('a room of many walls rebuilds its shadows, and draws steady frames, within the main-thread budget', async ({ page, request }, testInfo) => {
   test.setTimeout(60_000);
+  const attach = async (name, value) => {
+    const path = testInfo.outputPath(name);
+    await writeFile(path, JSON.stringify(value));
+    await testInfo.attach(name, { path, contentType: 'application/json' });
+  };
   await reset(request);
   const before = await state(request);
   const roomOf = async () => (await request.get('/api/stage/room')).json();
@@ -100,8 +106,6 @@ test('a room of many walls rebuilds its shadows, and draws steady frames, within
       : await request.delete('/api/stage/room', { headers: { 'If-Match': revision } });
     expect(result.ok()).toBe(true);
   };
-  const profileId = 'e2e-stage-walls';
-  let added = [];
   const snapshot = () => page.evaluate(() => window.__lightshowPerformance.snapshot());
   try {
     const model = walledRoom(before.fixtures[0].id);
@@ -110,29 +114,27 @@ test('a room of many walls rebuilds its shadows, and draws steady frames, within
     await set(request, { pattern: 'ensemble' });
     await page.goto('/?performance=1#stage');
     await page.locator('.offline-veil').waitFor({ state: 'detached' });
-    await expect.poll(async () => (await snapshot()).counts['scene.shadowMaps'] || 0, { timeout: 15_000 }).toBeGreaterThan(0);
+    await expect.poll(async () => (await snapshot()).counts['scene.shadowMaps'] || 0, { timeout: 15_000 }).toBe(8);
 
-    // A rebuild: the patch changes, so the rig is built again and the maps render again.
+    // A rebuild: the room is edited elsewhere and loaded again with every lamp a step along, so the blockers
+    // are built again and every light's map renders again, one light a frame.
+    await replace({ ...model, bindings: model.bindings.map((entry) => ({ ...entry, position: { ...entry.position, x: entry.position.x + 0.2 } })) });
+    await page.locator('.stage-room-panel > summary').click();
     await page.evaluate(() => window.__lightshowPerformance.reset());
-    expect((await request.post('/api/profiles/bar', { data: { id: profileId, name: 'Walls strip', cells: 8, firstChannel: 1, order: 'RGB' } })).ok()).toBe(true);
-    const fixtures = await request.post('/api/fixtures', { data: { profileId, count: 1, universe: 7 } });
-    expect(fixtures.ok()).toBe(true);
-    added = (await fixtures.json()).fixtures;
-    await expect.poll(async () => { const { counts } = await snapshot(); return counts['scene.rigBuilds'] > 0 && counts['scene.shadowMaps'] > 0; },
-      { timeout: 15_000 }).toBe(true);
-    await expect.poll(async () => (await snapshot()).counts['scene.draws'] || 0).toBeGreaterThan(2);
+    await page.getByRole('button', { name: 'Reload room', exact: true }).click();
+    await expect.poll(async () => (await snapshot()).counts['scene.shadowMaps'] || 0, { timeout: 15_000 }).toBe(8);
     const rebuild = await snapshot();
+    await attach('rebuild-timing.json', rebuild);
     expect(mainThreadBudget(rebuild), 'the rebuild').toEqual({ ok: true, failures: [] });
 
     // Steady frames: the look plays on the demo beat; no map renders again.
     await page.evaluate(() => window.__lightshowPerformance.reset());
     await expect.poll(async () => (await snapshot()).counts['scene.draws'] || 0, { timeout: 15_000 }).toBeGreaterThan(20);
     const steady = await snapshot();
+    await attach('steady-timing.json', steady);
     expect(mainThreadBudget(steady), 'steady frames').toEqual({ ok: true, failures: [] });
     expect(steady.counts['scene.shadowMaps'] || 0, 'steady frames render no shadow map').toBe(0);
   } finally {
-    for (const id of added) await request.delete(`/api/fixtures/${id}`);
-    await request.delete(`/api/profiles/${profileId}`);
     await replace(null);
     await set(request, { pattern: before.pattern });
   }

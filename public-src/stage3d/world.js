@@ -50,7 +50,7 @@ const FACE = 0.02;
 // room-geometry.js draws a cylinder with this many sides.
 const CYLINDER_SIDES = 16;
 
-function insidePolygon(polygon, x, z) {
+export function insidePolygon(polygon, x, z) {
   let crossings = false;
   for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
     const [xi, zi] = polygon[i], [xj, zj] = polygon[j];
