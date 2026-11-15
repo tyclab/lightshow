@@ -768,22 +768,20 @@ New mapping revisions discard delayed and partially staged colours.
 | `hue` | `bridges: []`, `latencyMs: 0`, `strobe: 'flash'`; each paired bridge has an id, address, enabled flag, area and write-only credentials |
 | `picture` | `source: 'effects'`, `'visualizer'` or `'squid'`; `blackPoint: 0.12`, the peak under which a picture unit stays dark; `decode: false`, sRGB to linear light; `grade`: the room picture's optional colour grade, off by default, `{ enabled: false, whiteLimit: 0, saturation: 1, ceiling: 1, hueCeiling: 1 }`; see [Room picture](#room-picture) |
 | `outputs` | `armed: false`; always reset to false at startup. `idleDisarmMin: 15`: minutes armed with nothing playing before the outputs disarm themselves; `0` never. `idleStopMin: 60`: minutes disarmed without a control action or page input before a show is stopped as Stop does and an idle page pauses its preview; `0` never |
-| `sources` | `prolink: false`, `smtc: true` |
-| `spotify` | Client id, secret, server-written refresh token; optional `proxyBase`; `allowUnverifiedState: false` |
-| `deezer` | Optional `arl` cookie |
-| `live` | `enabled: false`, `source: 'loopback'`, `device: ''`, `latencyMs: 0`, `autoSync: true`, `director: true` |
-| `auto` | `syncOffsetMs: 0`, `setMemory: true` |
+| `live` | `enabled: false`, `source: 'loopback'`, `device: ''`, `latencyMs: 0`, `director: true`, `pythonPath: ''` (blank detects an interpreter that can run the live input) |
 | `clock` | `tempoMode: 'auto'` or `'manual'` |
 | `audio` | `mode: 'tempo'`, the party master controls, `ldjTrigger: 0.3` |
 | `safety` | `photosensitivityAcknowledged: false` (ends at each disarm and start), `strobeMaxLatchSec: 60`, `hdFlashIntervalMs: 350`, `flashLimit: false` |
 | `strobe` | Palette, rate, clock, background behaviour and brightness; see [Strobe](#strobe) |
 | `midi` | `input: ''`, `output: ''`, `clockOutput: ''`, `controlFeedback: true` |
 | `engine` | `thread: 'worker'`; `'main'` is available for diagnosis |
-| `analysis` | `analyzerTimeoutMs: 600000`, `analyzerTimeoutMsPerSec: 1500`, `downloadTimeoutMs: 300000`, `localRoot: ''`, `pythonPath: ''`, `separator: 'demucs'`, `structureModel: 'auto'`, `gpuMemory: 'auto'`, `localWorker: 'standby'` (`'resident'` keeps this machine's analyser loaded from start-up); `workerToken: ''` (write-only; blank turns [remote GPU workers](#remote-gpu-analysis) off), `remoteWaitMs: 120000` |
 
-`server.host`, `server.port`, `server.token`, engine thread and the first Deezer
-ARL require a restart.
-Other settings apply immediately. The UI lists pending restart keys.
+`server.host`, `server.port`, `server.token` and the engine thread require a restart.
+Other settings apply immediately. The UI lists pending restart keys. A file from
+an earlier build loads without the groups this one no longer reads (`sources`,
+`spotify`, `deezer`, `auto`, `analysis`, `live.autoSync`), one log line naming
+them, and is written back without them; its `analysis.pythonPath` becomes
+`live.pythonPath`.
 
 ### Files and environment
 

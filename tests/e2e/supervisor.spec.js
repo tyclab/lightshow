@@ -60,7 +60,6 @@ test.beforeAll(async () => {
     server: { host: '127.0.0.1', port: PORT, token: '' },
     artnet: { enabled: false },
     sacn: { enabled: false },
-    sources: { prolink: false, smtc: false },
   }));
   startSupervisor();
 });

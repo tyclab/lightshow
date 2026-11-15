@@ -68,7 +68,7 @@ let cached: PythonInfo | null = null;
 function resolve({ refresh = false } = {}): PythonInfo {
   if (cached && !refresh) return cached;
 
-  const configured = settings.get('analysis.pythonPath');
+  const configured = settings.get('live.pythonPath');
   if (configured) {
     const info = probe(configured);
     cached = info

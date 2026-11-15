@@ -134,16 +134,13 @@ export const LIVE = {
       },
       missing: (value) => `${value} (not found)`,
       help: 'A device that is not plugged in now keeps its name and is used when it comes back.' },
-    { path: 'live.autoSync', label: 'Auto-Sync', type: 'toggle',
-      help: 'Line a known track\'s show up with what is heard, rather than trust where Spotify or the media session says '
-        + 'the song is. The sync offset then only has to cover the lights\' own delay.' },
     { path: 'live.director', label: 'Play By Ear', type: 'toggle',
-      help: 'With the auto show on and no analysed track to play — the next one still being analysed, or music nothing '
-        + 'can name — answer what is heard: new looks on section changes, bursts on drops, dark in the silences.' },
+      help: 'With the auto show on, answer what is heard: new looks on section changes, bursts on drops, dark in the '
+        + 'silences.' },
     { path: 'live.latencyMs', label: 'Room Latency', type: 'number', unit: 'ms', min: -500, max: 500,
       help: 'How much later the room hears the music than this computer does. Positive when the PA is behind the sound '
         + 'card; negative for a line-in off the booth. 0 is right for most setups.' },
-    { path: 'analysis.pythonPath', label: 'Python', type: 'text', placeholder: 'auto-detect',
+    { path: 'live.pythonPath', label: 'Python', type: 'text', placeholder: 'auto-detect',
       help: 'Blank auto-detects, preferring an interpreter that can import what the live input needs. Set a full path '
         + 'when pip installed into a different Python than the one that gets picked. Used from the live input\'s next start.',
       note: pythonNote },
@@ -167,10 +164,6 @@ export const SHOW = {
         + 'two seconds without a frame shows the effects again. Also switchable in Perform, which sets the picture\'s '
         + 'black point (the level under which a lamp stays dark), an optional sRGB decode for lamps whose output has '
         + 'no gamma of its own, and an optional colour grade, off by default.' },
-    { path: 'auto.setMemory', label: 'Remember the Night', type: 'toggle',
-      help: 'Each track avoids the palette and the looks of the one before it, keeps some of its colours when the two '
-        + 'keys mix, and paces its biggest moments against the tracks before it. Off plans every track as if it were '
-        + 'the first of the night.' },
     { path: 'outputs.idleStopMin', label: 'Stop an Unattended Show', type: 'number', unit: 'min', min: 0, max: 1440,
       help: 'While the outputs are disarmed, a show with no control action and no input on any page for this long is '
         + 'stopped as Stop does, pads included, and an open page pauses its preview until Resume preview. A sequence '

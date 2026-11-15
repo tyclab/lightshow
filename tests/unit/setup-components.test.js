@@ -111,7 +111,7 @@ test("engine settings show resolved runtime values", () => {
 });
 
 test('a select keeps a stored value the list no longer has, and says so', () => {
-  ui.settingsSig.value = { settings: { live: { enabled: true, source: 'input', device: 'Scarlett 2i2', autoSync: true, director: true, latencyMs: 0 } }, secrets: {} };
+  ui.settingsSig.value = { settings: { live: { enabled: true, source: 'input', device: 'Scarlett 2i2', director: true, latencyMs: 0 } }, secrets: {} };
   const html = ui.html(ui.h(ui.SettingsSection, { ...ui.LIVE, ctx: { liveDevices: { outputs: ['Speakers'], inputs: ['Line In'] } } }));
   assert.match(html, /Scarlett 2i2 \(not found\)/);
   assert.match(html, /The default input/, 'the input list, for an input');
@@ -119,7 +119,7 @@ test('a select keeps a stored value the list no longer has, and says so', () => 
 });
 
 test('Settings → Show selects the saved Hue flash mode', () => {
-  ui.settingsSig.value = { settings: { outputs: { armed: false }, auto: { setMemory: true }, safety: { flashLimit: false }, hue: { strobe: 'pulse' } }, secrets: {} };
+  ui.settingsSig.value = { settings: { outputs: { armed: false }, safety: { flashLimit: false }, hue: { strobe: 'pulse' } }, secrets: {} };
   const html = ui.html(ui.h(ui.SettingsSection, ui.SHOW));
   const select = html.match(/<select id="set-hue.strobe"[^>]*>(.*?)<\/select>/);
   assert.ok(select);
@@ -128,7 +128,7 @@ test('Settings → Show selects the saved Hue flash mode', () => {
 });
 
 test('Settings → Show sets the minutes after which a disarmed show nobody attends stops, 0 to a day', () => {
-  ui.settingsSig.value = { settings: { outputs: { armed: false, idleStopMin: 45 }, auto: { setMemory: true }, safety: { flashLimit: false }, hue: { strobe: 'flash' } }, secrets: {} };
+  ui.settingsSig.value = { settings: { outputs: { armed: false, idleStopMin: 45 }, safety: { flashLimit: false }, hue: { strobe: 'flash' } }, secrets: {} };
   const html = ui.html(ui.h(ui.SettingsSection, ui.SHOW));
   const input = html.match(/<input id="set-outputs.idleStopMin"[^>]*>/);
   assert.ok(input, 'the field is in Settings → Show');
@@ -140,12 +140,15 @@ test('Settings → Show sets the minutes after which a disarmed show nobody atte
   assert.match(html, /0 never stops/);
 });
 
-test('Sources → Live input names the Python it runs and offers no analysis settings', () => {
-  ui.settingsSig.value = { settings: { live: { enabled: false, source: 'loopback', device: '' }, analysis: { pythonPath: '' } }, secrets: {} };
+// G8: the interpreter is the live input's setting; the planned show's Auto-Sync and Remember the Night went with it.
+test('Sources → Live input names the Python it runs and offers no analysis or planned show settings', () => {
+  ui.settingsSig.value = { settings: { live: { enabled: false, source: 'loopback', device: '', pythonPath: '' } }, secrets: {} };
   const html = ui.html(ui.h(ui.SettingsSection, ui.LIVE));
   const ids = [...html.matchAll(/id="set-([a-z]+\.[A-Za-z]+)"/g)].map((m) => m[1]);
-  assert.ok(ids.includes('analysis.pythonPath'), ids.join(', '));
-  assert.ok(!ids.some((id) => /separator|structureModel|gpuMemory|localWorker|workerToken/.test(id)), ids.join(', '));
+  assert.ok(ids.includes('live.pythonPath'), ids.join(', '));
+  assert.ok(!ids.some((id) => /^analysis\.|autoSync|separator|structureModel|gpuMemory|localWorker|workerToken/.test(id)), ids.join(', '));
+  ui.settingsSig.value = { settings: { outputs: { armed: false }, safety: { flashLimit: false }, hue: { strobe: 'flash' } }, secrets: {} };
+  assert.doesNotMatch(ui.html(ui.h(ui.SettingsSection, ui.SHOW)), /set-auto\.|Remember the Night/);
   assert.strictEqual(ui.specs.ANALYSIS, undefined, 'no analysis section left to show');
 });
 

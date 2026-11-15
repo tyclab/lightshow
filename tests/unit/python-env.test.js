@@ -76,11 +76,11 @@ test('an interpreter that has the dependencies is preferred over one that does n
 });
 
 test('explicit Python paths override detection and report broken interpreters', noPython, () => {
-  const original = settings.get('analysis.pythonPath');
+  const original = settings.get('live.pythonPath');
 
   // Reach past update() deliberately: this is about resolution, and update()
   // would persist to the real config file.
-  settings._values.analysis.pythonPath = 'definitely-not-a-python-abc123';
+  settings._values.live.pythonPath = 'definitely-not-a-python-abc123';
   pythonEnv._reset();
   const broken = pythonEnv.resolve();
   assert.strictEqual(broken.source, 'configured');
@@ -90,7 +90,7 @@ test('explicit Python paths override detection and report broken interpreters', 
   pythonEnv.warnIfUnusable((m) => lines.push(m));
   assert.ok(lines.length > 0);
 
-  settings._values.analysis.pythonPath = original;
+  settings._values.live.pythonPath = original;
   pythonEnv._reset();
 });
 
@@ -182,3 +182,25 @@ test('the project environment is tried before anything on PATH',
       fs.rmSync(dir, { recursive: true, force: true });
     }
   });
+
+// G8: the interpreter is a live-input setting; one save that names it and turns the live input on starts that interpreter.
+test('a save naming the live input\'s Python and turning it on starts the Python it names', async () => {
+  const { createApplier } = await import('../../src/server/apply.ts');
+  const saved = settings.all();
+  settings.save = () => {};
+  settings.useDefaults();
+  const started = [];
+  const live = { start: () => started.push(pythonEnv.pythonExe()), stop() {} };
+  try {
+    pythonEnv._reset();
+    pythonEnv.resolve();
+    const applier = createApplier({ midi: { close() {}, connect() { return true; }, setControlFeedback() {} },
+      live, applyPatch() {}, broadcast() {} });
+    applier.applyChanged(settings.update({ live: { enabled: true, pythonPath: '/nowhere/python3' } }));
+    assert.deepStrictEqual(started, ['/nowhere/python3']);
+  } finally {
+    settings._values = saved;
+    delete settings.save;
+    pythonEnv._reset();
+  }
+});

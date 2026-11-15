@@ -16,8 +16,7 @@ fs.writeFileSync(path.join(E2E_DIR, 'settings.json'), JSON.stringify({
   server: { host: '127.0.0.1', port: E2E_PORT, token: '' },
   artnet: { enabled: false },
   sacn: { enabled: false },
-  sources: { prolink: false, smtc: false },
-  analysis: { pythonPath: python },
+  live: { pythonPath: python },
 }, null, 2));
 process.env.LIGHTSHOW_CONFIG_DIR = E2E_DIR;
 process.env.LIGHTSHOW_CACHE_DIR = path.join(E2E_DIR, 'cache');

@@ -2,7 +2,7 @@ import { hdMasterSchema } from '../shared/party-setup.ts';
 import net from 'node:net';
 import { z } from 'zod';
 import { DEFAULT_HARDWARE, hardwareSettingsSchema } from '../shared/hardware.ts';
-import { SYNC_OFFSET_LIMIT_MS, TEMPO_MODES } from './presets.ts';
+import { TEMPO_MODES } from './presets.ts';
 import { HttpError, messageOf } from '../errors.ts';
 import { configFile } from './config-dir.ts';
 import { isLoopback } from './loopback.ts';
@@ -65,34 +65,15 @@ const DEFAULTS: Settings = {
     controlFeedback: true,
     clockOutput: '',
   },
-  sources: {
-    prolink: false,
-    smtc: true,
-  },
   live: {
     enabled: false,
     source: 'loopback',
     // Blank for the system default; otherwise a device name, or part of one.
     device: '',
     latencyMs: 0,
-    autoSync: true,
     director: true,
-  },
-  spotify: {
-    clientId: '',
-    clientSecret: '',
-    // Treat server-managed Spotify sessions as secrets even though the UI cannot edit them.
-    refreshToken: '',
-    proxyBase: '',
-    allowUnverifiedState: false,
-  },
-  deezer: {
-    arl: '',
-  },
-  auto: {
-    // Persist sync offset because playback and fixture latency belong to the room, not the current track.
-    syncOffsetMs: 0,
-    setMemory: true,
+    // Blank detects one that can import what src/live_input.py needs.
+    pythonPath: '',
   },
   clock: {
     tempoMode: 'auto',
@@ -126,30 +107,10 @@ const DEFAULTS: Settings = {
   engine: {
     thread: 'worker',
   },
-  analysis: {
-    analyzerTimeoutMs: 600000,
-    // Per second of audio: 1.15 s was the slowest measured, a 900 s track under memory pressure.
-    analyzerTimeoutMsPerSec: 1500,
-    downloadTimeoutMs: 300000,
-    localRoot: '',
-    pythonPath: '',
-    separator: 'demucs',
-    // Auto mode avoids CPU SongFormer because inference can take most of the track’s duration.
-    structureModel: 'auto',
-    // Offload models on small GPUs so all analysis models need not fit in VRAM together.
-    gpuMemory: 'auto',
-    // Standby ends this machine's analyser while a GPU worker is ready, freeing its ~0.9 GB.
-    localWorker: 'standby',
-    // Blank turns remote GPU workers off; the token opens only their job routes, never the UI or API.
-    workerToken: '',
-    remoteWaitMs: 120000,
-  },
 };
 
 // Return only secret-presence flags so the UI can configure credentials without reading them back.
-const SECRET_PATHS = [
-  'server.token', 'spotify.clientSecret', 'spotify.refreshToken', 'deezer.arl', 'analysis.workerToken',
-];
+const SECRET_PATHS = ['server.token'];
 
 const HUE_SECRET_KEYS = ['username', 'clientKey'] as const;
 
@@ -240,34 +201,17 @@ const schema = z.object({
     controlFeedback: z.boolean(),
     clockOutput: z.string().max(256),
   }).strict(),
-  sources: z.object({
-    prolink: z.boolean(),
-    smtc: z.boolean(),
-  }).strict(),
   live: z.object({
     enabled: z.boolean(),
     source: z.enum(['loopback', 'input']),
     device: z.string().max(256),
     latencyMs: z.number().int().min(-500).max(500),
-    autoSync: z.boolean(),
     director: z.boolean(),
-  }).strict(),
-  spotify: z.object({
-    clientId: z.string().max(256),
-    clientSecret: z.string().max(256),
-    refreshToken: z.string().max(2048),
-    proxyBase: z.string().max(2048).refine(
-      (v) => v === '' || /^https?:\/\/[^\s]+$/.test(v),
-      { message: 'must be blank or an http(s) URL' },
+    // Restrict interpreter names so the setting cannot select an arbitrary executable.
+    pythonPath: z.string().max(4096).refine(
+      (value) => value === '' || PYTHON_BASENAME_RE.test(value.trim().split(/[\\/]/).pop() ?? ''),
+      'must be the path to a Python interpreter (python, python3, pythonw, py)',
     ),
-    allowUnverifiedState: z.boolean(),
-  }).strict(),
-  deezer: z.object({
-    arl: z.string().max(512),
-  }).strict(),
-  auto: z.object({
-    syncOffsetMs: z.number().int().min(-SYNC_OFFSET_LIMIT_MS).max(SYNC_OFFSET_LIMIT_MS),
-    setMemory: z.boolean(),
   }).strict(),
   clock: z.object({
     tempoMode: z.enum(TEMPO_MODES),
@@ -301,29 +245,30 @@ const schema = z.object({
   engine: z.object({
     thread: z.enum(['worker', 'main']),
   }).strict(),
-  analysis: z.object({
-    // Keep the timeout above a minute so ordinary analysis jobs can complete.
-    analyzerTimeoutMs: z.number().int().min(60000).max(3600000),
-    analyzerTimeoutMsPerSec: z.number().int().min(0).max(10000),
-    downloadTimeoutMs: z.number().int().min(10000).max(3600000),
-    localRoot: z.string().max(4096),
-    // Restrict interpreter names so the setting cannot select an arbitrary executable.
-    pythonPath: z.string().max(4096).refine(
-      (value) => value === '' || PYTHON_BASENAME_RE.test(value.trim().split(/[\\/]/).pop() ?? ''),
-      'must be the path to a Python interpreter (python, python3, pythonw, py)',
-    ),
-    separator: z.enum(['demucs', 'bs-roformer']),
-    structureModel: z.enum(['auto', 'songformer', 'off']),
-    gpuMemory: z.enum(['auto', 'offload', 'resident']),
-    localWorker: z.enum(['resident', 'standby']),
-    workerToken: z.string().max(512),
-    // How long a prefetch waits for a busy remote worker before this machine analyses it.
-    remoteWaitMs: z.number().int().min(0).max(900000),
-  }).strict(),
 }).strict();
 
-// Groups an earlier build stored and this one no longer reads. A file that still holds one loads as if it did not and is written back without it.
-const RETIRED_GROUPS = ['setup'];
+// What an earlier build stored and this one no longer reads: a file that still holds one loads as if it did not and is
+// written back without it. The planned show, its analysis and the track services went on 2026-11-15.
+const RETIRED_GROUPS = ['setup', 'sources', 'spotify', 'deezer', 'auto', 'analysis'];
+const RETIRED_KEYS = ['live.autoSync'];
+
+/** Drops what this build no longer reads, the analysis interpreter becoming the live input's; returns what it dropped. */
+function retire(values: Record<string, unknown>): string[] {
+  const record = (value: unknown) => value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : null;
+  const python = record(values.analysis)?.pythonPath;
+  if (typeof python === 'string' && python) {
+    const live = record(values.live) ?? (values.live = {}) as Record<string, unknown>;
+    if (!('pythonPath' in live)) live.pythonPath = python;
+  }
+  const dropped = RETIRED_GROUPS.filter((group) => group in values);
+  for (const group of dropped) delete values[group];
+  for (const dotted of RETIRED_KEYS) {
+    const [group, key] = dotted.split('.');
+    const stored = record(values[group]);
+    if (stored && key in stored) { delete stored[key]; dropped.push(dotted); }
+  }
+  return dropped;
+}
 
 const patchSchema = z.object(
   Object.fromEntries(
@@ -393,8 +338,9 @@ class SettingsStore extends JsonStore {
       this.loadFailure = new Error('Invalid settings document; the file was left intact');
       throw this.loadFailure;
     }
-    const retired = RETIRED_GROUPS.filter((group) => group in values);
-    for (const group of retired) delete values[group];
+    const retired = retire(values);
+    const said = retired.filter((name) => name !== 'setup');
+    if (said.length) console.warn(`[settings] dropped what this build no longer reads: ${said.join(', ')}`);
     // Colour + motion went on 2026-11-15: a file that chose it paints from the effects.
     const picture = values.picture as Record<string, unknown> | undefined;
     const inspired = !!picture && typeof picture === 'object' && picture.source === 'inspired';

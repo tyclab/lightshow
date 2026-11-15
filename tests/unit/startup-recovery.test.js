@@ -17,7 +17,7 @@ test('a restart recovers a workspace that targets the saved patch, not the defau
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'startup-recovery-'));
   const port = await freePort();
   fs.writeFileSync(path.join(dir, 'settings.json'), JSON.stringify({
-    server: { host: '127.0.0.1', port, token: '' }, artnet: { enabled: false }, sacn: { enabled: false }, sources: { prolink: false, smtc: false },
+    server: { host: '127.0.0.1', port, token: '' }, artnet: { enabled: false }, sacn: { enabled: false },
   }));
   fs.writeFileSync(path.join(dir, 'show.json'), JSON.stringify({
     nextFixtureId: 8, fixtures: [{ id: 7, label: 'Seven', address: 1, universe: 0, profileId: BUILTIN_PROFILE_ID, maxBrightness: 255 }],

@@ -163,8 +163,9 @@ function createApplier({ midi, live = null, midiClock = null, applyPatch, broadc
     { match: (k) => k === 'midi.input' || k === 'midi.output', run: applyMidi },
     { match: (k) => k === 'midi.controlFeedback', run: applyControlFeedback },
     { match: (k) => k === 'midi.clockOutput', run: applyMidiClock },
+    // The interpreter first, so a live input started in the same save starts it.
+    { match: (k) => k === 'live.pythonPath', run: applyPython },
     { match: (k) => k.startsWith('live.'), run: applyLive },
-    { match: (k) => k === 'analysis.pythonPath', run: applyPython },
     { match: (k) => k === 'safety.flashLimit', run: applySafety },
     { match: (k) => k === 'clock.tempoMode', run: applyClock },
     { match: (k) => k === 'outputs.armed', run: (origin) => applyOutputs({ origin }) },
