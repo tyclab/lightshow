@@ -15,6 +15,8 @@ const built = [];
 const remember = (integrations) => { built.push(integrations); return integrations; };
 test.afterEach(() => { for (const integrations of built.splice(0)) integrations.stopTimers(); });
 
+const settle = () => new Promise((resolve) => setImmediate(resolve));
+
 const SPOTIFY_TRACK = {
   trackId: 'spotify-1',
   name: 'Shelter',
@@ -122,20 +124,6 @@ test('choosing hybrid resolves to hybrid once Spotify is connected', () => {
   });
 });
 
-test('hybrid does not require the OS session — it degrades to the Spotify clock', () => {
-  // On a machine with no SMTC at all, picking hybrid must still start a show.
-  const rig = build();
-  rig.spotify.authenticated = true;
-  rig.nowPlaying.authenticated = false;
-  withSource('hybrid', () => {
-    assert.strictEqual(rig.integrations.resolveAutoSource(), 'hybrid');
-    rig.integrations.startAutoShow();
-    rig.spotify.emitPlayback(SPOTIFY_TRACK);
-    const position = rig.started[0]();
-    assert.ok(Math.abs(position - 30000) < 50, `position was ${position}`);
-  });
-});
-
 test('hybrid without Spotify falls through rather than running on nothing', () => {
   const rig = build();
   rig.spotify.authenticated = false;
@@ -176,43 +164,6 @@ test('auto still prefers a connected CDJ over everything', () => {
 
 // ── Which clock actually drives ─────────────────────────────────────────────
 
-test('in hybrid the show runs on the OS position, not the Spotify one', () => {
-  const rig = build();
-  rig.spotify.authenticated = true;
-  rig.nowPlaying.authenticated = true;
-
-  withSource('hybrid', () => {
-    rig.integrations.startAutoShow();
-    // Spotify says 30 s; the OS session — the same track — says 31 s and is
-    // the one that should win.
-    rig.spotify.emitPlayback(SPOTIFY_TRACK);
-    rig.nowPlaying.emitPlayback({ ...OS_SESSION, progressMs: 31000 });
-
-    const position = rig.started[0]();
-    assert.ok(Math.abs(position - 31000) < 50, `position was ${position}`);
-    assert.strictEqual(rig.integrations.hybrid.driver, 'nowplaying');
-  });
-});
-
-test('an OS session playing something else never reaches the show', () => {
-  const rig = build();
-  rig.spotify.authenticated = true;
-  rig.nowPlaying.authenticated = true;
-
-  withSource('hybrid', () => {
-    rig.integrations.startAutoShow();
-    rig.spotify.emitPlayback(SPOTIFY_TRACK);
-    rig.nowPlaying.emitPlayback({
-      ...OS_SESSION, name: 'A Long Podcast', durationMs: 3600000, progressMs: 1200000,
-    });
-
-    const position = rig.started[0]();
-    assert.ok(Math.abs(position - 30000) < 50,
-      `the podcast position leaked in: ${position}`);
-    assert.strictEqual(rig.integrations.hybrid.driver, 'spotify');
-  });
-});
-
 test('the hybrid clock stays warm while another source drives', () => {
   // So that switching to it mid-show does not start from a cold clock.
   const rig = build();
@@ -230,67 +181,6 @@ test('the hybrid clock stays warm while another source drives', () => {
 
 // ── Content and queue ───────────────────────────────────────────────────────
 
-test('hybrid takes its content from Spotify, so a track change analyses', async () => {
-  const rig = build();
-  rig.spotify.authenticated = true;
-  rig.nowPlaying.authenticated = true;
-  rig.integrations.startAutoShow();
-  rig.started.length = 0;
-
-  const analysed = [];
-  rig.autoShow.downloadAndAnalyze = async (query, durationSec, key, isrc) => {
-    analysed.push({ query, durationSec, isrc });
-  };
-
-  await withSource('hybrid', async () => {
-    rig.spotify.emitTrack(SPOTIFY_TRACK);
-    await new Promise((resolve) => setImmediate(resolve));
-  });
-
-  assert.strictEqual(analysed.length, 1);
-  assert.strictEqual(analysed[0].query, 'Porter Robinson, Madeon - Shelter');
-  assert.strictEqual(analysed[0].isrc, 'USUG11600982',
-    'the ISRC is the whole reason content comes from Spotify');
-});
-
-test('a track change in hybrid restarts the show on the hybrid clock', async () => {
-  const rig = build();
-  rig.spotify.authenticated = true;
-  rig.nowPlaying.authenticated = true;
-  rig.integrations.startAutoShow();
-  rig.started.length = 0;
-  rig.autoShow.downloadAndAnalyze = async () => {};
-
-  await withSource('hybrid', async () => {
-    rig.spotify.emitTrack(SPOTIFY_TRACK);
-    await new Promise((resolve) => setImmediate(resolve));
-    rig.spotify.emitPlayback(SPOTIFY_TRACK);
-    rig.nowPlaying.emitPlayback({ ...OS_SESSION, progressMs: 45000 });
-  });
-
-  assert.strictEqual(rig.started.length, 1, 'the show restarted');
-  const position = rig.started[0]();
-  assert.ok(Math.abs(position - 45000) < 50,
-    `restarted on the wrong clock: ${position}`);
-});
-
-test('hybrid peeks the Spotify queue, which is what the OS session cannot see', () => {
-  const rig = build();
-  rig.spotify.authenticated = true;
-  rig.nowPlaying.authenticated = true;
-  rig.integrations.startAutoShow();
-  rig.started.length = 0;
-
-  let peeked = 0;
-  rig.spotify.getQueue = async () => { peeked++; return []; };
-
-  withSource('hybrid', () => {
-    rig.integrations.startAutoShow();
-    rig.spotify.emitPlayback(SPOTIFY_TRACK);
-  });
-  assert.strictEqual(peeked, 1);
-});
-
 test('the resolved source is published, not just the operator’s choice', () => {
   const rig = build();
   rig.spotify.authenticated = true;
@@ -304,53 +194,6 @@ test('the resolved source is published, not just the operator’s choice', () =>
 });
 
 // ── Track changes, per source ────────────────────────────────────────────────
-// Three handlers that were copies of one another now share restartShowFor.
-// Each source must still restart only a show it is driving, and key its cache
-// the way it always has.
-
-const settle = () => new Promise((resolve) => setImmediate(resolve));
-
-for (const [source, rigKey, expectedKey] of [
-  ['spotify', 'spotify', 'spotify:spotify-1'],
-  ['nowplaying', 'nowPlaying', 'q:porter robinson, madeon - shelter'],
-  ['deezer', 'deezerSource', 'q:porter robinson, madeon - shelter'],
-]) {
-  test(`a ${source} track change restarts the show it is driving`, async () => {
-    const rig = build();
-    rig[rigKey].authenticated = true;
-    rig.integrations.startAutoShow();
-  rig.started.length = 0;
-    const analysed = [];
-    rig.autoShow.downloadAndAnalyze = async (...args) => { analysed.push(args); };
-
-    await withSource(source, async () => { rig[rigKey].emitTrack(SPOTIFY_TRACK); await settle(); });
-
-    assert.deepStrictEqual(analysed, [['Porter Robinson, Madeon - Shelter', 220, expectedKey, 'USUG11600982']]);
-    assert.strictEqual(rig.started.length, 1, 'and starts it again');
-    assert.strictEqual(rig.autoShow.track.name, 'Shelter');
-  });
-
-  test(`a ${source} track change leaves a show it is not driving alone`, async () => {
-    const rig = build();
-    rig[rigKey].authenticated = true;
-    const analysed = [];
-    rig.autoShow.downloadAndAnalyze = async (...args) => { analysed.push(args); };
-
-    rig.autoShow.running = false;
-    await withSource(source, async () => { rig[rigKey].emitTrack(SPOTIFY_TRACK); await settle(); });
-    // Another connected source driving: an unconnected choice would fall
-    // back to this one, which would then really be driving.
-    const [other, otherKey] = source === 'nowplaying' ? ['deezer', 'deezerSource'] : ['nowplaying', 'nowPlaying'];
-    rig[otherKey].authenticated = true;
-    rig.integrations.startAutoShow();
-  rig.started.length = 0;
-    await withSource(other, async () => { rig[rigKey].emitTrack(SPOTIFY_TRACK); await settle(); });
-
-    assert.deepStrictEqual(analysed, [], 'neither a stopped show nor another source\'s show');
-    assert.strictEqual(rig.started.length, 0);
-  });
-}
-
 test('a failed analysis on a track change is reported, and the show stays stopped', async () => {
   const rig = build();
   rig.deezerSource.authenticated = true;
@@ -366,31 +209,6 @@ test('a failed analysis on a track change is reported, and the show stays stoppe
   assert.strictEqual(rig.started.length, 0);
 });
 
-// Spotify alone used to re-anchor on every poll: a report a little behind the
-// previous one moved the show backwards, which re-seeks the timeline and
-// restarts the pattern. It now runs through the same smoothing clock as the
-// hybrid source.
-test('with Spotify alone, a slightly late report does not move the show backwards', () => {
-  const rig = build();
-  rig.spotify.authenticated = true;
-  rig.nowPlaying.authenticated = false;
-
-  withSource('spotify', () => {
-    rig.integrations.startAutoShow();
-    const t0 = Date.now();
-    rig.spotify.emitPlayback({ ...SPOTIFY_TRACK, progressMs: 30000, sampledAt: t0 - 1000 });
-    const before = rig.started[0]();
-    // One second later by the wall clock, Spotify reports only 800 ms of
-    // progress: 200 ms of jitter, not a seek.
-    rig.spotify.emitPlayback({ ...SPOTIFY_TRACK, progressMs: 30800, sampledAt: t0 });
-    const after = rig.started[0]();
-    assert.ok(after >= before, `moved from ${before} back to ${after}`);
-    // A seek is still followed at once.
-    rig.spotify.emitPlayback({ ...SPOTIFY_TRACK, progressMs: 120000, sampledAt: Date.now() });
-    assert.ok(Math.abs(rig.started[0]() - 120000) < 100);
-  });
-});
-
 // ── The pattern clock's track lock ──────────────────────────────────────────
 // With the auto show off, manual patterns lock to the song that is playing
 // whenever its analysis is cached (conductor.js, the `track` source).
@@ -398,8 +216,6 @@ test('with Spotify alone, a slightly late report does not move the show backward
 import { conductor } from '../../src/server/conductor.ts';
 import { keyForSpotify } from '../../src/analysis-cache.ts';
 import { getLiveState } from '../../src/server/state.ts';
-import { makeGrid } from '../../src/shared/beat-clock.ts';
-
 
 const beatsAt = (bpm) => Array.from({ length: 600 }, (_, i) => i * (60 / bpm));
 
@@ -451,30 +267,6 @@ test('a track with no analysis yet locks the moment one lands', async () => {
     rig.autoShow.onAnalysisCached(key, { beats: beatsAt(128) });
     assert.strictEqual(conductor.trackKey, key, 'the prefetch finished: locked');
   });
-  conductor.clearTrack();
-});
-
-// While the show runs it loads the new song itself; reading the same document
-// again here would parse megabytes twice on the render loop's thread. It
-// locks from the show's copy once the show has restarted.
-test('a running show shares its copy of the analysis with the track lock', async () => {
-  const key = keyForSpotify(SPOTIFY_TRACK.trackId);
-  const cache = cacheOf({ [key]: { beats: beatsAt(128) } });
-  const rig = build({ analysisCache: cache });
-  rig.spotify.authenticated = true;
-  rig.integrations.startAutoShow();
-  rig.started.length = 0;
-  rig.autoShow.isCached = () => true;
-  let loaded = null;
-  rig.autoShow.downloadAndAnalyze = async (query, sec, cacheKey) => { loaded = cacheKey; };
-  rig.autoShow.gridFor = (k) => (k === loaded ? makeGrid(beatsAt(128)) : null);
-
-  await withSource('spotify', async () => {
-    rig.spotify.emitTrack(SPOTIFY_TRACK);
-    await settle();
-  });
-  assert.deepStrictEqual(cache.loads, [], 'no second read');
-  assert.strictEqual(conductor.trackKey, key, 'locked from the show\'s copy');
   conductor.clearTrack();
 });
 

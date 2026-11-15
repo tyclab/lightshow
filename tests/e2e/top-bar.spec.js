@@ -216,7 +216,7 @@ test('a refused Auto switch while playing leaves the programme and the switch as
   await open(page, 'effects');
   expect((await state(request)).control).toMatchObject({ programme: 'look', playing: true });
   await autoSwitch(page).click();
-  await expect(page.locator('.toast:not(.leaving)', { hasText: 'Analyse a track or select a listening live input before starting the auto show' })).toHaveCount(1);
+  await expect(page.locator('.toast:not(.leaving)', { hasText: 'Turn on the live input and wait until it listens before starting the auto show' })).toHaveCount(1);
   expect((await state(request)).control).toMatchObject({ programme: 'look', playing: true });
   await expect(autoSwitch(page)).toHaveAttribute('aria-checked', 'false');
   await expect(playButton(page, 'Stop')).toBeVisible();
@@ -231,7 +231,7 @@ test('stopped, the Auto switch turns on and Play says why it cannot start', asyn
   await expect(autoSwitch(page)).toHaveAttribute('aria-checked', 'true');
   expect((await state(request)).control.playing).toBe(false);
   await playButton(page, 'Play', 'auto').click();
-  await expect(page.locator('.toast:not(.leaving)', { hasText: 'Analyse a track or select a listening live input before starting the auto show' })).toHaveCount(1);
+  await expect(page.locator('.toast:not(.leaving)', { hasText: 'Turn on the live input and wait until it listens before starting the auto show' })).toHaveCount(1);
   expect((await state(request)).control).toMatchObject({ programme: 'auto', playing: false });
   await expect(playButton(page, 'Play', 'auto')).toBeVisible();
 });

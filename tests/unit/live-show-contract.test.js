@@ -41,13 +41,14 @@ const SET = {
   clips: [{ id: 'A', laneId: 'a', startBeat: 0, lengthBeats: 64, effect: GLOW, targets: 'lane', mute: false }],
 };
 
-/** The live input as integrations sees it, listening; `event` and `hear` are what its process would send. */
+/** The live input as integrations sees it, listening until `listening` is false; `event` and `hear` are what its process would send. */
 function liveInput() {
   const handlers = {};
   const input = {
     running: true,
+    listening: true,
     options: { source: 'loopback' },
-    status: () => ({ running: true, listening: true, source: 'loopback', bpm: 128, locked: true }),
+    status: () => ({ running: true, listening: input.listening, source: 'loopback', bpm: 128, locked: true }),
     onStatus() {}, onReading(fn) { handlers.reading = fn; }, onEvent(fn) { handlers.event = fn; },
     onSamples() {}, wantSamples() {}, useBands() {}, refreshBands() {},
     streamNowMs: () => null, recentEnvelope: () => [], getBeatReading: () => null, getReading: () => null,
@@ -126,7 +127,7 @@ async function serve(t) {
   const call = (method, route, body) => fetch(`${url}${route}`, {
     method, headers: { 'Content-Type': 'application/json' }, body: body === undefined ? undefined : JSON.stringify(body),
   }).then(async (res) => ({ status: res.status, body: res.status === 204 ? null : await res.json() }));
-  return { call, live, integrations, cues };
+  return { call, live, integrations, cues, midi };
 }
 
 const director = () => getLiveState().live.director;
@@ -192,6 +193,38 @@ test('Auto starts, stops and switches with no analysis anywhere, and leaves Free
   assert.deepEqual([director().active, control.frozen, state.masterBlackout], [true, true, true]);
   assert.equal((await sendControl(s.call, 'stop')).status, 200);
   assert.deepEqual([director().active, control.snapshot().playing, control.frozen, state.masterBlackout], [false, false, true, true]);
+});
+
+// Show v3, G1: the Auto show switch is `select`; what Auto needs is checked only where Auto would start.
+test('Auto with no live input listening: a switch while playing is refused, stopped it is chosen and Start says why', async (t) => {
+  const s = await serve(t);
+  s.live.listening = false;
+  const why = /^Turn on the live input and wait until it listens before starting the auto show/;
+  assert.equal((await sendControl(s.call, 'start', 'look')).status, 200);
+  const refused = await sendControl(s.call, 'select', 'auto');
+  assert.equal(refused.status, 409);
+  assert.match(refused.body.error, why);
+  assert.deepEqual([control.snapshot().programme, control.snapshot().playing, director().active], ['look', true, false]);
+  assert.equal((await sendControl(s.call, 'stop')).status, 200);
+  const chosen = await sendControl(s.call, 'select', 'auto');
+  assert.deepEqual([chosen.status, chosen.body.control.programme, chosen.body.control.playing], [200, 'auto', false]);
+  const play = await sendControl(s.call, 'start');
+  assert.equal(play.status, 409);
+  assert.match(play.body.error, why);
+  assert.deepEqual([control.snapshot().programme, control.snapshot().playing, director().active], ['auto', false, false]);
+
+  s.live.listening = true;
+  assert.equal((await sendControl(s.call, 'start')).status, 200, 'once it listens, Auto starts');
+  assert.equal(director().active, true);
+});
+
+test('MIDI\'s Auto toggle starts and stops the live director', async (t) => {
+  const s = await serve(t);
+  const { busk } = s.midi;
+  await busk.toggleAutoShow();
+  assert.deepEqual([busk.autoShowOn(), director().active, control.snapshot().programme], [true, true, 'auto']);
+  await busk.toggleAutoShow();
+  assert.deepEqual([busk.autoShowOn(), director().active, control.snapshot().playing], [false, false, false]);
 });
 
 test('a sequence loads, plays, pauses and unloads beside the live input', async (t) => {

@@ -206,7 +206,7 @@ spotify.onTokens((refreshToken) => {
   catch (err) { console.warn(`[spotify] could not save the session: ${messageOf(err)}`); }
 });
 
-configureControls({ integrations, applier, autoShow }, () => { lookStore.save(currentLook()); });
+configureControls({ integrations, applier }, () => { lookStore.save(currentLook()); });
 
 remoteAnalysis.attachStatusRoute(app, () => ({ queue: autoShow.analysisCounts(), local: autoShow.localAnalysis() }));
 attachRoutes(app, { midi, autoShow, spotify, nowPlaying, deezerSource, prolink, analysisCache, integrations, applier, restart: restartServer });
@@ -236,7 +236,7 @@ const idleDisarm = createIdleDisarm({
   now: () => performance.now(),
   armed: isArmed,
   playing: () => state.running || voices.size > 0 || integrations.sequence.sequencer.status().playing
-    || autoShow.running || pixelInputs.status().length > 0,
+    || pixelInputs.status().length > 0,
   minutes: () => settings.get('outputs.idleDisarmMin'),
   disarm: (minutes) => {
     void control.execute({ action: 'disarm' }).catch((err) => console.warn(`[outputs] idle disarm after ${minutes} min: ${messageOf(err)}`));

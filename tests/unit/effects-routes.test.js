@@ -881,10 +881,5 @@ test("busking from MIDI reaches the looks, the palettes, the voices, the strobe 
   // The toggle is the explicit Start/Stop of the auto programme; the coordinator acknowledges a frame first.
   startEngine({ thread: 'main' });
   await busk.toggleAutoShow();
-  assert.equal(busk.autoShowOn(), false, 'nothing analysed: it does not start');
-  s.autoShow.analysis = { sections: [] };
-  await busk.toggleAutoShow();
-  assert.equal(busk.autoShowOn(), true);
-  await busk.toggleAutoShow();
-  assert.equal(busk.autoShowOn(), false);
+  assert.equal(busk.autoShowOn(), false, 'no live input listening: it does not start (live-show-contract.test.js starts it)');
 });

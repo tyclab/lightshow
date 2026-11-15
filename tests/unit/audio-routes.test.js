@@ -390,7 +390,7 @@ test('the live director and the audio features both hear every reading', async (
     state.autoSource = 'live';
     s.live.start({ source: 'loopback' });
     s.hear();
-    assert.strictEqual(s.integrations.startAutoShow(), 'live');
+    s.integrations.startAutoShow();
     // Silence darkens the director's rig; sound after it brings it back, from a reading.
     s.live.handleLine(JSON.stringify({ type: 'event', event: { t: 1, type: 'SILENCE', confidence: 1, intensity: 0, duration: 0, effect: 'kill' } }));
     assert.strictEqual(getLiveState().live.director.silent, true);
@@ -464,7 +464,7 @@ test('Disco band updates preserve the input process and beat lock', async () => 
     const take = () => { const sent = proc.asked.at(-1); layout = sent.bands; s.live.handleLine(JSON.stringify(sent)); };
     hear(5);
     state.autoSource = 'live';
-    assert.strictEqual(s.integrations.startAutoShow(), 'live');
+    s.integrations.startAutoShow();
     const key = s.live.getBeatReading().key;
     const epoch = s.integrations.audio.features.frame().generation;
     const steady = (what) => {

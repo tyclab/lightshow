@@ -1,7 +1,6 @@
-// The live director plays music nobody analysed by ear: the live input's
-// events become looks, bursts and darkness. And it plays only while the auto
-// show is on with no timeline to run — the source is the live input, or the
-// next track is still being analysed.
+// The live director plays the music by ear: the live input's events become
+// looks, bursts and darkness. It plays while the auto show is on and the live
+// input hears the music.
 
 import test from 'node:test';
 import assert from 'node:assert';
@@ -269,15 +268,14 @@ function rig({ listening = true } = {}) {
 
 const TRANSITION = { t: 0, type: 'TRANSITION', confidence: 0.4, intensity: 0.5, duration: 0, effect: 'scene-change', data: { to: 'high' } };
 
-test('with nothing to name the music, the show plays it by ear', () => {
-  state.autoSource = 'auto';
-  const r = rig();
-  assert.strictEqual(r.integrations.resolveAutoSource(), 'live', 'heard, and nothing else connected');
-  assert.strictEqual(rig({ listening: false }).integrations.resolveAutoSource(), 'timer');
-
+test('Auto plays what the live input hears, and lets go with the show', () => {
   state.pattern = 'none-yet';
-  assert.strictEqual(r.integrations.startAutoShow(), 'live');
-  assert.strictEqual(r.autoShow.running, false, 'no timeline');
+  const deaf = rig({ listening: false });
+  deaf.integrations.startAutoShow();
+  assert.strictEqual(state.pattern, 'none-yet', 'nothing heard: the director waits');
+
+  const r = rig();
+  r.integrations.startAutoShow();
   assert.ok(patternIds.has(state.pattern), `the live director took the rig: ${state.pattern}`);
 
   r.integrations.stopAutoShow();
@@ -287,7 +285,6 @@ test('with nothing to name the music, the show plays it by ear', () => {
 });
 
 test('a look set by hand while it plays is held, and its own looks are not', () => {
-  state.autoSource = 'auto';
   const r = rig();
   r.integrations.startAutoShow();
   const first = state.pattern;
@@ -299,35 +296,4 @@ test('a look set by hand while it plays is held, and its own looks are not', () 
   for (let i = 0; i < 8; i++) r.handlers.event(TRANSITION);
   assert.strictEqual(state.pattern, 'chase', 'the hand\'s look stays');
   r.integrations.stopAutoShow();
-});
-
-test('while the next track is analysed it fills in, and never over a running timeline', (t) => {
-  t.mock.timers.enable({ apis: ['setInterval'] });
-  state.autoSource = 'timer';
-  try {
-    const r = rig();
-    r.integrations.startAutoShow();
-    assert.strictEqual(r.autoShow.running, true, 'a timeline runs');
-    state.pattern = 'planned';
-    r.handlers.event(TRANSITION);
-    assert.strictEqual(state.pattern, 'planned', 'the planned show is not answered over');
-
-    // A track change stops the timeline while the next song is analysed; the
-    // show is still on for the operator, and within a second it is heard.
-    r.autoShow.stop();
-    t.mock.timers.tick(1000);
-    assert.ok(patternIds.has(state.pattern) && state.pattern !== 'planned', 'filled in by ear');
-
-    // The analysis is ready and the timeline starts: from that moment nothing
-    // of the live director's reaches the rig, and a second later it has let go.
-    r.autoShow.start();
-    state.pattern = 'next-track';
-    r.handlers.event(TRANSITION);
-    assert.strictEqual(state.pattern, 'next-track');
-    t.mock.timers.tick(1000);
-    r.handlers.event(TRANSITION);
-    assert.strictEqual(state.pattern, 'next-track');
-  } finally {
-    state.autoSource = 'auto';
-  }
 });

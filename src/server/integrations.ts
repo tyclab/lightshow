@@ -405,47 +405,24 @@ function setupIntegrations({ io, midi, spotify, nowPlaying, deezerSource, prolin
   let showWanted = false;
   let showGeneration = 0;
 
-  function startAutoShow({ fromMs = 0 }: { fromMs?: number } = {}): AutoSource {
-    const source = resolveAutoSource();
+  // Auto is the live director: on while the programme is Auto, playing while the live input hears the music.
+  function startAutoShow(): void {
     showWanted = true;
     showGeneration++;
-    // A rig changed while the show was off is measured now; the show re-plans when its result lands.
+    // A rig changed while the show was off is measured now.
     lookCoverage.want(true);
-    if (source === 'live') {
-      syncLiveDirector();
-      return source;
-    }
-    if (source === 'prolink') {
-      showDeck = prolink.getFollowed()?.deviceId ?? null;
-      autoShow.start(getProlinkPositionMs);
-    } else if (source === 'hybrid') {
-      spotify.startPolling(1000);
-      autoShow.start(getHybridPositionMs);
-    } else if (source === 'spotify') {
-      spotify.startPolling(1000);
-      autoShow.start(getAutoPositionMs);
-    } else if (source === 'deezer' || source === 'nowplaying') {
-      autoShow.start(getAutoPositionMs);
-    } else {
-      const startTime = Date.now() - fromMs;
-      autoShow.start(() => Date.now() - startTime);
-    }
     syncLiveDirector();
-    return source;
   }
 
   function stopAutoShow(): void {
     showWanted = false;
     showGeneration++;
     lookCoverage.want(false);
-    autoShow.stop();
     syncLiveDirector();
   }
 
-  // Suppress live-director patches while a timeline plays so the two cannot fight over the look.
   const liveDirector = liveInput ? new LiveDirector({
     applyPatch: (patch) => {
-      if (autoShow.running) return;
       directing = true;
       try { applyPatch(patch); } finally { directing = false; }
     },
@@ -458,7 +435,7 @@ function setupIntegrations({ io, midi, spotify, nowPlaying, deezerSource, prolin
 
   function syncLiveDirector(): void {
     if (!liveDirector) return;
-    const drive = showWanted && !autoShow.running && liveListening() && settings.get('live.director');
+    const drive = showWanted && liveListening() && settings.get('live.director');
     if (drive && !liveDirector.active) liveDirector.start();
     else if (!drive && liveDirector.active) liveDirector.stop();
   }
@@ -1033,6 +1010,7 @@ function setupIntegrations({ io, midi, spotify, nowPlaying, deezerSource, prolin
     },
     startAutoShow,
     stopAutoShow,
+    liveListening,
     resolveAutoSource,
     lookCoverage,
     analyseCdjTrack,
