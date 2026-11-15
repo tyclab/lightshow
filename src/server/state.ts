@@ -6,7 +6,7 @@ import { isHueProfile } from '../shared/hue-lamp.ts';
 import { BUILTIN_PROFILE_ID, BUILTIN_PROFILE_IDS, getProfile, listProfiles, profilesRevision } from './profiles.ts';
 import { settings } from './settings.ts';
 import * as universes from './universes.ts';
-import { COLOR_PRESETS, PATTERNS, PRESET_ROWS, STROBE_FUNCTIONS, ENERGY_EFFECTS } from './presets.ts';
+import { COLOR_PRESETS, DEFAULT_PATTERN, PATTERNS, PRESET_ROWS, STROBE_FUNCTIONS, ENERGY_EFFECTS } from './presets.ts';
 import { ALL_PALETTES } from './palette-catalogue.ts';
 import type { PaletteBody } from '../shared/palette-model.ts';
 import { PALETTES } from './palettes.ts';
@@ -91,7 +91,7 @@ const state: ShowState = {
   tempoMode: 'auto',
   beatDivision: 1,
   running: false,
-  pattern: 'chase',
+  pattern: DEFAULT_PATTERN,
   colorA: 0,
   colorB: 6,
   colorC: 4,

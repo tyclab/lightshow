@@ -19,7 +19,7 @@ import { REACTIVE_TAGS, SOURCES, TAG_AXES, TAG_NOTES, TAGS } from '../../src/sha
  * the inspector for it, in a sheet over the page.
  */
 
-// One chip per tag, but the four narrow reactions fold into Reactive; each stays a badge on its rows.
+// One chip per tag, but the three narrow reactions fold into Reactive; each stays a badge on its rows.
 const REACTIVE_CHIP = { id: 'reactive', name: 'Reactive', tags: [...REACTIVE_TAGS],
   desc: `Any of ${[...REACTIVE_TAGS].map((tag) => TAGS[tag].name).join(', ')}` };
 export const FILTER_AXES = TAG_AXES.map((axis) => {

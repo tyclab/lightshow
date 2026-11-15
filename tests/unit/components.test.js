@@ -350,7 +350,6 @@ test('Effects lists every look once, A to Z, each with the tags its code states'
   assert.deepStrictEqual(badgesOf(rowOf(html, 'v2.stemsSpace')), ['Bands & drums · track + live', 'Room-placed']);
   assert.deepStrictEqual(badgesOf(rowOf(html, 'volume-gate')), ['Audio level · track']);
   assert.deepStrictEqual(badgesOf(rowOf(html, 'gradient')), ['Beat only', 'Bars & panels']);
-  assert.deepStrictEqual(badgesOf(rowOf(html, 'v2.visualizerFlow')), ['Screen · screen', 'Room-placed']);
   assert.deepStrictEqual(badgesOf(rowOf(html, 'chase')), ['Beat only']);
   assert.deepStrictEqual(badgesOf(rowOf(html, 'energy.whiteStrobe')), ['Beat only', 'Whole rig', 'Own colours', 'Energy', 'Rapid ⚡']);
   assert.match(rowOf(html, 'v2.impact'), /title="Follows stems, drum hits or frequency bands\. Reacts in the reactive audio mode with live input"/);
@@ -413,7 +412,7 @@ test('chips: any chip within an axis, every axis with one on, and counts as the 
   const ids = (active) => ui.filterByChips(rows, active).map((r) => r.id);
   assert.deepStrictEqual(ids([]), rows.map((r) => r.id), 'no chip: everything');
   assert.deepStrictEqual(ids(['beat', 'static']), ['wash', 'wave', 'strobe'], 'OR within an axis');
-  assert.deepStrictEqual(ids(['reactive']), ['bars', 'gate', 'wall'], 'Reactive is any of the four reactions');
+  assert.deepStrictEqual(ids(['reactive']), ['bars', 'gate', 'wall'], 'Reactive is any of the three reactions');
   assert.deepStrictEqual(ids(['reactive', 'room']), ['gate', 'wall'], 'AND across axes');
   assert.deepStrictEqual(ids(['beat', 'static', 'rig']), ['wash', 'strobe']);
   assert.deepStrictEqual(ids(['rig', 'room']), ['wash', 'wave', 'gate', 'strobe', 'wall'], 'two surfaces: either, not both');
@@ -427,7 +426,7 @@ test('chips: any chip within an axis, every axis with one on, and counts as the 
     ['A2', 'a', 'b', 'c9', 'c10'], 'A to Z, numbers in order, one name in the order given');
 });
 
-test('the filters: four axes, Reactive folding the four reactions, a live count on each, Clear only while one is on', () => {
+test('the filters: four axes, Reactive folding the three reactions, a live count on each, Clear only while one is on', () => {
   givenLibrary({});
   const chipsOf = (html) => [...html.matchAll(/class="effects-chip ?(active)?" data-chip="([^"]+)" aria-pressed="(true|false)"([^>]*)>(.*?)<span class="effects-chip-count">(\d+)<\/span>/g)]
     .map((m) => ({ id: m[2], on: m[3] === 'true', disabled: /disabled/.test(m[4]), name: m[5].replace(/<[^>]+>/g, '').replace(/&amp;/g, '&').trim(), n: Number(m[6]) }));
@@ -442,12 +441,12 @@ test('the filters: four axes, Reactive folding the four reactions, a live count 
   const has = (tags) => rows.filter((r) => tags.some((tag) => r.tags.includes(tag))).length;
   let chips = chipsOf(html);
   assert.deepStrictEqual(chips.map((c) => c.name), ['Beat only', 'Static', 'Reactive', 'Whole rig', 'Room-placed', 'Bars & panels', 'Own colours', 'Energy', 'Rapid ⚡']);
-  assert.deepStrictEqual(chips.map((c) => c.n), [['beat'], ['static'], ['bands', 'level', 'sections', 'screen'], ['rig'], ['room'], ['bars'], ['ownColours'], ['energy'], ['rapid']].map(has));
+  assert.deepStrictEqual(chips.map((c) => c.n), [['beat'], ['static'], ['bands', 'level', 'sections'], ['rig'], ['room'], ['bars'], ['ownColours'], ['energy'], ['rapid']].map(has));
   assert.ok(chips.every((c) => !c.on && !c.disabled));
   assert.doesNotMatch(html, /effects-chip-clear/, 'nothing to clear');
   const titles = [...html.matchAll(/data-chip="[^"]+"[^>]*title="([^"]+)"/g)].map((m) => m[1].replace(/&amp;/g, '&').replace(/&#39;|&#x27;/g, "'"));
   assert.deepStrictEqual(titles, ui.FILTER_AXES.flatMap((axis) => axis.chips.map((chip) => chip.desc)), 'each chip explains its tag, nothing else');
-  assert.deepStrictEqual(titles.filter((t) => !Object.values(ui.TAGS).some((tag) => tag.desc === t)), ['Any of Bands & drums, Audio level, Song sections, Screen']);
+  assert.deepStrictEqual(titles.filter((t) => !Object.values(ui.TAGS).some((tag) => tag.desc === t)), ['Any of Bands & drums, Audio level, Song sections']);
 
   ui.filtersSig.value = ['reactive', 'bars'];
   try {
@@ -455,7 +454,7 @@ test('the filters: four axes, Reactive folding the four reactions, a live count 
     chips = chipsOf(html);
     assert.deepStrictEqual(chips.filter((c) => c.on).map((c) => c.id), ['reactive', 'bars']);
     const list = listOf(html);
-    const expected = rows.filter((r) => r.tags.includes('bars') && r.tags.some((t) => ['bands', 'level', 'sections', 'screen'].includes(t))).map((r) => r.id);
+    const expected = rows.filter((r) => r.tags.includes('bars') && r.tags.some((t) => ['bands', 'level', 'sections'].includes(t))).map((r) => r.id);
     assert.deepStrictEqual([...list].sort(), [...expected].sort());
     assert.strictEqual(chips.find((c) => c.id === 'bars').n, list.length);
     assert.ok(chips.find((c) => c.id === 'static').disabled, 'a chip with no matches is off and disabled');
@@ -1142,11 +1141,11 @@ test('one header row: the picture source and its effect first, then play, Freeze
   for (const needle of order) assert.strictEqual(count(header, needle), 1, `${needle} once`);
   const source = /<div class="picture-source-segments" role="group" aria-label="Picture source">(.*?)<\/div>/s.exec(header)[1];
   const segments = [...source.matchAll(/<button[^>]*data-source="(\w+)"[^>]*aria-pressed="(true|false)"[^>]*>/g)].map((m) => [m[1], m[2]]);
-  assert.deepStrictEqual(segments, [['effects', 'true'], ['inspired', 'false'], ['visualizer', 'false']]);
+  assert.deepStrictEqual(segments, [['effects', 'true'], ['visualizer', 'false']]);
   assert.match(source, /aria-pressed="true" aria-haspopup="dialog" aria-expanded="false"[^>]*aria-label="Effects: Swirl"/, 'the chosen source names the main effect and opens its picker');
   assert.match(source, /class="picture-segment-effect">Swirl</);
   assert.strictEqual(count(source, 'aria-haspopup'), 1, 'only the chosen source opens the picker; the others choose');
-  for (const label of ['Colour + motion', 'Visualizer']) assert.match(source, new RegExp(`aria-label="${label.replace('+', '\\+')}"`));
+  assert.match(source, /aria-label="Visualizer"/);
   assert.match(header, /<button[^>]*aria-label="Play selected picture"[^>]*><span aria-hidden="true">▶<\/span><span class="global-play-text">Play<\/span><\/button>/, 'play names what it starts');
   assert.match(header, /<button type="button" role="switch"[^>]*aria-checked="false" aria-label="Auto show"/, 'one Auto show switch');
   assert.strictEqual(count(header, 'role="switch"'), 1);
@@ -1243,11 +1242,10 @@ test('the Visualizer segment reads Visualizer and its hint: it names no effect, 
   } finally { ui.pickerOpenSig.value = false; }
 });
 
-test('Effects and Colour + motion still name the main effect, and a click or E opens its picker', () => {
+test('Effects still names the main effect, and a click or E opens its picker', () => {
   const splotch = ui.CATALOGUE.find((row) => row.name === 'Audio-reactive Splotch').id;
   const cases = [
     ['effects', 'Effects', 'The show\'s effects paint the room'],
-    ['inspired', 'Colour \\+ motion', 'Picture colours and motion drive spatial effects'],
   ];
   try {
     for (const [source, label, hint] of cases) {
@@ -1271,9 +1269,9 @@ test('Squid is offered once the rig has an LED panel, and like Effects it names 
   const sources = () => [...pictureSource().html.matchAll(/data-source="(\w+)"/g)].map((m) => m[1]);
   try {
     givenLibrary({ pattern: splotch, picture: { source: 'effects', input: null } });
-    assert.deepStrictEqual(sources(), ['effects', 'inspired', 'visualizer'], 'no panel, no Squid');
+    assert.deepStrictEqual(sources(), ['effects', 'visualizer'], 'no panel, no Squid');
     givenLibrary({ pattern: splotch, picture: { source: 'effects', input: null }, ...panel });
-    assert.deepStrictEqual(sources(), ['effects', 'inspired', 'visualizer', 'squid']);
+    assert.deepStrictEqual(sources(), ['effects', 'visualizer', 'squid']);
     givenLibrary({ pattern: splotch, picture: { source: 'squid', input: null } });
     ui.pickerOpenSig.value = false;
     const { chosen, props } = pictureSource();
@@ -1296,22 +1294,22 @@ test('an open picker closes when the source becomes the Visualizer, from this pa
     givenLibrary({ picture: { source: 'effects', input: null } });
     assert.strictEqual(ui.pickerOpenSig.value, false, 'closed, not hidden: it stays shut on the way back');
     ui.pickerOpenSig.value = true;
-    givenLibrary({ picture: { source: 'inspired', input: null } });
-    assert.strictEqual(ui.pickerOpenSig.value, true, 'Effects to Colour + motion keeps it open');
+    givenLibrary({ picture: { source: 'squid', input: null } });
+    assert.strictEqual(ui.pickerOpenSig.value, true, 'Effects to Squid keeps it open');
   } finally { ui.pickerOpenSig.value = false; }
 });
 
 test('the picker offers the Audio-reactive looks and their colours only while one is on stage, under either source that opens it', () => {
   const splotch = ui.CATALOGUE.find((row) => row.name === 'Audio-reactive Splotch').id;
   const receiving = { units: 4, receiving: true };
-  givenLibrary({ picture: { source: 'inspired', input: receiving }, armed: true });
-  const plain = ui.html(ui.h(ui.EffectPicker, { hint: 'Picture colours and motion drive spatial effects', onClose: () => {} }));
+  givenLibrary({ picture: { source: 'squid', input: receiving }, armed: true });
+  const plain = ui.html(ui.h(ui.EffectPicker, { hint: 'The squid plays on the largest LED panel; the effects paint the rest', onClose: () => {} }));
   assert.match(plain, /role="dialog" aria-label="Main effect"/);
-  assert.match(plain, /Picture colours and motion drive spatial effects/);
+  assert.match(plain, /The squid plays on the largest LED panel; the effects paint the rest/);
   assert.doesNotMatch(plain, /Audio-reactive looks|Audio-reactive colours/, 'no Audio-reactive look on stage, none offered');
   assert.match(plain, /class="picker-choice(?: big)? active" data-id="hd\.neonDomino" aria-pressed="true"/, 'the main effect is marked');
   assert.match(plain, /aria-label="Every effect"/);
-  for (const source of ['effects', 'inspired']) {
+  for (const source of ['effects', 'squid']) {
     givenLibrary({ pattern: splotch, picture: { source, input: receiving }, armed: true });
     const picker = ui.html(ui.h(ui.EffectPicker, { hint: '', onClose: () => {} }));
     const looks = /aria-label="Audio-reactive looks">(.*?)<input/s.exec(picker)?.[1];
@@ -1328,12 +1326,10 @@ test('the picker offers the Audio-reactive looks and their colours only while on
 
 test('the Colours card gives way to one line while the picture sets the colours', () => {
   const receiving = { units: 4, receiving: true };
-  assert.strictEqual(ui.pictureColours({ source: 'visualizer', input: receiving }, { kind: 'hd.positionChase' }), true);
-  assert.strictEqual(ui.pictureColours({ source: 'visualizer', input: { units: 4, receiving: false } }, null), false, 'no picture: the effect shows');
-  assert.strictEqual(ui.pictureColours({ source: 'visualizer', input: null }, null), false);
-  assert.strictEqual(ui.pictureColours({ source: 'inspired', input: receiving }, { kind: 'v2.visualizer' }), true);
-  assert.strictEqual(ui.pictureColours({ source: 'inspired', input: receiving }, { kind: 'hd.positionChase' }), false, 'only a spatial Visualizer takes the picture\'s colours');
-  assert.strictEqual(ui.pictureColours({ source: 'effects', input: receiving }, { kind: 'v2.visualizer' }), false);
+  assert.strictEqual(ui.pictureColours({ source: 'visualizer', input: receiving }), true);
+  assert.strictEqual(ui.pictureColours({ source: 'visualizer', input: { units: 4, receiving: false } }), false, 'no picture: the effect shows');
+  assert.strictEqual(ui.pictureColours({ source: 'visualizer', input: null }), false);
+  for (const source of ['effects', 'squid']) assert.strictEqual(ui.pictureColours({ source, input: receiving }), false, source);
   givenLibrary({ picture: { source: 'visualizer', input: receiving } });
   const card = ui.html(ui.h(ui.Bands));
   assert.match(card, /<section class="card bands bands-picture" aria-label="Colours">/);
@@ -1349,11 +1345,10 @@ test('Show\'s Effects box names the main effect as current only while it plays, 
     // running, frozen, source, receiving → what the box says
     [true, false, 'effects', false, { picture: false, label: 'Current effect', hint: null }],
     [true, false, 'visualizer', false, { picture: false, label: 'Current effect', hint: null }],
-    [true, false, 'inspired', true, { picture: false, label: 'Current effect', hint: null }],
     [true, false, 'squid', true, { picture: false, label: 'Current effect', hint: null }],
     [true, true, 'effects', false, { picture: false, label: 'Selected effect', hint: 'The picture is frozen. The selected effect plays after Resume.' }],
     [false, false, 'effects', false, { picture: false, label: 'Selected effect', hint: 'The show is stopped. The selected effect plays when the show plays.' }],
-    [false, true, 'inspired', true, { picture: false, label: 'Selected effect',
+    [false, true, 'squid', true, { picture: false, label: 'Selected effect',
       hint: 'The picture is frozen and the show is stopped. The selected effect plays after Resume and play.' }],
     [true, false, 'visualizer', true, { picture: true, text: `T${picture.slice(1)}` }],
     [true, true, 'visualizer', true, { picture: true, text: `The picture is frozen. After Resume, ${picture}` }],
@@ -1364,7 +1359,7 @@ test('Show\'s Effects box names the main effect as current only while it plays, 
     assert.deepStrictEqual(ui.effectsBox({ running, frozen, source, receiving }), want, JSON.stringify({ running, frozen, source, receiving }));
   }
   // Stopped and disarmed, the stage previews the selected effect by itself (G6): the hint says so, and what Play does.
-  for (const source of ['effects', 'visualizer', 'inspired']) {
+  for (const source of ['effects', 'visualizer', 'squid']) {
     assert.deepStrictEqual(ui.effectsBox({ running: false, frozen: false, source, receiving: false, previewing: true }),
       { picture: false, label: 'Selected effect', hint: 'The show is stopped. The preview shows the selected effect; Play sends it.' }, source);
   }
@@ -1374,7 +1369,7 @@ test('Show\'s Effects box names the main effect as current only while it plays, 
   const painting = ui.html(ui.h(ui.Show));
   assert.match(painting, /class="show-body picture"/);
   assert.strictEqual(effects(painting).replace(/<[^>]+>/g, ''), `EffectsT${picture.slice(1)}`, 'the title and one sentence: no list, search or switch');
-  givenLibrary({ running: true, picture: { source: 'inspired', input: { units: 4, receiving: true } }, armed: true });
+  givenLibrary({ running: true, picture: { source: 'squid', input: { units: 4, receiving: true } }, armed: true });
   const listed = ui.html(ui.h(ui.Show));
   assert.match(listed, /class="show-body"/);
   assert.match(effects(listed), /Current effect.*Search effects.*class="contained-row"/s);

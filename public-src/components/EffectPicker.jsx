@@ -19,7 +19,7 @@ function Choice({ row, active, onChoose, big = false, twin = false }) {
 }
 
 /**
- * The main effect, one tap from the Effects or Colour + motion segment: the favourites, your presets and the
+ * The main effect, one tap from the Effects or Squid segment: the favourites, your presets and the
  * party looks first, then every look A to Z. A tap puts it on stage and leaves the picker open for the next one.
  * With an Audio-reactive look on stage, the other looks of that family and its colours come first.
  */

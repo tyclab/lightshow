@@ -53,6 +53,26 @@ export class JsonStore {
     return result.data;
   }
 
+  /**
+   * readValid after `migrate` edits the parsed document, naming each entry it changed. A changed document that
+   * validates is written back at once, so the file holds what this build loads.
+   */
+  readMigrated<S extends z.ZodType>(schema: S, migrate: (parsed: unknown) => string[]): z.output<S> | undefined {
+    let notes: string[] = [];
+    let document: unknown;
+    const saved = this.readValid(schema, (parsed) => { notes = migrate(parsed); document = parsed; return parsed; });
+    if (saved !== undefined) this.saveMigrated(document, notes);
+    return saved;
+  }
+
+  /** Says what a migration changed, entry by entry, and writes the migrated document; nothing when it changed none. */
+  saveMigrated(document: unknown, notes: readonly string[]): void {
+    if (!notes.length) return;
+    for (const note of notes) console.warn(`[${this._tag}] ${note}`);
+    try { this.writeJson(document); }
+    catch (err) { console.warn(`[${this._tag}] could not save the migrated ${this.file}: ${messageOf(err)}`); }
+  }
+
   quarantine(reason: string): void {
     const backup = `${this.file}.invalid-${Date.now()}`;
     try {

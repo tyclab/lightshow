@@ -5,7 +5,7 @@ import { byName, catalogueOf, matchesSearch, tapRow, utilityEffect } from './Eff
 import { Photosensitivity, acknowledgeThen } from './Photosensitivity.jsx';
 import { stageMode } from '../utils.js';
 
-/** The one-sentence form: the Visualizer source with a picture arriving. Colour + motion keeps the list, as it still draws the main effect. */
+/** The one-sentence form: the Visualizer source with a picture arriving. */
 export const pictureForm = (source, receiving) => source === 'visualizer' && !!receiving;
 
 const HELD = { frozen: ['The picture is frozen.', 'after Resume'], stopped: ['The show is stopped.', 'when the show plays'],

@@ -30,7 +30,6 @@ import { effectContentKey } from '../shared/effects/layer.ts';
 import { pixelInputs } from './pixel-input-live.ts';
 import { pictureInput } from './picture-live.ts';
 import { squidPicture } from './squid-picture.ts';
-import { PictureFeatureExtractor } from '../shared/picture-features.ts';
 import { FrameBarrier } from './frame-barrier.ts';
 import { control } from './control.ts';
 import { ArtnetLedger } from './transmit.ts';
@@ -67,7 +66,6 @@ const IDLE_EVERY = 9;
 let clock = () => performance.now();
 
 const renderer = createRenderer({ profileOf: getProfile, profilesRevision, now: clock() });
-const pictureFeatures = new PictureFeatureExtractor();
 const frames = new FrameBarrier();
 // Physical Art-Net destinations issued to the renderer and not yet acknowledged as applied. Kept here, outside
 // any engine thread, so a thread that dies mid-retirement hands those routes to whatever renders next.
@@ -252,9 +250,7 @@ function renderInput({ points = true }: { points?: boolean } = {}): RenderInput 
   noteEffect(state.pattern, effect);
   const pictureSource = settings.get('picture.source');
   const picture = pictureInput.current(thread === 'worker' ? WORKER_CLOCK_SHIFT : 0);
-  const features = pictureFeatures.update(pictureSource === 'inspired' ? picture : null, pictureInput.image(true),
-    clock() + (thread === 'worker' ? WORKER_CLOCK_SHIFT : 0));
-  // The Squid feeds the largest panel by the pixel path; outside feeds wait meanwhile, as under Colour + motion.
+  // The Squid feeds the largest panel by the pixel path; outside feeds wait meanwhile.
   const squid = pictureSource === 'squid' ? squidPicture.frame(conductor.peek(), thread === 'worker' ? WORKER_CLOCK_SHIFT : 0) : squidPicture.stop();
   return {
     running: state.running,
@@ -299,10 +295,8 @@ function renderInput({ points = true }: { points?: boolean } = {}): RenderInput 
     effect,
     effectRevision,
     voices: voiceFrames(),
-    pixelInputs: pictureSource === 'squid' ? (squid ? [squid] : []) : pictureSource === 'inspired' ? []
-      : pixelInputs.frames(thread === 'worker' ? WORKER_CLOCK_SHIFT : 0),
+    pixelInputs: pictureSource === 'squid' ? (squid ? [squid] : []) : pixelInputs.frames(thread === 'worker' ? WORKER_CLOCK_SHIFT : 0),
     picture: pictureSource === 'visualizer' ? picture : null,
-    pictureFeatures: features,
     pictureGrade: settings.get('picture.grade'),
     pictureDecode: settings.get('picture.decode'),
     pictureBlackPoint: settings.get('picture.blackPoint'),

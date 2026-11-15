@@ -35,12 +35,6 @@ export function demoFrameAt(positionMs: number): AudioFrame {
 
 export const DEMO_AUDIO_SOURCE: PreviewAudioSource = Object.freeze({
   frameAt: demoFrameAt,
-  pictureAt(positionMs: number) {
-    const { progress, section } = demoPosition(positionMs);
-    return { palette: [{ r: 10, g: 120, b: 255 }, { r: 255, g: 30, b: 110 }, { r: 255, g: 180, b: 0 }],
-      speed: section === 'drop' ? 1 : section === 'breakdown' ? 0.1 : 0.2 + progress * 0.6,
-      level: section === 'breakdown' ? 0.3 : 0.9, expiresAt: positionMs + 100 };
-  },
   modulationAt(positionMs: number) {
     const { section, progress } = demoPosition(positionMs);
     const { bass, mid, high } = demoFrameAt(positionMs).party;

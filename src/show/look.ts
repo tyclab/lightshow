@@ -43,7 +43,7 @@ const SPATIAL_MATCH: Record<string, string[]> = {
   ensemble: ['v2.stemsSpace'], stems: ['v2.stemsSpace'], drums: ['v2.speakerShockwave'], comet: ['v2.lightOrbs'],
   'color-cycle': ['v2.swirl'],
 };
-const INPUT_ONLY = new Set(V2_PRESETS.filter((p) => ['v2.neural', 'v2.visualizer'].includes(p.spec.kind)).map((p) => p.id));
+const INPUT_ONLY = new Set(V2_PRESETS.filter((p) => p.spec.kind === 'v2.neural').map((p) => p.id));
 const PARTICLE_PATHS = new Set(V2_PRESETS.filter((p) => p.spec.kind === 'v2.particles').map((p) => p.id));
 
 // A measured rig plays the looks that light a real share of its fixtures (look-coverage.ts), independently of fixture

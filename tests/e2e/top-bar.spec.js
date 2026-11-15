@@ -161,6 +161,18 @@ test('another picture source is one tap and changes no latch; the Visualizer nam
   await expect(page.getByRole('dialog', { name: 'Main effect' })).toHaveCount(0);
 });
 
+// Show v3 fixes, G9 (2026-11-15): Colour + motion is gone, "if it is not much and easily repromted. i would suggest to just drop it".
+test('the picture source offers Effects, Visualizer and Squid, and no Colour + motion', async ({ page, request }) => {
+  await open(page, 'show');
+  const segments = () => source(page).locator('[data-source]').evaluateAll((els) => els.map((el) => el.dataset.source));
+  await expect.poll(segments, 'no LED panel on this rig: no Squid to offer').toEqual(['effects', 'visualizer']);
+  await request.post('/api/picture/source', { data: { source: 'squid' } });
+  await expect.poll(segments).toEqual(['effects', 'visualizer', 'squid']);
+  await expect(header(page)).not.toContainText(/Colour \+ motion|C\+M/);
+  expect((await request.post('/api/picture/source', { data: { source: 'inspired' } })).status()).toBe(400);
+  expect((await state(request)).picture.source).toBe('squid');
+});
+
 test('an open picker closes when another client chooses the Visualizer, and stays shut on the way back', async ({ page, request }) => {
   await open(page, 'effects');
   await page.locator('body').press('e');
@@ -169,8 +181,8 @@ test('an open picker closes when another client chooses the Visualizer, and stay
   await request.post('/api/picture/source', { data: { source: 'visualizer' } });
   await expect(picker).toHaveCount(0);
   await expect(source(page).getByRole('button', { name: 'Visualizer', exact: true })).toHaveAttribute('aria-pressed', 'true');
-  await request.post('/api/picture/source', { data: { source: 'inspired' } });
-  const segment = source(page).getByRole('button', { name: /^Colour \+ motion: / });
+  await request.post('/api/picture/source', { data: { source: 'squid' } });
+  const segment = source(page).getByRole('button', { name: /^Squid: / });
   await expect(segment).toHaveAttribute('aria-expanded', 'false');
   await expect(picker).toHaveCount(0);
   await page.locator('body').press('e');

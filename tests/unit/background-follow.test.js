@@ -43,11 +43,12 @@ function run(patch, times = TIMES) {
 }
 
 // Taken on main (840a1fd) before the fill existed, with tests/helpers/background-digest.js unchanged.
-const BEFORE_THE_FILL = 'ff3199bdca525a2b180168aea9668810d2463381435db2c33d4ae25f96d8b4db';
+// All three moved once when Visualizer Flow and Drift left the catalogue: main's digests without those four rows.
+const BEFORE_THE_FILL = '5d171deea1e9bc37601e7faf05d51380b569ae78a0662b1d4dd870db9e123e8c';
 // Taken on this change, the first time Glow and Full render; any later move needs an explained change. Moved once by #137:
 // a rapid v2 spec publishes no gap, so Scatter Strobe and Frequency Burst keep their rests and soft gaps as authored.
-const GLOW = 'c9db70b1a572cf744ac235dde2bc06e80a6c887810e55e9f647e1318865e135e';
-const FULL = 'e143d2aa93a7f3d0ada2c77ff92fe8886fc08d498cb7dbc6fdc816ecb7a03934';
+const GLOW = 'e151c171a30475c18c5d63b0486d9695966d4db7d106ad1aa74ace6cb5854673';
+const FULL = '60c32736e04d8bddc2df68f593e947e5d629cd4da7a45a68fabbce675d3e407c';
 
 test('with the fill off, the default, every pattern and catalogue row renders and previews byte for byte as before the fill existed', () => {
   assert.equal(backgroundDigest([DEFAULT_BACKGROUND, follow(undefined, 0.6), follow('off', 0.6)]), BEFORE_THE_FILL);

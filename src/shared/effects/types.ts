@@ -7,7 +7,6 @@ import type { AudioFrame } from './audio-frame.ts';
 import type { PaletteAccess } from './palette.ts';
 import type { GradientSettings, ResolvedGradient } from '../palette-model.ts';
 import type { UnitSpace } from '../space.ts';
-import type { PictureFeatures } from '../picture-features.ts';
 export type { PaletteEntry } from '../palette-model.ts';
 import type { PaletteEntry } from '../palette-model.ts';
 
@@ -83,7 +82,6 @@ export interface EffectFrame {
   // A container around this instance (a macro, a pad) dims its light by the container's brightness, so a slot it covers whole publishes that cover.
   dimmedAbove?: boolean;
   modulation?: EffectModulation;
-  pictureFeatures?: PictureFeatures | null;
   hardware?: readonly HardwareCaps[];
   admission?: AdmissionPolicy;
   gradient?: ResolvedGradient | null;

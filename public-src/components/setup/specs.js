@@ -158,12 +158,10 @@ export const SHOW = {
     { path: 'picture.source', label: 'Picture Source', type: 'select',
       options: () => [
         { value: 'effects', label: 'The show\'s effects' },
-        { value: 'inspired', label: 'Visualizer colours + motion, with spatial effects' },
         { value: 'visualizer', label: 'The visualizer picture, sampled at each lamp' },
         { value: 'squid', label: 'The squid on the largest LED panel, effects on the rest' },
       ],
-      help: 'Colour + motion takes the incoming picture\'s palette and movement speed to drive the selected spatial effect; '
-        + 'choose a Visualizer Flow effect in Effects. The visualizer picture arrives from the browser helper\'s --room mode: one '
+      help: 'The visualizer picture arrives from the browser helper\'s --room mode: one '
         + 'colour per lamp cell, read from the picture at the cell\'s place on the plan, so a sweep across the screen '
         + 'sweeps across the room. Voices, pads, overrides and the matrix\'s own pixel feed stay on top either way, and '
         + 'two seconds without a frame shows the effects again. Also switchable in Perform, which sets the picture\'s '

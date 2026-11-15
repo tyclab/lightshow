@@ -54,6 +54,9 @@ const COLOR_PRESETS = [
   { name: 'Blackout',   r: 0,   g: 0,   b: 0,   w: 0,   a: 0,   uv: 0   }, // 14
 ];
 
+// What a fresh start plays, and what a saved look naming a removed one plays instead.
+export const DEFAULT_PATTERN = 'chase';
+
 // Legacy patterns have no EffectSpec and cannot run as pads, clips or voices; a redirected id is a preset row instead.
 const PATTERNS = [
   { id: 'solid',        name: 'Solid',         desc: 'All fixtures on colour A' },

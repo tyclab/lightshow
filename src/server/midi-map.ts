@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { HttpError, codeOf, messageOf } from '../errors.ts';
 import { configFile } from './config-dir.ts';
 import { JsonStore } from './json-store.ts';
+import { retireMidi, retiredBeside } from './retired-looks.ts';
 
 export interface MidiAction {
   id: string;
@@ -70,20 +71,20 @@ function defaultTypeFor(actionId: string): 'relative' | 'absolute' {
 // Actions an earlier build bound and this one has not: the planned track show's intensity and sync offset.
 const RETIRED_ACTIONS = new Set(['setAutoIntensity', 'adjustAutoIntensity', 'setAutoSync', 'adjustAutoSync']);
 
-/** A saved map loses its bindings of retired actions, each said once, and keeps every other. */
-function withoutRetired(raw: unknown, file: string): unknown {
-  if (!raw || typeof raw !== 'object') return raw;
-  const map = raw as Record<string, unknown>;
-  for (const side of ['cc', 'notes']) {
-    const bindings = map[side];
+/** A saved map loses its bindings of retired actions and keeps every other; returns a note per binding dropped. */
+function retireActions(doc: unknown): string[] {
+  const notes: string[] = [];
+  if (!doc || typeof doc !== 'object') return notes;
+  for (const [key, label] of [['cc', 'control'], ['notes', 'note']] as const) {
+    const bindings = (doc as Record<string, unknown>)[key];
     if (!bindings || typeof bindings !== 'object') continue;
     for (const [number, binding] of Object.entries(bindings as Record<string, { action?: unknown }>)) {
       if (!RETIRED_ACTIONS.has(String(binding?.action))) continue;
       delete (bindings as Record<string, unknown>)[number];
-      console.warn(`[midi] ${file}: ${side} ${number} was bound to ${String(binding.action)}, which is gone with the planned show; the binding is dropped`);
+      notes.push(`removed the binding of ${label} ${number}, which ran ${String(binding.action)}: it went with the planned show`);
     }
   }
-  return raw;
+  return notes;
 }
 
 const bindingSchema = z.object({
@@ -208,7 +209,7 @@ class MidiMapStore extends JsonStore {
   }
 
   load(): this {
-    const saved = this.readValid(mapSchema, (raw) => withoutRetired(raw, this.file));
+    const saved = this.readMigrated(mapSchema, (doc) => [...retireMidi(doc, retiredBeside(this.file)), ...retireActions(doc)]);
     if (saved) {
       this._map = saved;
       this._customised = true;

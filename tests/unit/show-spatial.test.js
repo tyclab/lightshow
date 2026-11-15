@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import LiveDirector from '../../src/show/live-director.ts';
 import { MEASURED_LOOKS, SPATIAL_AUTO_PATTERNS, automaticPattern, pickPattern } from '../../src/show/look.ts';
 import { PATTERNS } from '../../src/server/presets.ts';
+import { V2_PRESETS } from '../../src/shared/effects/v2/presets.ts';
 import { presetById } from '../../src/shared/effects/catalogue.ts';
 import { requiresAcknowledgement } from '../../src/shared/effects/registry.ts';
 
@@ -14,7 +15,7 @@ test('automatic candidate set only offers acknowledged-independent room forms', 
     const p = presetById(id);
     assert.equal(p.spec.params.space, 'room');
     assert.equal(requiresAcknowledgement(p.spec), false);
-    assert.ok(!['v2.neural', 'v2.visualizer'].includes(p.spec.kind), 'automatic playback has no guaranteed external audio or picture');
+    assert.notEqual(p.spec.kind, 'v2.neural', 'automatic playback has no guaranteed external audio');
   }
 });
 
@@ -41,6 +42,28 @@ test('live director selects a rising wall for builds and a spatial impact on a d
   assert.equal(drop.pixelSpan, null);
   assert.equal(drop.pixelFrom, null);
   director.stop();
+});
+
+test('automatic shows play particle looks only on measured coverage, independently of pixel capability', () => {
+  const covered = new Set(['v2.lightOrbs']);
+  for (const p of V2_PRESETS) {
+    if (p.spec.kind === 'v2.particles') {
+      assert.equal(automaticPattern(p.id), false, p.id);
+      assert.equal(automaticPattern(p.id, covered), covered.has(p.id), p.id);
+    }
+    if (p.spec.kind === 'v2.neural') {
+      assert.equal(automaticPattern(p.id), false, p.id);
+      assert.equal(automaticPattern(p.id, covered), false, p.id);
+    }
+  }
+  const all = [...PATTERNS, ...V2_PRESETS];
+  for (let seed = 0; seed < 30; seed++) {
+    for (const energy of [0.1, 0.5, 0.9]) {
+      const id = pickPattern({ available: new Set(all.map((p) => p.id)), seed, pixels: seed % 2 === 0,
+        drive: energy, character: { energy, kick: energy, pulse: energy, vocal: 1 - energy } });
+      assert.ok(!['v2.particles', 'v2.neural'].includes(presetById(id)?.spec.kind), id);
+    }
+  }
 });
 
 test('live sparse rigs keep drop selection on room-spanning fields, and not on one of them', () => {

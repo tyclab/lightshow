@@ -1,4 +1,4 @@
-// Labelled controls for the parameterised kinds: every schema field of the twelve v2 kinds and the strobe,
+// Labelled controls for the parameterised kinds: every schema field of the eleven v2 kinds and the strobe,
 // with a label, a range inside the schema's bounds, a place (above or under Advanced) and when it applies.
 // Fields a kind does not read for the chosen shape are hidden; the values stay in the spec.
 import { HOLD_STROBE_MAX_HZ } from '../look-math.ts';
@@ -218,13 +218,6 @@ const globe: Control[] = [
   ...common(),
 ];
 
-const visualizer: Control[] = [
-  choice('profile', 'Motion', { sweep: 'Sweep', orbit: 'Orbit', noise: 'Clouds' }),
-  num('speed', 'Speed', 0, 8, 0.05),
-  num('width', 'Width', 0.05, 10, 0.05, 'm', { when: is('profile', 'sweep') }),
-  ...common(),
-];
-
 const wash: Control[] = [
   choice('shape', 'Shape', { steady: 'Steady', breathe: 'Breathe', envelope: 'Pulse' }),
   // Spread colours walk round the cycle even on a steady wash.
@@ -252,7 +245,7 @@ const strobe: Control[] = [
 
 const CONTROLS: Readonly<Record<string, readonly Control[]>> = {
   'v2.sweep': sweep, 'v2.shell': shell, 'v2.step': step, 'v2.zones': zones, 'v2.orbit': orbit, 'v2.scatter': scatter,
-  'v2.noise': noise, 'v2.particles': particles, 'v2.neural': neural, 'v2.globe': globe, 'v2.visualizer': visualizer,
+  'v2.noise': noise, 'v2.particles': particles, 'v2.neural': neural, 'v2.globe': globe,
   'v2.wash': wash, strobe,
 };
 /** Schema fields that are constants rather than variables: never drawn. */

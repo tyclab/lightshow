@@ -112,8 +112,9 @@ test('a map saved with the planned show\'s actions loads without those bindings 
   assert.deepStrictEqual(s.get(), { cc: { 9: { action: 'setMasterDimmer', type: 'absolute' } }, notes: { 0: { action: 'tap' } } });
   assert.strictEqual(s.snapshot().customised, true, 'still the saved map, not the default');
   assert.ok(!fs.readdirSync(dir).some((f) => f.includes('.invalid-')), 'nothing moved aside');
-  assert.deepStrictEqual(warned.map((line) => line.match(/cc (\d+) was bound to (\w+)/).slice(1)),
+  assert.deepStrictEqual(warned.map((line) => line.match(/control (\d+), which ran (\w+)/).slice(1)),
     [['8', 'setAutoIntensity'], ['17', 'adjustAutoIntensity'], ['18', 'adjustAutoSync'], ['19', 'setAutoSync']], 'one line each');
+  assert.deepStrictEqual(JSON.parse(fs.readFileSync(file, 'utf8')).cc, { 9: { action: 'setMasterDimmer', type: 'absolute' } }, 'and the file holds what loaded');
   assert.ok(!ACTIONS.some((a) => /Auto(Intensity|Sync)$/.test(a.id)), 'and none of them can be bound again');
 });
 
