@@ -370,7 +370,7 @@ export function Bands({ show = false }) {
   const { audio, palette, control } = pick(['audio', 'palette', 'control']);
   const palettes = useLibraryPalettes();
   const bands = bandEffect(colour.spec) && Array.isArray(colour.spec.params?.channels);
-  const followsPicture = pictureColours({ source: pictureSourceSig.value, input: { receiving: pictureReceivingSig.value } }, colour.spec);
+  const followsPicture = pictureColours({ source: pictureSourceSig.value, input: { receiving: pictureReceivingSig.value } });
   useAudioFeed(bands && !followsPicture);
   if (followsPicture) return <PictureColours />;
   const override = colour.s.paletteOverride?.length;

@@ -337,8 +337,7 @@ test("preset palette and brightness edits reach the next frame", () => {
         const out = new Array(room.n);
         renderEffect({ id: 'base:x:0', spec: edits[Math.floor(k / 60)], seed: seedFrom(row.id), anchorBeat: 0, startedAtMs: 0, targets: null },
           frame({ beatPos: nowMs / 500, nowMs, lookPalette: look, paletteOverride: k % 90 > 70 ? [parseHex('#00FF00')] : null,
-            audioMode: 'reactive', audio: DEMO_AUDIO_SOURCE.frameAt(nowMs),
-            pictureFeatures: DEMO_AUDIO_SOURCE.pictureAt(nowMs) }), room, stepper, out);
+            audioMode: 'reactive', audio: DEMO_AUDIO_SOURCE.frameAt(nowMs) }), room, stepper, out);
         const broken = out.find((slot) => slot && ![slot.level, slot.strength, slot.colour.r, slot.colour.g, slot.colour.b, slot.colour.w ?? 0].every(Number.isFinite));
         if (broken) { failures.push(`${row.id} at frame ${k}: ${JSON.stringify(broken)}`); break; }
         drew ||= out.some((slot) => slot && slot.strength > 0);

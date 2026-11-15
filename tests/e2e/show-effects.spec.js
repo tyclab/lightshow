@@ -4,10 +4,10 @@ import { control, open, reset, set, state, until } from './helpers.js';
 
 const box = (page) => page.locator('.contained-effects');
 const row = (page, id) => box(page).locator(`.contained-row[data-effect="${id}"]`);
-// The catalogue's utility family (own.energy): Show and the header picker leave it to pads, cues, sequences and the API.
+// The catalogue's utility family (own.energy): Show leaves it to pads, cues, sequences and the API.
 const UTILITY = ['energy.whiteStrobe', 'energy.colorStrobe', 'energy.blinder', 'energy.uvWash', 'energy.kill', 'energy.glow', 'palette-strobe',
   'overlay.all', 'overlay.step', 'overlay.scatter', 'overlay.zone'];
-const LISTED = 102;
+const LISTED = 100;
 
 test.beforeEach(async ({ request }) => { await reset(request); });
 test.afterEach(async ({ request }) => { await reset(request); });
@@ -223,9 +223,7 @@ test('the Effects box follows the picture source, the picture, Stop and Freeze, 
     await expect(sentence).toHaveText(painting);
     await request.post('/api/picture/source', { data: { source: 'effects' } });
     await expect(label).toHaveText('Current effect');
-    await request.post('/api/picture/source', { data: { source: 'inspired' } });
     await expect(effects.getByRole('searchbox', { name: 'Search effects' })).toBeVisible();
-    await expect(label, 'Colour + motion still draws the main effect').toHaveText('Current effect');
     await expect(sentence).toHaveCount(0);
 
     await request.post('/api/picture/source', { data: { source: 'visualizer' } });
@@ -281,30 +279,19 @@ test('a pick while stopped is named as selected, with when it plays', async ({ p
   await expect(effects.locator('.contained-hint')).toHaveCount(0);
 });
 
-test('Show and the header picker omit the utility effects and still name one that is selected', async ({ page, request }) => {
+// G3: the header's picker is gone (it omitted them too); Show's list is where effects are chosen.
+test('Show omits the utility effects and still names one that is selected', async ({ page, request }) => {
   await open(page, 'show');
   const effects = box(page);
   await expect(row(page, 'chase')).toBeVisible();
   for (const id of UTILITY) await expect(row(page, id), id).toHaveCount(0);
   await expect(effects.locator('.contained-row')).toHaveCount(LISTED);
   await expect(effects.locator('.contained-count')).toHaveText(`${LISTED} effects`);
-  const segment = page.getByRole('group', { name: 'Picture source' }).getByRole('button', { name: /^Effects:/ });
-  const picker = page.getByRole('dialog', { name: 'Main effect' });
-  await segment.click();
-  await expect(picker.locator('.picker-list .picker-choice[data-id="chase"]')).toHaveCount(1);
-  for (const id of UTILITY) await expect(picker.locator(`.picker-choice[data-id="${id}"]`), id).toHaveCount(0);
-  await expect(picker.locator('.picker-list .picker-choice')).toHaveCount(LISTED);
-  await picker.getByRole('button', { name: 'Close', exact: true }).click();
 
-  // A look whose effect is one of them still plays from the API, and both places name it.
+  // A look whose effect is one of them still plays from the API, and Show names it.
   await set(request, { pattern: 'energy.uvWash' });
   await expect(effects.locator('.contained-current-name')).toHaveText('UV Wash');
-  await expect(segment).toHaveAccessibleName('Effects: UV Wash');
-  await segment.click();
-  await expect(picker.locator('.picker-now')).toContainText('UV Wash');
-  await expect(picker.locator('.picker-choice[data-id="energy.uvWash"]')).toHaveCount(0);
   expect((await state(request)).pattern).toBe('energy.uvWash');
-  await picker.getByRole('button', { name: 'Close', exact: true }).click();
 
   // The Effect settings view keeps them.
   await page.evaluate(() => { window.location.hash = '#effects'; });
@@ -354,5 +341,62 @@ test('the Effects card puts its count in the title row and the selected effect b
       expect(field.y, `${width}: wrapped under the selected effect`).toBeGreaterThanOrEqual(current.y + current.height);
     }
     for (const part of [count, current, field]) expect(part.x + part.width).toBeLessThanOrEqual(card.x + card.width + 0.5);
+  }
+});
+
+// Show v3 fixes, G3: effects are chosen in Show's list; E goes there from any view, except while typing, under a modal
+// or while the card offers nothing to choose (the Visualizer picture arriving).
+test('E shows Show with its effects search ready, and does nothing while typing, under a modal or with the Visualizer picture', async ({ page, request, baseURL }) => {
+  const search = () => box(page).getByRole('searchbox', { name: 'Search effects' });
+  await open(page, 'perform');
+  await page.locator('body').press('e');
+  await expect(page.locator('#panel-show')).toBeVisible();
+  await expect(page).toHaveURL(/#show$/);
+  await expect(search()).toBeFocused();
+  await page.keyboard.type('swirl');
+  await expect(search()).toHaveValue('swirl');
+
+  // Typing in a field: the e is the field's.
+  await page.goto('/#effects');
+  const field = page.locator('#panel-effects').getByRole('searchbox', { name: 'Search effects' });
+  await field.focus();
+  await page.keyboard.press('e');
+  await expect(field).toHaveValue('e');
+  await expect(page).toHaveURL(/#effects$/);
+
+  // Under a modal dialog (the Arm acknowledgement).
+  await page.locator('.app-header').getByRole('button', { name: 'Arm', exact: true }).click();
+  const dialog = page.getByRole('alertdialog', { name: 'Rapid flashing' });
+  await expect(dialog).toBeVisible();
+  await dialog.press('e');
+  await expect(page).toHaveURL(/#effects$/);
+  await dialog.getByRole('button', { name: 'Cancel' }).click();
+  await expect(dialog).toHaveCount(0);
+
+  // The Visualizer picture arriving: Show's card is one sentence with nothing to choose.
+  const { settings } = await (await request.get('/api/settings')).json();
+  const feed = await pictureFeed(baseURL);
+  try {
+    expect((await request.put('/api/settings', { data: { safety: { photosensitivityAcknowledged: true } } })).ok()).toBe(true);
+    await control(request, 'arm');
+    await request.post('/api/picture/source', { data: { source: 'visualizer' } });
+    await feed.start();
+    await page.goto('/#perform');
+    await page.locator('#panel-perform').waitFor();
+    // The page knows the picture arrives once the segment says so.
+    const segment = page.getByRole('group', { name: 'Picture source' }).locator('[data-source="visualizer"]');
+    await expect(segment).toHaveAttribute('title', /^Visualizer picture on \d+ lamp cells$/);
+    await page.locator('body').press('e');
+    await expect(page.locator('#panel-perform')).toBeVisible();
+    await expect(page).toHaveURL(/#perform(\/\w+)?$/);
+    await feed.release();
+    await expect(segment).toHaveAttribute('title', 'No picture arriving — effects show meanwhile');
+    await page.locator('body').press('e');
+    await expect(search(), 'the list is back, so E goes to it').toBeFocused();
+  } finally {
+    feed.close();
+    await control(request, 'disarm');
+    await request.post('/api/picture/source', { data: { source: 'effects' } });
+    await request.put('/api/settings', { data: { safety: { photosensitivityAcknowledged: !!settings.safety.photosensitivityAcknowledged } } });
   }
 });

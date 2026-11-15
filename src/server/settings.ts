@@ -293,7 +293,7 @@ const schema = z.object({
     idleStopMin: z.number().int().min(0).max(1440),
   }).strict(),
   picture: z.object({
-    source: z.enum(['effects', 'visualizer', 'inspired', 'squid']),
+    source: z.enum(['effects', 'visualizer', 'squid']),
     decode: z.boolean(),
     blackPoint: pictureBlackPointSchema,
     grade: pictureGradeSchema,
@@ -395,6 +395,13 @@ class SettingsStore extends JsonStore {
     }
     const retired = RETIRED_GROUPS.filter((group) => group in values);
     for (const group of retired) delete values[group];
+    // Colour + motion went on 2026-11-15: a file that chose it paints from the effects.
+    const picture = values.picture as Record<string, unknown> | undefined;
+    const inspired = !!picture && typeof picture === 'object' && picture.source === 'inspired';
+    if (inspired) {
+      picture.source = 'effects';
+      console.warn('[settings] picture.source "inspired" (Colour + motion) is gone: the show paints from its effects');
+    }
     const result = schema.safeParse(merge(DEFAULTS, parsed));
     if (!result.success) {
       this.quarantine(result.error.issues.map(i => `${i.path.join('.')} ${i.message}`).join('; '));
@@ -410,10 +417,10 @@ class SettingsStore extends JsonStore {
         this.loadFailure = new Error(`Could not migrate settings: ${messageOf(err)}`, { cause: err });
         throw this.loadFailure;
       }
-    } else if (retired.length) {
-      // At once, not at the next save: whatever else reads the file (a configuration export) then meets only groups this build knows.
+    } else if (retired.length || inspired) {
+      // At once, not at the next save: whatever else reads the file (a configuration export) then meets only what this build knows.
       try { this.writeJson({ formatVersion: 1, values }); }
-      catch (err) { console.warn(`[settings] could not drop ${retired.join(', ')} from ${this.file}: ${messageOf(err)}`); }
+      catch (err) { console.warn(`[settings] could not rewrite ${this.file} for this build: ${messageOf(err)}`); }
     }
     this._values = result.data;
     this.loadFailure = null;

@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { HttpError, codeOf, messageOf } from '../errors.ts';
 import { configFile } from './config-dir.ts';
 import { JsonStore } from './json-store.ts';
+import { retireMidi, retiredBeside } from './retired-looks.ts';
 
 export interface MidiAction {
   id: string;
@@ -194,7 +195,7 @@ class MidiMapStore extends JsonStore {
   }
 
   load(): this {
-    const saved = this.readValid(mapSchema);
+    const saved = this.readMigrated(mapSchema, (doc) => retireMidi(doc, retiredBeside(this.file)));
     if (saved) {
       this._map = saved;
       this._customised = true;

@@ -18,6 +18,7 @@ import { ConnectionVeil } from './components/ConnectionVeil.jsx';
 import { ShortcutsOverlay } from './components/Shortcuts.jsx';
 import { Perform } from './components/Perform.jsx';
 import { Show } from './components/Show.jsx';
+import { effectsKey } from './components/ShowEffects.jsx';
 import { TimelineView } from './components/TimelineView.jsx';
 import { StageView } from './components/StageView.jsx';
 import { Sequence } from './components/Sequence.jsx';
@@ -272,9 +273,10 @@ function Root() {
     return () => window.removeEventListener('hashchange', onHash);
   }, []);
 
-  // View shortcuts leave keys handled by the focused control alone.
+  // View shortcuts leave keys handled by the focused control alone; E goes to Show's effects search.
   useEffect(() => {
     const onKey = (e) => {
+      if (effectsKey(e)) { setMode('show'); return; }
       const view = viewShortcut(e);
       if (view) { e.preventDefault(); setMode(view.id); }
     };

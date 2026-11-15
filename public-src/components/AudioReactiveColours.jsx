@@ -22,7 +22,7 @@ export function shuffleColours(colours, random = Math.random) {
 const isAudioReactiveSpec = (spec) => spec?.kind === 'ldj.visualizer';
 const MELLOW = new Set(['swirl', 'wave', 'solid']);
 
-/** The built-in Audio-reactive looks as the picker offers them: the hits (Active) and the bed between them (Mellow). */
+/** The built-in Audio-reactive looks as Show's Effects card offers them: the hits (Active) and the bed between them (Mellow). */
 export function audioReactiveChoices(library) {
   return (library.builtin || []).filter((p) => isAudioReactiveSpec(p.spec)).map((p) => {
     const mode = p.id.split('.').pop();
@@ -53,14 +53,14 @@ export function AudioReactiveColours() {
       if (!r.ok) setError(r.error || 'Could not change colours');
     } finally { setBusy(false); }
   };
-  return <section class="card audio-reactive-colours" aria-label="Audio-reactive colours">
+  return <section class="audio-reactive-colours" aria-label="Audio-reactive colours">
     <fieldset disabled={busy}><legend>Live Audio-reactive colours</legend>
       <div class="palette-tools">{body.colours.map((colour, index) => <label key={index}>
         {index === 0 ? 'Background' : index === 1 ? 'Hit colour' : `Colour ${index + 1}`}
         <input type="color" value={pickerValue(colour)} onChange={(e) => apply(body.colours.map((c, i) => i === index ? replaceRgb(c, e.target.value) : c))} />
       </label>)}</div>
       <button type="button" class="btn" disabled={body.colours.length < 2} onClick={() => apply(shuffleColours(body.colours))}>Shuffle Audio-reactive colours</button>
-      <p class="setting-help">Changes the shared palette override immediately. White, amber and UV channels are retained; Edit palette above exposes all channels and gradients.</p>
+      <p class="setting-help">Changes the shared palette override immediately. White, amber and UV channels are retained; Edit colours exposes all channels and gradients.</p>
       {spec.params.autoColours && <p class="setting-help">This preset also chooses colours automatically. Turn off Auto colours in its effect editor to hold your choices.</p>}
       {error && <p role="status">{error}</p>}
     </fieldset>
