@@ -366,7 +366,7 @@ button.cb-bpm-num:focus-visible { outline: .125rem solid var(--accent); outline-
 .cb-bpm.pulse .cb-bpm-num {
   animation: bpm-pulse var(--bpm-period, 500ms) cubic-bezier(.2, .7, .2, 1) infinite;
 }
-/* What the pattern clock keeps time by: Auto / CDJ / Track / Tap. */
+/* What the pattern clock keeps time by: Live / Tap. */
 .cb-bpm-source {
   margin-top: 4px;
   padding: 1px 6px;
@@ -908,7 +908,7 @@ html:has(.show-fold-toggle[aria-expanded="true"]) { scrollbar-gutter: stable; }
 .manual-col { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
 
 /* =============================================================
-   AUTO VIEW — controls + full-width timeline
+   AUTO VIEW — the Auto show's status over the stage
    ============================================================= */
 .auto-view {
   display: flex;
@@ -1875,9 +1875,6 @@ input[type=range]::-moz-range-thumb {
   background: currentColor;
 }
 .auto-badge-idle        { background: var(--surface); color: var(--muted); }
-.auto-badge-downloading { background: var(--wash-blue); color: var(--text-blue); }
-.auto-badge-analyzing   { background: var(--wash-amber); color: var(--text-amber); }
-.auto-badge-ready       { background: var(--wash-blue); color: var(--green); }
 .auto-badge-playing     { background: var(--wash-blue); color: var(--accent); }
 
 .auto-controls {
@@ -1906,20 +1903,8 @@ input[type=range]::-moz-range-thumb {
 }
 .auto-select:focus { outline: none; border-color: var(--accent); }
 
-.auto-analysis { margin: 8px 0; }
-
-#auto-timeline-canvas {
-  display: block;
-  width: 100%;
-  height: 200px;
-  background: var(--ground);
-  border-radius: var(--radius);
-  cursor: default;
-  border: 1px solid var(--border);
-}
-
 /* =============================================================
-   PROLINK
+   DRAWER INFO — the drawer's facts, small and quiet
    ============================================================= */
 .drawer-info {
   display: flex;
@@ -2100,7 +2085,7 @@ input[type=range]::-moz-range-thumb {
 .toast-close:hover { color: var(--text); }
 
 /* =============================================================
-   AUTO SHOW — transport, look, queue, analysis
+   AUTO SHOW — its layout, the transport bar and the shared panel shell
    ============================================================= */
 .auto-layout { display: flex; flex-direction: column; gap: 10px; }
 
@@ -2936,10 +2921,9 @@ input[type=range]::-moz-range-thumb {
 .stage3d-haze { display: inline-flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 700; color: var(--muted); }
 .stage3d-haze input { width: 110px; accent-color: var(--accent); }
 
-.stage3d-time { font-family: var(--mono); font-size: 11px; color: var(--text-2); white-space: nowrap; }
-/* The canvases paint this ground themselves (timeline-renderer.js, stage3d):
+/* The 3D stage paints this ground itself (stage3d):
    a dark instrument in every theme, like the site's plate under its diagrams. */
-.stage3d-wrap, .timeline-scroll, #auto-timeline-canvas { --ground: #07070e; --ink: #eceef6; --edge-strong: rgba(160, 175, 215, .75); }
+.stage3d-wrap { --ground: #07070e; --ink: #eceef6; --edge-strong: rgba(160, 175, 215, .75); }
 .stage3d-wrap {
   position: relative;
   height: clamp(240px, calc(100dvh - var(--header-height, 47px) - var(--commands-height, 0px) - var(--views-height, 0px) - 200px), 900px);
@@ -2972,75 +2956,6 @@ input[type=range]::-moz-range-thumb {
   background: var(--card); color: var(--text-amber); font-size: .857rem; line-height: 1.5;
 }
 .preview-paused .btn { margin-inline-start: auto; }
-
-/* =============================================================
-   TIMELINE — the show, to read and rehearse
-   ============================================================= */
-.timeline-view { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
-
-.timeline-track {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-size: 12px;
-  font-weight: 700;
-  color: var(--text);
-}
-
-.timeline-time { font-family: var(--mono); font-size: 11px; color: var(--text-2); }
-
-.timeline-scroll {
-  overflow-x: auto;
-  scrollbar-width: thin;
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  background: var(--ground);
-}
-.timeline-canvas-wrap { position: relative; min-width: 100%; }
-
-/* Where the rehearsal is: the live playhead is drawn white on the canvas. */
-.timeline-mark {
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  width: 2px;
-  margin-left: -1px;
-  background: var(--accent-3);
-  box-shadow: var(--glow-amber);
-  pointer-events: none;
-}
-
-.timeline-section {
-  --role: var(--faint);
-  appearance: none;
-  flex: 1 1 0;
-  min-width: 0;
-  padding: 4px 4px 3px;
-  border: 1px solid var(--border);
-  border-top: 3px solid var(--role);
-  border-radius: var(--radius-sm);
-  background: var(--surface);
-  color: var(--text-2);
-  font: inherit;
-  font-size: 10px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: .04em;
-  cursor: pointer;
-}
-.timeline-section span { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.timeline-section:hover { background: var(--card-hi); color: var(--text); }
-.timeline-section.current { background: var(--card-hi); color: var(--text); border-color: var(--role); }
-.timeline-section:focus-visible { outline: .125rem solid var(--accent); outline-offset: .1875rem; }
-/* The renderer's colours for each role, so a button matches its band. */
-.timeline-section.role-intro     { --role: #3d5a80; }
-.timeline-section.role-verse     { --role: #4f7cac; }
-.timeline-section.role-chorus    { --role: #e07a5f; }
-.timeline-section.role-drop      { --role: #d62839; }
-.timeline-section.role-bridge    { --role: #8367c7; }
-.timeline-section.role-breakdown { --role: #2a9d8f; }
-.timeline-section.role-outro     { --role: #5c677d; }
 
 /* =============================================================
    LOG — the server's log and health, in the drawer
@@ -3119,7 +3034,7 @@ input[type=range]::-moz-range-thumb {
   .header-tool, .header-theme, .stat-pill.gate, .stat-pill.control, .cb-energy-btn, .cb-tap, .cb-play, .cb-bpm-follow,
   .palette-btn, .pattern-btn, .cue-recall, .cue-capture,
   .transport-btn, .auto-select, .shortcuts-tab,
-  .sub-tab, .remove-btn, .file-upload-btn, .timeline-section,
+  .sub-tab, .remove-btn, .file-upload-btn,
   .effects-chip, .effect-star, .effect-edit, .palette-random, .insp-check,
   select, input[type=number], input[type=text], input[type=search], input[type=password], input[type=color], textarea {
     min-height: 44px;
