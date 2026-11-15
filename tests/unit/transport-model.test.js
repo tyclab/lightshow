@@ -1,6 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { chooseDriver, driverOf, playlistRowRequests, transportButtons, transportState } from '../../public-src/transport-model.js';
+import fs from 'node:fs';
+import path from 'node:path';
+import { autoStatus, chooseDriver, driverOf, playlistRowRequests, transportButtons, transportState } from '../../public-src/transport-model.js';
 import { resolveRoute, SETUP_VIEWS, STRIP_VIEWS, VIEWS, viewShortcut } from '../../public-src/views.js';
 
 test('legacy bookmarks retain their instrument', () => {
@@ -9,6 +11,21 @@ test('legacy bookmarks retain their instrument', () => {
   }
   assert.equal(resolveRoute('#unknown'), null);
   assert.equal(resolveRoute(''), null);
+});
+
+// G8: the Auto Show view lost its Timeline tab; every bookmark of it still opens the view.
+test('#auto, #auto/show, #auto/timeline and #timeline all open the Auto Show view', () => {
+  for (const hash of ['#auto', '#auto/show', '#auto/timeline', '#timeline']) assert.equal(resolveRoute(hash)?.view, 'auto', hash);
+});
+
+// G8: the badge shows only what autoStatus says, so no state of the removed planned show keeps a style.
+test('the Auto badge has a style for each state autoStatus gives, and for no other', () => {
+  const css = fs.readFileSync(path.join(import.meta.dirname, '..', '..', 'public', 'style.css'), 'utf8');
+  const styled = new Set([...css.matchAll(/\.auto-badge-([a-z]+)/g)].map((m) => m[1]));
+  const live = (director, listening = true) => ({ live: { listening, director } });
+  const states = new Set([{}, live(null, false), live({ active: false }), live({ active: true }), live({ active: true, silent: true }),
+    live({ active: true, holding: true })].map((s) => autoStatus(s).id));
+  assert.deepEqual([...styled].sort(), [...states].sort());
 });
 
 test('digit shortcuts follow the ten views, the tenth on 0, and leave typing alone', () => {

@@ -284,6 +284,15 @@ test('the keyboard shortcuts dialog keeps focus inside it and gives it back', as
   await expect(page.getByRole('button', { name: 'Keyboard shortcuts' })).toBeFocused();
 });
 
+// G8: the Auto Show view has no Timeline tab now; its old place still opens the view.
+test('#auto/timeline and #auto/show open the Auto Show view', async ({ page }) => {
+  for (const hash of ['auto/timeline', 'auto/show']) {
+    await page.goto(`/#${hash}`);
+    await expect(page.locator('#panel-auto'), `#${hash}`).toBeVisible();
+    await expect(page.locator('.auto-layout'), `#${hash}`).toBeVisible();
+  }
+});
+
 for (const [old, canonical, panel] of [['manual', 'effects', 'effects'], ['timeline', 'auto', 'auto'], ['matrix', 'perform/matrix', 'perform']]) {
   test(`old ${old} bookmarks open ${canonical}`, async ({ page }) => {
     await open(page, old);
