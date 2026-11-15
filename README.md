@@ -187,7 +187,11 @@ points to **Restore** in the header.
 A disarmed page nobody touches for `outputs.idleStopMin` minutes (60; Settings → Show, **Stop an
 Unattended Show**) lets its DMX and picture feeds go: every view that draws a stage says **Preview paused
 after 60 minutes without input.**, the stage draws its lights off under **Preview paused**, the demo-beat
-preview included, and **Resume preview** brings the feeds back and starts nothing. Arming resumes it too; armed, a page never pauses. The
+preview included, and **Resume preview** brings the feeds back and starts nothing. Arming resumes it too; armed, a page never pauses.
+**Pause preview**, in the stage's toolbar in 3D and 2D while it draws either disarmed preview, does the
+same at once and says **Preview paused.**: only this page stops drawing; the show, Freeze, Blackout, Arm
+and other pages are as they were, and nothing is sent. It works with the idle stop at `0`, and a reload
+previews again. The
 server stops a disarmed show nobody attends after the same minutes (see
 [Home Assistant integration surface](#home-assistant-integration-surface)).
 
@@ -246,7 +250,8 @@ against a deterministic 124 BPM demo: build, drop, breakdown and groove, with
 synthetic beat, bass, mid and high levels. Pause, restart or scrub the demo; switch
 Stage between **3D room** and **2D plot** to inspect the same moment. These are
 simulated audio levels, so no music file or audio input is required. The audition
-uses its own palette and transport. It sends no look, engine, room or output
+uses its own palette and transport under the live master; like the demo beat and a rehearsal, it draws
+each light as it emits, a dimmer channel's level times the emitters. It sends no look, engine, room or output
 commands. It runs only while the outputs are disarmed, so rapid effects audition
 without a question. Arming ends the audition. In the
 inspector, **Audition on Stage** previews an edited draft; **Hold on live rig**
@@ -2405,7 +2410,7 @@ the state in protocol 2:
   read-only and takes the same token as every other. The live page holds the DMX and picture topics only
   while its tab is visible: hidden, it unsubscribes, and shown again it
   subscribes. Disarmed, it also lets them go after `idleStopMin` minutes
-  without input, until Resume preview or an arm. It sends `activity` (no
+  without input, or at Pause preview, until Resume preview or an arm. It sends `activity` (no
   payload) on deliberate input (pointer down, key, wheel, touch), at most once
   a minute; the server's idle stop counts from it.
 

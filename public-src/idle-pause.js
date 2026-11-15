@@ -5,8 +5,9 @@ const INPUTS = ['pointerdown', 'keydown', 'wheel', 'touchstart'];
 const ACTIVITY_EVERY_MS = 60_000;
 
 /**
- * A disarmed page nobody touches for the server's idle-stop minutes pauses its preview
- * (`paused` holds the minutes it paused after, else null) until `resume()` or an arm.
+ * A disarmed page nobody touches for the server's idle-stop minutes pauses its preview, and
+ * `pause()` (Pause preview) pauses it at once, minutes or not; either holds until `resume()`
+ * or an arm. `paused` is null, `{ cause: 'idle', minutes }` or `{ cause: 'button' }`.
  * Input also tells the server, at most once a minute, so its idle stop counts from it.
  * The clock comes in: `now()` in milliseconds, `setTimer(fn, ms)` and `clearTimer(id)`.
  */
@@ -24,7 +25,7 @@ export function createIdlePause({ now, setTimer, clearTimer, send, target }) {
     timer = null;
     if (armed || !(minutes > 0) || paused.peek() !== null) return;
     const left = last + minutes * 60_000 - now();
-    if (left <= 0) paused.value = minutes;
+    if (left <= 0) paused.value = { cause: 'idle', minutes };
     else timer = setTimer(schedule, left);
   };
 
@@ -44,6 +45,12 @@ export function createIdlePause({ now, setTimer, clearTimer, send, target }) {
       armed = next.armed !== false;
       if (armed) paused.value = null;
       else if (wasArmed) last = now();
+      schedule();
+    },
+    /** Only this page, only while disarmed; an idle pause already held keeps its note. */
+    pause() {
+      if (armed || paused.peek() !== null) return;
+      paused.value = { cause: 'button' };
       schedule();
     },
     resume() {
