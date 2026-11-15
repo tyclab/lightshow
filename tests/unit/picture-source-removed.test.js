@@ -9,6 +9,10 @@ import os from 'node:os';
 import path from 'node:path';
 import { SettingsStore, settings } from '../../src/server/settings.ts';
 import { attachRoutes } from '../../src/server/routes.ts';
+import { renderInput } from '../../src/server/engine.ts';
+import { pictureInput } from '../../src/server/picture-live.ts';
+import { pixelInputs } from '../../src/server/pixel-input-live.ts';
+import { squidPicture } from '../../src/server/squid-picture.ts';
 
 function place(t) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'picture-source-removed-'));
@@ -66,4 +70,28 @@ test('POST /api/picture/source refuses inspired as any unknown source and change
     settings._values = saved;
     delete settings.save;
   }
+});
+
+// Kept from the Colour + motion test it replaces: which source lets the room picture and the outside pixel streams through.
+test('the room picture reaches the renderer only under Visualizer; outside pixel streams pass under Effects and Visualizer, and wait under Squid', (t) => {
+  const saved = settings._values;
+  const picture = { leaseId: 'synthetic', signature: 'synthetic', units: 2, expiresAt: performance.now() + 10000,
+    data: Uint8Array.from([255, 0, 0, 0, 0, 255]) };
+  const stream = [{ fixtureId: 1, data: Uint8Array.from([0, 255, 0]), expiresAt: picture.expiresAt }];
+  const squid = { fixtureId: 2, data: Uint8Array.from([0, 0, 255]), expiresAt: picture.expiresAt };
+  t.mock.method(pictureInput, 'current', () => picture);
+  t.mock.method(pixelInputs, 'frames', () => stream);
+  t.mock.method(squidPicture, 'frame', () => squid);
+  const source = (value) => { settings._values = { ...saved, picture: { ...saved.picture, source: value } }; return renderInput(); };
+  try {
+    const direct = source('visualizer');
+    assert.equal(direct.picture, picture);
+    assert.equal(direct.pixelInputs, stream);
+    const effects = source('effects');
+    assert.equal(effects.picture, null, 'Effects ignores room frames');
+    assert.equal(effects.pixelInputs, stream);
+    const squids = source('squid');
+    assert.equal(squids.picture, null);
+    assert.deepEqual(squids.pixelInputs, [squid], 'the Squid alone feeds the pixel path');
+  } finally { settings._values = saved; }
 });
