@@ -110,6 +110,7 @@ async function serve(t) {
   const call = (method, route, body) => fetch(`${url}${route}`, {
     method, headers: { 'Content-Type': 'application/json' }, body: body === undefined ? undefined : JSON.stringify(body),
   }).then(async (res) => ({ status: res.status, body: res.status === 204 ? null : await res.json() }));
+  call.url = url;
   return { call, live, integrations, cues, midi };
 }
 
@@ -176,6 +177,36 @@ test('Auto starts, stops and switches with no analysis anywhere, and leaves Free
   assert.deepEqual([director().active, control.frozen, state.masterBlackout], [true, true, true]);
   assert.equal((await sendControl(s.call, 'stop')).status, 200);
   assert.deepEqual([director().active, control.snapshot().playing, control.frozen, state.masterBlackout], [false, false, true, true]);
+});
+
+// G8: the planned show, its offline analysis and the track services are gone, routes and state alike.
+const REMOVED_ROUTES = [
+  ['POST', '/api/auto/analyze'], ['POST', '/api/auto/analyze-spotify'], ['POST', '/api/auto/analyze-nowplaying'],
+  ['POST', '/api/auto/analyze-deezer'], ['POST', '/api/auto/analyze-prolink'], ['POST', '/api/auto/download-analyze'],
+  ['POST', '/api/auto/analyze-upload'], ['POST', '/api/auto/reset'], ['POST', '/api/auto/intensity/50'],
+  ['POST', '/api/auto/palette-size/3'], ['POST', '/api/auto/sync-offset/0'], ['GET', '/api/auto/state'],
+  ['GET', '/api/auto/timeline'], ['GET', '/api/auto/cache'], ['DELETE', '/api/auto/cache/entry'],
+  ['GET', '/api/warm'], ['POST', '/api/warm'], ['POST', '/api/warm/spotify-queue'], ['POST', '/api/warm/spotify-playlist'],
+  ['POST', '/api/prolink/enable'], ['GET', '/auth/spotify'], ['GET', '/api/spotify/now-playing'],
+  ['POST', '/api/spotify/disconnect'], ['GET', '/api/spotify/playlists'], ['POST', '/api/nowplaying/disconnect'],
+  ['POST', '/api/deezer/state'], ['GET', '/api/python/setup'], ['GET', '/api/models'], ['POST', '/api/models/download'],
+  ['GET', '/api/analysis/workers'],
+];
+const REMOVED_STATE = ['autoShow', 'autoIntensity', 'autoSyncOffsetMs', 'autoSource', 'autoPrefetchDepth', 'activeSource',
+  'showOn', 'warm', 'spotify', 'spotifyNext', 'spotifyPrefetch', 'nowPlaying', 'hybrid', 'deezer', 'deezerPrefetch', 'prolink',
+  'syncOffsetLimitMs'];
+
+test('the planned show\'s routes answer 404 and its state is not sent', async (t) => {
+  const s = await serve(t);
+  const url = s.call.url;
+  for (const [method, route] of REMOVED_ROUTES) {
+    const res = await fetch(`${url}${route}`, { method, headers: { 'Content-Type': 'application/json' }, body: method === 'GET' ? undefined : '{}' });
+    await res.arrayBuffer();
+    assert.equal(res.status, 404, `${method} ${route}`);
+  }
+  const live = getLiveState();
+  assert.deepEqual(REMOVED_STATE.filter((key) => key in live), []);
+  assert.equal((await s.call('GET', '/api/state/live')).status, 200, 'the state Home Assistant reads still answers');
 });
 
 // Show v3, G1: the Auto show switch is `select`; what Auto needs is checked only where Auto would start.
