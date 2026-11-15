@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'preact/hooks';
+import { useCallback, useEffect, useState } from 'preact/hooks';
 import { resolveRoute } from '../../views.js';
 
 /**
@@ -13,31 +13,38 @@ function fromHash(view, ids) {
   return route?.view === view && ids.includes(route.sub) ? route.sub : null;
 }
 
+/** The address names `tab`, while it names this view: written when the page picks a tab, never after a navigation. */
+function nameTab(view, tab) {
+  if (typeof window === 'undefined') return;
+  const want = `#${view}/${tab}`;
+  if (resolveRoute(window.location.hash)?.view === view && window.location.hash !== want) window.history.replaceState(null, '', want);
+}
+
 export function useSubTab(view, tabs) {
   const ids = tabs.map((t) => t.id);
   const key = `lightshow.${view}.tab`;
   const [tab, setTab] = useState(() => {
     const linked = fromHash(view, ids);
     if (linked) return linked;
+    let opened = ids[0];
     try {
       const saved = localStorage.getItem(key);
-      return ids.includes(saved) ? saved : ids[0];
-    } catch {
-      return ids[0];
-    }
+      if (ids.includes(saved)) opened = saved;
+    } catch { /* private mode */ }
+    nameTab(view, opened);
+    return opened;
   });
   useEffect(() => {
     try { localStorage.setItem(key, tab); } catch { /* private mode */ }
-    const want = `#${view}/${tab}`;
-    // Only while the hash names this view: a navigation that left it meanwhile is not undone.
-    if (resolveRoute(window.location.hash)?.view === view && window.location.hash !== want) window.history.replaceState(null, '', want);
   }, [tab]);
   useEffect(() => {
     const onHash = () => { const linked = fromHash(view, ids); if (linked) setTab(linked); };
     window.addEventListener('hashchange', onHash);
     return () => window.removeEventListener('hashchange', onHash);
   }, []);
-  return [tab, setTab];
+  // The page's own choice names itself at once, as a view switch does (main.jsx rememberView).
+  const choose = useCallback((next) => { setTab(next); nameTab(view, next); }, [view]);
+  return [tab, choose];
 }
 
 export function SubTabs({ view, tabs, tab, setTab, label }) {

@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { open, reset } from './helpers.js';
+import { open, reset, set, state } from './helpers.js';
 
 let paletteId;
 const gradient = { name: 'Wash', space: 'rgb', wrap: false, stops: [{ at: 0, slot: 0 }, { at: 1, slot: 1 }] };
@@ -28,6 +28,35 @@ test('Saved palette edits retain its ID and full gradient body', async ({ page, 
   expect(saved.palette.name).toBe('Renamed palette');
   expect(saved.palette.colours).toEqual(['#ABCDEF123456', '#010203040506']);
   expect(saved.palette.gradients).toEqual([gradient]);
+});
+
+// Review R08 (Show v3 fixes, G6): the palette list kept a palette edited under the same id with its old name and
+// colours, and choosing it again applied the old colours, against "Changes apply the next time this palette is selected."
+test('a saved palette edited under its id is listed and chosen as it is now', async ({ page, request }) => {
+  const tile = page.locator(`.bands [data-palette="${paletteId}"]`).first();
+  await expect(tile).toHaveText('Saved six-channel palette');
+  const editor = page.getByRole('region', { name: 'Saved palettes' });
+  await editor.getByLabel('Saved palette name').fill('Renamed palette');
+  await editor.getByLabel('Colour 1', { exact: true }).fill('#ABCDEF123456');
+  await editor.getByRole('button', { name: 'Save changes' }).click();
+  await expect(editor.getByRole('button', { name: 'Save changes' })).toBeDisabled();
+  await editor.getByRole('button', { name: 'Close library', exact: true }).click();
+  try {
+    await expect(tile, 'the new name').toHaveText('Renamed palette');
+    await expect.poll(() => tile.locator('.band-palette-strip').evaluate((strip) => strip.style.background), { message: 'the new colours' })
+      .toContain('rgb(171, 205, 239)');
+    // For an effect with colours of its own the list sends the palette's colours themselves, not its id: there the
+    // old ones would have reached the rig.
+    await set(request, { pattern: 'v2.wash' });
+    await page.evaluate(() => { window.location.hash = '#show'; });
+    const shown = page.getByRole('region', { name: 'Palettes', exact: true }).locator(`[data-palette="${paletteId}"]`);
+    await expect(shown).toHaveText('Renamed palette');
+    await shown.click();
+    await expect.poll(async () => (await state(request)).effectColours?.palette?.colours, { message: 'chosen, the new colours apply' })
+      .toEqual(['#ABCDEF123456', '#010203040506']);
+  } finally {
+    await set(request, { effectColours: null, pattern: 'chase' });
+  }
 });
 
 test('Saved palette deletion requires confirmation', async ({ page, request }) => {
