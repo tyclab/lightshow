@@ -215,3 +215,20 @@ test('the stage of every other view offers the one button too', async ({ page, r
     await expect(notice(page), view).toHaveCount(0);
   }
 });
+
+// An audition is not a preview row: it keeps drawing whatever the pause, so it offers no Pause preview (G1).
+test('no Pause preview while auditioning, on the stage in 3D and 2D and on a plot of its own', async ({ page, request }) => {
+  await control(request, 'stop');
+  for (const [view, format] of [['stage', '3D'], ['stage', '2D'], ['effects', null]]) {
+    const where = `${view}${format ? ` ${format}` : ''}`;
+    await open(page, view);
+    if (format) await useFormat(page, format);
+    await expect(pauseButton(page), `${where}: previewing`).toHaveCount(1);
+    await page.getByRole('button', { name: 'Audition effects', exact: true }).first().click();
+    await page.getByLabel('Audition effect', { exact: true }).first().selectOption('v2.wash');
+    await expect(page.locator('.panel-tag', { hasText: 'Audition · browser only' }).first()).toBeVisible();
+    await expect(pauseButton(page), `${where}: auditioning`).toHaveCount(0);
+    await page.getByRole('button', { name: 'Close audition', exact: true }).first().click();
+    await expect(pauseButton(page), `${where}: the audition closed`).toHaveCount(1);
+  }
+});
