@@ -3,7 +3,7 @@ import path from 'node:path';
 
 const REASONS = new Set(['visualizer-unavailable', 'visualizer-idle', 'player-page-unavailable']);
 // What the live-audio page says it is missing.
-const WAITS = new Set(['nodecg', 'lightshow', 'live-input', 'audio', 'silence', 'context', 'busy', 'endpoint']);
+const WAITS = new Set(['nodecg', 'lightshow', 'live-input', 'audio', 'silence', 'context', 'busy', 'endpoint', 'data', 'renderer', 'presets', 'webgl']);
 const ageOf = (age) => (age && [age.medianMs, age.worstMs].every((ms) => Number.isFinite(ms) && Math.abs(ms) < 3_600_000)
   ? { medianMs: Math.round(age.medianMs), worstMs: Math.round(age.worstMs) } : null);
 

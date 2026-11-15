@@ -156,16 +156,18 @@ test('dedicated CDP attachment captures and releases its page implementation', a
   } finally { await helper?.close(); await context.close(); await fs.rm(profile, { recursive: true, force: true }); }
 });
 
-// The second page: Party Visuals' live-audio visualizer. Its renderer draws WebGL 2 every frame on a
-// context kept between frames (preserveDrawingBuffer), as the page creates it: without that, a capture
-// from the helper's own frame read a cleared canvas here. The page fades its layer out when idle.
+// The second page's contract, on a stand-in: the real live-audio page (Party Visuals' graphics/milkdrop.html)
+// lives in that repository and is tested there in a browser against its own extension. The stand-in has the
+// page's view, layer, canvas and wait attribute, and draws WebGL 2 every frame on a context kept between frames
+// (preserveDrawingBuffer), as the page creates it: without that, a capture from the helper's own frame read a
+// cleared canvas here. The page fades its layer out when idle.
 const livePage = (port = 9090) => `http://127.0.0.1:${port}/bundles/party-visuals/graphics/milkdrop.html`;
 const liveBody = '<div data-party-visualizer data-party-wait="silence" style="position:fixed;inset:0"><div data-party-visualizer-layer style="opacity:1;transition:opacity 150ms linear">'
   + '<canvas data-party-visualizer-canvas width="64" height="64"></canvas></div></div>'
   + '<script>const gl = document.querySelector("canvas").getContext("webgl2", { preserveDrawingBuffer: true });'
   + ' (function draw() { gl.clearColor(1, 0, 0, 1); gl.clear(gl.COLOR_BUFFER_BIT); requestAnimationFrame(draw); })();</script>';
 
-test('the live-audio page: its WebGL canvas is captured, its faded layer is idle, and it says what it waits for', async ({ page }) => {
+test('a stand-in for the live-audio page: its WebGL canvas is captured, its faded layer is idle, and it says what it waits for', async ({ page }) => {
   const { gpuCapture } = await import('../../tools/browser-visuals/gpu-capture.js');
   const { LIVE_PAGE } = await import('../../tools/browser-visuals/browser.js');
   const expected = livePage();
@@ -185,7 +187,7 @@ test('the live-audio page: its WebGL canvas is captured, its faded layer is idle
   expect(await page.evaluate(() => document.getElementById('party-visuals-browser-style'))).toBeNull();
 });
 
-test('a live-audio page Chrome could not load yet is found by its address and reloaded', async ({ browser }) => {
+test('a stand-in for the live-audio page that Chrome could not load yet is found by its address and reloaded', async ({ browser }) => {
   const fs = await import('node:fs/promises'), os = await import('node:os'), path = await import('node:path'), net = await import('node:net');
   const { connectPage } = await import('../../tools/browser-visuals/browser.js');
   // A port nothing listens on: NodeCG not up yet.

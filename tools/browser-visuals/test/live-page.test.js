@@ -141,7 +141,9 @@ test('display only, the live-audio page says what it waits for, and a page that 
   const stdin = input(), logs = [];
   let tick = 0, navigations = 0;
   const shown = [{ ok: false }, { ok: false }, { ok: false }, { ok: true, live: false, reason: 'visualizer-idle', wait: 'live-input' },
-    { ok: true, live: false, reason: 'visualizer-idle', wait: 'silence' }, { ok: true, live: true, reason: null, wait: null }];
+    { ok: true, live: false, reason: 'visualizer-idle', wait: 'silence' }, { ok: true, live: false, reason: 'visualizer-idle', wait: 'presets' },
+    { ok: true, live: false, reason: 'visualizer-unavailable', wait: 'renderer' }, { ok: true, live: false, reason: 'visualizer-unavailable', wait: 'webgl' },
+    { ok: true, live: false, reason: 'visualizer-unavailable', wait: null }, { ok: true, live: true, reason: null, wait: null }];
   const browser = { connected: true, close: async () => {}, navigate: async () => { navigations++; }, action: async () => {
     if (tick === shown.length) stdin.emit('data', Buffer.from('stop\n'));
     return shown[Math.min(tick++, shown.length - 1)];
@@ -150,7 +152,9 @@ test('display only, the live-audio page says what it waits for, and a page that 
     stdin, log: (line) => logs.push(line), readControls: async () => ({ ok: true, visible: true }), connectPage: async () => browser, reloadAfterMs: 0,
   });
   assert.deepEqual([...new Set(logs.slice(1, -1))], ['Waiting for the live-audio visualizer page', 'Reloading the live-audio visualizer page',
-    'Live-audio visualizer idle: the lightshow has no live input', 'Live-audio visualizer idle: silence', 'Live-audio visualizer visible']);
+    'Live-audio visualizer idle: the lightshow has no live input', 'Live-audio visualizer idle: silence', 'Live-audio visualizer idle: no preset of its pack loaded',
+    'Live-audio visualizer unavailable: its renderer did not load', 'Live-audio visualizer unavailable: this browser draws no WebGL 2',
+    'Live-audio visualizer unavailable: its page has no canvas', 'Live-audio visualizer visible']);
   assert.equal(navigations, 3, 'each tick it was not up, at no delay; never once it was');
 });
 
@@ -174,7 +178,8 @@ test('the status file carries what the page waits for and how old its newest dra
   const { statusSnapshot } = await import('../status.js');
   const display = (over) => statusSnapshot({ connected: true, ready: true, live: true, visible: true, ...over }).display;
   assert.deepEqual(display({ wait: null, age: { medianMs: 41.4, worstMs: 87.6 } }), { live: true, visible: true, reason: null, wait: null, ageMs: { medianMs: 41, worstMs: 88 } });
-  for (const wait of ['context', 'busy', 'endpoint']) assert.equal(display({ live: false, reason: 'visualizer-idle', wait }).wait, wait);
+  for (const wait of ['context', 'busy', 'endpoint', 'data', 'presets']) assert.equal(display({ live: false, reason: 'visualizer-idle', wait }).wait, wait);
+  for (const wait of ['renderer', 'webgl']) assert.equal(display({ live: false, reason: 'visualizer-unavailable', wait }).wait, wait, 'no canvas, and the page says why');
   assert.equal(display({ wait: '<script>' }).wait, null);
   assert.equal(display({ age: { medianMs: 1e9, worstMs: 1 } }).ageMs, null, 'an age beyond an hour is a clock that is off, not a measure');
 });
