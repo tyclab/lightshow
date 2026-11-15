@@ -37,15 +37,17 @@ const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 
 const WAITS = { nodecg: 'no NodeCG connection', lightshow: 'no lightshow connection', 'live-input': 'the lightshow has no live input',
   audio: 'no audio from the lightshow', silence: 'silence', context: 'its graphics context was lost', busy: 'too many live-audio pages',
-  endpoint: 'the samples endpoint refused it' };
+  endpoint: 'the samples endpoint refused it', data: 'the samples endpoint sent data it cannot read', renderer: 'its renderer did not load',
+  presets: 'no preset of its pack loaded', webgl: 'this browser draws no WebGL 2' };
 /** What the display reports, per page. Music Assistant's lines are as they always were. */
 const WORDS = {
   'music-assistant': { browser: 'Waiting for the dedicated Music Assistant browser', page: 'Waiting for Music Assistant login or player page',
     covered: 'Music Assistant covered', visible: 'Music Assistant visualizer visible', idle: () => 'Visualizer idle; player artwork visible',
-    unavailable: 'Visualizer unavailable; enable it in the player. Artwork remains visible' },
+    unavailable: () => 'Visualizer unavailable; enable it in the player. Artwork remains visible' },
   'live-audio': { browser: 'Waiting for the dedicated live-audio visualizer browser', page: 'Waiting for the live-audio visualizer page',
     covered: 'Live-audio visualizer covered', visible: 'Live-audio visualizer visible',
-    idle: (wait) => `Live-audio visualizer idle: ${WAITS[wait] ?? 'waiting for sound'}`, unavailable: 'Live-audio visualizer unavailable; its page has no canvas (no WebGL 2?)' },
+    idle: (wait) => `Live-audio visualizer idle: ${WAITS[wait] ?? 'waiting for sound'}`,
+    unavailable: (wait) => `Live-audio visualizer unavailable: ${WAITS[wait] ?? 'its page has no canvas'}` },
 };
 // The live-audio page is NodeCG's: Chrome opened before NodeCG listened shows an error page, which this reloads.
 export const RELOAD_AFTER_MS = 10_000;
@@ -136,7 +138,7 @@ export async function run(settings, dependencies = {}) {
           const shown = await browser.action({ mode: 'display', visible: controls.visible });
           ready = shown.ok; live = shown.live === true; reason = shown.reason ?? null; wait = shown.wait ?? null; age = shown.age ?? null;
           if (!feeds.length) report(!controls.ok ? 'Controls unavailable; display covered' : !ready ? words.page
-            : !controls.visible ? words.covered : live ? words.visible : reason === 'visualizer-idle' ? words.idle(wait) : words.unavailable);
+            : !controls.visible ? words.covered : live ? words.visible : reason === 'visualizer-idle' ? words.idle(wait) : words.unavailable(wait));
           const now = clock();
           if (settings.page !== 'live-audio' || ready) notReadySince = null;
           else if (now - (notReadySince ??= now) >= reloadAfterMs && now >= reloadAt) {

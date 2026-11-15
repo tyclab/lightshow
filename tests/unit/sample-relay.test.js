@@ -9,8 +9,12 @@ import { SampleRelay, SAMPLES_PER_PACKET, SAMPLES_ACK_MS } from '../../src/serve
 
 const HOP = 256;
 
-/** A subscriber whose acknowledgements the test gives; every packet it was sent, in order. */
-function subscriber(id = 'page', { decode = true } = {}) {
+/**
+ * A subscriber whose acknowledgements the test gives; every packet it was sent, in order. With `timers`, an
+ * acknowledgement that has not come when the asked timeout runs out is called with an error, as Socket.IO's
+ * `socket.timeout(ms).emit(..., ack)` does.
+ */
+function subscriber(id = 'page', { decode = true, timers = false } = {}) {
   const socket = { id, connected: true, packets: [], acks: [], timeouts: [] };
   socket.timeout = (ms) => ({
     emit(event, packet, ack) {
@@ -18,7 +22,10 @@ function subscriber(id = 'page', { decode = true } = {}) {
       socket.timeouts.push(ms);
       const samples = new Int16Array(packet.data.buffer, packet.data.byteOffset, packet.data.length / 2);
       socket.packets.push({ ...packet, samples: decode ? [...samples] : samples });
-      socket.acks.push(ack);
+      let done = false;
+      const once = (err) => { if (!done) { done = true; ack(err); } };
+      if (timers) setTimeout(() => once(new Error('operation has timed out')), ms);
+      socket.acks.push(once);
     },
   });
   socket.ack = () => socket.acks.shift()(null);
@@ -122,6 +129,29 @@ for (const [name, seconds] of [['a minute', 60], ['four hours', 4 * 3600]]) {
     assert.ok(packets > blocks / 4, `${packets} packets for ${blocks} blocks: the subscriber kept being served`);
   });
 }
+
+test('a subscriber that never acknowledges is sent the newest samples a second after its last packet, and not before', (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const relay = new SampleRelay({ want() {} }), page = subscriber('page', { timers: true });
+  relay.add(page);
+  relay.push(block(0));
+  for (let k = 1; k <= 80; k++) relay.push(block(k));
+  t.mock.timers.tick(SAMPLES_ACK_MS - 1);
+  assert.strictEqual(page.packets.length, 1, 'held while the acknowledgement may still come');
+  t.mock.timers.tick(1);
+  assert.strictEqual(page.packets.length, 2, 'the timeout releases it');
+  assert.deepStrictEqual([page.packets[1].end, page.packets[1].samples.length], [81 * HOP, SAMPLES_PER_PACKET], 'with the newest samples');
+  relay.push(block(81));
+  assert.strictEqual(page.packets.length, 2, 'the second packet still waits for its own');
+  t.mock.timers.tick(SAMPLES_ACK_MS);
+  assert.strictEqual(page.packets.length, 3);
+  // Another subscriber keeps the stream going: samples arrive that the one gone must not be sent.
+  relay.add(subscriber('other'));
+  relay.remove(page.id);
+  relay.push(block(82));
+  t.mock.timers.tick(10 * SAMPLES_ACK_MS);
+  assert.strictEqual(page.packets.length, 3, 'a subscriber gone is sent nothing when its timeout runs out');
+});
 
 test('a new live input process, or samples that never came, start the stream again', () => {
   const relay = new SampleRelay({ want() {} }), page = subscriber();

@@ -51,11 +51,10 @@ const block = (k) => ({ stream: 1, end: (k + 1) * 256, rate: 22050, at: 1_800_00
 
 test('samples need the same token as every topic and go to subscribers only, one acknowledged packet at a time', { timeout: 15000 }, async (t) => {
   const s = await serve(t);
-  const refused = s.client('wrong-token');
-  const [error] = await once(refused, 'connect_error');
-  assert.equal(error.data.code, 'unauthorized');
+  // A client with the wrong token asks for the samples at once: the request waits for a connection that must never come.
+  const refused = s.client('wrong-token'), refusals = [];
+  refused.on('connect_error', (error) => refusals.push(error));
   refused.emit('subscribe', ['samples']);
-  assert.equal(s.samples.subscribers, 0);
 
   const page = s.client(), other = s.client();
   await Promise.all([once(page, 'snapshot'), once(other, 'snapshot')]);
@@ -65,7 +64,11 @@ test('samples need the same token as every topic and go to subscribers only, one
   const got = [], held = [];
   page.on('samples', (packet, ack) => { got.push(packet); held.push(ack); });
   page.emit('subscribe', ['samples']);
-  await until(() => s.samples.subscribers === 1, 'the subscription');
+  await until(() => s.samples.subscribers >= 1, 'the subscription');
+  await new Promise((resolve) => setTimeout(resolve, 100));
+  assert.equal(s.samples.subscribers, 1, 'the page with the token, and not the client without it');
+  await until(() => refusals.length > 0, 'the refusal');
+  assert.equal(refusals[0].data.code, 'unauthorized');
   assert.deepEqual(s.asked, [true]);
 
   s.samples.push(block(0));

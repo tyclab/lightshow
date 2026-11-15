@@ -1080,8 +1080,10 @@ rate, not lighting output or Music Assistant rendering FPS. Latency samples belo
 to the interval in which each operation finishes. An inactive interval with no
 capture attempts has `fps: null`, so disarming does not look like overload, and
 its `reason` says why it is inactive (`Outputs disarmed`, `Visualizer idle`, …).
-Music Assistant fades its visualizer out about a second after playback stops.
-That is an idle source, not a failure: the output releases its lease once,
+Music Assistant fades its visualizer out about a second after playback stops; the
+live-audio page fades its layer out when it has no sound to draw (no lightshow, no
+live input, no audio, silence) or a fault of its own, and names it in `display.wait`.
+Either is an idle source, not a failure: the output releases its lease once,
 counts one `idlePauses`, and claims nothing until the visualizer is back, then
 resumes within a quarter of a second with no backoff to sit out. A capture still
 running when the fade ends counts as the same pause, not as a capture failure.
