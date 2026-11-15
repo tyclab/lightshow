@@ -179,13 +179,17 @@ async function pictureFeed(baseURL) {
   return feed;
 }
 
-test('the Effects box follows the picture source, the picture, Stop and Freeze, and never names a held pick as current', async ({ page, request, baseURL }) => {
+// G5 (2026-11-15): "i dont like the defauilt that the scene just playing until conditions for the visulaisizter or shquid are
+// matched". Under Visualizer the card is one sentence, met or not, with nothing to choose; without a picture an amber line says why.
+test('the Effects box follows the picture source, the picture, Stop and Freeze, and says why the picture is missing', async ({ page, request, baseURL }) => {
   const { settings } = await (await request.get('/api/settings')).json();
   const feed = await pictureFeed(baseURL);
-  const effects = box(page), sentence = page.locator('.contained-picture p');
+  const effects = box(page), sentence = page.locator('.contained-picture p[role="status"]').first(), line = effects.locator('.unmet-line');
   const label = effects.locator('.contained-current-label'), hint = effects.locator('.contained-hint');
-  const picture = 'the Visualizer picture paints the room; the main effect shows again when the picture stops or when Effects is chosen in the header.';
+  const segment = page.getByRole('group', { name: 'Picture source' }).locator('[data-source="visualizer"]');
+  const picture = 'the Visualizer picture paints the room; effects are chosen here while the picture source is Effects.';
   const painting = `T${picture.slice(1)}`;
+  const noSender = /^Visualizer: no picture sender since \d\d:\d\d:\d\d$/;
   try {
     // A picture lease needs armed outputs: this server has none.
     expect((await request.put('/api/settings', { data: { safety: { photosensitivityAcknowledged: true } } })).ok()).toBe(true);
@@ -193,10 +197,16 @@ test('the Effects box follows the picture source, the picture, Stop and Freeze, 
     await request.post('/api/picture/source', { data: { source: 'visualizer' } });
     await page.setViewportSize({ width: 1440, height: 900 });
     await open(page, 'show');
-    await expect(label).toHaveText('Current effect');
-    await expect(hint).toHaveCount(0);
+    await expect(sentence).toHaveText(painting);
+    await expect(line).toHaveText(noSender);
+    await expect(segment).toHaveClass(/\bunmet\b/);
+    await expect(segment).toHaveAttribute('title', noSender);
+    await expect(effects.locator('.contained-row, input, [role="switch"], .contained-current')).toHaveCount(0);
 
     await feed.start();
+    await expect(line, 'the picture arrives: no line').toHaveCount(0);
+    await expect(segment).not.toHaveClass(/\bunmet\b/);
+    await expect(segment).toHaveAttribute('title', /^Visualizer picture on \d+ lamp cells$/);
     await expect(sentence).toHaveText(painting);
     await expect(effects.locator('.contained-row, input, button, [role="switch"], .contained-current')).toHaveCount(0);
     // The v3 layout (the operator, 2026-11-14): the sentence stays under the stage, the colours switch over Background.
@@ -211,46 +221,50 @@ test('the Effects box follows the picture source, the picture, Stop and Freeze, 
     expect(background.y - colours.y - colours.height).toBeLessThan(20);
 
     await feed.release();
-    await expect(label).toHaveText('Current effect');
-    await expect(row(page, 'chase')).toBeVisible();
+    await expect(line, 'released: no sender').toHaveText(noSender);
+    await expect(sentence, 'and no promise of the main effect').toHaveText(painting);
+    await expect(label).toHaveCount(0);
 
     await feed.start();
-    await expect(sentence).toHaveText(painting);
+    await expect(line).toHaveCount(0);
     feed.pause();
-    await expect(label, 'the lease expired').toHaveText('Current effect', { timeout: 8000 });
+    await expect(line, 'the lease expired').toHaveText(noSender, { timeout: 8000 });
+    await expect(sentence).toHaveText(painting);
 
     await feed.start();
-    await expect(sentence).toHaveText(painting);
+    await expect(line).toHaveCount(0);
     await request.post('/api/picture/source', { data: { source: 'effects' } });
     await expect(label).toHaveText('Current effect');
     await expect(effects.getByRole('searchbox', { name: 'Search effects' })).toBeVisible();
     await expect(sentence).toHaveCount(0);
+    await expect(line).toHaveCount(0);
 
     await request.post('/api/picture/source', { data: { source: 'visualizer' } });
     await expect(sentence).toHaveText(painting);
+    await expect(line).toHaveCount(0);
     await control(request, 'stop');
     await expect(sentence).toHaveText(`The show is stopped. When the show plays, ${picture}`);
     await control(request, 'start', 'look');
     await expect(sentence).toHaveText(painting);
 
-    // Freeze while the picture arrives, then let it expire: Freeze still holds the picture, so no pick is named as playing.
+    // Freeze while the picture arrives, then let it expire: Freeze still holds the picture, the line says it is gone.
     await control(request, 'freeze');
     await expect(sentence).toHaveText(`The picture is frozen. After Resume, ${picture}`);
     feed.pause();
-    await expect(label).toHaveText('Selected effect', { timeout: 8000 });
-    await expect(hint).toHaveText('The picture is frozen. The selected effect plays after Resume.');
+    await expect(line).toHaveText(noSender, { timeout: 8000 });
+    await expect(sentence).toHaveText(`The picture is frozen. After Resume, ${picture}`);
+    await expect(hint).toHaveCount(0);
     const before = await state(request);
-    await row(page, 'v2.aurora').click();
+    await set(request, { pattern: 'v2.aurora' });
     const after = await until(request, (s) => s.pattern === 'v2.aurora');
     for (const key of ['armed', 'running', 'masterBlackout', 'masterDimmer']) expect(after[key]).toEqual(before[key]);
     expect(after.control.frozen).toBe(true);
     expect(after.control.blackout).toBe(before.control.blackout);
-    await expect(effects.locator('.contained-current-name')).toHaveText('Aurora');
-    await expect(label).toHaveText('Selected effect');
-    await expect(hint).toHaveText('The picture is frozen. The selected effect plays after Resume.');
+    expect(after.picture.source).toBe('visualizer');
 
     // Frozen before the picture arrives.
     await feed.start();
+    await expect(line).toHaveCount(0);
     await expect(sentence).toHaveText(`The picture is frozen. After Resume, ${picture}`);
     await control(request, 'resume');
     await expect(sentence).toHaveText(painting);
@@ -345,7 +359,7 @@ test('the Effects card puts its count in the title row and the selected effect b
 });
 
 // Show v3 fixes, G3: effects are chosen in Show's list; E goes there from any view, except while typing, under a modal
-// or while the card offers nothing to choose (the Visualizer picture arriving).
+// or while the card offers nothing to choose (under Visualizer, the picture arriving or not: G5).
 test('E shows Show with its effects search ready, and does nothing while typing, under a modal or with the Visualizer picture', async ({ page, request, baseURL }) => {
   const search = () => box(page).getByRole('searchbox', { name: 'Search effects' });
   await open(page, 'perform');
@@ -373,7 +387,7 @@ test('E shows Show with its effects search ready, and does nothing while typing,
   await dialog.getByRole('button', { name: 'Cancel' }).click();
   await expect(dialog).toHaveCount(0);
 
-  // The Visualizer picture arriving: Show's card is one sentence with nothing to choose.
+  // Under Visualizer Show's card is one sentence with nothing to choose, the picture arriving or not (G5).
   const { settings } = await (await request.get('/api/settings')).json();
   const feed = await pictureFeed(baseURL);
   try {
@@ -390,9 +404,13 @@ test('E shows Show with its effects search ready, and does nothing while typing,
     await expect(page.locator('#panel-perform')).toBeVisible();
     await expect(page).toHaveURL(/#perform(\/\w+)?$/);
     await feed.release();
-    await expect(segment).toHaveAttribute('title', 'No picture arriving — effects show meanwhile');
+    await expect(segment).toHaveAttribute('title', /^Visualizer: no picture sender since \d\d:\d\d:\d\d$/);
     await page.locator('body').press('e');
-    await expect(search(), 'the list is back, so E goes to it').toBeFocused();
+    await expect(page).toHaveURL(/#perform(\/\w+)?$/, { timeout: 1000 });
+    await request.post('/api/picture/source', { data: { source: 'effects' } });
+    await expect(segment).not.toHaveAttribute('aria-pressed', 'true');
+    await page.locator('body').press('e');
+    await expect(search(), 'Effects offers the list, so E goes to it').toBeFocused();
   } finally {
     feed.close();
     await control(request, 'disarm');
