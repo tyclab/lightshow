@@ -150,10 +150,12 @@ director), a look picked by hand holds until the first bar half a minute after t
 and the box says **Auto holds the picked look** meanwhile (`live.director.holding` in the state).
 While the **Visualizer** source has a picture
 arriving the box says so in one sentence instead; the list returns when the picture stops or
-when **Effects** is chosen in the header. Neither the list nor the header picker offers the
+when **Effects** is chosen in the header. The list does not offer the
 utility effects (the strobes, Blinder, UV Wash, Kill, Glow and the strobe overlays): pads, cues,
-sequences, the API and Effect settings keep them, and one that plays is still named. The header
-picker (or **E**) remains available on every view. A cue row under the stage recalls a saved
+sequences, the API and Effect settings keep them, and one that plays is still named. With an
+Audio-reactive effect selected, playing, frozen or stopped, its Active and Mellow looks and its colour
+wells sit between the search and the list. **E** on any view opens Show with the search ready,
+except while typing in a field, under a dialog or while the box offers nothing to choose. A cue row under the stage recalls a saved
 cue as the Cues card does (the current Background stays) or saves the look on stage as a new
 cue under a name. The right column holds **Palettes** (the selected palette named over a
 searchable list, two columns where they stay readable), **Edit colours**, one button that folds
@@ -192,23 +194,15 @@ The sticky header is one row on a desktop (two on a phone, 1000 px and narrower)
 the same on every view, including while scrolling through Show:
 
 ```text
-[mark] [Effects: Swirl ▾ | Visualizer | Squid]  [Auto show Off ○] [▶ Play] [Freeze] [Blackout] [Arm]  Master ━━●━ 100%  [● 120 BPM Online] [⋮]
+[mark] [Effects | Visualizer | Squid]  [Auto show Off ○] [▶ Play] [ ] [Blackout] [Arm]  Master ━━●━ 100%  [● 120 BPM Online] [⋮]
 ```
 
-- **Picture source** comes first. **Effects** and **Squid**
-  (offered once the rig has an LED panel; see [Squid picture](#squid-picture)) name the
-  main effect when chosen (**Effects: Swirl**); pressing that segment, or **E**
-  anywhere, opens the effect picker: favourites, your presets and the party
-  looks, then every look A to Z with a search, without the utility effects that
-  pads and Effect settings offer. A tap puts a look on stage and
-  leaves the picker open for the next one; Escape or a press outside closes it.
-  While an Audio-reactive look plays, the picker also offers the other
-  Audio-reactive looks (Active and Mellow) and their colours. **Visualizer**
-  names no effect and opens nothing: the segment reads **Visualizer**, its
-  tooltip says whether the picture arrives, and E does nothing while it is
-  chosen. Choosing it closes an open picker. The main effect still shows while no
-  picture arrives and 2 s after the picture stops; choose it under Effects.
-  The other sources are one tap away.
+- **Picture source** comes first: **Effects**, **Visualizer** and **Squid** (offered once the
+  rig has an LED panel; see [Squid picture](#squid-picture)). Each segment only chooses what
+  paints the room: another source is one tap away, and the chosen one names no effect and
+  opens nothing; its tooltip says what it paints with (for the Visualizer, whether the
+  picture arrives). The main effect is chosen in Show's effects list (**E** on any view).
+  It still shows while no picture arrives and 2 s after the picture stops.
 - **Auto show** is one switch, on exactly while the Auto show is the programme. Off
   goes back to the selected picture. Switching never starts or stops playback: playing,
   the new programme takes over in one go (a sequence lets its held picture go; it plays
@@ -225,8 +219,10 @@ the same on every view, including while scrolling through Show:
   with the loaded sequence's name. A sequence is chosen on Perform, not here; a
   programme that cannot start (no sequence loaded, no analysed track or live input) is
   refused with the reason.
-- **Freeze/Resume**, **Blackout/Restore** and **Arm/Disarm** keep their own 44 px
-  buttons at fixed places. Armed shows on the button itself: filled red, **● Armed**
+- **Resume** shows only while the picture is frozen, in a place kept for it (the empty
+  `[ ]` above), so Blackout and Arm never move; Freeze itself has no button, it is an
+  `/api/control` action (Home Assistant, the API). **Blackout/Restore** and
+  **Arm/Disarm** keep their own 44 px buttons at fixed places. Armed shows on the button itself: filled red, **● Armed**
   over **Disarm**; so does Blackout, filled red as well: **● Blackout** over **Restore**
   (below 1280 px wide the dot drops, so the word fits).
   **Arm** asks for the photosensitivity acknowledgement every time
@@ -315,7 +311,7 @@ with the loaded show; Pad layouts saves named decks and remaps their fixture
 targets onto another rig order.
 
 Perform also offers tempo capture from live audio, half and double tempo, live
-tempo and brightness automation; the colours of a running Audio-reactive look are in the header's effect picker.
+tempo and brightness automation; the colours of a selected Audio-reactive look are in Show's Effects box.
 Fire and Ice are slow, strobe-free Party looks.
 
 The effect catalogue and show workflows cover the Party & Disco and the
@@ -373,7 +369,7 @@ The header's Resume releases only the picture hold.
 The arrow keys, Home and End move between Show and Perform while a tab is focused. Enter, Space
 or ↓ opens the Setup menu, the arrows, Home and End move in it, and Esc closes it.
 
-The effect picker, Perform, Effect settings and the stage preview share the same status line:
+Perform, Effect settings and the stage preview share the same status line:
 main effect, sequence transport, visible voices and palette override. The
 highlighted catalogue row, tagged **Main effect**, identifies it; a sequence or
 voice may be above it. Perform and Effect settings list visible voices with individual Stop

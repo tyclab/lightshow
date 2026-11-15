@@ -18,9 +18,6 @@ export function pictureHint(source, input, armed) {
   return input?.receiving ? `Visualizer picture on ${input.units} lamp cells` : 'No picture arriving — effects show meanwhile';
 }
 
-/** Whether the chosen source's segment names the main effect and opens its picker: the Visualizer picture names none. */
-export const namesEffect = (source) => source !== 'visualizer';
-
 export const pictureColours = (picture) => picture?.source === 'visualizer' && !!picture.input?.receiving;
 
 // The picture key changes on every broadcast while a picture arrives; these change only when what they say does.

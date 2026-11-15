@@ -63,7 +63,7 @@ test('the app opens on Show: the room, the looks and global controls', async ({ 
   await expect(page).toHaveURL(/#show$/);
   await expect(page.getByRole('tab', { name: /^Show/ })).toHaveAttribute('aria-selected', 'true');
   const controls = page.getByRole('group', { name: 'Global show controls' });
-  for (const name of ['Stop selected picture', 'Freeze', 'Blackout', 'Arm']) {
+  for (const name of ['Stop selected picture', 'Blackout', 'Arm']) {
     await expect(controls.getByRole('button', { name, exact: true })).toBeVisible();
   }
   await expect(controls.getByRole('switch', { name: 'Auto show', exact: true })).toBeVisible();
@@ -298,11 +298,13 @@ test('a new browser opens Show and the same global Resume releases Freeze in Per
   await expect(page.locator('#panel-perform')).toBeVisible();
   const controls = page.getByRole('group', { name: 'Global show controls' });
   const resume = controls.getByRole('button', { name: 'Resume', exact: true });
-  await expect(resume).toHaveAttribute('aria-pressed', 'true');
+  await expect(resume).toBeVisible();
   await expect(controls.getByRole('status')).toContainText('Frozen');
   await expect(page.getByRole('button', { name: 'Play look', exact: true })).toHaveCount(0);
   await resume.click();
-  await expect(controls.getByRole('button', { name: 'Freeze', exact: true })).toHaveAttribute('aria-pressed', 'false');
+  // G4: Resume goes with the hold, and no Freeze button takes its place.
+  await expect(resume).toHaveCount(0);
+  await expect(controls.getByRole('button', { name: 'Freeze', exact: true })).toHaveCount(0);
   await expect(controls.getByRole('status')).toContainText('Playing');
   await expect(controls.getByRole('status')).not.toContainText('Frozen');
 });
