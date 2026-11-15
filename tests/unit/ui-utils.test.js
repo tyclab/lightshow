@@ -108,6 +108,16 @@ test('an idle page draws nothing, the demo beat included, until Resume preview; 
   assert.deepEqual(modeOf({ connected: false }), { tag: 'Offline', lit: true, demo: false });
 });
 
+// The operator, 2026-11-15: "explain to me why the button top stop preview is removed." (Show v3 fixes, G1)
+test('only the two disarmed preview rows offer Pause preview', () => {
+  for (const patch of [{}, { playing: true }, { layers: true }, { frozen: true }]) {
+    assert.equal(utils.stageMode({ ...STOPPED, ...patch }).pausable, true, JSON.stringify(patch));
+  }
+  for (const patch of [{ armed: true }, { blackout: true }, { paused: true }, { connected: false }, { armed: true, playing: true }]) {
+    assert.ok(!utils.stageMode({ ...STOPPED, ...patch }).pausable, JSON.stringify(patch));
+  }
+});
+
 test('no stage note points to a Preview look button', () => {
   const rows = [{}, { blackout: true }, { armed: true }, { playing: true }, { paused: true }, { connected: false }];
   for (const patch of rows) assert.doesNotMatch(JSON.stringify(utils.stageMode({ ...STOPPED, ...patch })), /Preview look|Outputs off/);

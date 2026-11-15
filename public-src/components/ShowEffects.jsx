@@ -1,12 +1,31 @@
-import { useId, useLayoutEffect, useRef, useState } from 'preact/hooks';
+import { signal } from '@preact/signals';
+import { useEffect, useId, useLayoutEffect, useRef, useState } from 'preact/hooks';
 import { connectedSig, idlePause, librarySig, pick, send } from '../state.js';
 import { pictureReceivingSig, pictureSourceSig } from '../picture-source.js';
 import { byName, catalogueOf, matchesSearch, tapRow, utilityEffect } from './Effects.jsx';
 import { Photosensitivity, acknowledgeThen } from './Photosensitivity.jsx';
+import { AudioReactiveColours, audioReactiveChoices, isAudioReactive } from './AudioReactiveColours.jsx';
 import { stageMode } from '../utils.js';
 
 /** The one-sentence form: the Visualizer source with a picture arriving. */
 export const pictureForm = (source, receiving) => source === 'visualizer' && !!receiving;
+
+/** E asks for the effects search; the card takes the request once it is on screen, from whichever view E was pressed on. */
+export const searchRequestSig = signal(0);
+
+const typing = (target) => ['INPUT', 'TEXTAREA', 'SELECT'].includes(target?.tagName) || target?.isContentEditable;
+
+/**
+ * E chooses an effect: true when it is taken, and Show's search is asked for. Not in a field, under a modal dialog
+ * or while the card offers nothing to choose (the Visualizer picture arriving); the caller switches to Show.
+ */
+export function effectsKey(e) {
+  if (e.repeat || e.defaultPrevented || e.ctrlKey || e.altKey || e.metaKey || typing(e.target) || e.key?.toLowerCase() !== 'e') return false;
+  if (document.querySelector('[aria-modal="true"]') || pictureForm(pictureSourceSig.value, pictureReceivingSig.value)) return false;
+  e.preventDefault();
+  searchRequestSig.value += 1;
+  return true;
+}
 
 const HELD = { frozen: ['The picture is frozen.', 'after Resume'], stopped: ['The show is stopped.', 'when the show plays'],
   both: ['The picture is frozen and the show is stopped.', 'after Resume and play'] };
@@ -69,8 +88,16 @@ export function ShowEffects() {
   const currentName = playing?.name || s.pattern || 'None';
   const focused = found.find((row) => row.id === focusId) || found.find((row) => row.id === playingId) || found[0];
   const choose = (row) => tapRow(row, !!s.safety?.photosensitivityAcknowledged, setConfirm);
+  // The selected look's family, whether it plays, is frozen or stopped: what the header's picker offered before (G3).
+  const looks = isAudioReactive(playingId, lib) ? audioReactiveChoices(lib) : [];
+  const requested = searchRequestSig.value;
 
   useLayoutEffect(() => { if (scroll.current) scroll.current.scrollTop = 0; }, [query]);
+  useEffect(() => {
+    if (!requested || !search.current) return;
+    search.current.focus();
+    searchRequestSig.value = 0;
+  }, [requested, box.picture]);
 
   const focusRow = (button) => {
     if (!button) return;
@@ -139,6 +166,20 @@ export function ShowEffects() {
           <button class="btn" type="button" disabled={!query} onClick={clear}>Clear</button>
         </div>
       </div>
+      {looks.length > 0 && <div class="show-audio-reactive" role="group" aria-label="Audio-reactive looks">
+        {['Active', 'Mellow'].map((group) => (
+          <div key={group} class="show-audio-reactive-row" role="group" aria-label={`Audio-reactive ${group}`}>
+            <span class="show-audio-reactive-label" aria-hidden="true">{group}</span>
+            {looks.filter((look) => look.group === group).map((look) => (
+              <button key={look.id} type="button" class={`btn sm${playingId === look.id ? ' active' : ''}`} aria-pressed={playingId === look.id}
+                aria-label={`Audio-reactive ${look.name}`} onClick={() => choose(rows.find((row) => row.id === look.id) || { id: look.id, rapidFlash: true, name: look.name })}>
+                {look.name}
+              </button>
+            ))}
+          </div>
+        ))}
+      </div>}
+      {looks.length > 0 && <AudioReactiveColours />}
       <div class="contained-scroll" ref={scroll}>
         <ul class="contained-list" id={`${id}-list`} ref={list} aria-label="Effects" onKeyDown={listKey}>
           {found.map((row) => <li key={row.id}>

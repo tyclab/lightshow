@@ -179,8 +179,8 @@ function DeviceMenu() {
 }
 
 /**
- * One row on a desktop, two on a phone: what paints the room and its effect first, then play, Freeze,
- * Blackout, Arm and the master in fixed places, then the status chip and this device's menu.
+ * One row on a desktop, two on a phone: what paints the room first, then play, Resume's slot (filled while the
+ * picture is frozen), Blackout, Arm and the master in fixed places, then the status chip and this device's menu.
  */
 export function Header() {
   return (

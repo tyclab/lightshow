@@ -147,10 +147,12 @@ director), a look picked by hand holds until the first bar half a minute after t
 and the box says **Auto holds the picked look** meanwhile (`live.director.holding` in the state).
 While the **Visualizer** source has a picture
 arriving the box says so in one sentence instead; the list returns when the picture stops or
-when **Effects** is chosen in the header. Neither the list nor the header picker offers the
+when **Effects** is chosen in the header. The list does not offer the
 utility effects (the strobes, Blinder, UV Wash, Kill, Glow and the strobe overlays): pads, cues,
-sequences, the API and Effect settings keep them, and one that plays is still named. The header
-picker (or **E**) remains available on every view. A cue row under the stage recalls a saved
+sequences, the API and Effect settings keep them, and one that plays is still named. With an
+Audio-reactive effect selected, playing, frozen or stopped, its Active and Mellow looks and its colour
+wells sit between the search and the list. **E** on any view opens Show with the search ready,
+except while typing in a field, under a dialog or while the box offers nothing to choose. A cue row under the stage recalls a saved
 cue as the Cues card does (the current Background stays) or saves the look on stage as a new
 cue under a name. The right column holds **Palettes** (the selected palette named over a
 searchable list, two columns where they stay readable), **Edit colours**, one button that folds
@@ -181,7 +183,11 @@ points to **Restore** in the header.
 A disarmed page nobody touches for `outputs.idleStopMin` minutes (60; Settings → Show, **Stop an
 Unattended Show**) lets its DMX and picture feeds go: every view that draws a stage says **Preview paused
 after 60 minutes without input.**, the stage draws its lights off under **Preview paused**, the demo-beat
-preview included, and **Resume preview** brings the feeds back and starts nothing. Arming resumes it too; armed, a page never pauses. The
+preview included, and **Resume preview** brings the feeds back and starts nothing. Arming resumes it too; armed, a page never pauses.
+**Pause preview**, in the stage's toolbar in 3D and 2D while it draws either disarmed preview, does the
+same at once and says **Preview paused.**: only this page stops drawing; the show, Freeze, Blackout, Arm
+and other pages are as they were, and nothing is sent. It works with the idle stop at `0`, and a reload
+previews again. The
 server stops a disarmed show nobody attends after the same minutes (see
 [Home Assistant integration surface](#home-assistant-integration-surface)).
 
@@ -189,23 +195,15 @@ The sticky header is one row on a desktop (two on a phone, 1000 px and narrower)
 the same on every view, including while scrolling through Show:
 
 ```text
-[mark] [Effects: Swirl ▾ | Visualizer | Squid]  [Auto show Off ○] [▶ Play] [Freeze] [Blackout] [Arm]  Master ━━●━ 100%  [● 120 BPM Online] [⋮]
+[mark] [Effects | Visualizer | Squid]  [Auto show Off ○] [▶ Play] [ ] [Blackout] [Arm]  Master ━━●━ 100%  [● 120 BPM Online] [⋮]
 ```
 
-- **Picture source** comes first. **Effects** and **Squid**
-  (offered once the rig has an LED panel; see [Squid picture](#squid-picture)) name the
-  main effect when chosen (**Effects: Swirl**); pressing that segment, or **E**
-  anywhere, opens the effect picker: favourites, your presets and the party
-  looks, then every look A to Z with a search, without the utility effects that
-  pads and Effect settings offer. A tap puts a look on stage and
-  leaves the picker open for the next one; Escape or a press outside closes it.
-  While an Audio-reactive look plays, the picker also offers the other
-  Audio-reactive looks (Active and Mellow) and their colours. **Visualizer**
-  names no effect and opens nothing: the segment reads **Visualizer**, its
-  tooltip says whether the picture arrives, and E does nothing while it is
-  chosen. Choosing it closes an open picker. The main effect still shows while no
-  picture arrives and 2 s after the picture stops; choose it under Effects.
-  The other sources are one tap away.
+- **Picture source** comes first: **Effects**, **Visualizer** and **Squid** (offered once the
+  rig has an LED panel; see [Squid picture](#squid-picture)). Each segment only chooses what
+  paints the room: another source is one tap away, and the chosen one names no effect and
+  opens nothing; its tooltip says what it paints with (for the Visualizer, whether the
+  picture arrives). The main effect is chosen in Show's effects list (**E** on any view).
+  It still shows while no picture arrives and 2 s after the picture stops.
 - **Auto show** is one switch, on exactly while the Auto show is the programme. Off
   goes back to the selected picture. Switching never starts or stops playback: playing,
   the new programme takes over in one go (a sequence lets its held picture go; it plays
@@ -222,8 +220,10 @@ the same on every view, including while scrolling through Show:
   with the loaded sequence's name. A sequence is chosen on Perform, not here; a
   programme that cannot start (no sequence loaded, no listening live input) is
   refused with the reason.
-- **Freeze/Resume**, **Blackout/Restore** and **Arm/Disarm** keep their own 44 px
-  buttons at fixed places. Armed shows on the button itself: filled red, **● Armed**
+- **Resume** shows only while the picture is frozen, in a place kept for it (the empty
+  `[ ]` above), so Blackout and Arm never move; Freeze itself has no button, it is an
+  `/api/control` action (Home Assistant, the API). **Blackout/Restore** and
+  **Arm/Disarm** keep their own 44 px buttons at fixed places. Armed shows on the button itself: filled red, **● Armed**
   over **Disarm**; so does Blackout, filled red as well: **● Blackout** over **Restore**
   (below 1280 px wide the dot drops, so the word fits).
   **Arm** asks for the photosensitivity acknowledgement every time
@@ -245,7 +245,8 @@ against a deterministic 124 BPM demo: build, drop, breakdown and groove, with
 synthetic beat, bass, mid and high levels. Pause, restart or scrub the demo; switch
 Stage between **3D room** and **2D plot** to inspect the same moment. These are
 simulated audio levels, so no music file or audio input is required. The audition
-uses its own palette and transport. It sends no look, engine, room or output
+uses its own palette and transport under the live master; like the demo beat and a rehearsal, it draws
+each light as it emits, a dimmer channel's level times the emitters. It sends no look, engine, room or output
 commands. It runs only while the outputs are disarmed, so rapid effects audition
 without a question. Arming ends the audition. In the
 inspector, **Audition on Stage** previews an edited draft; **Hold on live rig**
@@ -312,7 +313,7 @@ with the loaded show; Pad layouts saves named decks and remaps their fixture
 targets onto another rig order.
 
 Perform also offers tempo capture from live audio, half and double tempo, live
-tempo and brightness automation; the colours of a running Audio-reactive look are in the header's effect picker.
+tempo and brightness automation; the colours of a selected Audio-reactive look are in Show's Effects box.
 Fire and Ice are slow, strobe-free Party looks.
 
 The effect catalogue and show workflows cover the Party & Disco and the
@@ -370,7 +371,7 @@ The header's Resume releases only the picture hold.
 The arrow keys, Home and End move between Show and Perform while a tab is focused. Enter, Space
 or ↓ opens the Setup menu, the arrows, Home and End move in it, and Esc closes it.
 
-The effect picker, Perform, Effect settings and the stage preview share the same status line:
+Perform, Effect settings and the stage preview share the same status line:
 main effect, sequence transport, visible voices and palette override. The
 highlighted catalogue row, tagged **Main effect**, identifies it; a sequence or
 voice may be above it. Perform and Effect settings list visible voices with individual Stop
@@ -2250,7 +2251,7 @@ protocol 2:
   read-only and takes the same token as every other. The live page holds the DMX and picture topics only
   while its tab is visible: hidden, it unsubscribes, and shown again it
   subscribes. Disarmed, it also lets them go after `idleStopMin` minutes
-  without input, until Resume preview or an arm. It sends `activity` (no
+  without input, or at Pause preview, until Resume preview or an arm. It sends `activity` (no
   payload) on deliberate input (pointer down, key, wheel, touch), at most once
   a minute; the server's idle stop counts from it.
 

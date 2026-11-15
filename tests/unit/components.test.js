@@ -22,10 +22,9 @@ async function load() {
         export { store } from './public-src/state.js';
         export { Perform } from './public-src/components/Perform.jsx';
         export { Show } from './public-src/components/Show.jsx';
-        export { effectsBox } from './public-src/components/ShowEffects.jsx';
+        export { ShowEffects, effectsBox, effectsKey, searchRequestSig } from './public-src/components/ShowEffects.jsx';
         export { Header, StatusDetails } from './public-src/components/Header.jsx';
-        export { PictureSource, pickerKey, pickerOpenSig } from './public-src/components/PictureSource.jsx';
-        export { EffectPicker } from './public-src/components/EffectPicker.jsx';
+        export { PictureSource } from './public-src/components/PictureSource.jsx';
         export { Bands } from './public-src/components/Bands.jsx';
         export { pictureColours } from './public-src/picture-source.js';
         export { StagePreview } from './public-src/components/StagePreview.jsx';
@@ -207,21 +206,27 @@ test('the Hue pill says when another app holds a bridge, and leads to the bridge
     'a held bridge shows on the chip, without a tap');
 });
 
-test('the header reports whole-picture Freeze independently of programme and playback', () => {
+// Show v3 fixes, G4: Freeze has no header button; Resume shows while the picture is frozen, in a slot kept for it.
+test('the header shows Resume exactly while the whole picture is frozen, whatever the programme and playback, and never Freeze', () => {
+  const slot = (header) => /<span class="global-hold">(.*?)<\/span>/s.exec(header)?.[1];
   for (const programme of ['look', 'auto', 'sequence']) {
     for (const playing of [false, true]) {
-      given({ running: playing, control: { version: 1, programme, playing, frozen: true, blackout: false, armed: false } });
-      const header = ui.html(ui.h(ui.Header, {}));
-      assert.strictEqual(count(header, 'aria-label="Global show controls"'), 1);
-      assert.match(header, /<button[^>]*aria-pressed="true"[^>]*>Resume<\/button>/);
-      assert.doesNotMatch(header, /aria-label="Look playback"/);
+      for (const frozen of [false, true]) {
+        given({ running: playing, control: { version: 1, programme, playing, frozen, blackout: false, armed: false } });
+        const header = ui.html(ui.h(ui.Header, {}));
+        assert.strictEqual(count(header, 'aria-label="Global show controls"'), 1);
+        assert.doesNotMatch(header, />Freeze<\/button>/, 'no Freeze button');
+        assert.strictEqual(count(header, 'class="global-hold"'), 1, 'the slot is there either way');
+        if (frozen) assert.match(slot(header), /^<button type="button" class="btn global-control global-resume active"[^>]*>Resume<\/button>$/, `${programme} ${playing}`);
+        else assert.strictEqual(slot(header), '', `${programme} ${playing}: an empty slot`);
+        assert.doesNotMatch(header, /aria-label="Look playback"/);
+      }
     }
   }
   given({ running: false });
   const unavailable = ui.html(ui.h(ui.Header, {}));
   assert.match(unavailable, /<span class="global-status sr-only" role="status">Global controls unavailable<\/span>/);
-  assert.match(unavailable, /<button[^>]*disabled[^>]*aria-pressed="false"[^>]*>Freeze<\/button>/);
-  assert.doesNotMatch(unavailable, />Resume<\/button>/, 'legacy running=false must not masquerade as a whole-picture hold');
+  assert.strictEqual(slot(unavailable), '', 'legacy running=false must not masquerade as a whole-picture hold');
 });
 
 test('global blackout and a running voice\'s pad show their independent pressed states', () => {
@@ -1112,7 +1117,7 @@ test('every live status surface renders the shared state', () => {
   });
   const expected = ui.html(ui.h(ui.NowPlaying, {}));
   assert.match(expected, /Clips: Front: Custom pulse/);
-  for (const Component of [ui.EffectPicker, ui.Perform, ui.Effects, ui.StagePreview]) {
+  for (const Component of [ui.Perform, ui.Effects, ui.StagePreview]) {
     assert.ok(ui.html(ui.h(Component, {})).includes(expected));
   }
 });
@@ -1127,14 +1132,14 @@ test('pad labels agree between the deck and command bar', () => {
   assert.strictEqual(labels[0], ui.CATALOGUE.find((row) => row.id === entry.content.id).name);
 });
 
-test('one header row: the picture source and its effect first, then play, Freeze, Blackout, Arm, the master, status and this device', () => {
+test('one header row: the picture source first, then play, Resume\'s slot, Blackout, Arm, the master, status and this device', () => {
   given({ armed: false, picture: { source: 'effects', input: null }, fixtures: [], profiles: {}, families: [],
     pattern: 'swirl', patterns: [{ id: 'swirl', name: 'Swirl' }],
     control: { version: 1, programme: 'look', playing: false, frozen: false, blackout: false, armed: false },
     safety: { photosensitivityAcknowledged: true } });
   const header = ui.html(ui.h(ui.Header));
   const order = ['aria-label="Picture source"', 'aria-label="Global show controls"', 'aria-label="Auto show"', 'aria-label="Play selected picture"',
-    '>Freeze</button>', '>Blackout</button>', 'aria-label="Arm"', 'aria-label="Master dimmer"', '<button type="button" class="status-chip', 'aria-label="This device"'];
+    'class="global-hold"', '>Blackout</button>', 'aria-label="Arm"', 'aria-label="Master dimmer"', '<button type="button" class="status-chip', 'aria-label="This device"'];
   const at = order.map((needle) => header.indexOf(needle));
   assert.ok(at.every((i) => i >= 0), `every control is there: ${order.filter((_, i) => at[i] < 0)}`);
   assert.deepStrictEqual([...at].sort((a, b) => a - b), at, 'in this order');
@@ -1142,10 +1147,10 @@ test('one header row: the picture source and its effect first, then play, Freeze
   const source = /<div class="picture-source-segments" role="group" aria-label="Picture source">(.*?)<\/div>/s.exec(header)[1];
   const segments = [...source.matchAll(/<button[^>]*data-source="(\w+)"[^>]*aria-pressed="(true|false)"[^>]*>/g)].map((m) => [m[1], m[2]]);
   assert.deepStrictEqual(segments, [['effects', 'true'], ['visualizer', 'false']]);
-  assert.match(source, /aria-pressed="true" aria-haspopup="dialog" aria-expanded="false"[^>]*aria-label="Effects: Swirl"/, 'the chosen source names the main effect and opens its picker');
-  assert.match(source, /class="picture-segment-effect">Swirl</);
-  assert.strictEqual(count(source, 'aria-haspopup'), 1, 'only the chosen source opens the picker; the others choose');
+  assert.match(source, /aria-pressed="true" aria-label="Effects"/, 'the chosen source names no effect (G3)');
+  assert.doesNotMatch(source, /aria-haspopup|aria-expanded|Swirl|▾/, 'and opens nothing');
   assert.match(source, /aria-label="Visualizer"/);
+  assert.doesNotMatch(header, />Freeze<\/button>|>Resume<\/button>/, 'neither Freeze nor, unfrozen, Resume (G4)');
   assert.match(header, /<button[^>]*aria-label="Play selected picture"[^>]*><span aria-hidden="true">▶<\/span><span class="global-play-text">Play<\/span><\/button>/, 'play names what it starts');
   assert.match(header, /<button type="button" role="switch"[^>]*aria-checked="false" aria-label="Auto show"/, 'one Auto show switch');
   assert.strictEqual(count(header, 'role="switch"'), 1);
@@ -1198,129 +1203,105 @@ test('the play button names what it starts', () => {
   assert.strictEqual(auto('sequence')[0], 'false');
 });
 
-/** The picture source as rendered: its markup, the chosen segment's, and the props a click on that segment runs. */
+/** The picture source as rendered: its markup, the chosen segment's, and the props of every segment. */
 function pictureSource() {
   const props = [];
   const before = ui.options.vnode;
   ui.options.vnode = (vnode) => { if (vnode.type === 'button' && vnode.props['data-source']) props.push(vnode.props); before?.(vnode); };
   try {
     const html = ui.html(ui.h(ui.PictureSource));
-    return { html, chosen: /<button[^>]*aria-pressed="true"[^>]*>.*?<\/button>/s.exec(html)[0], props: props.find((p) => p['aria-pressed'] === 'true') };
+    return { html, chosen: /<button[^>]*aria-pressed="true"[^>]*>.*?<\/button>/s.exec(html)[0], props };
   } finally { ui.options.vnode = before; }
 }
-/** E pressed on the page, outside any field: whether it opened the picker and kept the key. */
-function pressE() {
-  const event = { key: 'e', target: { tagName: 'BODY' }, defaultPrevented: false, preventDefault() { this.defaultPrevented = true; } };
+
+const PANEL = { fixtures: [{ id: 53, label: 'Panel', profileId: 'panel', output: { protocol: 'ddp' } }], profiles: { panel: { id: 'panel', grid: { columns: 68, rows: 42 } } } };
+
+// Show v3 fixes, G3: "also why on the top effects open the list?" Each segment only chooses the picture source.
+test('every picture source segment reads its own name with its hint as tooltip, names no effect and opens nothing', () => {
+  const splotch = ui.CATALOGUE.find((row) => row.name === 'Audio-reactive Splotch').id;
+  const cases = [
+    [{ source: 'effects', input: null }, false, 'Effects', 'The show\'s effects paint the room'],
+    [{ source: 'squid', input: null }, false, 'Squid', 'The squid plays on the largest LED panel; the effects paint the rest'],
+    [{ source: 'visualizer', input: null }, false, 'Visualizer', 'Arm the outputs; the picture needs a live rig'],
+    [{ source: 'visualizer', input: { units: 4, receiving: true } }, true, 'Visualizer', 'Visualizer picture on 4 lamp cells'],
+    [{ source: 'visualizer', input: { units: 4, receiving: false } }, true, 'Visualizer', 'No picture arriving — effects show meanwhile'],
+  ];
+  for (const [picture, armed, label, hint] of cases) {
+    for (const pattern of ['hd.neonDomino', splotch]) {
+      givenLibrary({ pattern, picture, armed, ...PANEL });
+      const { html, chosen, props } = pictureSource();
+      assert.match(chosen, new RegExp(`data-source="${picture.source}" aria-pressed="true" aria-label="${label}" title="${hint}"`), hint);
+      assert.strictEqual(chosen.replace(/<[^>]+>/g, ''), `${label}${label}`, 'its name (and the phone\'s), no effect and no ▾');
+      assert.doesNotMatch(html, /aria-haspopup|aria-expanded|aria-controls|picture-segment-effect|picture-segment-caret|role="dialog"/);
+      assert.doesNotMatch(html, /Neon Domino|Splotch/, 'no effect is named');
+      assert.deepStrictEqual(props.map((p) => [p['data-source'], typeof p.onClick]),
+        ['effects', 'visualizer', 'squid'].map((id) => [id, id === picture.source ? 'undefined' : 'function']), 'only another source does something');
+    }
+  }
+});
+
+test('Squid is offered once the rig has an LED panel, and stays in view while chosen', () => {
+  const sources = () => [...pictureSource().html.matchAll(/data-source="(\w+)"/g)].map((m) => m[1]);
+  givenLibrary({ picture: { source: 'effects', input: null } });
+  assert.deepStrictEqual(sources(), ['effects', 'visualizer'], 'no panel, no Squid');
+  givenLibrary({ picture: { source: 'effects', input: null }, ...PANEL });
+  assert.deepStrictEqual(sources(), ['effects', 'visualizer', 'squid']);
+  givenLibrary({ picture: { source: 'squid', input: null } });
+  assert.deepStrictEqual(sources(), ['effects', 'visualizer', 'squid'], 'chosen, it stays in view even with no panel to paint');
+});
+
+/** E pressed on `target` (the page's body by default): whether it took the key and asked Show's search for focus. */
+function pressE({ target = { tagName: 'BODY' }, modal = false, ...extra } = {}) {
+  const event = { key: 'e', target, defaultPrevented: false, preventDefault() { this.defaultPrevented = true; }, ...extra };
   const had = Object.hasOwn(globalThis, 'document');
-  globalThis.document ??= { querySelector: () => null };
-  try { ui.pickerKey(event); } finally { if (!had) delete globalThis.document; }
-  return { opened: ui.pickerOpenSig.value, kept: event.defaultPrevented };
+  const document = globalThis.document;
+  globalThis.document = { querySelector: (selector) => (modal && selector === '[aria-modal="true"]' ? {} : null) };
+  const asked = ui.searchRequestSig.value;
+  try {
+    return { taken: ui.effectsKey(event), asked: ui.searchRequestSig.value !== asked, kept: event.defaultPrevented };
+  } finally { if (had) globalThis.document = document; else delete globalThis.document; }
 }
 
-test('the Visualizer segment reads Visualizer and its hint: it names no effect, and neither a click nor E opens a picker', () => {
-  const splotch = ui.CATALOGUE.find((row) => row.name === 'Audio-reactive Splotch').id;
-  const cases = [
-    [{ source: 'visualizer', input: null }, false, 'Arm the outputs; the picture needs a live rig'],
-    [{ source: 'visualizer', input: { units: 4, receiving: true } }, true, 'Visualizer picture on 4 lamp cells'],
-    [{ source: 'visualizer', input: { units: 4, receiving: false } }, true, 'No picture arriving — effects show meanwhile'],
-  ];
-  try {
-    for (const [picture, armed, hint] of cases) {
-      for (const pattern of ['hd.neonDomino', splotch]) {
-        givenLibrary({ pattern, picture, armed });
-        ui.pickerOpenSig.value = false;
-        const { html, chosen, props } = pictureSource();
-        assert.match(chosen, new RegExp(`data-source="visualizer" aria-pressed="true" aria-label="Visualizer" title="${hint}"`), hint);
-        assert.strictEqual(chosen.replace(/<[^>]+>/g, ''), 'VisualizerVisualizer', 'its name (and the phone\'s), no effect and no ▾');
-        assert.doesNotMatch(chosen, /aria-haspopup|aria-expanded|aria-controls|picture-segment-effect|picture-segment-caret/);
-        assert.doesNotMatch(html, /Neon Domino|Splotch|role="dialog"/, 'no effect is named and no picker is drawn');
-        assert.strictEqual(count(html, 'aria-haspopup'), 0, 'no segment opens a picker');
-        assert.strictEqual(props.onClick, undefined, 'a click opens nothing');
-        assert.deepStrictEqual(pressE(), { opened: false, kept: false }, 'E opens nothing and leaves the key alone');
-      }
-    }
-  } finally { ui.pickerOpenSig.value = false; }
+// Show v3 fixes, G3: E goes to Show's effects search, except in a field, under a modal or while the card offers nothing.
+test('E asks for Show\'s effects search, except while typing, under a modal, with a modifier or while the Visualizer picture arrives', () => {
+  const taken = { taken: true, asked: true, kept: true }, left = { taken: false, asked: false, kept: false };
+  for (const source of ['effects', 'squid', 'visualizer']) {
+    givenLibrary({ picture: { source, input: null } });
+    assert.deepStrictEqual(pressE(), taken, `${source}: the card offers its list`);
+    assert.deepStrictEqual(pressE({ key: 'E' }), taken, `${source}: E as a capital`);
+  }
+  givenLibrary({ picture: { source: 'visualizer', input: { units: 4, receiving: true } } });
+  assert.deepStrictEqual(pressE(), left, 'the Visualizer picture arrives: nothing to choose');
+  givenLibrary({ picture: { source: 'effects', input: null } });
+  for (const tagName of ['INPUT', 'TEXTAREA', 'SELECT']) assert.deepStrictEqual(pressE({ target: { tagName } }), left, tagName);
+  assert.deepStrictEqual(pressE({ target: { tagName: 'DIV', isContentEditable: true } }), left, 'contenteditable');
+  assert.deepStrictEqual(pressE({ modal: true }), left, 'under a modal dialog');
+  for (const extra of [{ ctrlKey: true }, { altKey: true }, { metaKey: true }, { repeat: true }, { key: 'f' }]) {
+    assert.deepStrictEqual(pressE(extra), left, JSON.stringify(extra));
+  }
+  assert.deepStrictEqual(pressE({ defaultPrevented: true }), { ...left, kept: true }, 'a key another control took');
 });
 
-test('Effects still names the main effect, and a click or E opens its picker', () => {
+// Show v3 fixes, G3: what only the header picker had moves into Show's Effects card, keyed to the selected effect.
+test('Show\'s Effects card offers the Audio-reactive looks and their colours while the selected effect is one, playing, frozen or stopped', () => {
   const splotch = ui.CATALOGUE.find((row) => row.name === 'Audio-reactive Splotch').id;
-  const cases = [
-    ['effects', 'Effects', 'The show\'s effects paint the room'],
-  ];
-  try {
-    for (const [source, label, hint] of cases) {
-      givenLibrary({ pattern: splotch, picture: { source, input: { units: 4, receiving: true } } });
-      ui.pickerOpenSig.value = false;
-      const { chosen, props } = pictureSource();
-      assert.match(chosen, new RegExp(`aria-haspopup="dialog" aria-expanded="false" aria-label="${label}: Audio-reactive Splotch" title="${hint}\\. Choose the main effect \\(E\\)\\."`), source);
-      assert.match(chosen, /<span class="picture-segment-effect">Audio-reactive Splotch<\/span><span class="picture-segment-caret" aria-hidden="true">▾<\/span>/);
-      props.onClick();
-      assert.strictEqual(ui.pickerOpenSig.value, true, `${source}: a click opens the picker`);
-      assert.match(pictureSource().html, /role="dialog" aria-label="Main effect"/);
-      ui.pickerOpenSig.value = false;
-      assert.deepStrictEqual(pressE(), { opened: true, kept: true }, `${source}: E opens it`);
-    }
-  } finally { ui.pickerOpenSig.value = false; }
-});
-
-test('Squid is offered once the rig has an LED panel, and like Effects it names the main effect and opens its picker', () => {
-  const splotch = ui.CATALOGUE.find((row) => row.name === 'Audio-reactive Splotch').id;
-  const panel = { fixtures: [{ id: 53, label: 'Panel', profileId: 'panel', output: { protocol: 'ddp' } }], profiles: { panel: { id: 'panel', grid: { columns: 68, rows: 42 } } } };
-  const sources = () => [...pictureSource().html.matchAll(/data-source="(\w+)"/g)].map((m) => m[1]);
-  try {
-    givenLibrary({ pattern: splotch, picture: { source: 'effects', input: null } });
-    assert.deepStrictEqual(sources(), ['effects', 'visualizer'], 'no panel, no Squid');
-    givenLibrary({ pattern: splotch, picture: { source: 'effects', input: null }, ...panel });
-    assert.deepStrictEqual(sources(), ['effects', 'visualizer', 'squid']);
-    givenLibrary({ pattern: splotch, picture: { source: 'squid', input: null } });
-    ui.pickerOpenSig.value = false;
-    const { chosen, props } = pictureSource();
-    assert.match(chosen, /aria-haspopup="dialog" aria-expanded="false" aria-label="Squid: Audio-reactive Splotch" title="The squid plays on the largest LED panel; the effects paint the rest\. Choose the main effect \(E\)\."/,
-      'chosen, it stays in view even with no panel to paint');
-    props.onClick();
-    assert.strictEqual(ui.pickerOpenSig.value, true);
-  } finally { ui.pickerOpenSig.value = false; }
-});
-
-test('an open picker closes when the source becomes the Visualizer, from this page, another client or Home Assistant alike', () => {
-  try {
-    givenLibrary({ picture: { source: 'effects', input: null } });
-    ui.pickerOpenSig.value = true;
-    assert.match(pictureSource().html, /role="dialog" aria-label="Main effect"/);
-    // Every switch reaches the page as the same broadcast.
-    givenLibrary({ picture: { source: 'visualizer', input: null } });
-    assert.strictEqual(ui.pickerOpenSig.value, false);
-    assert.doesNotMatch(pictureSource().html, /role="dialog"/);
-    givenLibrary({ picture: { source: 'effects', input: null } });
-    assert.strictEqual(ui.pickerOpenSig.value, false, 'closed, not hidden: it stays shut on the way back');
-    ui.pickerOpenSig.value = true;
-    givenLibrary({ picture: { source: 'squid', input: null } });
-    assert.strictEqual(ui.pickerOpenSig.value, true, 'Effects to Squid keeps it open');
-  } finally { ui.pickerOpenSig.value = false; }
-});
-
-test('the picker offers the Audio-reactive looks and their colours only while one is on stage, under either source that opens it', () => {
-  const splotch = ui.CATALOGUE.find((row) => row.name === 'Audio-reactive Splotch').id;
-  const receiving = { units: 4, receiving: true };
-  givenLibrary({ picture: { source: 'squid', input: receiving }, armed: true });
-  const plain = ui.html(ui.h(ui.EffectPicker, { hint: 'The squid plays on the largest LED panel; the effects paint the rest', onClose: () => {} }));
-  assert.match(plain, /role="dialog" aria-label="Main effect"/);
-  assert.match(plain, /The squid plays on the largest LED panel; the effects paint the rest/);
-  assert.doesNotMatch(plain, /Audio-reactive looks|Audio-reactive colours/, 'no Audio-reactive look on stage, none offered');
-  assert.match(plain, /class="picker-choice(?: big)? active" data-id="hd\.neonDomino" aria-pressed="true"/, 'the main effect is marked');
-  assert.match(plain, /aria-label="Every effect"/);
-  for (const source of ['effects', 'squid']) {
-    givenLibrary({ pattern: splotch, picture: { source, input: receiving }, armed: true });
-    const picker = ui.html(ui.h(ui.EffectPicker, { hint: '', onClose: () => {} }));
-    const looks = /aria-label="Audio-reactive looks">(.*?)<input/s.exec(picker)?.[1];
-    assert.ok(looks, `${source}: the looks while an Audio-reactive look plays`);
+  const card = () => ui.html(ui.h(ui.ShowEffects));
+  givenLibrary({ picture: { source: 'effects', input: null }, armed: true });
+  assert.doesNotMatch(card(), /Audio-reactive looks|Audio-reactive colours/, 'no Audio-reactive look selected, none offered');
+  for (const [running, frozen] of [[true, false], [true, true], [false, true], [false, false]]) {
+    givenLibrary({ pattern: splotch, running, control: { version: 1, programme: 'look', playing: running, frozen, blackout: false, armed: true },
+      picture: { source: 'effects', input: null }, armed: true });
+    const html = card();
+    const looks = /aria-label="Audio-reactive looks">(.*?)<section/s.exec(html)?.[1];
+    assert.ok(looks, `running ${running}, frozen ${frozen}: the looks`);
     for (const [group, names] of [['Active', ['Firework', 'Flash', 'Splotch', 'Pulse']], ['Mellow', ['Solid', 'Swirl', 'Wave']]]) {
       const row = new RegExp(`aria-label="Audio-reactive ${group}">(.*?)</div>`, 's').exec(looks)[1];
-      assert.deepStrictEqual([...row.matchAll(/<button[^>]*>([^<]*)<\/button>/g)].map((m) => m[1]), names, `${source} ${group}: the look name alone`);
+      assert.deepStrictEqual([...row.matchAll(/<button[^>]*>([^<]*)<\/button>/g)].map((m) => m[1]), names, `${group}: the look name alone`);
     }
-    assert.match(looks, /aria-pressed="true" aria-label="Audio-reactive Splotch"/, 'the one on stage is pressed');
-    assert.match(picker, /aria-label="Audio-reactive colours"><fieldset><legend>Live Audio-reactive colours<\/legend>/, 'its colours beside its looks');
-    assert.match(picker, />Shuffle Audio-reactive colours</);
+    assert.match(looks, /aria-pressed="true" aria-label="Audio-reactive Splotch"/, 'the selected one is pressed');
+    assert.match(html, /aria-label="Audio-reactive colours"><fieldset><legend>Live Audio-reactive colours<\/legend>/, 'its colours beside its looks');
+    assert.match(html, />Shuffle Audio-reactive colours</);
+    assert.ok(html.indexOf('Audio-reactive looks') < html.indexOf('class="contained-scroll"'), 'above the list');
   }
 });
 

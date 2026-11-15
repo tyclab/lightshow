@@ -14,12 +14,12 @@ for (const width of [1280, 390]) {
     await open(page, 'show');
     await page.evaluate(() => { document.body.scrollTop = document.body.scrollHeight; });
     const header = page.locator('.app-header');
-    const freeze = header.getByRole('button', { name: 'Freeze', exact: true });
     const blackout = header.getByRole('button', { name: 'Blackout', exact: true });
-    await expect(freeze).toBeInViewport();
     await expect(blackout).toBeInViewport();
-    await freeze.click();
+    // G4: Freeze has no header button; frozen through the API, Resume shows in its place.
+    await control(request, 'freeze');
     await until(request, s => s.control.frozen && s.control.playing);
+    await expect(header.getByRole('button', { name: 'Resume', exact: true })).toBeInViewport();
     await header.getByRole('button', { name: 'Resume', exact: true }).click();
     await until(request, s => !s.control.frozen && s.control.playing);
     await blackout.click();
@@ -63,7 +63,7 @@ for (const width of [1280, 1100, 390]) {
     await page.setViewportSize({ width, height: 844 });
     await open(page, 'show');
     const header = page.locator('.app-header');
-    const boxes = () => page.evaluate(() => Object.fromEntries(['.app-header', '.global-freeze', '.global-blackout', '.global-arm']
+    const boxes = () => page.evaluate(() => Object.fromEntries(['.app-header', '.global-hold', '.global-blackout', '.global-arm']
       .map((selector) => { const r = document.querySelector(selector).getBoundingClientRect(); return [selector, { x: r.x, w: r.width, h: r.height }]; })));
     const before = await boxes();
     await header.getByRole('button', { name: 'Blackout', exact: true }).click();
