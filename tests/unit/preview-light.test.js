@@ -119,6 +119,19 @@ test('audition and rehearsal draw a trimmed dimmer fixture as it emits', async (
   }
 });
 
+// The same audition, one hook across a master edit: it follows the live master as the demo beat does.
+test('a running audition follows a change of the master', async () => {
+  const { fix, rig, space } = pageState();
+  ui.startAudition('solid'); ui.setAudition({ playing: false });
+  const run = ui.runner();
+  for (const masterDimmer of [255, 128]) {
+    const read = await engineLight({ pattern: 'solid', masterDimmer, ...AUDITION_LOOK });
+    pageState();   // the live state, master included, reaches the page; the hook, the audition and the space stay
+    const [auditioned] = run(() => ui.useAuditionSampler(space))(1000, [fix], COLOR_PRESETS, rig);
+    assert.deepEqual(comparable(read, auditioned), read, `the same audition after the master moved to ${masterDimmer}`);
+  }
+});
+
 test('audition draws the master as the engine sends it, at 255, 128 and 0', async () => {
   for (const masterDimmer of [255, 128, 0]) {
     const read = await engineLight({ pattern: 'solid', masterDimmer, ...AUDITION_LOOK });
