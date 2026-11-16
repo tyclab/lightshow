@@ -185,3 +185,35 @@ test('a par of unknown lumen keeps a bulb\'s share and a full pool; a dense pane
   assert.equal(pixels.length, 16);
   assert.ok(Math.abs(emitterWeight(pixels[0]) - 0.01 * 0.09) < 1e-9, `a 5 mm pitch is 0.3 of a strip's, so 0.09 of its pixel: ${emitterWeight(pixels[0])}`);
 });
+
+test('a light drawn as a room object gives the room light what it gives undrawn: its lumen, never the size of the object', () => {
+  const bounds = { width: 6, depth: 6, height: 2.6 };
+  const weightOf = (placed) => placed.objectClusters.reduce((sum, emitter) => sum + emitter.weight, 0);
+  const box = (id, edge, lightBindingId, x = 0) => ({ id, kind: 'box', role: 'furniture', position: { x, y: 1, z: 0 }, size: { x: edge, y: edge, z: edge }, lightBindingId });
+  // A 470 lm candle in a 5 cm shade and in a 1 m one.
+  for (const edge of [0.05, 1]) {
+    const { profile, fixture } = lamp([light(null, 'Hue color candle')]);
+    const room = { bounds, objects: [box('shade', edge, 'lamp')], bindings: [{ id: 'lamp', fixtureId: 1, position: { x: 0, y: 1, z: 0 } }] };
+    const placed = roomRig([fixture], buildRig([fixture], () => profile), room, { [profile.id]: profile });
+    assert.ok(Math.abs(weightOf(placed) - 470 / BULB_LUMEN) < 1e-9, `a ${edge} m shade: ${weightOf(placed)}`);
+  }
+  // A lamp of unknown lumen over three parts: a bulb's share in all, each part by its area.
+  const par = { id: 2, label: 'Par', profileId: 'par' }, parProfile = { id: 'par', channelMap: { red: 0 } };
+  const parts = { bounds, objects: [box('a', 0.1, 'par'), box('b', 0.2, 'par', 1), box('c', 0.2, 'par', 2)], bindings: [{ id: 'par', fixtureId: 2, position: { x: 0, y: 1, z: 0 } }] };
+  const shared = roomRig([par], buildRig([par], () => parProfile), parts, { par: parProfile }).objectClusters.map((emitter) => emitter.weight);
+  assert.ok(Math.abs(shared.reduce((sum, weight) => sum + weight, 0) - 1) < 1e-9, `three parts of one lamp: ${shared}`);
+  assert.ok(Math.abs(shared[0] - 1 / 9) < 1e-9 && Math.abs(shared[1] - 4 / 9) < 1e-9, `by area: ${shared}`);
+  // A panel whose 16 pixels are each a part of the room: what its pixels give with nothing drawn for them.
+  const panel = { id: 3, label: 'Panel', profileId: 'panel' };
+  const cells = Array.from({ length: 16 }, (_, c) => ({ at: { x: c % 4, y: Math.floor(c / 4) } }));
+  const panelProfile = { id: 'panel', channelMap: { red: 0, green: 1, blue: 2 }, cells, grid: { columns: 4, rows: 4 } };
+  const rig = buildRig([panel], () => panelProfile);
+  const at = (cell) => ({ x: cell.at.x * 0.005, y: 1 + cell.at.y * 0.005, z: 0 });
+  const bindings = cells.map((cell, unit) => ({ id: `p${unit}`, fixtureId: 3, unit, position: at(cell) }));
+  const undrawn = roomRig([panel], rig, { bounds, objects: [], bindings }, { panel: panelProfile });
+  const drawn = roomRig([panel], rig, { bounds, bindings,
+    objects: cells.map((cell, unit) => ({ id: `led${unit}`, kind: 'box', role: 'furniture', position: at(cell), size: { x: 0.3, y: 0.3, z: 0.3 }, lightBindingId: `p${unit}` })) }, { panel: panelProfile });
+  const pixels = undrawn.cells.reduce((sum, cell) => sum + emitterWeight(cell), 0);
+  assert.equal(drawn.cells.length, 0, 'the parts are drawn, not pixels');
+  assert.ok(Math.abs(weightOf(drawn) - pixels) < 1e-9, `16 pixels as 16 parts of 0.3 m: ${weightOf(drawn)} against ${pixels}`);
+});

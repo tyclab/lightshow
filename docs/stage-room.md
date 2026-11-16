@@ -122,7 +122,9 @@ pixels closer than a 60-per-metre strip's are smaller LEDs and count by the area
 the lumen it spreads over each square metre, full strength at 97 lm/m² (a 350 lm, 36° spot on
 the floor 2.45 m below), so a wide wash from a small lamp is faint. A lamp of unknown lumen (a
 DMX par) keeps a bulb's 1 and a full-strength pool, and an aimed lamp without a product counts
-as a bulb. The generic venue is drawn as before.
+as a bulb. A light the room draws as its own parts (a shade, a ball's LEDs) counts as it does
+with nothing drawn for it; its parts share that by their area, whatever their size. The generic
+venue is drawn as before.
 
 Optional `anchors` name points effects can start from, such as speakers:
 `[{ "id": "speakerLeft", "position": { "x": -1.5, "y": 1, "z": -1.5 } }]`. Optional
