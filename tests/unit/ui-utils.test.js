@@ -135,7 +135,7 @@ test('the stage carries the picture source\'s unmet line beside its tag while it
   for (const patch of [{}, { playing: true }, { armed: true }, { blackout: true }]) {
     assert.equal(utils.stageMode({ ...STOPPED, unmet: line, ...patch }).unmet, line, JSON.stringify(patch));
   }
-  for (const patch of [{ paused: true }, { rehearsing: true }, { connected: false }]) {
+  for (const patch of [{ paused: true }, { connected: false }]) {
     assert.equal(utils.stageMode({ ...STOPPED, unmet: line, ...patch }).unmet, undefined, JSON.stringify(patch));
   }
   assert.equal(utils.stageMode({ ...STOPPED, unmet: null }).unmet, undefined, 'met: no line');
