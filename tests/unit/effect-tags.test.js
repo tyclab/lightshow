@@ -47,7 +47,7 @@ const PINNED = {
   meter: 'beat bars',
   drums: 'beat bars',
   stems: 'static bars',
-  rise: 'beat bars',
+  rise: 'sections bars / track',
   impact: 'beat bars',
   bars: 'beat bars',
   fire: 'beat bars',
@@ -165,13 +165,13 @@ test('the eleven tags and their counts over the 111 looks', () => {
   ]);
   const counts = Object.fromEntries(Object.keys(TAGS).map((tag) => [tag, count(VISIBLE, tag)]));
   assert.deepEqual(counts, {
-    beat: 91, static: 8, bands: 8, level: 2, sections: 2,
+    beat: 90, static: 8, bands: 8, level: 2, sections: 3,
     rig: 17, room: 39, bars: 21, ownColours: 8, energy: 11, rapid: 16,
   });
   const reactive = VISIBLE.filter((row) => row.tags.some((tag) => REACTIVE_TAGS.has(tag)));
-  assert.equal(reactive.length, 12);
+  assert.equal(reactive.length, 13);
   assert.deepEqual(Object.fromEntries(Object.keys(SOURCES).map((s) => [s, reactive.filter((r) => r.via.includes(s)).length])),
-    { track: 3, live: 10 });
+    { track: 4, live: 10 });
 });
 
 test('tags restate the fields the server already sends: pixel, room mapping, rapid flash, the energy family', () => {

@@ -84,7 +84,7 @@ const LEGACY: Readonly<Record<string, LookTags>> = Object.freeze({
   meter: tagged(['beat', 'bars']),
   drums: tagged(['beat', 'bars']),
   stems: tagged(['static', 'bars']),
-  rise: tagged(['beat', 'bars']),
+  rise: tagged(['sections', 'bars'], ['track']),
   impact: tagged(['beat', 'bars']),
   bars: tagged(['beat', 'bars']),
   fire: tagged(['beat', 'bars']),
