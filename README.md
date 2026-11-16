@@ -401,7 +401,7 @@ a look appears.
 | | **Static** | follows neither the beat nor any input: constant, or timed by a fixed rate of its own |
 | | **Bands & drums** | follows stems, drum hits or frequency bands |
 | | **Audio level** | follows the overall loudness |
-| | **Song sections** | follows the build-up the auto show sets |
+| | **Song sections** | follows a song's sections or a build-up's progress |
 | Surface | **Whole rig** | gives every light the same value at once |
 | | **Room-placed** | is placed by room positions (Mapping: Through room) |
 | | **Bars & panels** | draws cell by cell (a pixel effect) |
@@ -409,10 +409,10 @@ a look appears.
 | Use & safety | **Energy** | is an energy hold or a strobe voice over the running look |
 | | **Rapid ⚡** | with the outputs armed, plays only after the photosensitivity acknowledgement |
 
-A reaction also says where its input comes from: **track** (what the auto show sets:
-the progress of a build-up it plays; stems and drum hits come from no source now, and
-picked by hand the look runs on its clock) or **live** (the Reactive audio mode with
-live input). The expression channel (`showDynamics`) is not counted as an input: only a
+A reaction also says where its input comes from: **track** (a song's sections and
+stems: the stopped preview's demo track sends them; the rig sends none, only a look's own
+build-up span sets the progress, and otherwise the look runs on its clock) or **live**
+(the Reactive audio mode with live input). The expression channel (`showDynamics`) is not counted as an input: only a
 patch through the API sets it; when set it shapes many classic patterns and dims every
 lamp look alike, and otherwise each of them sees the same resting values. A look laid out along
 the Rig plot (every classic pattern that uses positions) carries no surface tag; a plot

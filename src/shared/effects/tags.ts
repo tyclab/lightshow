@@ -8,7 +8,7 @@ import type { EffectSpec } from './types.ts';
 
 export type TagId = 'beat' | 'static' | 'bands' | 'level' | 'sections' | 'rig' | 'room' | 'bars' | 'ownColours' | 'energy' | 'rapid';
 export type TagAxis = 'reacts' | 'surface' | 'colour' | 'use';
-/** Where a reaction's input comes from: what the auto show sets (a build-up's progress), or live input in reactive audio mode. */
+/** Where a reaction's input comes from: a song's sections and stems (the preview's demo track; on the rig a look's own build-up span), or live input in reactive audio mode. */
 export type TagSource = 'track' | 'live';
 
 export interface LookTags { tags: TagId[]; via: TagSource[] }
@@ -18,7 +18,7 @@ export const TAGS: Readonly<Record<TagId, { name: string; axis: TagAxis; desc: s
   static: { name: 'Static', axis: 'reacts', desc: 'Follows neither the beat nor any input: constant, or timed by a fixed rate of its own' },
   bands: { name: 'Bands & drums', axis: 'reacts', desc: 'Follows stems, drum hits or frequency bands' },
   level: { name: 'Audio level', axis: 'reacts', desc: 'Follows the overall loudness' },
-  sections: { name: 'Song sections', axis: 'reacts', desc: 'Follows the build-up the auto show sets' },
+  sections: { name: 'Song sections', axis: 'reacts', desc: 'Follows a song\'s sections or a build-up\'s progress' },
   rig: { name: 'Whole rig', axis: 'surface', desc: 'Every light gets the same value at once' },
   room: { name: 'Room-placed', axis: 'surface', desc: 'Placed by room positions in metres: listener, anchors, height' },
   bars: { name: 'Bars & panels', axis: 'surface', desc: 'Drawn cell by cell on bars and panels' },
@@ -38,7 +38,7 @@ export const TAG_AXES: readonly { id: TagAxis; name: string; tags: readonly TagI
 export const REACTIVE_TAGS: ReadonlySet<TagId> = new Set(['bands', 'level', 'sections']);
 
 export const SOURCES: Readonly<Record<TagSource, { name: string; desc: string }>> = Object.freeze({
-  track: { name: 'track', desc: 'Reacts to what the auto show sets, the progress of a build-up it plays; stems and drum hits come from no source now. Picked by hand it runs on its clock' },
+  track: { name: 'track', desc: 'Reacts to a song\'s sections and stems: the stopped preview\'s demo track sends them; the rig sends none, only a look\'s own build-up span sets the progress, and otherwise it runs on its clock' },
   live: { name: 'live', desc: 'Reacts in the reactive audio mode with live input' },
 });
 
@@ -50,14 +50,16 @@ const tagged = (tags: Iterable<TagId>, via: Iterable<TagSource> = []): LookTags 
   return { tags: TAG_ORDER.filter((id) => t.has(id)), via: SOURCE_ORDER.filter((id) => v.has(id)) };
 };
 
-// The 59 legacy pattern ids have no spec to derive from; each entry follows the pattern function's own reads.
+// The 59 legacy pattern ids have no spec to derive from; each entry follows the pattern function's own reads. Since the
+// planned show went no drum, stem or level reading reaches them: they step on the beat clock, read a look's own
+// build-up span, or hold still.
 // They lay out on the Rig plot (roomOf builds from plot positions), never in room metres, so none is Room-placed.
 // The expression channel is no input tag: only a patch through the API sets it, otherwise every reader sees the
 // resting expression, and when set it shapes 37 of these patterns and dims every lamp look alike.
 const LEGACY: Readonly<Record<string, LookTags>> = Object.freeze({
   solid: tagged(['static', 'rig']),
   fade: tagged(['beat', 'rig']),
-  hit: tagged(['bands', 'rig'], ['track']),
+  hit: tagged(['beat', 'rig']),
   strobe: tagged(['static', 'rig']),
   'color-cycle': tagged(['beat', 'rig']),
   rainbow: tagged(['beat', 'ownColours']),
@@ -79,14 +81,14 @@ const LEGACY: Readonly<Record<string, LookTags>> = Object.freeze({
   comet: tagged(['beat', 'bars']),
   burst: tagged(['beat', 'bars']),
   plasma: tagged(['beat', 'bars']),
-  meter: tagged(['level', 'bands', 'bars'], ['track']),
-  drums: tagged(['bands', 'bars'], ['track']),
-  stems: tagged(['bands', 'bars'], ['track']),
-  rise: tagged(['sections', 'bars'], ['track']),
-  impact: tagged(['bands', 'bars'], ['track']),
-  bars: tagged(['bands', 'bars'], ['track']),
-  fire: tagged(['bands', 'bars'], ['track']),
-  rain: tagged(['bands', 'bars'], ['track']),
+  meter: tagged(['beat', 'bars']),
+  drums: tagged(['beat', 'bars']),
+  stems: tagged(['static', 'bars']),
+  rise: tagged(['beat', 'bars']),
+  impact: tagged(['beat', 'bars']),
+  bars: tagged(['beat', 'bars']),
+  fire: tagged(['beat', 'bars']),
+  rain: tagged(['beat', 'bars']),
   'flash-chase': tagged(['beat', 'bars']),
   'flash-scatter': tagged(['beat', 'bars']),
   'flash-fill': tagged(['beat', 'bars']),
@@ -95,16 +97,16 @@ const LEGACY: Readonly<Record<string, LookTags>> = Object.freeze({
   'ramp-scatter': tagged(['beat', 'bars']),
   'decay-scatter': tagged(['beat', 'bars']),
   'flash-burst': tagged(['beat', 'bars']),
-  core: tagged(['bands', 'bars'], ['track']),
+  core: tagged(['beat', 'bars']),
   'position-chase': tagged(['beat']),
-  'radial-pulse': tagged(['bands'], ['track']),
+  'radial-pulse': tagged(['beat']),
   'spatial-wash': tagged(['beat']),
   'bounce-scan': tagged(['beat']),
   streak: tagged(['beat']),
   starlight: tagged(['beat']),
   breathe: tagged(['beat', 'rig']),
-  'volume-gate': tagged(['level'], ['track']),
-  confetti: tagged(['bands'], ['track']),
+  'volume-gate': tagged(['beat']),
+  confetti: tagged(['beat']),
   'anchor-fill': tagged(['beat']),
   halves: tagged(['beat']),
   flip: tagged(['beat']),
