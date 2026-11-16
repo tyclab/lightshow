@@ -7,6 +7,7 @@ import { noise3 } from '../../src/shared/effects/v2/noise.ts';
 import { pathEndpoints } from '../../src/shared/effects/v2/path.ts';
 import { positionsOf, soft, paint, triggerLevel } from '../../src/shared/effects/v2/common.ts';
 import { frameAt, audioOf, renderKind } from '../helpers/v2-frames.js';
+import { stemsLevels } from '../../src/shared/effects/v2/zones.ts';
 
 function pointsRoom(points, facingDeg = 0) {
   const room = buildRoom(points.length, (i) => (points[i][0] + 2) / 4, (i) => 1 - points[i][1] / 4, () => 0.5, null);
@@ -221,4 +222,31 @@ test('a classic firework explicit launch uses room X and height, independently o
   assert.equal(first(3, 2).z, 0.25, 'a higher launch starts higher on the plot');
   assert.deepEqual(first(1, 2), first(1, -2), 'depth is omitted in the vertical classic animation');
   assert.deepEqual(first(1, 0, pointsRoom([[1, 1, 0]])), first(1, 0), 'adding lamps cannot move an explicit launch');
+});
+
+// G5: Stems in Space draws only what arrives. A stem it lacks is zero, bands count only in the reactive mode,
+// and with neither it draws nothing, a dark the Background does not fill (the server names it no-stems).
+test('Stems in Space follows the stems it has, else the reactive bands, and invents none', () => {
+  assert.equal(stemsLevels(undefined, null), null);
+  assert.equal(stemsLevels({}, null), null, 'an empty stems object is no stems');
+  assert.deepEqual(stemsLevels({ bass: 0 }, null), { bass: 0, drums: 0, vocals: 0, hats: 0 });
+  assert.deepEqual(stemsLevels({ vocals: 0.5 }, { bass: 1, mid: 1, high: 1 }), { bass: 0, drums: 0, vocals: 0.5, hats: 0 }, 'stems before bands');
+  assert.deepEqual(stemsLevels(undefined, { bass: 0.25, mid: 0.5, high: 0.75 }), { bass: 0.25, drums: 0.25, vocals: 0.5, hats: 0.75 });
+  assert.deepEqual(stemsLevels({}, { bass: 0.25 }), { bass: 0.25, drums: 0.25, vocals: 0, hats: 0 });
+});
+
+test('Stems in Space renders dark with nothing to follow, silent with silent stems, lit with what arrives', () => {
+  const stems = (frame) => renderKind(spec('zones', { partition: 'stems' }), room, frame).out;
+  const tempo = { ...frameAt(0.1, { audio: audioOf({ bass: 1, mid: 1, high: 1 }) }), audioMode: 'tempo' };
+  for (const [name, frame] of [['absent', frameAt(0.1)], ['empty', { ...frameAt(0.1), modulation: { stems: {} } }],
+    ['reactive without bands', { ...frameAt(0.1), audioMode: 'reactive' }], ['tempo mode with a left-over band', tempo]]) {
+    const out = stems(frame);
+    assert.ok(out.every((s) => s.level === 0), name);
+    assert.ok(out.every((s) => s.background?.dark === true), `${name}: the Background does not fill it`);
+  }
+  const partial = stems({ ...frameAt(0.1), modulation: { stems: { bass: 0 } } });
+  assert.ok(partial.every((s) => s.level === 0), 'no invented vocals or hats');
+  assert.ok(partial.every((s) => !s.background?.dark), 'silent stems are music, not a missing input');
+  assert.ok(stems({ ...frameAt(0.1), modulation: { stems: { bass: 1, drums: 1, vocals: 1, hats: 1 } } }).some((s) => s.level > 0));
+  assert.ok(stems(frameAt(0.1, { audio: audioOf({ bass: 1, mid: 1, high: 1 }) })).some((s) => s.level > 0), 'reactive bands');
 });

@@ -2,7 +2,9 @@ import { z } from 'zod';
 import { sampleEnvelope } from '../envelope.ts';
 import { registerKind } from '../registry.ts';
 import { accentStrobes, azimuthAround, centreOf, distanceTo, gapsWithoutFloor, isFlashEnvelope, paint, pointIn, positionsOf, soft, triggerLevel, v2CommonSchema } from './common.ts';
-import type { EffectFrame } from '../types.ts';
+import type { EffectFrame, EffectModulation } from '../types.ts';
+import type { AudioFrame } from '../audio-frame.ts';
+import type { BackgroundField } from '../../background.ts';
 import type { Room } from '../../room.ts';
 import type { Positions } from './common.ts';
 
@@ -21,6 +23,7 @@ export const zonesSchema = v2CommonSchema.extend({
   radiusM: z.number().min(0.1).max(20).default(2),
 });
 type ZonesParams = z.output<typeof zonesSchema>;
+const NOTHING_TO_FOLLOW: BackgroundField = Object.freeze({ colour: Object.freeze({ r: 0, g: 0, b: 0, w: 0, a: 0, uv: 0 }), level: 0, fullLevel: 0, coverage: 0, dark: true });
 const clamp = (x: number) => Math.min(1, Math.max(0, x));
 const frac = (x: number) => x - Math.floor(x);
 
@@ -69,12 +72,25 @@ function partitionOf(p: ZonesParams, room: Room, f: EffectFrame): Partition {
   return { order, count };
 }
 
+type Stems = { bass: number; drums: number; vocals: number; hats: number };
+const level = (value: unknown) => (typeof value === 'number' && Number.isFinite(value) ? value : 0);
+/**
+ * What Stems in Space follows (G5): the stems when any arrives, a stem it lacks at zero; else the reactive bands, a band
+ * it lacks at zero; null with neither. Silent stems stay ahead of positive bands. Nothing is invented.
+ */
+export function stemsLevels(stems: EffectModulation['stems'] | null | undefined, bands: Partial<AudioFrame['party']> | null | undefined): Stems | null {
+  if (stems && Object.values(stems).some((v) => typeof v === 'number' && Number.isFinite(v))) {
+    return { bass: level(stems.bass), drums: level(stems.drums), vocals: level(stems.vocals), hats: level(stems.hats) };
+  }
+  if (bands) return { bass: level(bands.bass), drums: level(bands.bass), vocals: level(bands.mid), hats: level(bands.high) };
+  return null;
+}
+
 function stemsFrame(room: Room, pos: Positions, f: EffectFrame) {
-  const bands = f.audioMode === 'reactive' ? f.audio?.party : null, stems = f.modulation?.stems;
+  const following = stemsLevels(f.modulation?.stems, f.audioMode === 'reactive' ? f.audio?.party : null);
+  if (!following) return null;
+  const { bass, drums, vocals, hats } = following;
   const t = Math.max(0, f.beatPos - f.anchorBeat);
-  const bass = stems?.bass ?? bands?.bass ?? (0.55 + Math.cos(t * Math.PI * 2) * 0.35);
-  const drums = stems?.drums ?? bands?.bass ?? Math.max(0, 1 - (t % 1) * 3);
-  const vocals = stems?.vocals ?? bands?.mid ?? 0.6, hats = stems?.hats ?? bands?.high ?? 0.4;
   const speaker = pointIn(room, pos, room.space?.anchors.speakerLeft) ?? centreOf(pos);
   const other = pointIn(room, pos, room.space?.anchors.speakerRight) ?? speaker;
   const listener = pos.plan ? centreOf(pos) : room.space?.listener ?? centreOf(pos);
@@ -82,7 +98,7 @@ function stemsFrame(room: Room, pos: Positions, f: EffectFrame) {
   return { t, bass: clamp(bass), drums: clamp(drums), vocals: clamp(vocals), hats: clamp(hats), speaker, other, listener, facing };
 }
 
-function renderStems(pos: Positions, frame: ReturnType<typeof stemsFrame>, i: number): { level: number; colour: number } {
+function renderStems(pos: Positions, frame: NonNullable<ReturnType<typeof stemsFrame>>, i: number): { level: number; colour: number } {
   const { t, bass, drums, vocals, hats, speaker, other, listener, facing } = frame;
   const height = clamp(pos.plan ? 1 - pos.z[i] : pos.y[i] / pos.bounds.height);
   const d = Math.min(distanceTo(pos, i, speaker), distanceTo(pos, i, other));
@@ -107,6 +123,11 @@ registerKind<ZonesParams, Partition>({
     const steps = Math.floor(tick), step = steps % state.count, active = p.reverse ? state.count - 1 - step : step;
     const envelope = sampleEnvelope((tick % 1) * p.stepBeats, p.envelope), trigger = triggerLevel(p, f);
     const stems = p.partition === 'stems' ? stemsFrame(room, pos, f) : null;
+    // With nothing to follow it draws nothing, a dark the Background does not fill: the server names it no-stems.
+    if (p.partition === 'stems' && !stems) {
+      for (const slot of out) { slot.colour = { r: 0, g: 0, b: 0, w: 0, a: 0, uv: 0 }; slot.level = 0; slot.strength = 1; slot.background = NOTHING_TO_FOLLOW; }
+      return;
+    }
     const order = state.odd && steps % 2 === 1 ? state.odd : state.order, colours = Math.max(1, f.palette.length);
     const swaps = state.odd ? Math.floor(steps / 2) : steps;
     for (let i = 0; i < room.n; i++) {

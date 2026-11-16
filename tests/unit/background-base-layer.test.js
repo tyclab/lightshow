@@ -56,6 +56,8 @@ test('Fixed fills every lamp an Entertainment chase, a continuous field, a Disco
   }
 });
 
+const NOTHING_TO_FOLLOW = new Set(['v2.stemsSpace', 'v2.stemsSpace.2d']);
+
 test('wherever an effect offers the choice, Reveal fills lamps Keep dark leaves dark, and Follow and Off cannot tell them apart', () => {
   const times = [0, 250, 900, 2000];
   let offered = 0;
@@ -65,7 +67,9 @@ test('wherever an effect offers the choice, Reveal fills lamps Keep dark leaves 
     const kept = with_(preset.spec, 'dark');
     const keptDark = darkLamps(run({ effect: kept, background: fixed }, times)), shownDark = darkLamps(run({ effect: preset.spec, background: fixed }, times));
     assert.ok(shownDark <= keptDark, `${preset.id}: Reveal never darkens a lamp`);
-    if (keptDark) assert.ok(shownDark < keptDark, `${preset.id}: Reveal fills some of the ${keptDark} lamps Keep dark leaves dark`);
+    // G5: with neither stems nor reactive bands Stems in Space draws its no-stems dark, which no Background fills.
+    if (NOTHING_TO_FOLLOW.has(preset.id)) assert.equal(shownDark, keptDark, `${preset.id}: its no-stems dark stays dark under Reveal`);
+    else if (keptDark) assert.ok(shownDark < keptDark, `${preset.id}: Reveal fills some of the ${keptDark} lamps Keep dark leaves dark`);
     for (const background of [DEFAULT_BACKGROUND, follow, off]) {
       assert.deepEqual(run({ effect: preset.spec, background }, times), run({ effect: kept, background }, times), `${preset.id} under ${background.mode} ${background.level}`);
     }

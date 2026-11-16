@@ -4,6 +4,7 @@ import { playingState } from './now-playing.js';
 import { MAIN_EFFECT, mainEffectText } from './picture-layers.js';
 import { createPreviewSampler } from '../src/shared/preview.ts';
 import { DEMO_AUDIO_SOURCE, DEMO_BPM } from '../src/shared/demo-track.ts';
+import { squidPanel } from '../src/shared/squid.ts';
 
 export function resolverOf(saved = []) {
   const mine = new Map((Array.isArray(saved) ? saved : []).filter((p) => p && p.spec).map((p) => [p.id, p.spec]));
@@ -45,11 +46,23 @@ export function previewOptions(s, { table = null, library = null } = {}) {
 }
 
 /**
+ * The fixtures an unmet picture source owns, as the server reports it (G5): every one under Visualizer and under
+ * Effects (Stems in Space draws every unit), the Squid's panel under Squid; null while the source is met.
+ */
+export function unmetOwned(s) {
+  const picture = s.picture;
+  if (!picture?.unmet?.length) return null;
+  if (picture.source !== 'squid') return 'room';
+  const panel = squidPanel(s.fixtures || [], (f) => s.profiles?.[f.profileId]);
+  return panel ? [panel.fixtureId] : null;
+}
+
+/**
  * The selected look as a stopped, disarmed stage draws it (Show v3, G6): the live state's effect with its
  * colours, the palette and its override, Background and the look's own flash limit, on the built-in demo
  * beat, each light as it emits. The master scales each fixture's trim, as the engine multiplies them. The
  * acknowledgement is the state's answer, given while disarmed as in the engine's own disarmed picture; the
- * sampler never writes one, and the look's flash limit applies.
+ * sampler never writes one, and the look's flash limit applies. The units an unmet source owns are dark, as on the rig (G5).
  */
 export function demoLookSampler(s, { library = null, space = null } = {}) {
   const base = previewOptions(s, { library });
@@ -65,7 +78,7 @@ export function demoLookSampler(s, { library = null, space = null } = {}) {
     ...base, sequence: null, space, audioSource: DEMO_AUDIO_SOURCE, light: true,
     safety: { acknowledged: s.safety?.photosensitivityAcknowledged === true, hdFlashIntervalMs: s.safety?.hdFlashIntervalMs ?? 350 },
   });
-  return underMaster(sample, s.masterDimmer);
+  return darkOwned(underMaster(sample, s.masterDimmer), unmetOwned(s));
 }
 
 /** `sample` under the master, which scales each fixture's trim as the engine multiplies them (renderer.ts). */
@@ -79,6 +92,18 @@ export function underMaster(sample, masterDimmer) {
       scaled = fixtures.map((f) => ({ ...f, maxBrightness: (f.maxBrightness ?? 255) * master }));
     }
     return sample(positionMs, scaled, presets, rig);
+  };
+}
+
+/** `sample` with the units an unmet source owns dark, as the rig draws them while it plays (G5). */
+function darkOwned(sample, owned) {
+  if (!owned) return sample;
+  return (positionMs, fixtures, presets, rig) => {
+    const lights = sample(positionMs, fixtures, presets, rig);
+    for (let u = 0; u < lights.length; u++) {
+      if (owned === 'room' || owned.includes(fixtures[rig.units[u].fixture]?.id)) lights[u] = { r: 0, g: 0, b: 0 };
+    }
+    return lights;
   };
 }
 

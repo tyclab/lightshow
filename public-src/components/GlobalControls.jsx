@@ -99,7 +99,7 @@ export function GlobalControls() {
         onInput={(event) => onDim(Number(event.target.value))} onChange={(event) => commitDim(Number(event.target.value))} />
       <span class="global-master-value">{pct}%</span>
     </label>
-    {/* Freeze has no button (2026-11-15); Resume shows while the picture is frozen, last, so its appearing moves nothing. */}
+    {/* Freeze's button is on Perform (2026-11-16); Resume shows here while the picture is frozen, last, so its appearing moves nothing. */}
     {c?.frozen && <button type="button" class="btn global-control global-resume active" disabled={!ready || pending || c?.ready === false}
       title="The picture is frozen. Resume releases the hold; it does not start a stopped programme." onClick={() => takeControl('resume')}>Resume</button>}
     <span class="global-status sr-only" role="status">{controlStatus(c ?? {}, ready, pending)}</span>

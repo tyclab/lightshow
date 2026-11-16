@@ -49,7 +49,7 @@ export class SquidPicture {
   private seconds: number[] = [];
   private fitted: { key: string; frames: Uint8Array[][] } | null = null;
   private pending = false;
-  private failed = false;
+  private failed: string | null = null;
   private generation = 0;
   private playhead = new SquidPlayhead();
 
@@ -70,18 +70,24 @@ export class SquidPicture {
       expiresAt: this.now() + PIXEL_INPUT_TTL_MS + clockShift, data: list[Math.min(list.length - 1, Math.floor(progress * list.length))] };
   }
 
+  /** Whether the loops are ready for the panel: loading while they decode or resize, failed with the error (G5). */
+  readiness(): { state: 'loading' | 'ready' } | { state: 'failed'; detail: string } {
+    if (this.failed !== null) return { state: 'failed', detail: this.failed };
+    return this.loops && !this.pending ? { state: 'ready' } : { state: 'loading' };
+  }
+
   /** Forget the frames and any load in flight; null, for the caller's frame. */
   stop(): null {
-    if (this.loops || this.pending || this.failed) {
+    if (this.loops || this.pending || this.failed !== null) {
       this.generation++;
-      this.loops = null; this.fitted = null; this.pending = false; this.failed = false;
+      this.loops = null; this.fitted = null; this.pending = false; this.failed = null;
       this.playhead = new SquidPlayhead();
     }
     return null;
   }
 
   private load(): void {
-    if (this.pending || this.failed) return;
+    if (this.pending || this.failed !== null) return;
     this.pending = true;
     const generation = this.generation;
     this.read().then((loops) => {
@@ -93,8 +99,8 @@ export class SquidPicture {
       this.fitted = loops.every((l) => l.width === width && l.height === height) ? { key: `${width}x${height}`, frames: loops.map((l) => l.frames) } : null;
     }, (err) => {
       if (generation !== this.generation) return;
-      this.pending = false; this.failed = true;
-      console.warn(`[squid] the squid loops did not load: ${messageOf(err)}`);
+      this.pending = false; this.failed = messageOf(err);
+      console.warn(`[squid] the squid loops did not load: ${this.failed}`);
     });
   }
 
@@ -108,7 +114,7 @@ export class SquidPicture {
     return loops;
   }
 
-  // A panel of another size gets its own copy, made on a later turn; until then it shows its effects.
+  // A panel of another size gets its own copy, made on a later turn; until then it is dark and reads as loading.
   private framesFor(loops: Loop[], columns: number, rows: number): Uint8Array[][] | null {
     const key = `${columns}x${rows}`;
     if (this.fitted?.key === key) return this.fitted.frames;

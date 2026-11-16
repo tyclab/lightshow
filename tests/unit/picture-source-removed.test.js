@@ -63,8 +63,10 @@ test('POST /api/picture/source refuses inspired as any unknown source and change
       assert.equal(settings.get('picture.source'), 'visualizer', `${source} changes nothing`);
     }
     assert.deepEqual(applied, []);
-    for (const source of ['effects', 'visualizer', 'squid']) assert.equal(await post(source), 200, source);
-    assert.equal(settings.get('picture.source'), 'squid');
+    for (const source of ['effects', 'visualizer']) assert.equal(await post(source), 200, source);
+    // G5: Squid without an LED panel is refused; picture-unmet-api.test.js accepts it with one.
+    assert.equal(await post('squid'), 409, 'squid without a panel');
+    assert.equal(settings.get('picture.source'), 'visualizer');
   } finally {
     await new Promise((r) => server.close(r));
     settings._values = saved;
