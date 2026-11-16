@@ -18,7 +18,7 @@ async function load() {
       contents: `
         export { render as html } from 'preact-render-to-string';
         export { h } from 'preact';
-        export { store, librarySig, socket, wantAudio, audioFeedSig } from './public-src/state.js';
+        export { store, librarySig, socket, wantAudio, audioFeedSig, connectedSig } from './public-src/state.js';
         export { Photosensitivity, acknowledgeThen, guardRapid, isAcknowledged } from './public-src/components/Photosensitivity.jsx';
         export { PhotosensitivityConfirm } from './public-src/components/Effects.jsx';
         export { StrobePad } from './public-src/components/StrobePad.jsx';
@@ -27,7 +27,7 @@ async function load() {
         export { CommandBar } from './public-src/components/CommandBar.jsx';
         export { createPadPresses, rapidPad, padKey } from './public-src/voice-pad.js';
         export { createVoiceHolds } from './public-src/hold-control.js';
-        export { stopAllVoices } from './public-src/components/Perform.jsx';
+        export { stopAllVoices, FreezePad, toggleFreeze } from './public-src/components/Perform.jsx';
         export { PaletteStrip, overrideBody, activeOverride } from './public-src/components/PaletteStrip.jsx';
         export { SequenceShelf, Transport, positionText, beatsPerBar, laneRows } from './public-src/components/Transport.jsx';
         export { presetNameOf } from './public-src/preview-inputs.js';
@@ -336,6 +336,37 @@ test('the override names a palette by id, and is matched back by its colours', (
   assert.strictEqual(ui.activeOverride(['#ff0000', '#ff8800'], [...BUILTIN, ...USER]), 'ldjFire');
   assert.strictEqual(ui.activeOverride(null, BUILTIN), 'off');
   assert.strictEqual(ui.activeOverride(['#ABCDEF'], BUILTIN), null);
+});
+
+// Operator 2026-11-16: "Put it back". Freeze on Perform is the global control's freeze, and while frozen it is Resume.
+test('Perform\'s Freeze pad posts freeze, and while frozen reads Resume and posts resume', async () => {
+  const pad = (control, connected = true) => {
+    ui.connectedSig.value = connected;
+    given({ control: { version: 1, session: 's1', revision: 4, programme: 'look', ...control } });
+    const [tag, inner] = /<button[^>]*pad-freeze[^>]*>(.*?)<\/button>/s.exec(ui.html(ui.h(ui.FreezePad)));
+    return { tag, text: inner.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim() };
+  };
+  const off = pad({ frozen: false });
+  assert.equal(off.text, 'Freeze hold the picture');
+  assert.match(off.tag, /aria-pressed="false"/);
+  assert.doesNotMatch(off.tag, /disabled/);
+  const on = pad({ frozen: true });
+  assert.equal(on.text, 'Resume release the hold');
+  assert.match(on.tag, /aria-pressed="true"/);
+  assert.match(pad({ frozen: false }, false).tag, /disabled/, 'offline: nothing to press');
+
+  const f = fakeFetch({ ok: true, control: { version: 1, session: 's1', revision: 5 } });
+  try {
+    for (const [frozen, action] of [[false, 'freeze'], [true, 'resume']]) {
+      pad({ frozen });
+      f.calls.length = 0;
+      await ui.toggleFreeze();
+      assert.deepStrictEqual(f.calls.map(([p, init]) => [p, init.method, JSON.parse(init.body).action]), [['/api/control', 'POST', action]]);
+    }
+  } finally {
+    f.restore();
+    ui.connectedSig.value = false;
+  }
 });
 
 test('stop all voices sends DELETE /api/voices', async () => {
