@@ -16,9 +16,9 @@ const stageLine = (page) => page.locator('.stage3d-tools .stage-unmet');
 const tag = (page) => page.locator('.stage3d-tools .panel-tag');
 const cardLine = (page) => page.locator('.contained-effects .unmet-line');
 const level = (light) => Math.max(0, ...(String(light).match(/\d+/g) || []).map(Number));
-/** Every lamp of the 2D plot as it is lit now, by its label. */
+/** Every lamp of the 2D plot as it is lit now, by its label (its name reads "<number> <label>, position …"). */
 const plotLights = (page) => page.locator('.stage-surface .stage-fixture').evaluateAll((nodes) =>
-  nodes.map((node) => ({ label: node.getAttribute('aria-label').split(',')[0], light: node.dataset.light || '' })));
+  nodes.map((node) => ({ label: node.getAttribute('aria-label').split(',')[0].replace(/^\d+ /, ''), light: node.dataset.light || '' })));
 
 async function plotFormat(page) {
   await page.getByRole('button', { name: '2D plot', exact: true }).click();
