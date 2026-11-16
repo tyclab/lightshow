@@ -130,7 +130,7 @@ function warnIfUnusable(log: (line: string) => void = console.warn): PythonInfo 
 
   lines.push('[python] Fix: install into this interpreter with');
   lines.push(`[python]   "${info.executable || info.exe}" -m pip install -r requirements.txt`);
-  lines.push('[python] or set a specific interpreter in the app under Sources → Live input.');
+  lines.push('[python] or set a specific interpreter in the app under Music → Live input.');
 
   for (const line of lines) log(line);
   return info;

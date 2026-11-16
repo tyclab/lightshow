@@ -25,7 +25,7 @@ export function BpmCapture({ onApply, destination = 'show tempo' }) {
         const ms = performance.now() - started;
         session.add(input, ms); setElapsed(Math.min(ms, CAPTURE_MS));
         const next = session.result(); setResult(next);
-        if (ms >= CAPTURE_MS) { stop(); setMessage(next.ready ? 'Capture ready. Check half/double before applying.' : 'No stable tempo captured. Check the input in Sources and try again.'); }
+        if (ms >= CAPTURE_MS) { stop(); setMessage(next.ready ? 'Capture ready. Check half/double before applying.' : 'No stable tempo captured. Check the input under Music, Live input, and try again.'); }
       } finally { pending = false; }
     };
     const timer = setInterval(tick, 250);
@@ -40,7 +40,7 @@ export function BpmCapture({ onApply, destination = 'show tempo' }) {
     finally { setSaving(false); }
   };
   return <details class="card bpm-capture"><summary>Capture tempo from audio</summary>
-    <p class="setting-help">Listens to the configured microphone or loopback for 12 seconds. Choose the input in <a href="#sources">Sources</a>. Applying uses a fixed tempo.</p>
+    <p class="setting-help">Listens to the configured microphone or loopback for 12 seconds. Choose the input under <a href="#sources/live">Music, Live input</a>. Applying uses a fixed tempo.</p>
     <button type="button" class="btn" disabled={active || saving} onClick={() => { setActive(true); setElapsed(0); setResult(null); setFactor(1); setMessage(''); setRun((n) => n + 1); }}>Start tempo capture</button>
     {active && <><button type="button" class="btn" onClick={() => { cancel.current(); setResult(null); setMessage('Capture cancelled.'); }}>Cancel capture</button>
       <progress aria-label="Tempo capture progress" value={elapsed} max={CAPTURE_MS} /></>}

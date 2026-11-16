@@ -97,8 +97,12 @@ history. The rulings below stay.
   closed". `outputs.idleStopMin` (60, 0 never) without a control action or page input ends it with the
   header's Stop; an idle page releases its feeds and says "Preview paused after 60 minutes without
   input."; Resume preview, in Pause preview's place, starts nothing. Armed, neither runs.
-- The strip under the header has two tabs, Show and Perform, and a Setup menu that holds every
-  other view (2026-11-14). Every view keeps its hash, alias and digit key. Perform carries the
+- The strip under the header has two tabs, Show and Perform, and a Setup menu that holds the other
+  five views in three groups: Rig; Effect settings and Sequence; Music and Settings (2026-11-14, G7
+  2026-11-16). Stage, Auto Show and Preflight are panels (Rig's Room, Music's Auto show, Settings'
+  Check). Every hash, alias and digit key that opened a view opens its place (`public-src/views.js`),
+  an address that names a panel wins over the remembered one, and the digits 4, 5 and 0 open their
+  panel whichever its view last showed. Perform carries the
   sequence shelf and Stop pads. A view switch writes its hash once, at the switch: nothing writes
   it again after a navigation the page did not cause.
 - Visible without a tap: BPM and Online, in the one status chip. Armed is shown by the Arm button

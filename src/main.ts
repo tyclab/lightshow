@@ -189,7 +189,7 @@ server.listen(PORT, HOST, () => {
   const shownHost = isLoopback(HOST) ? 'localhost' : HOST;
 
   console.log(`\n  TycStation Lightshow  →  http://${shownHost}:${PORT}`);
-  console.log(`  Setup             →  http://${shownHost}:${PORT}/#rig  (the Rig, Sources and Settings views)`);
+  console.log(`  Setup             →  http://${shownHost}:${PORT}/#rig  (the Rig, Music and Settings views)`);
   console.log(`  Config file       →  ${CONFIG_FILE}`);
   if (process.env.LIGHTSHOW_DATA_DIR) console.log(`  Data folder       →  ${dataDir()}`);
   console.log(`  Access            →  ${auth.enabled
@@ -202,10 +202,10 @@ server.listen(PORT, HOST, () => {
   console.log(`  ArtNet            →  ${state.artnet.host}:${state.artnet.port} universe ${state.artnet.universe}`);
   console.log(`  Fixtures          →  ${state.fixtures.length}x at DMX ${state.fixtures.map((f) => f.address).join(', ')}`
     + `  [${patchRestored ? `saved patch, ${SHOW_FILE}` : 'default patch — saved as you change it'}]`);
-  console.log(`  MIDI              →  ${midi.enabled ? 'connected' : 'not connected (pick a port under Settings → MIDI controller)'}`
+  console.log(`  MIDI              →  ${midi.enabled ? 'connected' : 'not connected (pick a port under Settings → MIDI → MIDI controller)'}`
     + `  [${midiMap.snapshot().customised ? 'custom map' : 'default X-Touch map'}]`);
   console.log(`  Python            →  ${pythonEnv.describe()}`);
-  console.log(`  Auto Show         →  by ear, from the live input\n`);
+  console.log(`  Auto show         →  by ear, from the live input\n`);
 
   pythonEnv.warnIfUnusable();
 });

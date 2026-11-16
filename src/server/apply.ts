@@ -142,7 +142,7 @@ function createApplier({ midi, live = null, midiClock = null, applyPatch, broadc
         wanted = false;
       }
       outputsLog.info({ armed: false, via: 'boot' }, 'disarmed at start: nothing goes out to the rig until the outputs are armed '
-        + '(Perform, Settings → Show, or POST /api/outputs/arm)');
+        + '(Arm in the header, or POST /api/control with the action arm)');
     }
     if (!output.setArmed(wanted)) return;
     const from = { armed: wanted, via: 'unknown', ...origin };

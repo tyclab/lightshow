@@ -305,11 +305,11 @@ export function StageView({ compact = false } = {}) {
         <div ref={host} class="stage3d-host" />
         {status === 'loading' && <p class="stage3d-note">Setting the stage…</p>}
         {status === 'nowebgl' && (
-          <p class="stage3d-note" role="alert">The 3D stage needs WebGL, which this browser has turned off. The plan in the Manual
-            and Rig views shows the same rig from above.</p>
+          <p class="stage3d-note" role="alert">The 3D stage needs WebGL, which this browser has turned off. The plan under
+            Rig, Plan &amp; patch shows the same rig from above.</p>
         )}
         {status === 'error' && <p class="stage3d-note" role="alert">The 3D stage could not be loaded. Reload the page to try again.</p>}
-        {status === 'ready' && !fixtures.length && <p class="stage3d-note">Nothing is patched yet: add fixtures in the Rig view.</p>}
+        {status === 'ready' && !fixtures.length && <p class="stage3d-note">Nothing is patched yet: add fixtures under Rig, Plan &amp; patch.</p>}
         {status === 'ready' && fixtures.length > 0 && dark && <p class={`stage3d-note stage-dark${mode.tag === 'Blackout' ? ' blackout' : ''}`} role="status">{dark}</p>}
         {status === 'ready' && room && fixtures.length > 0 && !placed.lamps.length && !placed.cells.length && <p class="stage3d-note">This room has no positions for the current fixtures. Review its bindings above.</p>}
       </div>

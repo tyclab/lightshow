@@ -212,7 +212,7 @@ export function StagePreview({ controls = true } = {}) {
           onPointerMove={move} onPointerUp={(event) => finish(event, true)}
           onPointerCancel={(event) => finish(event, false)} onLostPointerCapture={(event) => finish(event, false)} />;
       })}
-      {!fixtures.length && <p class="panel-empty">Add fixtures in the Rig view to build your stage.</p>}
+      {!fixtures.length && <p class="panel-empty">Add fixtures under Rig, Plan &amp; patch to build your stage.</p>}
       <span class="stage-audience">{STAGE_EDGES.bottom}</span>
     </div>
     <p class="look-note">{edit

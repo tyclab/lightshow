@@ -51,7 +51,7 @@ function configError({ host, token, configFile = 'config/settings.json' }: {
     'With a token set, open the UI once at:',
     '  http://<this-machine>:<port>/?token=<the token>',
     'The page stores it and sends it on every request afterwards. After that,',
-    'both settings are editable in the app under Settings → Server & access.',
+    'both settings are editable in the app under Settings → System → Server & access.',
   ].join('\n');
 }
 
@@ -125,7 +125,7 @@ function warnRefusedHost(name: string): void {
   if (warnedHosts.has(name) || warnedHosts.size > 32) return;
   warnedHosts.add(name);
   console.warn(`[auth] refused a request for host "${name}". If that is how you reach this machine, `
-    + 'set it as the Public URL in Settings → Server & Access.');
+    + 'set it as the Public URL in Settings → System → Server & access.');
 }
 
 function createAuth({ token = '', allowedHosts = () => [] }: {
@@ -141,7 +141,7 @@ function createAuth({ token = '', allowedHosts = () => [] }: {
     return res.status(403).type('text/plain').send(
       `Host "${name}" is not one this server answers to. Open it by IP address, `
       + 'by localhost, or by this machine\'s name, or set that name as the Public URL '
-      + 'in Settings → Server & Access.',
+      + 'in Settings → System → Server & access.',
     );
   }
 
