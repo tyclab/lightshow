@@ -91,7 +91,7 @@ function walledRoom(fixtureId) {
 }
 
 test('a room of many walls rebuilds its shadows, and draws steady frames, within the main-thread budget', async ({ page, request }, testInfo) => {
-  test.setTimeout(60_000);
+  test.setTimeout(120_000);
   const attach = async (name, value) => {
     const path = testInfo.outputPath(name);
     await writeFile(path, JSON.stringify(value));
@@ -116,21 +116,35 @@ test('a room of many walls rebuilds its shadows, and draws steady frames, within
     await replace(model);
     await set(request, { pattern: 'ensemble' });
     // Measurement only: every animation frame that issues a WebGL draw, as [start, callback ms], from the last
-    // window start on. It decides nothing yet; the log and the attachments carry it from every run.
+    // window start on. With the probe on, the frame then reads one pixel back, which waits until its rendering is
+    // done (Chrome's gl.finish() does not wait), and the entry gains the frame's whole cost and the GL error the read
+    // left, if any: [start, callback ms, cost ms, error]. It decides nothing yet; the log and the attachments carry
+    // it from every run.
     await page.addInitScript(() => {
       const frames = [];
-      let drew = false;
+      let drew = null;
+      let probe = false;
+      const pixel = new Uint8Array(4);
       for (const name of ['drawElements', 'drawElementsInstanced', 'drawArrays', 'drawArraysInstanced']) {
         const original = window.WebGL2RenderingContext.prototype[name];
-        window.WebGL2RenderingContext.prototype[name] = function (...args) { drew = true; return original.apply(this, args); };
+        window.WebGL2RenderingContext.prototype[name] = function (...args) { drew = this; return original.apply(this, args); };
       }
       const raf = window.requestAnimationFrame.bind(window);
       window.requestAnimationFrame = (callback) => raf((now) => {
-        drew = false;
+        drew = null;
         const start = performance.now();
-        try { callback(now); } finally { if (drew) frames.push([start, performance.now() - start]); }
+        try { callback(now); } finally {
+          if (drew) {
+            const callbackMs = performance.now() - start;
+            if (probe) {
+              drew.readPixels(0, 0, 1, 1, drew.RGBA, drew.UNSIGNED_BYTE, pixel);
+              const costMs = performance.now() - start;
+              frames.push([start, callbackMs, costMs, drew.getError()]);
+            } else frames.push([start, callbackMs]);
+          }
+        }
       });
-      window.__stageFrames = { list: () => frames.slice(), reset: () => { frames.length = 0; } };
+      window.__stageFrames = { list: () => frames.slice(), reset: () => { frames.length = 0; }, probe: (on) => { probe = on; } };
     });
     await page.goto('/?performance=1#stage');
     await page.locator('.offline-veil').waitFor({ state: 'detached' });
@@ -159,6 +173,23 @@ test('a room of many walls rebuilds its shadows, and draws steady frames, within
     await steadyFrames();
     const unlit = await steadyFrames();
     await attach('steady-unlit-timing.json', unlit);
+    // Probe windows, measurement only. Unlit frames come at the stage's update cadence (33 ms) on a fast runner,
+    // whatever they cost, so their interval cannot stand for their cost. The read-back after each drawn frame measures
+    // the cost whole, GPU process included. It also moves that time onto the main thread, so frameBudget never
+    // judges these windows: unlit, then lit again, then a second rebuild.
+    await page.evaluate(() => window.__stageFrames.probe(true));
+    await steadyFrames();
+    const probeUnlit = await steadyFrames();
+    await page.getByRole('button', { name: 'Room light' }).click();
+    await steadyFrames();
+    const probeSteady = await steadyFrames();
+    await replace({ ...model, bindings: model.bindings.map((entry) => ({ ...entry, position: { ...entry.position, x: entry.position.x + 0.4 } })) });
+    await startWindow();
+    await page.getByRole('button', { name: 'Reload room', exact: true }).click();
+    await expect.poll(async () => (await snapshot()).counts['scene.shadowMaps'] || 0, { timeout: 15_000 }).toBe(8);
+    const probeRebuild = await capture();
+    await page.evaluate(() => window.__stageFrames.probe(false));
+    await attach('probe-timing.json', { rebuild: probeRebuild, steady: probeSteady, unlit: probeUnlit });
     const longest = (report) => ({ task: report.timings['longtask.duration']?.max ?? 0, tasks: report.timings['longtask.duration']?.count ?? 0,
       perFrame: Math.round(longTaskMsPerFrame(report) * 10) / 10,
       submit: Math.round(report.timings['scene.renderSubmit']?.max ?? 0), draws: report.counts['scene.draws'], ms: Math.round(report.elapsedMs) });
@@ -168,6 +199,11 @@ test('a room of many walls rebuilds its shadows, and draws steady frames, within
     for (const [name, report] of Object.entries({ rebuild, steady, unlit })) {
       console.log(`stage window ${JSON.stringify({ window: name, cores, ...longest(report), ...frameStats(report.frames) })}`);
       console.log(`stage frames ${JSON.stringify({ window: name, frames: report.frames.map(([start, ms]) => [Math.round(start), Math.round(ms * 10) / 10]) })}`);
+    }
+    const tenth = (n) => Math.round(n * 10) / 10;
+    for (const [name, report] of Object.entries({ rebuild: probeRebuild, steady: probeSteady, unlit: probeUnlit })) {
+      console.log(`stage probe ${JSON.stringify({ window: name, cores, ...longest(report), ...frameStats(report.frames) })}`);
+      console.log(`stage probe frames ${JSON.stringify({ window: name, frames: report.frames.map(([start, ms, cost, error]) => [Math.round(start), tenth(ms), tenth(cost), error]) })}`);
     }
     expect(frameBudget(rebuild), 'the rebuild').toEqual({ ok: true, failures: [] });
     expect(frameBudget(steady), 'steady frames').toEqual({ ok: true, failures: [] });

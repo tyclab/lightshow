@@ -46,15 +46,22 @@ function quantile(values, q) {
 
 /**
  * One window's drawn frames, from the spec's frame recorder: each entry is [start, callback ms] of an animation
- * frame that issued a WebGL draw. An interval runs from one drawn frame's start to the next one's; the callback is
- * the main-thread time of the frame's animation callbacks. Medians and p90s, in ms.
+ * frame that issued a WebGL draw, or [start, callback ms, cost ms, GL error] in a probe window, where the cost runs
+ * from the frame's start to the end of a one-pixel read-back after its callbacks. An interval runs from one drawn
+ * frame's start to the next one's; the callback is the main-thread time of the frame's animation callbacks. Medians
+ * and p90s, in ms, the largest cost, and how many read-backs left a GL error (their cost does not count).
  */
 export function frameStats(frames) {
   const intervals = frames.slice(1).map(([start], i) => start - frames[i][0]);
   const callbacks = frames.map(([, ms]) => ms);
+  const probed = frames.filter((frame) => frame.length > 2);
+  const costs = probed.filter(([, , , error]) => !error).map(([, , cost]) => cost);
   const round = (n) => Math.round(n * 10) / 10;
-  return { frames: frames.length, interval50: round(quantile(intervals, 0.5)), interval90: round(quantile(intervals, 0.9)),
+  const stats = { frames: frames.length, interval50: round(quantile(intervals, 0.5)), interval90: round(quantile(intervals, 0.9)),
     callback50: round(quantile(callbacks, 0.5)), callback90: round(quantile(callbacks, 0.9)) };
+  if (!probed.length) return stats;
+  return { ...stats, readErrors: probed.length - costs.length, cost50: round(quantile(costs, 0.5)),
+    cost90: round(quantile(costs, 0.9)), costMax: round(costs.length ? Math.max(...costs) : 0) };
 }
 
 export function frameBudget(report, { perFrameMs = 170, taskCeilingMs = 532, maxRenderMs = 200 } = {}) {
