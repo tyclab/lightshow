@@ -97,9 +97,9 @@ function SetupMenu({ mode, setMode, autoActive }) {
   const trigger = useRef(null);
   const menu = useRef(null);
   useDismiss(open, () => setOpen(false), trigger, menu);
-  useEffect(() => { setOpen(false); }, [mode]);
-  // Before the next key arrives: an effect runs after the next frame, and a key pressed right
-  // after Enter would still reach the button.
+  // Both before the next key arrives: an effect runs after the next frame, so a key pressed right after Enter would
+  // still reach the button, and a menu opened right after a view was chosen would be closed again by that choice.
+  useLayoutEffect(() => { setOpen(false); }, [mode]);
   useLayoutEffect(() => {
     if (open) menu.current?.querySelectorAll('[role="menuitem"]')[focusAt.at]?.focus();
   }, [open, focusAt]);
