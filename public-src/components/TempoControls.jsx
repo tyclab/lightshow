@@ -1,4 +1,4 @@
-import { useState } from 'preact/hooks';
+import { useRef, useState } from 'preact/hooks';
 import { send } from '../state.js';
 import { formatBpm } from '../utils.js';
 import { TempoScale } from './TempoScale.jsx';
@@ -13,15 +13,21 @@ const DIVISIONS = [1, 2, 4, 8, 16];
  */
 function BpmEntry({ bpm }) {
   const [typing, setTyping] = useState(null);
+  // Enter, Escape or leaving the field settles it once: the field's removal blurs it, and that blur must not set the
+  // tempo Escape kept (the command bar's field did, G7's test found it).
+  const settled = useRef(false);
   if (typing === null) {
     return (
       <button type="button" class="btn sm perform-bpm" aria-label={`Tempo ${formatBpm(bpm)} BPM. Press to type a tempo.`}
-        title="Type a tempo" onClick={() => setTyping(formatBpm(bpm))}>{formatBpm(bpm)}</button>
+        title="Type a tempo" onClick={() => { settled.current = false; setTyping(formatBpm(bpm)); }}>{formatBpm(bpm)}</button>
     );
   }
-  const commit = () => {
-    const value = Math.round(parseFloat(typing) * 10) / 10;
+  const finish = (apply) => {
+    if (settled.current) return;
+    settled.current = true;
     setTyping(null);
+    if (!apply) return;
+    const value = Math.round(parseFloat(typing) * 10) / 10;
     if (Number.isFinite(value) && value >= 20 && value <= 300 && value !== bpm) send({ bpm: value });
   };
   return (
@@ -30,10 +36,10 @@ function BpmEntry({ bpm }) {
       onFocus={(e) => e.currentTarget.select()}
       onInput={(e) => setTyping(e.currentTarget.value)}
       onKeyDown={(e) => {
-        if (e.key === 'Enter') { e.preventDefault(); commit(); }
-        else if (e.key === 'Escape') { e.preventDefault(); setTyping(null); }
+        if (e.key === 'Enter') { e.preventDefault(); finish(true); }
+        else if (e.key === 'Escape') { e.preventDefault(); finish(false); }
       }}
-      onBlur={commit} />
+      onBlur={() => finish(true)} />
   );
 }
 

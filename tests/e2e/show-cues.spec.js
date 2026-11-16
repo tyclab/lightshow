@@ -129,13 +129,14 @@ test('Effect settings\' Cues panel renames, overwrites and deletes a cue, and re
   await set(request, { pattern: 'chase' });
   await panel.getByRole('button', { name: 'Overwrite "Warmer" with what\'s on stage now', exact: true }).click();
   await until(request, (s) => s.cues.some((c) => c.name === 'Warmer' && c.pattern === 'chase'));
-  await page.getByRole('button', { name: 'Undo', exact: true }).click();
+  const undo = (said) => page.locator('.toast', { hasText: said }).getByRole('button', { name: 'Undo', exact: true });
+  await undo('Overwrote "Warmer"').click();
   await until(request, (s) => s.cues.some((c) => c.name === 'Warmer' && c.pattern === 'solid'));
 
   await panel.getByRole('button', { name: 'Delete "Warmer"', exact: true }).click();
   await until(request, (s) => s.cues.length === 0);
   await expect(panel.locator('.cue-empty')).toBeVisible();
-  await page.getByRole('button', { name: 'Undo', exact: true }).click();
+  await undo('Deleted "Warmer"').click();
   await until(request, (s) => s.cues.some((c) => c.name === 'Warmer'));
   await expect(panel.locator('.cue-name')).toHaveText(['Warmer']);
 });
