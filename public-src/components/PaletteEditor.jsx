@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from 'preact/hooks';
 import { HEX_COLOUR, parseHex, toHex, paletteBodySchema } from '../../src/shared/palette-model.ts';
 import { ColourSliders, HuePair } from './ColourSliders.jsx';
-import { CURATED_PALETTE_IDS } from '../../src/shared/colour-sliders.ts';
 import { GradientEditor, gradientSettings } from './GradientEditor.jsx';
 import { api, patchLibrary } from '../state.js';
 
@@ -107,7 +106,6 @@ export function PaletteEditor({ colours, onChange, body, onBodyChange, onInvalid
     const res = await savePalette(trimmed, onBodyChange ? palette : list);
     if (res.ok) { setNaming(false); setName(''); }
   };
-  const byApp = (app) => builtin.filter((p) => p.app === app);
   const randomTitle = 'Random: a fresh colour each time the effect starts';
 
   return (
@@ -160,14 +158,7 @@ export function PaletteEditor({ colours, onChange, body, onBodyChange, onInvalid
       <div class="palette-tools">
         <select class="auto-select" aria-label="Pick a palette" value="" onChange={pickPalette}>
           <option value="">Pick a palette…</option>
-          <optgroup label="Curated">{builtin.filter((p) => CURATED_PALETTE_IDS.includes(p.id)).map((p) => <option key={p.id} value={p.id}>{paletteName(p)}</option>)}</optgroup>
-          {!!byApp('look').length && <optgroup label="Stage palettes">{byApp('look').map((p) => <option key={p.id} value={p.id}>{paletteName(p)}</option>)}</optgroup>}
-          {byApp('ldj').length > 0 && (
-            <optgroup label="Entertainment">{byApp('ldj').map((p) => <option key={p.id} value={p.id}>{paletteName(p)}</option>)}</optgroup>
-          )}
-          {byApp('hd').length > 0 && (
-            <optgroup label="Party & Disco">{byApp('hd').map((p) => <option key={p.id} value={p.id}>{paletteName(p)}</option>)}</optgroup>
-          )}
+          {builtin.length > 0 && <optgroup label="Palettes">{builtin.map((p) => <option key={p.id} value={p.id}>{paletteName(p)}</option>)}</optgroup>}
           {user.length > 0 && (
             <optgroup label="Your palettes">{user.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</optgroup>
           )}

@@ -5,7 +5,7 @@ import { effectCommand } from '../engine.ts';
 import { applyPatch } from '../patch.ts';
 import { safety } from '../safety.ts';
 import { state } from '../state.ts';
-import { ALL_PALETTES } from '../palette-catalogue.ts';
+import { OFFERED_PALETTES } from '../palette-catalogue.ts';
 import { paletteBodySchema } from '../../shared/palette-model.ts';
 import { validate } from '../validation.ts';
 import { asyncHandler } from './common.ts';
@@ -34,7 +34,7 @@ export function attachEffectRoutes(app: Express, ctx: RouteContext): void {
 
   app.get('/api/effects', (_req, res) => {
     const { builtin, user } = effects().list();
-    res.json({ ok: true, families: FAMILIES, builtin, user, palettes: { builtin: ALL_PALETTES, user: palettes().list() } });
+    res.json({ ok: true, families: FAMILIES, builtin, user, palettes: { builtin: OFFERED_PALETTES, user: palettes().list() } });
   });
 
   app.post('/api/effects/command', asyncHandler(async (req, res) => {

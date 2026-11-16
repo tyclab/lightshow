@@ -22,7 +22,7 @@ import { AudioFeatures, feedOf, resolveDetectors } from './audio-features.ts';
 import { BIN_HZ } from '../shared/spectrum-bands.ts';
 import { safety } from './safety.ts';
 import { EffectLibrary } from './effect-library.ts';
-import { ALL_PALETTES } from './palette-catalogue.ts';
+import { ALL_PALETTES, OFFERED_PALETTES } from './palette-catalogue.ts';
 import { PaletteStore } from './palette-store.ts';
 import { PadStore, Pads, patternPlayer } from './pads.ts';
 import { presetLookup } from './routes/voices.ts';
@@ -273,7 +273,7 @@ function setupIntegrations({ io, midi,
 
   midi.busk = {
     looks: () => getCatalogs().patterns,
-    palettes: () => [...ALL_PALETTES.map((p) => p.id), ...library.palettes.list().map((p) => p.id)],
+    palettes: () => [...OFFERED_PALETTES.map((p) => p.id), ...library.palettes.list().map((p) => p.id)],
     acknowledged: () => safety.acknowledged(),
     stopEffects: () => { voices.stopAll(); broadcast(); },
     strobeBurst: (ms) => { strobe.burst(ms); broadcast(); },

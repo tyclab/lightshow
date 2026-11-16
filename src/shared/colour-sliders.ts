@@ -22,5 +22,3 @@ export function hsvColour(value: Hsv, previous = '#000000'): string {
 export function huePair(hue = 210, separation = 180, saturation = 90, brightness = 100): string[] {
   return [hue, hue + separation].map((h) => hsvColour({ hue: h, saturation, brightness }));
 }
-
-export const CURATED_PALETTE_IDS = Object.freeze(['solarPunch', 'orangeBlue', 'redCyan', 'yellowPurple', 'greenPink', 'blueDream', 'electricSummer', 'rainbow', 'whiteOff', 'tycStation']);

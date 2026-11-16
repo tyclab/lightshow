@@ -5,8 +5,7 @@ import { createPreviewSampler } from '../../src/shared/preview.ts';
 import { registerKind } from '../../src/shared/effects/registry.ts';
 import { buildRig } from '../../src/shared/rig.ts';
 import { demoFrameAt, demoPosition, DEMO_AUDIO_SOURCE, DEMO_BPM } from '../../src/shared/demo-track.ts';
-import { colourHsv, hsvColour, huePair, CURATED_PALETTE_IDS } from '../../src/shared/colour-sliders.ts';
-import { ALL_PALETTES } from '../../src/server/palette-catalogue.ts';
+import { colourHsv, hsvColour, huePair } from '../../src/shared/colour-sliders.ts';
 import { parseHex } from '../../src/shared/palette-model.ts';
 
 const profile = { id: 'demo-rgb', channelCount: 3, channelMap: { red: 0, green: 1, blue: 2 } };
@@ -57,5 +56,4 @@ test('hue sliders round trip RGB and retain white, amber and UV emitters', () =>
   assert.deepEqual(changed, { r: 0, g: 128, b: 128, w: 17, a: 34, uv: 51 });
   assert.deepEqual(huePair(0, 180, 100, 100), ['#FF0000', '#00FFFF']);
   assert.deepEqual(huePair(360, -180, 100, 100), ['#FF0000', '#00FFFF']);
-  for (const id of CURATED_PALETTE_IDS) assert.ok(ALL_PALETTES.some((p) => p.id === id), id);
 });

@@ -9,9 +9,16 @@ import type { BuiltinPalette } from '../shared/effects/ldj-palettes.ts';
 const TYCSTATION: BuiltinPalette = { id: 'tycStation', name: 'TycStation', app: 'own',
   colours: ['#5AA2FF', '#8B6CF0', '#FF4A3D', '#8B6CF0'] };
 
+/** Every palette an id resolves to: the effects' own tables, the looks and the mark's. */
 export const ALL_PALETTES: readonly BuiltinPalette[] = Object.freeze([
   ...BUILTIN_PALETTES,
   ...PALETTES.map((p) => ({ id: p.id, name: p.name, app: 'look' as const,
     colours: p.colors[4].map((i) => toHex(COLOR_PRESETS[i])) })),
   TYCSTATION,
 ]);
+
+/**
+ * The palettes offered for picking: the looks and the mark's (the operator, 2026-11-16). The tables the effects
+ * came with are what those effects draw from, not a choice: an id saved before still resolves (ALL_PALETTES).
+ */
+export const OFFERED_PALETTES: readonly BuiltinPalette[] = Object.freeze(ALL_PALETTES.filter((p) => p.app === 'look' || p.app === 'own'));
