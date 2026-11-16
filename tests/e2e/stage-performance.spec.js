@@ -2,7 +2,7 @@ import { writeFile } from 'node:fs/promises';
 import { test, expect } from '@playwright/test';
 import { open, set, state, reset } from './helpers.js';
 import { stageImage } from './stage-image.js';
-import { frameBudget, frameStats, longTaskMsPerFrame } from './browser-budget.js';
+import { frameBudget, frameStats, longTaskMsPerFrame, probeBudget, probeRatios } from './browser-budget.js';
 
 for (const frameInterval of [0, 100]) test(`Stage idles between visible changes and redraws lights and camera input${frameInterval ? ' at 10 Hz' : ''}`, async ({ page, request }) => {
   await page.addInitScript((frameInterval) => {
@@ -118,8 +118,8 @@ test('a room of many walls rebuilds its shadows, and draws steady frames, within
     // Measurement only: every animation frame that issues a WebGL draw, as [start, callback ms], from the last
     // window start on. With the probe on, the frame then reads one pixel back, which waits until its rendering is
     // done (Chrome's gl.finish() does not wait), and the entry gains the frame's whole cost and the GL error the read
-    // left, if any: [start, callback ms, cost ms, error]. It decides nothing yet; the log and the attachments carry
-    // it from every run.
+    // left, if any: [start, callback ms, cost ms, error]. probeBudget judges those costs; the log and the attachments
+    // carry the frames from every run.
     await page.addInitScript(() => {
       const frames = [];
       let drew = null;
@@ -176,7 +176,8 @@ test('a room of many walls rebuilds its shadows, and draws steady frames, within
     // Probe windows, measurement only. Unlit frames come at the stage's update cadence (33 ms) on a fast runner,
     // whatever they cost, so their interval cannot stand for their cost. The read-back after each drawn frame measures
     // the cost whole, GPU process included. It also moves that time onto the main thread, so frameBudget never
-    // judges these windows: unlit, then lit again, then a second rebuild.
+    // judges these windows; probeBudget judges their costs against each other: unlit, then lit again, then a second
+    // rebuild.
     await page.evaluate(() => window.__stageFrames.probe(true));
     await steadyFrames();
     const probeUnlit = await steadyFrames();
@@ -201,12 +202,16 @@ test('a room of many walls rebuilds its shadows, and draws steady frames, within
       console.log(`stage frames ${JSON.stringify({ window: name, frames: report.frames.map(([start, ms]) => [Math.round(start), Math.round(ms * 10) / 10]) })}`);
     }
     const tenth = (n) => Math.round(n * 10) / 10;
-    for (const [name, report] of Object.entries({ rebuild: probeRebuild, steady: probeSteady, unlit: probeUnlit })) {
+    const probes = { rebuild: probeRebuild, steady: probeSteady, unlit: probeUnlit };
+    const ratios = probeRatios(probes);
+    console.log(`stage ratios ${JSON.stringify({ cores, steadyOverUnlit: Math.round(ratios.steadyOverUnlit * 100) / 100, rebuildOverSteady: Math.round(ratios.rebuildOverSteady * 100) / 100 })}`);
+    for (const [name, report] of Object.entries(probes)) {
       console.log(`stage probe ${JSON.stringify({ window: name, cores, ...longest(report), ...frameStats(report.frames) })}`);
       console.log(`stage probe frames ${JSON.stringify({ window: name, frames: report.frames.map(([start, ms, cost, error]) => [Math.round(start), tenth(ms), tenth(cost), error]) })}`);
     }
     expect(frameBudget(rebuild), 'the rebuild').toEqual({ ok: true, failures: [] });
     expect(frameBudget(steady), 'steady frames').toEqual({ ok: true, failures: [] });
+    expect(probeBudget(probes), 'frame costs, steady against unlit and rebuild against steady').toEqual({ ok: true, failures: [] });
     expect(steady.counts['scene.shadowMaps'] || 0, 'steady frames render no shadow map').toBe(0);
   } finally {
     await replace(null);
