@@ -61,18 +61,6 @@ async function until(found, what, ms = 5000) {
 async function serve(t, { minutes = 60, execute } = {}) {
   applyPatch({ running: false, masterBlackout: false });
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'idle-stop-'));
-  const idle = { onPlaybackUpdate() {}, onTrackChange() {}, getStatus: () => ({}), authenticated: false };
-  const autoShow = {
-    running: false, track: null, syncOffsetMs: 0, autoSyncMs: 0, analysis: null,
-    getPositionMs: () => 0, getClientState: () => ({}), start() {}, stop() {},
-    isCached: () => false, gridFor: () => null, isPrefetching: () => false,
-    applyQueueOrder() {}, setPaletteSize() {}, setIntensity() {}, setSyncOffsetMs() {}, adjustAutoSync() {},
-  };
-  const prolink = {
-    connected: false, stale: false, lastError: null, getNumPeers: () => 0, getFollowed: () => null, getTrack: () => null,
-    getLoadedTracks: () => [], getTempo: () => 0, getPositionMs: () => 0,
-    onTempoChange() {}, onPeersChange() {}, onFollowChange() {}, onTrackChange() {}, onLoadedTracksChange() {}, onAnyTrackLoaded() {},
-  };
   const midi = { enabled: false, sendFeedback() {}, listPorts: () => [], onLearn() {}, close() {}, connect() { return true; }, setControlFeedback() {} };
   const values = settings._values;
   const ownSave = Object.hasOwn(settings, 'save') ? settings.save : null;
@@ -84,20 +72,15 @@ async function serve(t, { minutes = 60, execute } = {}) {
   const io = new Server(server);
   const integrations = setupIntegrations({
     io, midi,
-    spotify: { ...idle, startPolling() {}, async getQueue() { return []; } },
-    nowPlaying: idle,
-    deezerSource: { ...idle, getQueue: () => [], updatePlayback() {}, updateQueue() {}, disconnect() {} },
-    prolink, autoShow,
     effectLibrary: new EffectLibrary(path.join(dir, 'effects.json')).load(),
     paletteStore: new PaletteStore(path.join(dir, 'palettes.json')).load(),
     padStore: new PadStore(path.join(dir, 'pads.json')).load(),
     sequenceStore: new SequenceStore(path.join(dir, 'sequences.json')).load(),
   });
   const applier = createApplier({
-    midi, spotify: { localCallbackUrl: '', setLoopbackPort() {}, configure() {} }, smtc: { start() {}, stop() {} },
-    deezer: { init: async () => {} }, applyPatch, broadcast: () => integrations.broadcast(),
+    midi, applyPatch, broadcast: () => integrations.broadcast(),
   });
-  installControlRuntime(t, { integrations, applier, autoShow });
+  installControlRuntime(t, { integrations, applier });
   startEngine({ thread: 'main' });   // a Stop waits for the renderer's frame, as on the server
 
   const s = { at: 0, minutes, stops: [], touches: 0 };
@@ -107,7 +90,7 @@ async function serve(t, { minutes = 60, execute } = {}) {
     minutes: () => s.minutes,
     stopped: (m) => s.stops.push({ at: s.at, minutes: m }),
   });
-  attachRoutes(app, { integrations, applier, autoShow });
+  attachRoutes(app, { integrations, applier });
   attachSockets(io, { midi, integrations, activity: () => { s.touches++; s.idle.touch(); } });
   await new Promise((r) => server.listen(0, '127.0.0.1', r));
   const url = `http://127.0.0.1:${server.address().port}`;
@@ -246,6 +229,28 @@ test('a stop that throws runs again on the next tick', async (t) => {
   await s.wait(TICK);
   assert.deepEqual(s.stops, [{ at: 60 * MIN + 2 * TICK, minutes: 60 }]);
   assert.equal(s.snapshot().playing, false);
+});
+
+// Review R02 (Show v3 fixes, G6): the real control's stop hook fails after part of it ran, with the show still
+// playing; the control must not report it stopped, or the next tick sees nothing to stop and never tries again.
+test('a stop hook that throws part way leaves the show playing, and the next tick stops it', async (t) => {
+  const s = await serve(t);
+  const stopAll = voices.stopAll;
+  let fails = 1;
+  voices.stopAll = function (...args) {
+    if (fails-- > 0) throw new Error('stop hook failed');
+    return stopAll.apply(this, args);
+  };
+  t.after(() => { voices.stopAll = stopAll; });
+  assert.equal((await sendControl(s.call, 'start', 'look')).status, 200);
+  await s.wait(60 * MIN + TICK);
+  assert.deepEqual(s.stops, [], 'the first stop failed');
+  assert.equal(state.running, true, 'the renderer still plays');
+  assert.equal(s.snapshot().playing, true, 'so the control says it plays');
+  assert.match(s.snapshot().fault, /stop hook failed/);
+  await s.wait(TICK);
+  assert.deepEqual(s.stops, [{ at: 60 * MIN + 2 * TICK, minutes: 60 }], 'tried again on the next tick');
+  assert.deepEqual([s.snapshot().playing, state.running, s.snapshot().fault], [false, false, null]);
 });
 
 test('arming after the idle stop works and the armed idle disarm still fires', async (t) => {

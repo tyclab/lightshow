@@ -26,7 +26,7 @@ test.afterEach(async ({ page, request }) => {
 
 /** Wait until the plot draws the lamp where the server has it: a nudge moves it from there. */
 async function drawnAt(page, id, { x, y }) {
-  const label = new RegExp(`, position ${Math.round(x)}, ${Math.round(y)},`);
+  const label = new RegExp(`, position ${Math.round(x)}, ${Math.round(y)}\\.`);
   await expect(page.locator(`.plan-surface [data-fixture="${id}"]`)).toHaveAttribute('aria-label', label);
 }
 

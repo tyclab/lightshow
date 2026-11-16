@@ -6,11 +6,11 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import path from 'node:path';
 import {
-  appDir, dataDir, configDir, configFile, cacheDir, logDir, venvDir, venvPython,
+  dataDir, configDir, configFile, logDir, venvDir, venvPython,
 } from '../../src/server/config-dir.ts';
 
 const ROOT = path.join(import.meta.dirname, '..', '..');
-const VARS = ['LIGHTSHOW_DATA_DIR', 'LIGHTSHOW_CONFIG_DIR', 'LIGHTSHOW_CACHE_DIR', 'LIGHTSHOW_LOG_DIR'];
+const VARS = ['LIGHTSHOW_DATA_DIR', 'LIGHTSHOW_CONFIG_DIR', 'LIGHTSHOW_LOG_DIR'];
 
 function withEnv(t, env) {
   const saved = Object.fromEntries(VARS.map((k) => [k, process.env[k]]));
@@ -26,11 +26,9 @@ function withEnv(t, env) {
 
 test('in a checkout, everything is where it always was', (t) => {
   withEnv(t, {});
-  assert.equal(appDir(), ROOT);
   assert.equal(dataDir(), ROOT);
   assert.equal(configDir(), path.join(ROOT, 'config'));
   assert.equal(configFile('settings.json'), path.join(ROOT, 'config', 'settings.json'));
-  assert.equal(cacheDir(), path.join(ROOT, 'cache'));
   assert.equal(logDir(), path.join(ROOT, 'logs'));
   assert.equal(venvDir(), path.join(ROOT, '.venv'));
 });
@@ -38,10 +36,8 @@ test('in a checkout, everything is where it always was', (t) => {
 test('external data directories contain mutable data, not application files', (t) => {
   const data = path.resolve('/srv/lightshow-data');
   withEnv(t, { LIGHTSHOW_DATA_DIR: data });
-  assert.equal(appDir(), ROOT);
   assert.equal(dataDir(), data);
   assert.equal(configDir(), path.join(data, 'config'));
-  assert.equal(cacheDir(), path.join(data, 'cache'));
   assert.equal(logDir(), path.join(data, 'logs'));
   assert.equal(venvDir(), path.join(data, '.venv'));
 });
@@ -50,11 +46,9 @@ test('each part named on its own wins over the data directory', (t) => {
   withEnv(t, {
     LIGHTSHOW_DATA_DIR: path.resolve('/srv/data'),
     LIGHTSHOW_CONFIG_DIR: path.resolve('/etc/show'),
-    LIGHTSHOW_CACHE_DIR: path.resolve('/mnt/big/cache'),
     LIGHTSHOW_LOG_DIR: path.resolve('/var/log/show'),
   });
   assert.equal(configDir(), path.resolve('/etc/show'));
-  assert.equal(cacheDir(), path.resolve('/mnt/big/cache'));
   assert.equal(logDir(), path.resolve('/var/log/show'));
   assert.equal(venvDir(), path.join(path.resolve('/srv/data'), '.venv'));
 });

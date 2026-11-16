@@ -140,24 +140,22 @@ test('a setting is applied, and a secret is set and cleared without ever being s
   await flash.setChecked(was);
   await section.getByRole('button', { name: 'Apply' }).click();
 
-  await openFromSetup(page, 'Sources');
-  const deezer = page.locator('[data-section="deezer"]');
-  const arl = deezer.getByRole('textbox', { name: 'ARL Cookie' });
-  await arl.fill('a-secret-cookie');
-  await deezer.getByRole('button', { name: 'Apply' }).click();
-  // The e2e server started without an ARL, so without the OpenSSL module
-  // decrypting Deezer's audio needs: the first one waits on a restart.
-  await expect(deezer.getByRole('status')).toHaveText('Saved — restart the server to apply');
+  const server = page.locator('[data-section="server"]');
+  const token = server.getByRole('textbox', { name: 'Access Token' });
+  await token.fill('a-secret-token');
+  await server.getByRole('button', { name: 'Apply' }).click();
+  // The server reads its token as it starts: a new one waits on a restart.
+  await expect(server.getByRole('status')).toHaveText('Saved — restart the server to apply');
   const banner = page.getByRole('region', { name: 'Waiting on a restart' });
-  await expect(banner).toContainText('Deezer: ARL Cookie');
+  await expect(banner).toContainText('Server & access: Access Token');
   const stored = await settings(request);
-  expect(stored.secrets['deezer.arl']).toBe(true);
-  expect(stored.settings.deezer.arl).toBe('');
-  await expect(arl).toHaveValue('');
-  await expect(arl).toHaveAttribute('placeholder', /leave blank to keep/);
-  await deezer.getByRole('button', { name: 'Clear ARL Cookie' }).click();
-  await expect.poll(async () => (await settings(request)).secrets['deezer.arl']).toBe(false);
-  await expect(banner, 'no ARL, nothing to wait for').toHaveCount(0);
+  expect(stored.secrets['server.token']).toBe(true);
+  expect(stored.settings.server.token).toBe('');
+  await expect(token).toHaveValue('');
+  await expect(token).toHaveAttribute('placeholder', /leave blank to keep/);
+  await server.getByRole('button', { name: 'Clear Access Token' }).click();
+  await expect.poll(async () => (await settings(request)).secrets['server.token']).toBe(false);
+  await expect(banner, 'no token, nothing to wait for').toHaveCount(0);
 });
 
 test('the pre-show check runs and says what it found', async ({ page }) => {

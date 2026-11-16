@@ -35,13 +35,6 @@ export const SHORTCUTS = [
     ],
   },
   {
-    group: 'Timeline',
-    items: [
-      { keys: ['←', '→'], either: true, what: 'Rehearse from one second earlier or later; Shift moves ten seconds' },
-      { keys: ['Home', 'End'], either: true, what: 'Rehearse from the start or end' },
-    ],
-  },
-  {
     group: 'Stage preview',
     items: [
       { keys: ['←', '→', '↑', '↓'], either: true, what: 'Nudge the focused fixture while positioning' },

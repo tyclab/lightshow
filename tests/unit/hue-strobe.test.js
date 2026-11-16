@@ -186,9 +186,3 @@ test('Strobe Core decays to its native glow', () => {
   assert.strictEqual(patternAt('core', 100)[1].dim, 157);
   assert.deepStrictEqual(patternAt('core', 200)[1], { colour: RED, dim: 59 });
 });
-
-test('Strobe Core follows the analysed kick envelope in Pulse', () => {
-  const pulse = { mix: 0.5, kick: 0.3, snare: 0, hats: 0 };
-  assert.strictEqual(patternAt('core', 100, { pulse })[1].dim, 128);
-  assert.strictEqual(patternAt('core', 100, { pulse, hueStrobe: 'flash' })[1].dim, 59);
-});

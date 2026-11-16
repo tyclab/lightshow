@@ -9,7 +9,7 @@ import { HttpError } from '../errors.ts';
 import { showStore } from './show-store.ts';
 import type { RouteDeps } from './routes/common.ts';
 
-export function configureControls({ integrations, applier, autoShow }: Pick<RouteDeps, 'integrations' | 'applier' | 'autoShow'>,
+export function configureControls({ integrations, applier }: Pick<RouteDeps, 'integrations' | 'applier'>,
   save: () => void): void {
   const sequencer = integrations.sequence.sequencer;
   const start = (programme: Programme): void => {
@@ -35,15 +35,15 @@ export function configureControls({ integrations, applier, autoShow }: Pick<Rout
     setBlackout(on) { applyPatch({ masterBlackout: on }); save(); },
     validateStart(programme) {
       if (programme === 'sequence' && !sequencer.current()) throw new HttpError(409, 'Load a sequence before starting it');
-      if (programme === 'auto' && !autoShow.analysis && integrations.resolveAutoSource() !== 'live') {
-        throw new HttpError(409, 'Analyse a track or select a listening live input before starting the auto show');
+      // The auto show is the live director: it plays what the live input hears.
+      if (programme === 'auto' && !integrations.liveListening()) {
+        throw new HttpError(409, 'Turn on the live input and wait until it listens before starting the auto show');
       }
     },
     start,
     // A switch ends what the programme drives and lets a stopped sequence's picture go, so the next one shows at once;
     // the pads, a held energy effect and Identify are the operator's own layers and play on: only Stop clears them.
     switchTo(programme) {
-      autoShow.startPending = null;
       integrations.stopAutoShow();
       if (sequencer.current()) sequencer.release();
       start(programme);
@@ -53,7 +53,6 @@ export function configureControls({ integrations, applier, autoShow }: Pick<Rout
       if (from === 'sequence' && sequencer.current()) sequencer.release();
     },
     stop() {
-      autoShow.startPending = null;
       integrations.stopAutoShow();
       if (sequencer.current()) sequencer.stop();
       voices.stopAll();

@@ -3,12 +3,11 @@
 // faked, the server's is not: the server's own idle stop (an hour of its time) never runs here.
 
 import { test, expect } from '@playwright/test';
-import { loadTrack, open, reset, unloadTrack } from './helpers.js';
+import { open, reset } from './helpers.js';
 
 test.beforeEach(async ({ request }) => { await reset(request); });
 test.afterEach(async ({ request }) => {
   await request.put('/api/settings', { data: { outputs: { idleStopMin: 60 } } });
-  await unloadTrack(request);
 });
 
 const awake = async (request) => (await (await request.get('/api/health')).json()).engine.awake;
@@ -27,7 +26,6 @@ function frames(page) {
 
 test('an idle disarmed page releases its feeds and Resume brings them back', async ({ page, request }) => {
   const socket = frames(page);
-  await loadTrack(request);   // the timeline draws its stage once a track is analysed
   await page.clock.install();
   await open(page, 'show');
   await expect.poll(() => awake(request)).toContain('dmx');
@@ -43,7 +41,7 @@ test('an idle disarmed page releases its feeds and Resume brings them back', asy
   expect(await playing(request), 'the page pauses only itself').toBe(true);
 
   // Every view that draws a stage says it, with the page still paused.
-  for (const view of ['effects', 'stage', 'auto', 'auto/timeline', 'rig']) {
+  for (const view of ['effects', 'stage', 'auto', 'rig']) {
     await page.evaluate((v) => { window.location.hash = `#${v}`; }, view);
     await expect(notice(page), view).toBeVisible();
     await expect(notice(page), view).toHaveCount(1);

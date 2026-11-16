@@ -37,7 +37,7 @@ async function expectEveryPill(page, where) {
   await page.keyboard.press('Escape');
   await expect(stats).toHaveCount(0);
   const controls = page.getByRole('group', { name: 'Global show controls' });
-  for (const name of ['Stop selected picture', /^(Blackout|Restore)$/, 'Arm']) {
+  for (const name of ['Stop selected picture', /^(Blackout|Blackout, Restore)$/, 'Arm']) {
     await expect(controls.getByRole('button', { name, exact: true }), `${where}: ${name}`).toBeInViewport();
   }
   await expect(controls.getByRole('switch', { name: 'Auto show', exact: true }), `${where}: Auto show`).toBeInViewport();
@@ -52,7 +52,7 @@ for (const width of [390, 800, 1280, 1920]) {
     await expectEveryPill(page, `${width}px`);
     await control(request, 'blackout');
     expect((await request.put('/api/sequence', { data: sequence })).ok()).toBe(true);
-    await expect(page.getByRole('group', { name: 'Global show controls' }).getByRole('button', { name: 'Restore', exact: true })).toHaveAttribute('aria-pressed', 'true');
+    await expect(page.getByRole('group', { name: 'Global show controls' }).getByRole('button', { name: 'Blackout, Restore', exact: true })).toHaveAttribute('aria-pressed', 'true');
     await expectEveryPill(page, `${width}px, blackout and a sequence`);
     // G4: no Freeze button; frozen, Resume is there and enabled.
     await control(request, 'freeze');

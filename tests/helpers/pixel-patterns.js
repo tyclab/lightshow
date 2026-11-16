@@ -21,5 +21,6 @@ export function panel(id, w, h, ctx = {}) {
   return { at: (c, r) => out[r * w + c], out };
 }
 
-export const PULSE = { mix: 0.8, drums: 0.7, bass: 0.9, vocals: 0.2, other: 0.5, kick: 1, snare: 0, hats: 0 };
+/** A show's dynamics with a loud bass and a quiet voice, as the expression channel hands them to a pattern. */
+export const LOUD_BASS = { level: 0.8, bass: 0.9, vocal: 0.2, air: 0.5 };
 

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'preact/hooks';
+import { useEffect, useRef, useState } from 'preact/hooks';
 import { api, connectedSig, pick } from '../state.js';
 import { controlPending, takeControl } from '../control.js';
 import { beatsPerBar, positionText, presetNameOf } from '../preview-inputs.js';
@@ -21,7 +21,7 @@ export function laneRows(status, sequence, nameOf = (id) => id) {
   });
 }
 
-const GLYPHS = { play: '▶', pause: '❚❚', stop: '■', prev: '⏮', next: '⏭', shuffle: '⤨', loop: '↻', cancel: '×' };
+const GLYPHS = { play: '▶', pause: '❚❚', stop: '■', prev: '⏮', next: '⏭', shuffle: '⤨', loop: '↻' };
 
 export async function runTransport(requests) {
   if (requests.some((r) => r.path === '/api/sequence' && ['PUT', 'DELETE'].includes(r.method))
@@ -49,12 +49,23 @@ export function SequenceShelf() {
   const choice = options.find((q) => q.id === picked) ?? options.find((q) => q.id === loaded?.id) ?? options[0] ?? null;
   const c = s.control;
   const ready = connectedSig.value && c?.version === 1 && c?.ready !== false;
-  const busy = controlPending.value > 0 || !!c?.pending;
+  // The load and the select are one action: until both are done the shelf takes no other, so they cannot finish out of order.
+  const [selecting, setSelecting] = useState(false);
+  const pending = useRef(false);
+  const busy = selecting || controlPending.value > 0 || !!c?.pending;
   const chosen = c?.programme === 'sequence';
   const selected = chosen && !!choice && choice.id === loaded?.id;
   const select = async () => {
-    if (choice.id !== loaded?.id && !await runTransport(chooseDriver(choice.id))) { setPicked(null); return; }
-    await takeControl('select', 'sequence');
+    if (pending.current) return;
+    pending.current = true;
+    setSelecting(true);
+    try {
+      if (choice.id !== loaded?.id && !await runTransport(chooseDriver(choice.id))) { setPicked(null); return; }
+      await takeControl('select', 'sequence');
+    } finally {
+      pending.current = false;
+      setSelecting(false);
+    }
   };
   const help = chosen ? `${c?.playing ? 'Playing' : 'Ready'} in the header’s shared transport. Use the selected picture or turn Auto show on to leave this sequence.`
     : c?.playing ? 'Select to switch the running playback to this sequence.' : 'Select here, then use the header’s Play button.';
@@ -66,7 +77,8 @@ export function SequenceShelf() {
       </div>
       {options.length > 0 && <select class="sequence-shelf-picker" aria-label="Sequence" value={choice?.id}
         onChange={(e) => setPicked(e.currentTarget.value)}>
-        {options.map((q) => <option key={q.id} value={q.id}>{q.unsaved ? `${q.name || q.id} · not saved` : q.name || q.id}</option>)}
+        {options.map((q) => <option key={q.id} value={q.id} disabled={busy && q.id !== choice?.id}>
+          {q.unsaved ? `${q.name || q.id} · not saved` : q.name || q.id}</option>)}
       </select>}
       <div class="sequence-shelf-actions">
         <button type="button" class={`btn sequence-select${selected ? ' active' : ''}`} disabled={!choice || !ready || busy}
@@ -81,7 +93,7 @@ export function SequenceShelf() {
 }
 
 export function Transport({ initial, compact = false, prefer = null } = {}) {
-  const s = pick(['sequence', 'sequences', 'effects', 'running', 'showOn', 'autoShow', 'autoSource', 'activeSource', 'control']);
+  const s = pick(['sequence', 'sequences', 'effects', 'running', 'live', 'control']);
   const driver = driverOf(s, prefer);
   const status = s.sequence || null;
   const sequences = s.sequences || [];
@@ -120,7 +132,7 @@ export function Transport({ initial, compact = false, prefer = null } = {}) {
         {state && <span class="transport-state" role="status">{state}</span>}
       </div>}
       <div class="transport-buttons">
-        {buttons.filter((b) => !compact || ['play', 'pause', 'stop', 'cancel'].includes(b.id)).map((b) => (
+        {buttons.filter((b) => !compact || ['play', 'pause', 'stop'].includes(b.id)).map((b) => (
           <button key={b.id} type="button" class="transport-btn" aria-label={b.label} aria-pressed={b.pressed}
             disabled={!b.enabled} onClick={() => (b.control ? takeControl(b.control) : runTransport([b.request]))}>
             <span aria-hidden="true">{GLYPHS[b.control ? 'play' : b.id]}</span><span>{b.label}</span>

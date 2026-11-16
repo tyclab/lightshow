@@ -98,11 +98,12 @@ function PaletteList({ label, palettes, active, range, onRange, onChoose }) {
   </div>;
 }
 
+// Keyed by the lists, which a change replaces: a palette edited under its id is listed and chosen as it is now.
 function useLibraryPalettes() {
   const s = pick(['builtinPalettes', 'userPalettes']);
   const lib = librarySig.value;
-  const all = [...(s.builtinPalettes || lib.palettes?.builtin || []), ...(s.userPalettes || lib.palettes?.user || [])];
-  return useMemo(() => [...all].sort((x, y) => paletteName(x).localeCompare(paletteName(y))), [all.map((p) => p.id).join(',')]);
+  const builtin = s.builtinPalettes || lib.palettes?.builtin || [], user = s.userPalettes || lib.palettes?.user || [];
+  return useMemo(() => [...builtin, ...user].sort((x, y) => paletteName(x).localeCompare(paletteName(y))), [builtin, user]);
 }
 
 const point = (hex) => { const { hue, saturation } = colourHsv(hex); return { hex, hue, saturation: saturation / 100 }; };

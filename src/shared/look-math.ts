@@ -95,13 +95,6 @@ function hitBrightness(phase: number): number {
   return Math.round(HIT_FLOOR + Math.pow(1 - p, 1.8) * (255 - HIT_FLOOR));
 }
 
-const GRID_UNDER_GROOVE = 0.5;
-
-function grooveBrightness(clock: number, groove: number): number {
-  const underneath = 35 + (clock - 35) * GRID_UNDER_GROOVE;
-  return Math.round(Math.max(underneath, 35 + 220 * Math.max(0, Math.min(1, groove))));
-}
-
 // Silence closes immediately so a long decay cannot delay blackout.
 function blendExpression(current: Expression, target: ShowDynamics | null | undefined, dt: number): Expression {
   if (!target) return { ...EXPRESSION_REST };
@@ -115,7 +108,7 @@ function blendExpression(current: Expression, target: ShowDynamics | null | unde
   return next;
 }
 
-// Round and boost emitters here so rig output and rehearsal use the same bytes.
+// Round and boost emitters here so rig output and the stage preview use the same bytes.
 function emitterValues(col: Colour, scale: number): EmitterLevels {
   return {
     r: Math.round((col.r || 0) * scale),
@@ -180,7 +173,6 @@ export {
   tempoOf,
   fadeBrightness,
   hitBrightness,
-  grooveBrightness,
   blendExpression,
   emitterValues,
   cellDrive,

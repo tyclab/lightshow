@@ -120,7 +120,7 @@ export function StopOrder({ name, stops, selected, onSelect, onHex, onReorder, o
     {stops.map((hex, i) => {
       const random = typeof hex !== 'string';
       return <li key={i} class={`stop-row${selected === i ? ' selected' : ''}${over?.from === i ? ' dragging' : ''}${over && over.to === i && over.from !== i ? ' drop' : ''}`}>
-        <button type="button" class="stop-ordinal" aria-pressed={selected === i} aria-label={`Select ${name} colour ${i + 1}`}
+        <button type="button" class="stop-ordinal" aria-pressed={selected === i} aria-label={`Select ${ordinal(i)} ${name} colour`}
           onClick={() => onSelect(i)}>{ordinal(i)}</button>
         {random ? <span class="stop-chip random">Random</span>
           : <label class="stop-chip" style={{ '--stop': hex.slice(0, 7), color: readableOn(hex) }} onClick={() => onSelect(i)}>

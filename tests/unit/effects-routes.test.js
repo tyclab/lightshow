@@ -55,33 +55,17 @@ async function serve(t, { cues } = {}) {
   const effectLibrary = new EffectLibrary(path.join(dir, 'effects.json')).load();
   // Every random colour an activation rolls comes from this seed, so a test knows the colours.
   const paletteStore = new PaletteStore(path.join(dir, 'palettes.json'), { seed: () => [...SEED] }).load();
-  const idle = { onPlaybackUpdate() {}, onTrackChange() {}, getStatus: () => ({}), authenticated: false };
-  const autoShow = {
-    running: false, track: null, syncOffsetMs: 0, autoSyncMs: 0, analysis: null,
-    getPositionMs: () => 0, getClientState: () => ({}), start() {}, stop() {},
-    isCached: () => false, gridFor: () => null, isPrefetching: () => false,
-    applyQueueOrder() {}, setPaletteSize() {}, setIntensity() {}, setSyncOffsetMs() {}, adjustAutoSync() {},
-  };
-  const prolink = {
-    connected: false, stale: false, lastError: null, getNumPeers: () => 0, getFollowed: () => null, getTrack: () => null,
-    getLoadedTracks: () => [], getTempo: () => 0, getPositionMs: () => 0,
-    onTempoChange() {}, onPeersChange() {}, onFollowChange() {}, onTrackChange() {}, onLoadedTracksChange() {}, onAnyTrackLoaded() {},
-  };
   const midi = { enabled: false, sendFeedback() {}, listPorts: () => [], onLearn() {}, close() {}, connect() { return true; }, setControlFeedback() {} };
   const app = express();
   app.use(express.json());
   const server = http.createServer(app);
   const io = new Server(server);
   const integrations = setupIntegrations({
-    io, midi,
-    spotify: { ...idle, startPolling() {}, async getQueue() { return []; } },
-    nowPlaying: idle,
-    deezerSource: { ...idle, getQueue: () => [], updatePlayback() {}, updateQueue() {}, disconnect() {} },
-    prolink, autoShow, effectLibrary, paletteStore, sequenceStore: new SequenceStore(path.join(dir, 'sequences.json')).load(),
+    io, midi, effectLibrary, paletteStore, sequenceStore: new SequenceStore(path.join(dir, 'sequences.json')).load(),
   });
   const applier = { applyChanged() {}, disarmed() {} };
   // The MIDI busking surface drives the production control coordinator, so the routes get the real one.
-  installControlRuntime(t, { autoShow, integrations, applier });
+  installControlRuntime(t, { integrations, applier });
   attachRoutes(app, { integrations, applier, ...(cues ? { cues } : {}) });
   await new Promise((r) => server.listen(0, '127.0.0.1', r));
   const url = `http://127.0.0.1:${server.address().port}`;
@@ -105,7 +89,7 @@ async function serve(t, { cues } = {}) {
   const call = (method, route, body) => fetch(`${url}${route}`, {
     method, headers: { 'Content-Type': 'application/json' }, body: body === undefined ? undefined : JSON.stringify(body),
   }).then(async (res) => ({ status: res.status, body: await res.json() }));
-  return { call, integrations, effectLibrary, paletteStore, dir, io, midi, autoShow, url };
+  return { call, integrations, effectLibrary, paletteStore, dir, io, midi, url };
 }
 
 const FADE = { kind: 'ldj.FadeCycle', params: { cadence: 2 } };
@@ -881,10 +865,5 @@ test("busking from MIDI reaches the looks, the palettes, the voices, the strobe 
   // The toggle is the explicit Start/Stop of the auto programme; the coordinator acknowledges a frame first.
   startEngine({ thread: 'main' });
   await busk.toggleAutoShow();
-  assert.equal(busk.autoShowOn(), false, 'nothing analysed: it does not start');
-  s.autoShow.analysis = { sections: [] };
-  await busk.toggleAutoShow();
-  assert.equal(busk.autoShowOn(), true);
-  await busk.toggleAutoShow();
-  assert.equal(busk.autoShowOn(), false);
+  assert.equal(busk.autoShowOn(), false, 'no live input listening: it does not start (live-show-contract.test.js starts it)');
 });

@@ -45,7 +45,6 @@ function startSupervisor() {
   const env = {
     ...process.env,
     LIGHTSHOW_CONFIG_DIR: dir,
-    LIGHTSHOW_CACHE_DIR: path.join(dir, 'cache'),
     LIGHTSHOW_LOG_DIR: path.join(dir, 'logs'),
   };
   delete env.LIGHTSHOW_SUPERVISOR;
@@ -60,7 +59,6 @@ test.beforeAll(async () => {
     server: { host: '127.0.0.1', port: PORT, token: '' },
     artnet: { enabled: false },
     sacn: { enabled: false },
-    sources: { prolink: false, smtc: false },
   }));
   startSupervisor();
 });

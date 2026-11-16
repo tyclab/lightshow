@@ -28,9 +28,7 @@ function createClockFollower({ backwardJump = BACKWARD_JUMP_BEATS } = {}): Clock
         beatPos = last.beatPos;
       }
       last = { beatPos, epoch: sample.epoch };
-      const reading: MusicalTime = { beatPos, bpm: sample.bpm, source: sample.source, epoch: sample.epoch };
-      if (sample.anchorBeat !== undefined && Number.isFinite(sample.anchorBeat)) reading.anchorBeat = sample.anchorBeat;
-      return reading;
+      return { beatPos, bpm: sample.bpm, source: sample.source, epoch: sample.epoch };
     },
   };
 }

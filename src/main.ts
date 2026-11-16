@@ -8,46 +8,30 @@ import compression from 'compression';
 import { Server } from 'socket.io';
 
 import MidiController, { openMidiOutput } from './midi.ts';
-import ProLink from './prolink.ts';
 import LiveInput from './live-input.ts';
-import type { LiveOptions } from './live-input.ts';
 import MidiClock from './midi-clock.ts';
-import SpotifyClient from './spotify.ts';
-import NowPlayingSource from './nowplaying-source.ts';
-import { createOsNowPlaying, osNowPlayingKind } from './os-now-playing.ts';
-import DeezerSource from './deezer-source.ts';
-import * as deezer from './deezer.ts';
-import AutoShow from './auto-show.ts';
-import { SPATIAL_AUTO_PATTERNS } from './show/look.ts';
-import { AnalysisCache } from './analysis-cache.ts';
-import { analysisVersion } from './analysis-version.ts';
-import { HTTP_BASE as REMOTE_ANALYSIS_HTTP, RemoteAnalysisPool } from './remote-analysis.ts';
 
 import { state, voices } from './server/state.ts';
-import { startEngine, stopEngine, setFrameHook, setPulseSource, setModulationSource, publishRigRevision, waitForEngineReady } from './server/engine.ts';
+import { startEngine, stopEngine, publishRigRevision, waitForEngineReady } from './server/engine.ts';
 import { artnetDiscovery, startHueAreaWatch } from './server/output.ts';
 import { conductor } from './server/conductor.ts';
-import { applyPatch, applyOverride, setFixtureMaxBrightness, processTap, setPersist, setHooks, flushPendingPersist } from './server/patch.ts';
-import { COLOR_PRESETS, PATTERNS } from './server/presets.ts';
+import { applyPatch, applyOverride, setFixtureMaxBrightness, processTap, setPersist, setHooks } from './server/patch.ts';
 import { setupIntegrations } from './server/integrations.ts';
 import { attachRoutes } from './server/routes.ts';
 import { attachSockets } from './server/sockets.ts';
 import { createAuth, configError, hostOfUrl, sourceMapsForLoopback } from './server/auth.ts';
 import { isLoopback } from './server/loopback.ts';
 import { settings, CONFIG_FILE } from './server/settings.ts';
-import { cacheDir, dataDir } from './server/config-dir.ts';
+import { dataDir } from './server/config-dir.ts';
 import { createApplier } from './server/apply.ts';
 import { createIdleDisarm } from './server/idle-disarm.ts';
 import { createIdleStop } from './server/idle-stop.ts';
-import { isArmed, onDisarm } from './server/armed.ts';
-import { safety } from './server/safety.ts';
+import { isArmed } from './server/armed.ts';
 import { startWledWatch, wledBoards } from './server/wled-watch.ts';
 import { pixelInputs } from './server/pixel-input-live.ts';
 import { midiMap } from './server/midi-map.ts';
 import { cues } from './server/cues.ts';
 import { showStore, SHOW_FILE } from './server/show-store.ts';
-import { modelManager } from './server/model-manager.ts';
-import { pythonSetup } from './server/python-setup.ts';
 import * as pythonEnv from './python-env.ts';
 import { installProcessSafetyNet } from './server/guard.ts';
 import { startHealthMonitor } from './server/health.ts';
@@ -93,19 +77,10 @@ app.use(compression());
 app.use(sourceMapsForLoopback);
 
 app.use(express.static(path.join(import.meta.dirname, '..', 'public')));
-const remoteAnalysis = new RemoteAnalysisPool({
-  token: () => settings.get('analysis.workerToken'),
-  version: analysisVersion(),
-  serverModels: async () => (await modelManager.list()).models.filter((m) => m.present).map((m) => m.id),
-  jobSettings: () => ({ separator: settings.get('analysis.separator'), structureModel: settings.get('analysis.structureModel') }),
-});
-// GPU workers carry their own token, which opens these job routes and nothing under the rest of /api.
-app.use(REMOTE_ANALYSIS_HTTP, remoteAnalysis.httpRouter());
 app.use('/api', auth.httpMiddleware);   // before express.json: reject first, parse after
 app.use('/api/stage/room', express.json({ limit: ROOM_SCENE_BODY_LIMIT }));
 app.use(express.json());
 io.use(auth.socketMiddleware);
-remoteAnalysis.attach(io);
 
 const midi = new MidiController(state, applyPatch, processTap);
 midi.control = (action) => {
@@ -121,68 +96,20 @@ midi.recallCue = (id) => {
   if (!cues.recall(id)) console.warn(`[MIDI] recallCue: no cue ${id} — it may have been deleted`);
 };
 
-const prolink = new ProLink();
 const liveInput = new LiveInput();
-const spotify = new SpotifyClient();
-const nowPlaying = new NowPlayingSource();
-const deezerSource = new DeezerSource();
 
-const analysisCache = new AnalysisCache(path.join(cacheDir(), 'analysis'));
-const autoShow = new AutoShow((patch) => {
-  const { running: _running, masterBlackout: _blackout, ...content } = patch as Record<string, unknown>;
-  return applyPatch(content);
-}, COLOR_PRESETS, [...PATTERNS, ...SPATIAL_AUTO_PATTERNS], analysisCache);
-autoShow.useRemoteAnalysis(remoteAnalysis);
-settings.onChange((changed) => {
-  if (changed.includes('analysis.workerToken')) remoteAnalysis.disconnectAll('the worker token changed');
-});
-// The plan holds Rapid flash rows only while the acknowledgement stands.
-// It stands while disarmed and from the acknowledgement at an arm until the disarm.
-safety.onChange(() => { if (autoShow.analysis) autoShow.buildTimeline(); });
-// A standby analyser that had to wait for the disarm loads now.
-onDisarm(() => autoShow.settleLocalAnalysis());
+const integrations = setupIntegrations({ io, midi, liveInput });
 
-const integrations = setupIntegrations({ io, midi, spotify, nowPlaying, deezerSource, prolink, autoShow, analysisCache, liveInput });
-
-autoShow.useFrameClock();
-setFrameHook(() => autoShow.tick());
-setPulseSource(() => autoShow.pulse());
-setModulationSource(() => autoShow.modulation());
-// Recycle an idle worker after model downloads so current analysis is not interrupted.
-modelManager.onFinished((job) => {
-  if (Object.values(job.models).some((m) => m.state === 'done') && autoShow.restartWorker) {
-    autoShow.restartWorker('analysis models downloaded', { whenIdle: true });
-  }
-  remoteAnalysis.refreshModels().catch((err) => console.warn(`[analyzer] remote: ${messageOf(err)}`));
-});
-let liveBeforeSetup: LiveOptions | null = null;
-pythonSetup.onHooks({
-  before: (reason) => {
-    autoShow.pauseAnalysis(reason);
-    liveBeforeSetup = liveInput.running ? liveInput.options : null;
-    liveInput.stop();
-  },
-  after: () => {
-    autoShow.resumeAnalysis();
-    if (liveBeforeSetup) liveInput.start(liveBeforeSetup);
-    liveBeforeSetup = null;
-  },
-});
-conductor.setAutoSource(() => autoShow.beatSource());
-conductor.setProlinkSource(() => (state.prolinkEnabled && !autoShow.running ? prolink.getBeatReading() : null));
 conductor.setLiveSource(() => liveInput.getBeatReading());
 const midiClock = new MidiClock({ open: openMidiOutput, beatPos: () => conductor.peek().beatPos });
 conductor.onTempo((bpm) => { state.bpm = bpm; });
-
-const smtc = createOsNowPlaying();
-smtc.onUpdate((payload) => nowPlaying.updatePlayback(payload));
 
 const patchRestored = showStore.restore();
 // Recovery checks the saved patch, so it opens after the patch is restored.
 integrations.sequence.workspace?.open();
 
 const applier = createApplier({
-  midi, spotify, smtc, live: liveInput, midiClock, deezer, autoShow, applyPatch,
+  midi, live: liveInput, midiClock, applyPatch,
   broadcast: () => integrations.broadcast(),
 });
 applier.applyAll();
@@ -200,16 +127,9 @@ if (savedLook && putBack(savedLook)) {
   console.log(`[look] put back the look from ${savedLook.savedAt}, before the restart`);
 }
 
-// Persist refresh-token changes because short-lived access tokens cannot survive between shows.
-spotify.onTokens((refreshToken) => {
-  try { settings.update({ spotify: { refreshToken } }); }
-  catch (err) { console.warn(`[spotify] could not save the session: ${messageOf(err)}`); }
-});
+configureControls({ integrations, applier }, () => { lookStore.save(currentLook()); });
 
-configureControls({ integrations, applier, autoShow }, () => { lookStore.save(currentLook()); });
-
-remoteAnalysis.attachStatusRoute(app, () => ({ queue: autoShow.analysisCounts(), local: autoShow.localAnalysis() }));
-attachRoutes(app, { midi, autoShow, spotify, nowPlaying, deezerSource, prolink, analysisCache, integrations, applier, restart: restartServer });
+attachRoutes(app, { midi, integrations, applier, restart: restartServer });
 // Disarmed, a show with no control action and no page input for outputs.idleStopMin minutes is stopped as the header's Stop does.
 const idleStop = createIdleStop({
   now: () => performance.now(),
@@ -236,7 +156,7 @@ const idleDisarm = createIdleDisarm({
   now: () => performance.now(),
   armed: isArmed,
   playing: () => state.running || voices.size > 0 || integrations.sequence.sequencer.status().playing
-    || autoShow.running || pixelInputs.status().length > 0,
+    || pixelInputs.status().length > 0,
   minutes: () => settings.get('outputs.idleDisarmMin'),
   disarm: (minutes) => {
     void control.execute({ action: 'disarm' }).catch((err) => console.warn(`[outputs] idle disarm after ${minutes} min: ${messageOf(err)}`));
@@ -248,27 +168,6 @@ setInterval(() => idleDisarm.tick(), 10_000).unref();
 startWledWatch({ boards: () => wledBoards(state.fixtures), armed: isArmed });
 // Read-only too: another app streaming on a bridge is reported, never stopped.
 startHueAreaWatch();
-
-// Do not await Spotify sign-in because network failures must not prevent the rig from starting.
-function restoreSpotifySession() {
-  const stored = settings.get('spotify.refreshToken');
-  if (!stored || !spotify.configured) return;
-
-  spotify.restoreSession(stored)
-    .then((ok) => {
-      if (!ok) return;
-      spotify.startPolling();
-      integrations.broadcast();
-      console.log('  Spotify           →  reconnected from the saved session');
-    })
-    .catch((err) => {
-      if (err && err.status >= 400 && err.status < 500) {
-        console.warn(`[spotify] saved session is no longer valid (${err.message}) — reconnect at /auth/spotify`);
-      } else {
-        console.warn(`[spotify] could not reconnect the saved session: ${err.message} — it will be retried on the next start`);
-      }
-    });
-}
 
 const PORT = settings.get('server.port');
 
@@ -286,10 +185,8 @@ server.on('error', (err: NodeJS.ErrnoException) => {
 
 server.listen(PORT, HOST, () => {
   startHeartbeat();
-  applier.refreshCallbackUrl();
 
   const shownHost = isLoopback(HOST) ? 'localhost' : HOST;
-  const smtcEnabled = settings.get('sources.smtc');
 
   console.log(`\n  TycStation Lightshow  →  http://${shownHost}:${PORT}`);
   console.log(`  Setup             →  http://${shownHost}:${PORT}/#rig  (the Rig, Sources and Settings views)`);
@@ -307,24 +204,8 @@ server.listen(PORT, HOST, () => {
     + `  [${patchRestored ? `saved patch, ${SHOW_FILE}` : 'default patch — saved as you change it'}]`);
   console.log(`  MIDI              →  ${midi.enabled ? 'connected' : 'not connected (pick a port under Settings → MIDI controller)'}`
     + `  [${midiMap.snapshot().customised ? 'custom map' : 'default X-Touch map'}]`);
-  console.log(`  PRO DJ LINK       →  ${state.prolinkEnabled ? 'enabled' : 'disabled (enable it under Sources)'}`);
-  console.log(`  Spotify           →  ${spotify.configured ? 'configured (visit /auth/spotify to connect)' : 'not configured (add a client ID & secret under Sources)'}`);
-  if (spotify.configured) {
-    console.log(`  Spotify auth      →  ${spotify.usingProxy ? `via proxy ${spotify.proxyBase}` : 'direct (no proxy)'}`);
-    console.log(`  Spotify redirect  →  register this URL in your Spotify dashboard:`);
-    console.log(`                       ${spotify.redirectUri}`);
-  }
-  console.log(`  Deezer            →  ${settings.get('deezer.arl') ? 'configured (ISRC-based downloads)' : 'not configured (add an ARL under Sources — falls back to yt-dlp)'}`);
-  const npKind = osNowPlayingKind();
-  const npStatus = !npKind
-    ? 'unavailable (Windows and Linux only)'
-    : !smtcEnabled ? 'disabled in settings'
-      : npKind === 'SMTC' ? 'reading OS media session (SMTC)' : 'reading MPRIS players on the session bus';
-  console.log(`  Now Playing       →  ${npStatus}`);
   console.log(`  Python            →  ${pythonEnv.describe()}`);
-  console.log(`  Auto Show         →  Essentia + Spotify integration\n`);
-
-  restoreSpotifySession();
+  console.log(`  Auto Show         →  by ear, from the live input\n`);
 
   pythonEnv.warnIfUnusable();
 });
@@ -340,20 +221,12 @@ function shutdown(signal: string, exitCode = 0): void {
   for (const [what, fn] of [
     ['engine', () => { engineDown = stopEngine(); }],
     ['artnet', () => artnetDiscovery.stop()],
-    ['smtc', () => smtc.stop()],
-    ['autoShow', () => autoShow.destroy()],
-    ['remote analysis', () => remoteAnalysis.shutdown()],
-    ['spotify', () => spotify.disconnect()],
-    ['nowPlaying', () => nowPlaying.disconnect()],
-    ['deezer', () => deezerSource.disconnect()],
-    ['prolink', () => prolink.destroy()],
     ['live input', () => liveInput.stop()],
     ['midi clock', () => midiClock.stop()],
     ['midi', () => midi.close()],
     ['show', () => showStore.save()],
     ['sequence workspace', () => integrations.sequence.workspace?.close()],
     ['integration timers', () => integrations.stopTimers()],
-    ['settings', () => flushPendingPersist()],
   ] as [string, () => unknown][]) {
     try { fn(); } catch (err) { console.warn(`[shutdown] ${what}: ${messageOf(err)}`); }
   }

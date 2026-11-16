@@ -19,10 +19,10 @@ import { createIdentify } from './identify.ts';
 import type { EngineHeap, FromWorker, ToWorker } from './engine-messages.ts';
 import type { FrameSummary, Ticker } from './frame-clock.ts';
 import type { CommandResult, FadeRequest, RenderInput, SyncTestRequest, VoiceFrame } from './renderer.ts';
-import type { Geometry, Profile, PulseReading } from '../types/rig.ts';
+import type { Geometry, Profile } from '../types/rig.ts';
 import type { Rig } from '../shared/rig.ts';
 import type { AudioFrame } from '../shared/effects/audio-frame.ts';
-import type { EffectModulation, EffectSpec, HdMaster } from '../shared/effects/types.ts';
+import type { EffectSpec, HdMaster } from '../shared/effects/types.ts';
 import type { MusicalTime } from './conductor.ts';
 import type { SequenceFrame } from './sequencer.ts';
 import { validateSpec } from '../shared/effects/registry.ts';
@@ -253,10 +253,11 @@ function renderInput({ points = true }: { points?: boolean } = {}): RenderInput 
   // The Squid feeds the largest panel by the pixel path; outside feeds wait meanwhile.
   const reading = conductor.peek();
   const squid = pictureSource === 'squid' ? squidPicture.frame(reading, thread === 'worker' ? WORKER_CLOCK_SHIFT : 0) : squidPicture.stop();
-  const pulse = runPulseSource(), modulation = runModulationSource(), audio = runAudioSource(), audioMode = settings.get('audio.mode');
+  const audio = runAudioSource(), audioMode = settings.get('audio.mode');
   // The source's facts after its frame (G5): `picture.unmet`, and the units whose picture is dark without them.
+  // Nothing sends the engine stems since the planned show went (#221): Stems in Space has only the reactive bands.
   const pictureOwns = observePicture(pictureSource, { beatPos: reading.beatPos, effect, audio: audioMode === 'reactive' ? audio : null,
-    stems: modulation && 'stems' in modulation ? modulation.stems : pulse ? { bass: pulse.bass, drums: pulse.drums, vocals: pulse.vocals, hats: pulse.hats } : undefined });
+    stems: undefined });
   return {
     running: state.running,
     programmePlaying: state.running,
@@ -287,8 +288,6 @@ function renderInput({ points = true }: { points?: boolean } = {}): RenderInput 
     syncTest: syncRequest,
     identify: identify.request(),
     universes: activeUniverses(),
-    pulse,
-    modulation,
     audio,
     audioMode,
     master: { ...(masterSource?.() ?? settings.get('audio.master')) },
@@ -328,48 +327,6 @@ function renderInput({ points = true }: { points?: boolean } = {}): RenderInput 
       productId: f.productId, hardware: f.hardware, admission: f.admission,
     })),
   };
-}
-
-// Advance the show before reading the clock so cues reach their scheduled render frame.
-let frameHook: (() => void) | null = null;
-const runFrameHook = guarded('frame-hook', () => { if (frameHook) frameHook(); });
-
-function setFrameHook(fn: (() => void) | null | undefined): void {
-  frameHook = typeof fn === 'function' ? fn : null;
-}
-
-let pulseSource: (() => PulseReading | null) | null = null;
-let pulseFailed = false;
-function runPulseSource(): PulseReading | null {
-  if (!pulseSource) return null;
-  try {
-    return pulseSource();
-  } catch (err) {
-    if (!pulseFailed) console.warn(`[engine] pulse source failed: ${err instanceof Error ? err.message : String(err)}`);
-    pulseFailed = true;
-    return null;
-  }
-}
-
-function setPulseSource(fn: (() => PulseReading | null) | null | undefined): void {
-  pulseSource = typeof fn === 'function' ? fn : null;
-  pulseFailed = false;
-}
-
-let modulationSource: (() => EffectModulation | undefined) | null = null;
-let modulationFailed = false;
-function runModulationSource(): EffectModulation | undefined {
-  try { return modulationSource?.(); }
-  catch (err) {
-    if (!modulationFailed) console.warn(`[engine] modulation source failed: ${messageOf(err)}`);
-    modulationFailed = true;
-    return undefined;
-  }
-}
-
-function setModulationSource(fn: (() => EffectModulation | undefined) | null | undefined): void {
-  modulationSource = typeof fn === 'function' ? fn : null;
-  modulationFailed = false;
 }
 
 let audioSource: (() => AudioFrame | null) | null = null;
@@ -447,7 +404,6 @@ let mainSpace: ReturnType<typeof currentSpace> | undefined;
 
 function renderDmx(): void {
   const now = clock();
-  runFrameHook();
   const reading = conductor.now();
   runSequenceSource(reading);
   const space = currentSpace();
@@ -478,7 +434,6 @@ function mainTick(): void {
     renderDmx();
     return;
   }
-  runFrameHook();
   runSequenceSource(conductor.now());
 }
 
@@ -584,7 +539,6 @@ function importedProfiles(): Profile[] {
 
 function controlTick(): void {
   if (!worker) return;
-  runFrameHook();
   const reading = conductor.now();
   runSequenceSource(reading);
   const at = hrtimeMs();
@@ -817,9 +771,6 @@ export {
   startEngine,
   stopEngine,
   engineStatus,
-  setFrameHook,
-  setPulseSource,
-  setModulationSource,
   setAudioSource,
   setIdleSource,
   setMasterSource,

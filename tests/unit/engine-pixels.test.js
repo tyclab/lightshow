@@ -43,11 +43,11 @@ test.before(() => {
   registerProfile(PANEL);
   saved = { fixtures: state.fixtures, artnet: state.artnet.enabled };
   state.artnet.enabled = false;
-  conductor.setProlinkSource(() => ({ beatPos: beat, bpm: 120 }));
+  conductor.setLiveSource(() => ({ beatPos: beat, bpm: 120 }));
 });
 test.after(() => {
   performance.now = realNow;
-  conductor.setProlinkSource(null);
+  conductor.setLiveSource(null);
   state.fixtures = saved.fixtures;
   state.artnet.enabled = saved.artnet;
   resizeFixtureBuffers();
@@ -181,7 +181,7 @@ test('a cell\'s dimmer and colour multiply to what a par puts out', () => {
 
 test('with a picture of their own, the bars run it and the pars keep the look', () => {
   rig(fixture(0, 1, PAR.profileId), fixture(1, 13, BAR.id), fixture(2, 40, PAR.profileId));
-  const dmx = show({ pattern: 'solid', pixelPattern: 'rise', pixelSpan: 16, pixelFrom: 0.5, anchorMs: 0 }, 0);
+  const dmx = show({ pattern: 'solid', pixelPattern: 'rise', pixelSpan: 16, pixelFrom: 0.5 }, 0);
   const par = [dmx[3], dmx[4], dmx[5]];
   assert.ok(par.some((v) => v > 0), 'the pars hold the wash');
   assert.deepStrictEqual([dmx[39 + 3], dmx[39 + 4], dmx[39 + 5]], par, 'both pars alike');
@@ -196,7 +196,7 @@ test('with a picture of their own, the bars run it and the pars keep the look', 
 test('panel pictures leave the rest of the rig on its base look', () => {
   rig(fixture(0, 1, PAR.profileId), fixture(1, 13, BAR.id), fixture(2, 40, PANEL.id));
   const panelOf = (dmx) => dmx.slice(39, 39 + 24);
-  const look = { pattern: 'solid', pixelPattern: 'comet', pixelMap: 'bar', anchorMs: 0 };
+  const look = { pattern: 'solid', pixelPattern: 'comet', pixelMap: 'bar' };
   const plain = Array.from(show(look, 1.5));
   const fire = Array.from(show({ ...look, panelPattern: 'fire' }, 1.5));
   assert.deepStrictEqual(fire.slice(0, 12), plain.slice(0, 12), 'the par as it was');

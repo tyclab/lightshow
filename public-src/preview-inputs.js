@@ -107,13 +107,6 @@ function darkOwned(sample, owned) {
   };
 }
 
-export function liveVoiceEvents(voices) {
-  return (Array.isArray(voices) ? voices : []).filter((v) => v && !v.hidden && v.spec).map((v) => ({
-    timeMs: 0, action: 'voice',
-    data: { id: `live:${v.id}`, effect: v.spec, targets: v.targets, tier: v.tier === 'strobe' ? 'strobe' : 'voice', launchSeq: v.launchSeq },
-  }));
-}
-
 export function nowPlaying(s, perBar = s.sequence?.beatsPerBar || 4) {
   const playing = playingState(s);
   const parts = [`${MAIN_EFFECT}: ${mainEffectText(playing)}`];

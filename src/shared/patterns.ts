@@ -6,7 +6,7 @@ import { colourMixer } from './color.ts';
 import { HOLD_STROBE_MAX_HZ, HUE_PULSE_MS, HUE_PULSE_FLOOR, huePulseLevel } from './look-math.ts';
 import { roomOf, xOf, yOf } from './room.ts';
 import type { StagePlan } from './rig.ts';
-import type { Colour, Expression, PulseReading } from '../types/rig.ts';
+import type { Colour, Expression } from '../types/rig.ts';
 
 export interface PatternContext {
   random?: () => number;
@@ -22,7 +22,6 @@ export interface PatternContext {
   xs: readonly number[] | null;
   ys: readonly number[] | null;
   dynamics: Readonly<Expression> | null;
-  pulse?: Readonly<PulseReading> | null;
   progress?: number | null;
   stepMs?: number | null;
   plan?: StagePlan | null;
@@ -362,10 +361,9 @@ Object.assign(PATTERN_FUNCS, {
   meter(ctx) {
     const pal = paletteOf(ctx);
     const bed = bedOf(ctx);
-    const p = ctx.pulse;
-    const kick = (p ? p.kick : Math.pow(1 - (ctx.stepPhase ?? 0), 3)) * 0.15;
-    const low = p ? (p.bass ?? p.mix) : dyn(ctx, 'bass', 0.5);
-    const loud = p ? p.mix : dyn(ctx, 'level', 0.8);
+    const kick = Math.pow(1 - (ctx.stepPhase ?? 0), 3) * 0.15;
+    const low = dyn(ctx, 'bass', 0.5);
+    const loud = dyn(ctx, 'level', 0.8);
     const fill = Math.min(1, loud * (0.25 + 0.75 * low) * 0.85 + kick);
     for (let i = 0; i < ctx.fixtureCount; i++) {
       const x = xOf(ctx, i);
@@ -377,7 +375,7 @@ Object.assign(PATTERN_FUNCS, {
   drums(ctx) {
     const pal = paletteOf(ctx);
     const bed = Math.round(bedOf(ctx) * 0.6);
-    const hits = ctx.pulse ?? kitFromTheClock(ctx);
+    const hits = kitFromTheClock(ctx);
     const reach = 0.15 + 0.85 * hits.kick;
     const hatSeed = Math.floor((ctx.stepPos ?? ctx.step) * 2);
     for (let i = 0; i < ctx.fixtureCount; i++) {
@@ -400,10 +398,7 @@ Object.assign(PATTERN_FUNCS, {
   stems(ctx) {
     const pal = paletteOf(ctx);
     const floor = 10;
-    const p = ctx.pulse;
-    const levels = p && p.bass !== undefined
-      ? [p.vocals ?? 0, p.other ?? 0, p.drums ?? 0, p.bass ?? 0]
-      : [dyn(ctx, 'vocal', 0.5), dyn(ctx, 'air', 0.3), p ? p.mix : dyn(ctx, 'level', 0.6), dyn(ctx, 'bass', 0.5)];
+    const levels = [dyn(ctx, 'vocal', 0.5), dyn(ctx, 'air', 0.3), dyn(ctx, 'level', 0.6), dyn(ctx, 'bass', 0.5)];
     for (let i = 0; i < ctx.fixtureCount; i++) {
       const fromMiddle = Math.min(0.999, Math.abs(xOf(ctx, i) - 0.5) * 2);
       const zone = Math.floor(fromMiddle * 4);
@@ -433,7 +428,7 @@ Object.assign(PATTERN_FUNCS, {
     const radius = (ctx.stepPhase ?? 0) * 1.15;
     const width = 0.1 + 0.1 * dyn(ctx, 'decay', 0.25);
     const ringColour = pal[ctx.step % pal.length];
-    const kick = ctx.pulse ? ctx.pulse.kick : Math.exp(-(ctx.stepPhase ?? 0) * 5);
+    const kick = Math.exp(-(ctx.stepPhase ?? 0) * 5);
     const sparkSeed = Math.floor((ctx.stepPos ?? ctx.step) * 4);
     const density = 0.06 + 0.22 * kick;
     for (let i = 0; i < ctx.fixtureCount; i++) {
@@ -471,9 +466,8 @@ Object.assign(PATTERN_FUNCS, {
 
   fire(ctx) {
     const pal = paletteOf(ctx);
-    const p = ctx.pulse;
-    const low = p ? (p.bass ?? p.mix) : dyn(ctx, 'bass', 0.5);
-    const kick = p ? p.kick : Math.exp(-(ctx.stepPhase ?? 0) * 4) * 0.6;
+    const low = dyn(ctx, 'bass', 0.5);
+    const kick = Math.exp(-(ctx.stepPhase ?? 0) * 4) * 0.6;
     const heat = 0.3 + 0.45 * low + 0.3 * kick;
     const t = (ctx.stepPos ?? ctx.step) * 0.6;
     const rows = heightsOf(ctx);
@@ -494,7 +488,7 @@ Object.assign(PATTERN_FUNCS, {
     const bed = Math.round(bedOf(ctx) * 0.25);
     const t = (ctx.stepPos ?? ctx.step) / 4;
     const trail = 0.2 + 0.35 * (1 - dyn(ctx, 'motion', 0.4));
-    const hats = ctx.pulse ? ctx.pulse.hats : kitFromTheClock(ctx).hats;
+    const hats = kitFromTheClock(ctx).hats;
     const sparkSeed = Math.floor((ctx.stepPos ?? ctx.step) * 4);
     const rows = heightsOf(ctx);
     for (let i = 0; i < ctx.fixtureCount; i++) {
@@ -679,15 +673,14 @@ Object.assign(PATTERN_FUNCS, {
     const level = dyn(ctx, 'level', 0.8);
     const aura = Math.round(110 + 110 * level);
     const grid = flashGrid(ctx, 1);
-    const strike = ctx.pulse ? ctx.pulse.kick > 0.6 : flashLit(grid.phase, grid.slotMs);
+    const strike = flashLit(grid.phase, grid.slotMs);
     const rows = heightsOf(ctx);
     const inCore = rows ? (i: number) => Math.abs(rows(i) - 0.5) < 0.17 : (i: number) => fromMiddle(ctx, i) < 0.34;
     const glow = Math.round(aura * 0.3);
     for (let i = 0; i < ctx.fixtureCount; i++) {
       if (inCore(i) && isHueSlot(ctx, i)) {
         // Keep the core's native glow beneath the softened strike.
-        const level = ctx.pulse ? Math.max(glow, Math.round(255 * clamp01(ctx.pulse.kick / 0.6)))
-          : huePulse(grid.phase * grid.slotMs, glow);
+        const level = huePulse(grid.phase * grid.slotMs, glow);
         ctx.write(i, level > glow ? STROBE_WHITE : pal[0], level, 0);
       } else if (inCore(i)) {
         if (strike) ctx.write(i, STROBE_WHITE, 255, 0);
@@ -749,10 +742,6 @@ function heightsOf(ctx: PatternContext): ((i: number) => number) | null {
 }
 
 function bandLevels(ctx: PatternContext): number[] {
-  const p = ctx.pulse;
-  if (p) {
-    return [p.kick, p.bass ?? p.mix, p.drums ?? p.mix, p.snare, p.other ?? p.mix * 0.6, p.vocals ?? 0, p.hats].map(clamp01);
-  }
   const kit = kitFromTheClock(ctx);
   return [kit.kick, dyn(ctx, 'bass', 0.5), dyn(ctx, 'level', 0.6) * 0.8, kit.snare, dyn(ctx, 'air', 0.3),
     dyn(ctx, 'vocal', 0.4), kit.hats].map(clamp01);
@@ -902,7 +891,7 @@ const PARTY_PATTERNS = {
     const room = roomOf(ctx);
     const { event, progress } = eventAt(posOf(ctx), 4);
     const env = envelope(progress, 0.3, 0.2, 0.5, 'inout');
-    const bass = ctx.pulse ? (ctx.pulse.bass ?? ctx.pulse.mix) : dyn(ctx, 'bass', 0.6);
+    const bass = dyn(ctx, 'bass', 0.6);
     const drive = 0.4 + 0.6 * bass;
     for (let i = 0; i < ctx.fixtureCount; i++) {
       const d = room.dist[i];
@@ -996,7 +985,7 @@ const PARTY_PATTERNS = {
     const pal = paletteOf(ctx);
     const room = roomOf(ctx);
     const { event, progress } = eventAt(posOf(ctx), 8);
-    const loud = ctx.pulse ? ctx.pulse.mix : dyn(ctx, 'level', 0.8);
+    const loud = dyn(ctx, 'level', 0.8);
     const gate = clamp01((loud - 0.25) / 0.75);
     const open = 0.2 + 0.8 * gate;
     const along = room.along(90);
@@ -1010,7 +999,7 @@ const PARTY_PATTERNS = {
     const pal = paletteOf(ctx);
     const every = Math.max(1, Math.ceil(400 / stepMsOf(ctx)));
     const { event, progress } = eventAt(posOf(ctx), every);
-    const env = ctx.pulse ? ctx.pulse.kick : envelope(progress, 0, 0.17, 0.46, 'out');
+    const env = envelope(progress, 0, 0.17, 0.46, 'out');
     for (let i = 0; i < ctx.fixtureCount; i++) {
       const lit = scatter(i, event * 17 + 3) < 0.75;
       const colour = contextGradient(ctx, pal, scatter(i, event * 17 + 9) + event * 0.31);

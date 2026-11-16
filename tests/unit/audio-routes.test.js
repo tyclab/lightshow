@@ -66,33 +66,16 @@ async function serve({ now } = {}) {
   const spawned = [];
   const procs = [];
   const live = new LiveInput({ now, spawner: (exe, args) => { spawned.push(args); const p = fakeProcess(); procs.push(p); return p; } });
-  const idle = { onPlaybackUpdate() {}, onTrackChange() {}, getStatus: () => ({}), authenticated: false };
-  const autoShow = {
-    running: false, track: null, syncOffsetMs: 0, autoSyncMs: 0, analysis: null,
-    getPositionMs: () => 0, getClientState: () => ({}), start() {}, stop() {},
-    isCached: () => false, gridFor: () => null, isPrefetching: () => false,
-    applyQueueOrder() {}, setPaletteSize() {}, setIntensity() {}, setSyncOffsetMs() {}, adjustAutoSync() {},
-  };
-  const prolink = {
-    connected: false, stale: false, lastError: null, getNumPeers: () => 0, getFollowed: () => null, getTrack: () => null,
-    getLoadedTracks: () => [], getTempo: () => 0, getPositionMs: () => 0,
-    onTempoChange() {}, onPeersChange() {}, onFollowChange() {}, onTrackChange() {}, onLoadedTracksChange() {}, onAnyTrackLoaded() {},
-  };
   const midi = { enabled: false, sendFeedback() {}, listPorts: () => [], onLearn() {}, close() {}, connect() { return true; }, setControlFeedback() {} };
   const app = express();
   app.use(express.json());
   const server = http.createServer(app);
   const io = new Server(server);
   const integrations = setupIntegrations({
-    io, midi,
-    spotify: { ...idle, startPolling() {}, async getQueue() { return []; } },
-    nowPlaying: idle,
-    deezerSource: { ...idle, getQueue: () => [], updatePlayback() {}, updateQueue() {}, disconnect() {} },
-    prolink, autoShow, liveInput: live,
+    io, midi, liveInput: live,
   });
   const applier = createApplier({
-    midi, spotify: { localCallbackUrl: '', setLoopbackPort() {}, configure() {} }, smtc: { start() {}, stop() {} },
-    live, deezer: { init: async () => {} }, applyPatch() {}, broadcast: () => integrations.broadcast(),
+    midi, live, applyPatch() {}, broadcast: () => integrations.broadcast(),
   });
   attachRoutes(app, { integrations, applier });
   attachSockets(io, { midi, integrations });
@@ -387,10 +370,9 @@ test('render input defaults apply only to omitted audio settings', () => {
 test('the live director and the audio features both hear every reading', async () => {
   const s = await serve();
   try {
-    state.autoSource = 'live';
     s.live.start({ source: 'loopback' });
     s.hear();
-    assert.strictEqual(s.integrations.startAutoShow(), 'live');
+    s.integrations.startAutoShow();
     // Silence darkens the director's rig; sound after it brings it back, from a reading.
     s.live.handleLine(JSON.stringify({ type: 'event', event: { t: 1, type: 'SILENCE', confidence: 1, intensity: 0, duration: 0, effect: 'kill' } }));
     assert.strictEqual(getLiveState().live.director.silent, true);
@@ -399,12 +381,11 @@ test('the live director and the audio features both hear every reading', async (
     assert.strictEqual(s.integrations.audio.features.frame().t, 2, 'and so did the audio features');
     s.integrations.stopAutoShow();
   } finally {
-    state.autoSource = 'auto';
     await s.close();
   }
 });
 
-test('a settings apply, a restart and the return from the Python setup keep the bands', async () => {
+test('a settings apply, a restart and a stop and start keep the bands', async () => {
   const s = await serve();
   try {
     const bandsOf = (args) => args[args.indexOf('--bands') + 1];
@@ -424,7 +405,7 @@ test('a settings apply, a restart and the return from the Python setup keep the 
     assert.strictEqual(s.spawned.length, 2);
     assert.strictEqual(bandsOf(s.spawned[1]), KEY);
 
-    // The Python setup stops it and starts it again from its options.
+    // Stopped and started again from its own options, it keeps them.
     const before = s.live.options;
     s.live.stop();
     s.live.start(before);
@@ -449,7 +430,6 @@ test('Disco band updates preserve the input process and beat lock', async () => 
   let liveNow = 10000;
   const s = await serve({ now: () => liveNow });
   const pattern = state.pattern;
-  const autoSource = state.autoSource;
   try {
     s.applier.applyChanged(settings.update({ live: { enabled: true } }));
     assert.strictEqual(s.spawned.length, 1);
@@ -463,8 +443,7 @@ test('Disco band updates preserve the input process and beat lock', async () => 
     };
     const take = () => { const sent = proc.asked.at(-1); layout = sent.bands; s.live.handleLine(JSON.stringify(sent)); };
     hear(5);
-    state.autoSource = 'live';
-    assert.strictEqual(s.integrations.startAutoShow(), 'live');
+    s.integrations.startAutoShow();
     const key = s.live.getBeatReading().key;
     const epoch = s.integrations.audio.features.frame().generation;
     const steady = (what) => {
@@ -507,7 +486,6 @@ test('Disco band updates preserve the input process and beat lock', async () => 
   } finally {
     await s.call('DELETE', '/api/voices');
     state.pattern = pattern;
-    state.autoSource = autoSource;
     await s.close();
   }
 });

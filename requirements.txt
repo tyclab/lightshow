@@ -1,130 +1,22 @@
-# Python dependencies for src/analysis/ (the audio analysis pipeline the
-# auto-show runs, launched via src/analyze.py).
-#
-# The locked way, which also gets torch, torchaudio and torchvision from one
-# build (pyproject.toml, uv.lock):
-#
-#     uv sync --extra cpu        # or --extra cu128 (NVIDIA), --extra rocm (AMD, Linux)
-#
-# The server finds the .venv that makes. Otherwise, into a Python of your own:
+# Python dependencies of the live input (src/live_input.py, src/analysis/): it
+# hears the music as it plays and tells the server the beat, the bands and the
+# events the auto show answers.
 #
 #     pip install -r requirements.txt
 #
-# ffmpeg converts downloaded audio to WAV (src/audio-file.ts) and extracts it
-# for yt-dlp. One on PATH is used first (apt install ffmpeg / brew install
-# ffmpeg / winget install ffmpeg); without one, the server uses the binary
-# imageio-ffmpeg (below) installs.
-#
-# Model weights are fetched before the show, never by the analysis itself:
-# Settings → Analysis models in the web UI, or
-#
-#     python scripts/download-models.py            # what the show needs
-#     python scripts/download-models.py --list     # what is here
+# into the Python the server uses (Sources → Live input → Python, or the first
+# python3 on PATH, or a .venv in the project folder).
 
-# ── Core analysis ───────────────────────────────────────────────────────────
-librosa>=0.10
 numpy>=1.24
-scipy>=1.10
-scikit-learn>=1.3
-soundfile>=0.12
 
-# Used to pin BLAS thread counts around the parallel analysis stages.
-threadpoolctl>=3.1
-
-# ── Models ──────────────────────────────────────────────────────────────────
-# torch is required, not optional. The beat grid, the metre and the instrument
-# roles all come from models now, and there is no signal-processing fallback
-# for the beat grid: the fallback was the part that reported a 99 BPM pop song
-# at 198, and shipping a worse answer under the same field name is worse than
-# refusing to answer.
-#
-# Not pinned to an exact version: the right wheel depends on platform and CUDA.
-# If pip picks a build you don't want — a CUDA build on a laptop, or a CPU
-# build on a machine with a GPU — install torch yourself first from
-# https://pytorch.org/get-started/locally/ and then run this file. The pipeline
-# uses CUDA when it is there and threads when it is not; set
-# ARTNET_ANALYSIS_DEVICE=cpu to force threads on a machine whose GPU is busy
-# driving a visualiser.
-#
-# AMD GPUs (ROCm, including Radeon 780M/890M iGPUs on Windows): install from
-# AMD's index before this file. Pin torch to the release torchvision was built
-# against: torchvision 0.28 needs torch 2.13, and with 2.14 it cannot load its
-# native ops ("operator torchvision::nms does not exist"):
-#
-#     pip install --index-url https://nightly.repo.amd.com/rocm/whl-next/ ^
-#         "torch[device-gfx1150]==2.13.*" "torchvision[device-gfx1150]" torchaudio
-#
-# (gfx1150 is the 890M; use your card's gfx target.) The analyser turns MIOpen
-# off on ROCm; see models._avoid_miopen.
-torch>=2.0
-huggingface_hub>=0.23
-muq>=0.1
-# MuQ calls the Conformer encoder directly and requires its v4 hidden states API.
-transformers==4.51.3
-# MuQ's x_clip needs torchvision, and it has to be the torchvision built for the
-# torch above: one from another build installs cleanly and then fails every
-# model with "operator torchvision::nms does not exist". Install it from the
-# same index as torch (the uv route above does this for you).
-torchvision
-safetensors>=0.4
-# SongFormer (optional; src/analysis/songformer.py). Its code ships with its
-# weights and imports these. msaf, which it also names, is stubbed: it pins
-# enum34, which breaks the standard library on Python 3.
-einops>=0.7
-x-transformers>=1.0
-ema-pytorch>=0.2
-loguru>=0.7
-omegaconf>=2.3
-# Optional preferred production adapters. The pipeline falls back cleanly when
-# these packages or their checkpoints are not present.
-# audio-separator imports onnxruntime even for PyTorch RoFormer models.
-# The base package omits it; select its CPU extra for a portable installation.
-# This does not disable CUDA inference in PyTorch.
-audio-separator[cpu]>=0.30
-onnxruntime>=1.17
-audioread>=3.0
-# S-KEY (key detection) is not listed here because it pins torch and
-# torchaudio to 2.7.x, and installing it replaces any other torch — a GPU build
-# included — with the 2.7 CPU wheel. The uv environment (pyproject.toml)
-# includes it with those pins set aside; on this route, install it on its own,
-# without its pins:
-#
-#     pip install --no-deps git+https://github.com/deezer/skey.git
-
-# Beat and downbeat tracking: Beat This! (Foscarin et al., ISMIR 2024).
-# Installed without madmom, so no Cython toolchain and no numpy pin.
-beat_this>=1.1
-
-# Source separation: Demucs v4. Instrument roles are read off its stems, which
-# is how "is there a singer" stopped being a guess about mid-band energy.
-demucs>=4.0
-
-# ── Genre and mood tagging (PANNs) ──────────────────────────────────────────
-# The one model that stays optional: it contributes a second opinion to genre
-# and to the instrument-role priors, and every consumer already treats a
-# missing answer as "unknown". Fetch the weights once (~310 MB) under
-# Settings → Analysis models, or with:
-#
-#     python scripts/setup-panns.py
-#     python scripts/setup-panns.py --check     # verify without downloading
-panns_inference>=0.1.1
-
-# ── Live input ──────────────────────────────────────────────────────────────
-# The live input service (src/live_input.py) hears the music as it plays.
 # soundcard captures what the PC itself plays (WASAPI loopback on Windows, the
 # output's monitor on Linux) and any input; sounddevice is its fallback for a
 # line-in. Both load their system audio library when first used, not when
-# installed, so a machine without one only loses live input.
+# installed, so a machine without one only loses the live input.
 soundcard>=0.4.6
 sounddevice>=0.5
 
-# ── Audio download fallback ─────────────────────────────────────────────────
-# Used when a track has no ISRC or Deezer is not configured.
-#
-# 2025.11.12 or newer: YouTube now needs an external JavaScript runtime to
-# solve its challenges. The server passes its own Node to yt-dlp; the `deno`
-# extra installs Deno beside yt-dlp too, where yt-dlp looks first.
-# The `default` extra brings the challenge-solver scripts (yt-dlp-ejs).
-yt-dlp[default,deno]>=2025.11.12
-# An ffmpeg binary, for when there is none on PATH (see ffmpeg, above).
-imageio-ffmpeg>=0.5
+# Reading an audio file instead of a device (live_input.py --file), which is
+# what the tests do.
+librosa>=0.10
+soundfile>=0.12

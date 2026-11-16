@@ -4,8 +4,8 @@ Read for this topic; paths below are relative to the repository root unless stat
 
 Run `npm run check` and `npm run build:client` for JavaScript/TypeScript changes.
 For browser behavior, run `npm run test:e2e` with Playwright Chromium installed.
-For Python changes, run `python -m unittest discover -s tests/python -v` using the
-analysis environment; report missing dependencies, skipped models and failures.
+For Python changes, run `python -m unittest discover -s tests/python -v` in a Python
+with the packages in `requirements.txt`; report missing dependencies, skipped tests and failures.
 Validate comment edits with parser/AST comparisons as well as relevant tests.
 Do not update golden outputs merely to make a failing check pass.
 

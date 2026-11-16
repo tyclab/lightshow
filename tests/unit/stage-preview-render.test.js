@@ -18,7 +18,7 @@ const fixtures = [
   { id: 3, label: 'Par', universe: 3, address: 1, profileId: PAR.id, position: { x: 50, y: 80 } },
 ];
 const state = () => ({ fixtures, profiles: { [BAR.id]: BAR, [PAR.id]: PAR }, armed: false, masterBlackout: false, masterDimmer: 255,
-  colorPresets: [], autoShow: { status: 'idle', intensity: 70 }, bpm: 120, clock: { source: 'tap', bpm: 120 } });
+  colorPresets: [], bpm: 120, clock: { source: 'tap', bpm: 120 } });
 const frame = (value) => ({ 1: new Uint8Array(512).fill(value), 2: new Uint8Array(512).fill(value), 3: new Uint8Array(512).fill(value) });
 
 function elements(node, out = []) {

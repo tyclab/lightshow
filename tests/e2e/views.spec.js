@@ -1,7 +1,7 @@
 // The view shell: Show and Perform as tabs, the other views in the Setup menu, a view per hash, keys to switch.
 
 import { test, expect } from '@playwright/test';
-import { control, loadTrack, open, openFromSetup, reset, unloadTrack } from './helpers.js';
+import { control, listenLive, open, openFromSetup, reset, stopListening } from './helpers.js';
 
 test.beforeEach(async ({ request }) => { await reset(request); });
 
@@ -56,6 +56,23 @@ for (const [name, id] of [['Sequence', 'sequence'], ['Rig', 'rig']]) {
     await expect(page).toHaveURL(/#show$/);
   });
 }
+
+// Review R03 (Show v3 fixes, G6): the same rule inside one view. The page's own sub-tab change comes first, an
+// outside navigation to a third panel of that view second, before the sub-tab's effects run; the navigation wins.
+// Two outside navigations in a row passed before the fix and are not this case.
+test('a hash navigation to another panel right after a sub-tab change is not undone', async ({ page }) => {
+  await page.addInitScript(holdHashChanges);
+  await open(page, 'rig/plan');
+  const outputs = page.getByRole('tab', { name: 'Outputs', exact: true });
+  await outputs.evaluate((button) => { window.holdHashChanges(); button.click(); window.location.hash = '#rig/profiles'; });
+  await expect(outputs).toHaveAttribute('aria-selected', 'true');
+  await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => setTimeout(resolve, 100)))));
+  await page.evaluate(() => window.releaseHashChanges());
+  await expect(page.getByRole('tab', { name: 'Profiles', exact: true }), 'the navigation to #rig/profiles').toHaveAttribute('aria-selected', 'true');
+  await expect(page).toHaveURL(/#rig\/profiles$/);
+  await page.getByRole('tab', { name: 'Plan & patch', exact: true }).click();
+  await expect(page, 'a sub-tab the page chooses still names itself').toHaveURL(/#rig\/plan$/);
+});
 
 test('the app opens on Show: the room, the looks and global controls', async ({ page }) => {
   await page.goto('/');
@@ -155,7 +172,7 @@ test('the strip has Show, Perform and Setup, and every former view still opens',
     await page.goto(`/#${id}`);
     await expect(page.locator(part), `${name} by its hash`).toBeVisible();
   }
-  for (const [alias, canonical, part] of [['manual', 'effects', '.manual-view'], ['timeline', 'auto/timeline', '.timeline-view'], ['matrix', 'perform/matrix', '.perform-view']]) {
+  for (const [alias, canonical, part] of [['manual', 'effects', '.manual-view'], ['timeline', 'auto', '.auto-layout'], ['matrix', 'perform/matrix', '.perform-view']]) {
     await page.goto(`/#${alias}`);
     await expect(page.locator(part), `#${alias}`).toBeVisible();
     await expect(page).toHaveURL(new RegExp(`#${canonical}$`));
@@ -238,12 +255,12 @@ test('the Setup menu works from the keyboard', async ({ page }) => {
   await expect(menu, 'a press outside closes it').toBeHidden();
 });
 
-test('a busy Auto Show marks the Setup button and its entry', async ({ page, request }) => {
-  await unloadTrack(request);
+test('a playing Auto Show marks the Setup button and its entry', async ({ page, request }) => {
+  await listenLive(request);
   await open(page, 'show');
   const setup = page.getByRole('navigation', { name: 'Views' }).getByRole('button', { name: /^Setup/ });
   await expect(setup.locator('.mode-tab-dot')).toHaveCount(0);
-  await loadTrack(request);
+  await control(request, 'start', 'auto');
   try {
     await expect(setup.locator('.mode-tab-dot'), 'visible with the menu closed').toBeVisible();
     await expect(setup).toHaveAccessibleDescription('Auto Show: Running');
@@ -251,10 +268,12 @@ test('a busy Auto Show marks the Setup button and its entry', async ({ page, req
     const entry = page.getByRole('menu', { name: 'Setup' }).getByRole('menuitem', { name: 'Auto Show', exact: true });
     await expect(entry.locator('.mode-tab-dot')).toBeVisible();
     await expect(entry).toHaveAccessibleDescription('Running');
+    await control(request, 'stop');
+    await expect(setup.locator('.mode-tab-dot'), 'gone when Auto stops').toHaveCount(0);
   } finally {
-    await unloadTrack(request);
+    await control(request, 'stop');
+    await stopListening(request);
   }
-  await expect(setup.locator('.mode-tab-dot')).toHaveCount(0);
 });
 
 test('the digit keys jump between views, and not while typing', async ({ page }) => {
@@ -282,7 +301,16 @@ test('the keyboard shortcuts dialog keeps focus inside it and gives it back', as
   await expect(page.getByRole('button', { name: 'Keyboard shortcuts' })).toBeFocused();
 });
 
-for (const [old, canonical, panel] of [['manual', 'effects', 'effects'], ['timeline', 'auto/timeline', 'auto'], ['matrix', 'perform/matrix', 'perform']]) {
+// G8: the Auto Show view has no Timeline tab now; its old place still opens the view.
+test('#auto/timeline and #auto/show open the Auto Show view', async ({ page }) => {
+  for (const hash of ['auto/timeline', 'auto/show']) {
+    await page.goto(`/#${hash}`);
+    await expect(page.locator('#panel-auto'), `#${hash}`).toBeVisible();
+    await expect(page.locator('.auto-layout'), `#${hash}`).toBeVisible();
+  }
+});
+
+for (const [old, canonical, panel] of [['manual', 'effects', 'effects'], ['timeline', 'auto', 'auto'], ['matrix', 'perform/matrix', 'perform']]) {
   test(`old ${old} bookmarks open ${canonical}`, async ({ page }) => {
     await open(page, old);
     await expect(page).toHaveURL(new RegExp(`#${canonical}$`));

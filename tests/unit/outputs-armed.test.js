@@ -209,9 +209,6 @@ test('Hue streams close on disarm and reopen on arm', async () => {
 /** The subsystems the applier pushes into, as far as arming needs them. */
 const subsystems = (applied) => ({
   midi: { close() {}, connect() { return true; }, setControlFeedback() {} },
-  spotify: { localCallbackUrl: '', setLoopbackPort() {}, configure() {} },
-  smtc: { start() {}, stop() {} },
-  deezer: { init: async () => {} },
   applyPatch: (patch) => applied.push(patch),
   broadcast() {},
 });
@@ -233,7 +230,7 @@ function withSettings(fn) {
 /** What the outputs logged since `mark`: the arming lines, with their fields. */
 const armingLines = (mark) => buffer.since(mark).filter((e) => e.component === 'outputs').map((e) => ({ msg: e.msg, ...e.data }));
 const controlDeps = (applier) => ({
-  applier, autoShow: { analysis: null },
+  applier,
   integrations: { broadcast() {}, sequence: { sequencer: new Sequencer({ resolve: () => null }) } },
 });
 
@@ -442,7 +439,6 @@ test('health: disarmed outputs are said, as information, and never a fault', () 
     rssMb: 300,
     errors: { count: 0, last: null },
     supervisor: { supervised: true, restarts: 0, lastExit: null, recovering: false },
-    auto: { status: 'ready', error: null },
   };
   const quiet = assess({ ...fine, armed: false });
   assert.equal(quiet.status, 'ok');

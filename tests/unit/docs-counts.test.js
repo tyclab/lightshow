@@ -20,7 +20,7 @@ test('README counts the spatial looks, the generators and the folded reactions a
     `Every setting of the ${generators} generators and the strobe`, `**Reactive** stands for the ${WORDS[REACTIVE_TAGS.size]} reactions`]) {
     assert.ok(readme.includes(sentence), `README says: ${sentence}`);
   }
-  const where = /A reaction also says where its input comes from: (.*?) The auto show's/.exec(readme)?.[1] ?? '';
+  const where = /A reaction also says where its input comes from: (.*?) The expression channel/.exec(readme)?.[1] ?? '';
   assert.deepEqual([...where.matchAll(/\*\*(\w+)\*\*/g)].map((m) => m[1]), Object.keys(SOURCES), 'every source and no other');
 });
 

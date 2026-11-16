@@ -116,7 +116,7 @@ export class LookCoverage {
       this.changed();
     }).catch(() => {
       if (cancelled()) return;
-      console.warn('[auto-show] look coverage unavailable; keeping broad spatial effects');
+      console.warn('[look-coverage] unavailable; the auto show keeps the broad spatial effects');
       // The set still out was measured on another rig: without a result for this one, the unmeasured set.
       if (this.allowed.size === 0) return;
       this.allowed = EMPTY;

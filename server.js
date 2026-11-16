@@ -10,7 +10,7 @@ if (!recentEnough || !process.features?.typescript) {
 }
 
 // The .env in the folder it starts from, first: it can say where the config
-// is (whose Deezer ARL the supervisor looks for) and turn the supervisor off.
+// is and turn the supervisor off.
 await import('./src/load-env.ts');
 
 // Avoid nested supervisors when another process or Node watch owns restarts.

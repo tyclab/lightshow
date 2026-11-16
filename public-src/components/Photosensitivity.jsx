@@ -78,9 +78,9 @@ export function StrobesOff({ perform = false }) {
     return (
       <>
         {/* A header pill like the others, label over value: the full notice is its name and title. */}
-        <button type="button" class="stat-pill gate" data-safety="ask" aria-label="Strobes off until acknowledged" title={title}
+        <button type="button" class="stat-pill gate" data-safety="ask" aria-label="Strobes locked until acknowledged" title={title}
           onClick={() => setAsking(true)}>
-          <span class="label">Strobes</span>
+          <span class="label">Strobes</span>{' '}
           <span>locked</span>
         </button>
         {dialog}

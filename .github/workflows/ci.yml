@@ -88,64 +88,26 @@ jobs:
           path: test-results/
           retention-days: 7
 
-  # Exercise model-backed analysis on synthetic audio using CPU torch.
-  # Cache model weights; PANNs remains optional and bootstrap-tested separately.
+  # The live input's Python on synthetic audio: the service, its streaming
+  # analyser and the launcher the server starts.
   python:
     runs-on: ubuntu-latest
-    env:
-      # No GPU on a runner, and saying so skips the CUDA probe.
-      ARTNET_ANALYSIS_DEVICE: cpu
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
       - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
         with:
-          python-version: '3.11'
+          python-version: '3.15'
           cache: pip
 
-      # Same index for both: a torchaudio built against another torch fails its native load and every model test errors.
-      - name: Install torch and torchaudio (CPU build)
-        run: |
-          pip install torch torchaudio --index-url https://download.pytorch.org/whl/cpu
-          pip freeze | grep -E '^(torch|torchaudio)==' > /tmp/torch-constraints.txt
-          cat /tmp/torch-constraints.txt
-
-      # Prevent model dependencies from replacing the installed torch pair.
-      - name: Install the analysis dependencies
-        run: pip install -c /tmp/torch-constraints.txt
-             numpy scipy scikit-learn soundfile librosa threadpoolctl
-             beat_this demucs
-
-      # Fail fast and legibly. The native extension only loads when the pair
-      # matches, and finding that out from eighteen test errors wastes a cycle.
-      - name: Verify the model stack imports
-        run: |
-          python -c "import torch, torchaudio; print('torch', torch.__version__, '| torchaudio', torchaudio.__version__)"
-
-      # Cache weights by models.py: Beat This! uses torch hub, Demucs Hugging Face.
-      - name: Cache model checkpoints
-        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
-        with:
-          path: |
-            ~/.cache/torch
-            ~/.cache/huggingface
-          key: model-checkpoints-${{ hashFiles('src/analysis/models.py') }}
-          restore-keys: model-checkpoints-
-
-      # Load directly: warm_up intentionally swallows optional model failures.
-      - name: Fetch model weights
-        run: |
-          python -c "
-          import sys; sys.path.insert(0, 'src')
-          from analysis import models
-          print('beat tracker:', type(models.beat_tracker()).__name__)
-          print('separator:', type(models.separator()).__name__)
-          "
+      # soundcard and sounddevice need audio libraries the runner lacks; the tests read files and fake the devices.
+      - name: Install the live input's dependencies
+        run: pip install numpy librosa soundfile
 
       - name: Compile every module
         run: python -m compileall -q src scripts tests
 
-      - name: Analysis tests
+      - name: Live input tests
         run: python -m unittest discover -s tests/python -v
 
   audit:

@@ -1,7 +1,6 @@
-"""Every tuning constant in the analysis pipeline; re-tune by passing a modified AnalysisConfig to pipeline.analyze().
-Fields named *_ratio or *_score are 0..1 fractions."""
+"""The live input's tuning constants: the bands it reports, its tempo estimate and its streaming analyser."""
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Dict, Tuple
 
 
@@ -19,78 +18,11 @@ BAND_ORDER = list(BANDS.keys())
 
 
 @dataclass(frozen=True)
-class PreprocessConfig:
-    sample_rate: int = 22050
-    # 32 kHz is what PANNs expects.
-    wideband_rate: int = 32000
-    highpass_hz: float = 18.0
-    target_lufs: float = -18.0
-    # More gain turns near-silence into noise that onset detectors read as beats.
-    max_gain_db: float = 24.0
-    noise_floor_percentile: float = 5.0
-    noise_reduction: float = 0.5
-    # At 3.0 the hats stop leaking into `harmonic`.
-    hpss_margin: float = 3.0
-    n_fft: int = 2048
-    hop_length: int = 512
-
-
-@dataclass(frozen=True)
 class RhythmConfig:
     tempo_min: float = 55.0
     tempo_max: float = 200.0
     tempo_prior_bpm: float = 120.0
     tempo_prior_std: float = 1.0
-    onset_delta: float = 0.07
-    #: Minimum gap between onsets, seconds. Two hits closer than this are one.
-    onset_min_gap_sec: float = 0.03
-    meters: Tuple[int, ...] = (4, 3)
-
-
-@dataclass(frozen=True)
-class StructureConfig:
-    recurrence_width: int = 9
-    min_section_sec: float = 8.0
-    min_clusters: int = 3
-    max_clusters: int = 10
-    novelty_kernel_beats: int = 16
-    label_smoothing_beats: int = 17
-    repeat_threshold: int = 2
-
-
-@dataclass(frozen=True)
-class DynamicsConfig:
-    drop_min_rise: float = 0.22
-    drop_min_breakdown: float = 0.18
-    # A cymbal crash rises as fast as a drop; only the drop sustains.
-    drop_sustain_sec: float = 4.0
-    #: Minimum gap between two accepted drops, seconds.
-    drop_min_gap_sec: float = 12.0
-    #: Keep about one drop per this many seconds, most confident first; pop songs do not have eight drops.
-    drop_density_sec: float = 50.0
-    #: Build-up search window before a drop, seconds.
-    buildup_max_sec: float = 16.0
-    buildup_min_sec: float = 1.5
-    # Correlation with time: a share-of-rising-frames test swallowed the whole section before the drop.
-    buildup_trend: float = 0.80
-    silence_threshold: float = 0.06
-    silence_min_sec: float = 0.4
-    spike_min_sigma: float = 2.2
-    break_min_fall: float = 0.25
-    break_min_sec: float = 3.0
-
-
-@dataclass(frozen=True)
-class EventConfig:
-    #: Beat events below this confidence are not emitted: the show engine never gets a beat the analyser doubts.
-    beat_min_confidence: float = 0.10
-    bass_hit_threshold: float = 0.55
-    #: Minimum gap between successive bass-hit events, seconds.
-    bass_hit_min_gap_sec: float = 0.18
-    vocal_threshold: float = 0.42
-    vocal_min_sec: float = 4.0
-    melody_change_threshold: float = 0.34
-    melody_change_min_gap_sec: float = 6.0
 
 
 @dataclass(frozen=True)
@@ -99,17 +31,13 @@ class RealtimeConfig:
     hop_length: int = 512
     # 46 ms at 22.05 kHz, under the ~80 ms where a lighting cue reads as late.
     n_fft: int = 1024
-    #: Length of the rolling history used for adaptive thresholds, seconds.
     history_sec: float = 10.0
     onset_k: float = 1.6
-    #: Tempo is re-estimated this often, seconds.
     tempo_refresh_sec: float = 2.0
-    #: How often the beat phase is re-fitted to the recent onsets, seconds.
     phase_refresh_sec: float = 0.5
     #: Onset history each re-fit reads, seconds: outvotes a syncopated bar, still follows a drifting tempo.
     phase_window_sec: float = 4.0
     phase_lock_strength: float = 0.5
-    # A larger value lets a syncopated passage drag the tempo.
     frequency_lock_strength: float = 0.012
     #: −80 dBFS: an idle sink's digital silence sits below it, the quietest music the show follows far above.
     quiet_rms: float = 1e-4
@@ -123,22 +51,3 @@ class RealtimeConfig:
     landing_sec: float = 0.5
     #: The loudest level is forgotten after four minutes with nothing near it: a quieter track then sets its own.
     loud_memory_sec: float = 240.0
-
-
-@dataclass(frozen=True)
-class AnalysisConfig:
-    preprocess: PreprocessConfig = field(default_factory=PreprocessConfig)
-    rhythm: RhythmConfig = field(default_factory=RhythmConfig)
-    structure: StructureConfig = field(default_factory=StructureConfig)
-    dynamics: DynamicsConfig = field(default_factory=DynamicsConfig)
-    events: EventConfig = field(default_factory=EventConfig)
-    realtime: RealtimeConfig = field(default_factory=RealtimeConfig)
-    enable_semantics: bool = True
-    enable_tagger: bool = True
-    separate_sources: bool = True
-    parallel: bool = True
-    # None reads ARTNET_STRUCTURE_MODEL, which the server sets from settings.
-    structure_model: str = None
-
-
-DEFAULT = AnalysisConfig()
