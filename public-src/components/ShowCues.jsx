@@ -1,21 +1,24 @@
-import { useId, useLayoutEffect, useRef, useState } from 'preact/hooks';
+import { useEffect, useId, useLayoutEffect, useRef, useState } from 'preact/hooks';
 import { pick } from '../state.js';
 import { useFocusTrap } from '../focus-trap.js';
 import { recallCue, saveCue } from './Cues.jsx';
 
 /** The name for a new cue: a failed save keeps what was typed; Cancel, Escape or a save closes it and focus returns. */
 function SaveCueDialog({ onSaved, onClose }) {
-  const box = useRef(null), field = useRef(null);
+  const box = useRef(null), field = useRef(null), open = useRef(true);
   const [name, setName] = useState('');
   const [saving, setSaving] = useState(false);
   const id = useId();
   useFocusTrap(box, true, onClose);
   // The trap's own effect can run a frame late on a busy machine: focus and Escape work from the first paint.
   useLayoutEffect(() => { field.current?.focus(); }, []);
+  useEffect(() => () => { open.current = false; }, []);
   const save = async () => {
     if (saving) return;
     setSaving(true);
     const res = await saveCue(name);
+    // A save's answer is this dialog's: closed meanwhile, it neither closes a dialog opened since nor names its cue.
+    if (!open.current) return;
     setSaving(false);
     if (res.ok) onSaved(res.cue?.name || name.trim());
   };

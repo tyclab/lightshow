@@ -51,7 +51,7 @@ test('explicit controls preserve independent states and content edits cannot rel
   await playButton(page, 'Play').click();
   await until(request, s => s.control.playing && !s.control.pending);
   expect((await state(request)).control.blackout).toBe(true);
-  await controls.getByRole('button', { name: 'Restore', exact: true }).click();
+  await controls.getByRole('button', { name: 'Blackout, Restore', exact: true }).click();
   await until(request, s => !s.control.blackout && !s.control.pending);
 });
 

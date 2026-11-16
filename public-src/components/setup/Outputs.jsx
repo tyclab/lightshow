@@ -295,7 +295,7 @@ function PatchedWleds() {
                 <td class="mono">{f.output.host}</td>
                 <td>{cellsOf(f)}</td>
                 <td class="patch-actions-cell">
-                  <button type="button" class="btn sm" aria-label={`Read ${f.label} again from its WLED`} onClick={() => refresh(f)}>Read again</button>
+                  <button type="button" class="btn sm" aria-label={`Read again: ${f.label}, from its WLED`} onClick={() => refresh(f)}>Read again</button>
                 </td>
               </tr>
             ))}
@@ -382,7 +382,7 @@ function Wled() {
                       {d.patched ? <span class="setting-help">In the patch as "{d.patched}"</span>
                         : !d.error && <>
                           <button type="button" class="btn sm active" onClick={() => add(d.host)}>Add to patch</button>
-                          {d.segments > 1 && <button type="button" class="btn sm" aria-label={`Add each of ${d.name}'s ${d.segments} segments`}
+                          {d.segments > 1 && <button type="button" class="btn sm" aria-label={`Add each segment of ${d.name} (${d.segments} segments)`}
                             onClick={() => add(d.host, true)}>Add each segment ({d.segments})</button>}
                         </>}
                     </td>
@@ -524,7 +524,7 @@ function OpenRgb() {
                       {d.leds > 0 && <button type="button" class="btn sm" aria-label={`Identify ${d.name}`} onClick={() => flash(d.index)}>Identify</button>}
                       {patched.has(d.index) ? <span class="setting-help">In the patch as "{patched.get(d.index)}"</span>
                         : d.leds > 0 && <button type="button" class="btn sm active" disabled={!connectedSig.value}
-                          aria-label={`Add ${d.name} to the patch`} onClick={() => add([d.index])}>Add to patch</button>}
+                          aria-label={`Add to patch: ${d.name}`} onClick={() => add([d.index])}>Add to patch</button>}
                     </td>
                   </tr>
                 ))}
@@ -684,7 +684,7 @@ function HueBridge({ bridge, live, patched, onChanged, onPair, notify }) {
                         <button type="button" class="btn sm" aria-label={`Identify ${name} of ${bridge.label}`} onClick={() => flash(lamp.id)}>Identify</button>
                         {fixture ? <span class="setting-help">In the patch as "{fixture.label}"</span>
                           : <button type="button" class="btn sm active" disabled={!connectedSig.value || !lamp.shows}
-                            aria-label={`Add ${name} of ${bridge.label} to the patch`} onClick={() => add([lamp.id])}>Add to patch</button>}
+                            aria-label={`Add to patch: ${name} of ${bridge.label}`} onClick={() => add([lamp.id])}>Add to patch</button>}
                       </td>
                     </tr>
                   );

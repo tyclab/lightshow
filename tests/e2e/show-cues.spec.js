@@ -66,3 +66,45 @@ test('a cue is saved and recalled from Show', async ({ page, request }) => {
   await expect(row.getByRole('status')).toHaveText('Recalled “Aurora evening”.');
   await expect(select).toHaveValue('');
 });
+
+// Review R05 (Show v3 fixes, G6): a save's answer reaches only its own dialog. A dialog cancelled while its save
+// waited, then opened again, keeps the new dialog and its typed name when the first save comes back.
+test('an earlier cue save does not close a reopened dialog or drop its name', async ({ page }) => {
+  let release;
+  const gate = new Promise((resolve) => { release = resolve; });
+  await page.route('**/api/cues', async (route) => {
+    if (route.request().method() !== 'POST') return route.continue();
+    const response = await route.fetch();
+    await gate;
+    return route.fulfill({ response });
+  });
+  try {
+    await open(page, 'show');
+    const row = page.getByRole('group', { name: 'Cues', exact: true });
+    const dialog = page.getByRole('dialog', { name: 'Save as cue' });
+    await row.getByRole('button', { name: 'Save cue', exact: true }).click();
+    await dialog.getByLabel('Cue name').fill('First cue');
+    const answered = page.waitForResponse((r) => r.request().method() === 'POST' && new URL(r.url()).pathname === '/api/cues');
+    await dialog.getByRole('button', { name: 'Save cue', exact: true }).click();
+    await dialog.getByRole('button', { name: 'Cancel', exact: true }).click();
+    await expect(dialog).toHaveCount(0);
+    await row.getByRole('button', { name: 'Save cue', exact: true }).click();
+    await dialog.getByLabel('Cue name').fill('Second cue, still typing');
+
+    release();
+    expect((await answered).ok()).toBe(true);
+    await expect(row.getByRole('combobox', { name: 'Saved cue' }).locator('option', { hasText: 'First cue' }), 'the first save landed').toHaveCount(1);
+    await page.waitForTimeout(300);
+    await expect(dialog, 'the reopened dialog stays').toBeVisible();
+    await expect(dialog.getByLabel('Cue name'), 'with its name').toHaveValue('Second cue, still typing');
+    // Behind the modal dialog the row is out of the accessibility tree: read its line by class.
+    await expect(row.locator('.show-cues-said'), 'the cancelled dialog\'s answer is not shown').toHaveText('');
+
+    await dialog.getByRole('button', { name: 'Save cue', exact: true }).click();
+    await expect(dialog).toHaveCount(0);
+    await expect(row.getByRole('status')).toHaveText('Saved “Second cue, still typing”.');
+  } finally {
+    release();
+    await page.unrouteAll({ behavior: 'wait' });
+  }
+});

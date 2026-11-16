@@ -164,7 +164,7 @@ export function StagePreview({ controls = true } = {}) {
         const turnHelp = bar ? ' [ and ] turn it, minus and equals change its length, 0 resets both.' : '';
         return <button key={fix.id} type="button" class={`stage-fixture ${bar ? 'bar' : ''}`}
           style={placeAt(point)}
-          aria-label={`${fix.label}${bar ? `, ${shape}` : ''}, position ${Math.round(point.x)}, ${Math.round(point.y)}${edit ? `. Arrow keys move, Shift moves faster.${turnHelp}` : ''}`}
+          aria-label={`${i + 1} ${fix.label}${bar ? `, ${shape}` : ''}, position ${Math.round(point.x)}, ${Math.round(point.y)}${edit ? `. Arrow keys move, Shift moves faster.${turnHelp}` : ''}`}
           title={`${fix.label} · ${patchedAt(fix)}${bar ? ` · ${grid ? gridLabel(grid, count) : `${count} cells`}` : ''}`}
           onPointerDown={(event) => grab(event, fix.id)}
           onPointerMove={move} onPointerUp={(event) => finish(event, true)}
@@ -193,7 +193,7 @@ export function StagePreview({ controls = true } = {}) {
             else return;
             event.preventDefault();
             emitFixture({ id: fix.id, geometry });
-          }}><i class="stage-glow" /><span class="stage-lamp">{i + 1}</span><span class="stage-label">{fix.label}</span></button>;
+          }}><i class="stage-glow" /><span class="stage-lamp">{i + 1}</span>{' '}<span class="stage-label">{fix.label}</span></button>;
       })}
       {/* In positioning mode, a bar's far end is a handle: drag it round to
           turn the bar, and out or in to lengthen or shorten it. */}

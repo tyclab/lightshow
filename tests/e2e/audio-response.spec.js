@@ -41,12 +41,12 @@ for (const view of ['perform', 'effects']) test(`${view}: half and double change
     await open(page, view);
     await page.getByRole('button', { name: 'Half tempo', exact: true }).click();
     await until(request, (s) => s.bpm === 61.75 && s.beatDivision === 4);
-    await page.getByRole('button', { name: 'Double tempo', exact: true }).click();
+    await page.getByRole('button', { name: 'Double tempo, ×2', exact: true }).click();
     await until(request, (s) => s.bpm === 123.5 && s.beatDivision === 4);
     await set(request, { bpm: 20 });
     await expect(page.getByRole('button', { name: 'Half tempo', exact: true })).toBeDisabled();
     await set(request, { bpm: 300 });
-    await expect(page.getByRole('button', { name: 'Double tempo', exact: true })).toBeDisabled();
+    await expect(page.getByRole('button', { name: 'Double tempo, ×2', exact: true })).toBeDisabled();
   } finally {
     await set(request, { bpm: before.bpm, beatDivision: before.beatDivision });
   }

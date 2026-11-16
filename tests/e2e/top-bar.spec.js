@@ -90,8 +90,8 @@ for (const [width, height] of WIDTHS) {
     await set(request, { pattern: longest.id });
     await control(request, 'start', 'look');
     for (const action of ['freeze', 'blackout', 'arm']) await control(request, action);
-    await expect(controls(page).getByRole('button', { name: 'Disarm', exact: true })).toBeVisible();
-    await expect(controls(page).getByRole('button', { name: 'Restore', exact: true })).toBeVisible();
+    await expect(controls(page).getByRole('button', { name: 'Armed, Disarm', exact: true })).toBeVisible();
+    await expect(controls(page).getByRole('button', { name: 'Blackout, Restore', exact: true })).toBeVisible();
     await expect(controls(page).getByRole('button', { name: 'Resume', exact: true })).toBeVisible();
     await expect(playButton(page, 'Stop')).toBeVisible();
     for (const [name, locator] of Object.entries({ ...safety(page), hold: hold(page) })) {
@@ -331,7 +331,7 @@ test('armed is unmistakable on the Arm button itself', async ({ page, request })
   expect(disarmed.text).toBe('Arm');
   await armFromHeader(page);
   await until(request, (s) => s.armed === true);
-  const button = controls(page).getByRole('button', { name: 'Disarm', exact: true });
+  const button = controls(page).getByRole('button', { name: 'Armed, Disarm', exact: true });
   await expect(button).toHaveAttribute('aria-pressed', 'true');
   await expect(button.locator('.global-arm-state')).toHaveText('● Armed');
   const armed = await look(button);
@@ -413,15 +413,18 @@ test('while the visualizer picture arrives the Colours card says the picture set
   }
 });
 
-test('the header has no axe violations with its popovers open, the rig armed and Resume showing', async ({ page, request }) => {
+test('the header has no axe violations with its popovers open, the rig armed, Blackout on and Resume showing', async ({ page, request }) => {
   await control(request, 'arm');
   await control(request, 'freeze');
+  await control(request, 'blackout');
   try {
     for (const [width, height] of WIDTHS) {
       await page.setViewportSize({ width, height });
       await open(page, 'effects');
       await page.addScriptTag({ path: AXE });
       await expect(controls(page).getByRole('button', { name: 'Resume', exact: true })).toBeVisible();
+      await expect(page.locator('.global-blackout.blackout-active')).toBeVisible();
+      await expect(page.locator('.global-arm.armed')).toBeVisible();
       for (const opener of [() => page.locator('.status-chip').click(), () => page.getByRole('button', { name: 'This device' }).click()]) {
         await opener();
         const violations = await page.evaluate(async () => {
@@ -433,6 +436,7 @@ test('the header has no axe violations with its popovers open, the rig armed and
       }
     }
   } finally {
+    await control(request, 'restore');
     await control(request, 'disarm');
   }
 });

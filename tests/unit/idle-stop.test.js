@@ -231,6 +231,28 @@ test('a stop that throws runs again on the next tick', async (t) => {
   assert.equal(s.snapshot().playing, false);
 });
 
+// Review R02 (Show v3 fixes, G6): the real control's stop hook fails after part of it ran, with the show still
+// playing; the control must not report it stopped, or the next tick sees nothing to stop and never tries again.
+test('a stop hook that throws part way leaves the show playing, and the next tick stops it', async (t) => {
+  const s = await serve(t);
+  const stopAll = voices.stopAll;
+  let fails = 1;
+  voices.stopAll = function (...args) {
+    if (fails-- > 0) throw new Error('stop hook failed');
+    return stopAll.apply(this, args);
+  };
+  t.after(() => { voices.stopAll = stopAll; });
+  assert.equal((await sendControl(s.call, 'start', 'look')).status, 200);
+  await s.wait(60 * MIN + TICK);
+  assert.deepEqual(s.stops, [], 'the first stop failed');
+  assert.equal(state.running, true, 'the renderer still plays');
+  assert.equal(s.snapshot().playing, true, 'so the control says it plays');
+  assert.match(s.snapshot().fault, /stop hook failed/);
+  await s.wait(TICK);
+  assert.deepEqual(s.stops, [{ at: 60 * MIN + 2 * TICK, minutes: 60 }], 'tried again on the next tick');
+  assert.deepEqual([s.snapshot().playing, state.running, s.snapshot().fault], [false, false, null]);
+});
+
 test('arming after the idle stop works and the armed idle disarm still fires', async (t) => {
   const s = await serve(t);
   // main.ts's idle disarm, on the same clock.

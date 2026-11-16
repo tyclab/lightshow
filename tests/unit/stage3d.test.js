@@ -258,19 +258,21 @@ test('a beam that meets nothing within its range has no surface; the generic ven
   near(world.surfaceHit({ x: 0, y: world.TRUSS_H, z: 0 }, ray(0, -1, 0)).length, world.TRUSS_H, 'a downlighter the floor');
 });
 
-test('a room\'s box walls stop a beam before the room box does, turned on any axis, and only box walls do', () => {
+test('a room\'s walls and opaque furniture stop a beam before the room box does, turned on any axis', () => {
   const objects = [
     { id: 'partition', kind: 'box', role: 'wall', position: { x: 1, y: 1.5, z: 0 }, size: { x: 0.1, y: 3, z: 4 } },
     { id: 'sofa', kind: 'box', role: 'furniture', position: { x: -1, y: 0.4, z: 0 }, size: { x: 0.5, y: 0.8, z: 2 } },
     { id: 'pillar', kind: 'cylinder', role: 'wall', position: { x: 0, y: 1.5, z: 1 }, size: { x: 0.3, y: 3, z: 0.3 } },
   ];
-  const walls = world.boxWalls(objects);
-  assert.equal(walls.length, 1, 'furniture and round walls leave the beam to the room box');
+  const walls = world.blockersOf(objects);
+  assert.equal(walls.length, 3, 'furniture and round walls stop beams too');
   const from = { x: 0, y: 1.5, z: 0 };
   const right = world.surfaceHit(from, ray(1, 0, 0), BOX, walls);
   near(right.length, 0.95, 'the partition\'s near face');
   nearVec(right.normal, { x: -1, y: 0, z: 0 }, 'facing the lamp');
-  near(world.surfaceHit(from, ray(-1, 0, 0), BOX, walls).length, 3, 'the sofa does not stop it');
+  near(world.surfaceHit(from, ray(-1, 0, 0), BOX, walls).length, 3, 'a beam above the sofa passes it');
+  near(world.surfaceHit({ x: 0, y: 0.4, z: 0 }, ray(-1, 0, 0), BOX, walls).length, 0.75, 'one at its height stops at its side');
+  near(world.surfaceHit(from, ray(0, 0, 1), BOX, walls).length, 0.85, 'the pillar stops one aimed at it');
   near(world.surfaceHit({ x: 1, y: 1.5, z: 0 }, ray(1, 0, 0), BOX, walls).length, 2, 'a lamp set into the wall shines out of it');
 
   // A wall turned on all three axes, measured against three.js's own raycaster.
@@ -283,7 +285,7 @@ test('a room\'s box walls stop a beam before the room box does, turned on any ax
   for (const aim of [ray(1, 0, 0), ray(1, -0.3, 0.3), ray(1, 0.2, -0.4)]) {
     const [expected] = new Raycaster(new Vector3(from.x, from.y, from.z), new Vector3(aim.x, aim.y, aim.z)).intersectObject(mesh);
     assert.ok(expected, 'the ray does reach the wall');
-    const hit = world.surfaceHit(from, aim, BOX, world.boxWalls([slanted]));
+    const hit = world.surfaceHit(from, aim, BOX, world.blockersOf([slanted]));
     near(hit.length, expected.distance, 'as far as three.js finds it');
     const normal = expected.face.normal.clone().transformDirection(mesh.matrixWorld);
     nearVec(hit.normal, normal, 'on the face three.js finds');

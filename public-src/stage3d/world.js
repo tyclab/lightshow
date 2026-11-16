@@ -43,41 +43,154 @@ const turn = (v, axis, angle) => {
   return { x: c * v.x - s * v.y, y: s * v.x + c * v.y, z: v.z };
 };
 
-/** A room's box walls with their axes in world space (three.js Euler XYZ); other shapes leave the room box to stop beams. */
-export function boxWalls(objects = [], furniture = false) {
-  return objects.filter((object) => (object.role === 'wall' || furniture && object.role === 'furniture' && !object.lightBindingId && (object.opacity ?? 1) >= 0.9)
-    && object.kind === 'box').map(({ position, size, rotation }) => {
-    const r = rotation || { x: 0, y: 0, z: 0 };
-    const axes = [{ x: 1, y: 0, z: 0 }, { x: 0, y: 1, z: 0 }, { x: 0, y: 0, z: 1 }].map((v) => turn(turn(turn(v, 'z', r.z), 'y', r.y), 'x', r.x));
-    return { centre: position, half: [size.x / 2, size.y / 2, size.z / 2], axes };
+const sub = (a, b) => ({ x: a.x - b.x, y: a.y - b.y, z: a.z - b.z });
+const AXES = [{ x: 1, y: 0, z: 0 }, { x: 0, y: 1, z: 0 }, { x: 0, y: 0, z: 1 }];
+// How far a pool's surface reaches off the face it lies on, more than POOL_LIFT.
+const FACE = 0.02;
+// room-geometry.js draws a cylinder with this many sides.
+const CYLINDER_SIDES = 16;
+
+export function insidePolygon(polygon, x, z) {
+  let crossings = false;
+  for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
+    const [xi, zi] = polygon[i], [xj, zj] = polygon[j];
+    if ((zi > z) !== (zj > z) && x < (xj - xi) * (z - zi) / (zj - zi) + xi) crossings = !crossings;
+  }
+  return crossings;
+}
+
+/**
+ * What stops a beam: every wall, hidden or not, and opaque furniture, each in its own frame (three.js Euler
+ * XYZ): a box by its sides, a prism or cylinder by its outline as drawn, a mesh by its triangles.
+ */
+export function blockersOf(objects = []) {
+  return objects.filter((object) => object.role === 'wall'
+    || object.role === 'furniture' && !object.lightBindingId && (object.opacity ?? 1) >= 0.9).map((object) => {
+    const r = object.rotation || { x: 0, y: 0, z: 0 }, { size } = object;
+    const blocker = { id: object.id, wall: object.role === 'wall', kind: object.kind, centre: object.position,
+      axes: AXES.map((v) => turn(turn(turn(v, 'z', r.z), 'y', r.y), 'x', r.x)), half: [size.x / 2, size.y / 2, size.z / 2] };
+    if (object.kind === 'prism' || object.kind === 'cylinder') {
+      blocker.outline = object.kind === 'prism' ? object.polygon : Array.from({ length: CYLINDER_SIDES }, (_, i) =>
+        [Math.sin(2 * Math.PI * i / CYLINDER_SIDES) * size.x / 2, Math.cos(2 * Math.PI * i / CYLINDER_SIDES) * size.z / 2]);
+      blocker.half = [Math.max(blocker.half[0], ...blocker.outline.map(([x]) => Math.abs(x))), blocker.half[1],
+        Math.max(blocker.half[2], ...blocker.outline.map(([, z]) => Math.abs(z)))];
+    }
+    if (object.kind === 'mesh') {
+      blocker.vertices = object.mesh.vertices.map(([x, y, z]) => ({ x: x * size.x, y: y * size.y, z: z * size.z }));
+      blocker.triangles = object.mesh.triangles;
+    }
+    return blocker;
   });
 }
 
-function wallHit(from, aim, wall) {
-  const offset = { x: from.x - wall.centre.x, y: from.y - wall.centre.y, z: from.z - wall.centre.z };
-  let enter = -Infinity, exit = Infinity, normal = null;
+const local = (blocker, v) => ({ x: dot(v, blocker.axes[0]), y: dot(v, blocker.axes[1]), z: dot(v, blocker.axes[2]) });
+const worldOf = (blocker, v) => ({
+  x: blocker.axes[0].x * v.x + blocker.axes[1].x * v.y + blocker.axes[2].x * v.z,
+  y: blocker.axes[0].y * v.x + blocker.axes[1].y * v.y + blocker.axes[2].y * v.z,
+  z: blocker.axes[0].z * v.x + blocker.axes[1].z * v.y + blocker.axes[2].z * v.z,
+});
+/** A box in world space (`centre`, unit `axes`, `half` sizes): the part of a surface a pool may cover. */
+const faceBox = (blocker, centre, axes, half) => {
+  const at = worldOf(blocker, centre);
+  return { centre: { x: blocker.centre.x + at.x, y: blocker.centre.y + at.y, z: blocker.centre.z + at.z },
+    axes: axes.map((axis) => unit(worldOf(blocker, axis))), half };
+};
+
+function span(o, d, half) {
+  let enter = -Infinity, exit = Infinity, axis = -1;
   for (let i = 0; i < 3; i++) {
-    const axis = wall.axes[i], at = dot(offset, axis), along = dot(aim, axis), half = wall.half[i];
-    if (Math.abs(along) < EPS) { if (Math.abs(at) > half) return null; continue; }
-    const a = (-half - at) / along, b = (half - at) / along;
-    if (Math.min(a, b) > enter) { enter = Math.min(a, b); normal = scaled(axis, -Math.sign(along)); }
+    const at = [o.x, o.y, o.z][i], along = [d.x, d.y, d.z][i];
+    if (Math.abs(along) < EPS) { if (Math.abs(at) > half[i]) return null; continue; }
+    const a = (-half[i] - at) / along, b = (half[i] - at) / along;
+    if (Math.min(a, b) > enter) { enter = Math.min(a, b); axis = i; }
     exit = Math.min(exit, Math.max(a, b));
   }
-  // A lamp set into the wall (enter behind it) shines out of it rather than stopping at its far face.
-  return enter <= exit && enter > EPS ? { length: enter, normal } : null;
+  return enter <= exit ? { enter, exit, axis } : null;
 }
 
-/** The first surface a beam meets within its range: the room box (generic venue: floor, and a roof with no `normal`) or a box wall. */
-export function surfaceHit(from, aim, bounds = null, walls = []) {
+function outlineHit(blocker, o, d) {
+  const { outline } = blocker, h = blocker.half[1];
+  // A lamp set into the object shines out of it.
+  if (Math.abs(o.y) <= h && insidePolygon(outline, o.x, o.z)) return null;
   let best = null;
-  const meet = (length, normal) => { if (length <= MAX_BEAM && (!best || length < best.length)) best = { length, normal }; };
-  if (aim.y < -EPS) meet(Math.max(0, from.y / -aim.y), { x: 0, y: 1, z: 0 });
-  if (aim.y > EPS) meet(Math.max(0, ((bounds?.height ?? ROOF) - from.y) / aim.y), bounds ? { x: 0, y: -1, z: 0 } : null);
+  const take = (t, normal, box) => { if (t > EPS && (!best || t < best.t)) best = { t, normal, box }; };
+  for (const side of [-1, 1]) {
+    if (Math.abs(d.y) < EPS) continue;
+    const t = (side * h - o.y) / d.y;
+    if (insidePolygon(outline, o.x + d.x * t, o.z + d.z * t)) {
+      const xs = outline.map(([x]) => x), zs = outline.map(([, z]) => z);
+      const [x0, x1, z0, z1] = [Math.min(...xs), Math.max(...xs), Math.min(...zs), Math.max(...zs)];
+      take(t, { x: 0, y: side, z: 0 }, [{ x: (x0 + x1) / 2, y: side * h, z: (z0 + z1) / 2 }, AXES, [(x1 - x0) / 2, FACE, (z1 - z0) / 2]]);
+    }
+  }
+  for (let i = 0; i < outline.length; i++) {
+    const [ax, az] = outline[i], [bx, bz] = outline[(i + 1) % outline.length];
+    const ex = bx - ax, ez = bz - az, det = d.x * -ez + d.z * ex;
+    if (Math.abs(det) < EPS) continue;
+    const t = ((ax - o.x) * -ez + (az - o.z) * ex) / det, s = (d.x * (az - o.z) - d.z * (ax - o.x)) / det;
+    if (s < 0 || s > 1 || Math.abs(o.y + d.y * t) > h) continue;
+    const length = Math.hypot(ex, ez), along = { x: ex / length, y: 0, z: ez / length };
+    take(t, { x: along.z, y: 0, z: -along.x }, [{ x: ax + ex / 2, y: 0, z: az + ez / 2 }, [along, AXES[1], { x: along.z, y: 0, z: -along.x }], [length / 2, h, FACE]]);
+  }
+  return best;
+}
+
+function meshHit(blocker, o, d) {
+  let best = null;
+  const v = blocker.vertices;
+  for (const [i, j, k] of blocker.triangles) {
+    const e1 = sub(v[j], v[i]), e2 = sub(v[k], v[i]), p = cross(d, e2), det = dot(e1, p);
+    if (Math.abs(det) < 1e-12) continue;
+    const s = sub(o, v[i]), u = dot(s, p) / det;
+    if (u < 0 || u > 1) continue;
+    const q = cross(s, e1), w = dot(d, q) / det;
+    if (w < 0 || u + w > 1) continue;
+    const t = dot(e2, q) / det;
+    if (t > EPS && (!best || t < best.t)) best = { t, normal: unit(cross(e1, e2)) };
+  }
+  if (best) best.box = [{ x: 0, y: 0, z: 0 }, AXES, blocker.half.map((half) => half + FACE)];
+  return best;
+}
+
+/** Where a ray first meets a blocker: its distance, the face's normal toward the lamp and the face a pool may cover. */
+export function blockerHit(from, aim, blocker) {
+  const o = local(blocker, sub(from, blocker.centre)), d = local(blocker, aim);
+  const box = span(o, d, blocker.half);
+  if (!box || box.exit <= EPS) return null;
+  let hit;
+  if (blocker.kind === 'box') {
+    // A lamp set into the wall (enter behind it) shines out of it rather than stopping at its far face.
+    if (box.enter <= EPS) return null;
+    const side = -Math.sign([d.x, d.y, d.z][box.axis]), normal = { x: 0, y: 0, z: 0, ['xyz'[box.axis]]: side };
+    const half = blocker.half.map((value, i) => (i === box.axis ? FACE : value));
+    hit = { t: box.enter, normal, box: [scaled(normal, blocker.half[box.axis]), AXES, half] };
+  } else hit = blocker.kind === 'mesh' ? meshHit(blocker, o, d) : outlineHit(blocker, o, d);
+  if (!hit) return null;
+  const normal = unit(worldOf(blocker, hit.normal));
+  return { length: hit.t, normal: dot(normal, aim) > 0 ? scaled(normal, -1) : normal, surface: faceBox(blocker, ...hit.box), id: blocker.id };
+}
+
+const roomFace = (centre, half) => ({ centre, axes: AXES, half });
+
+/** The first surface a beam meets within its range: the room box (generic venue: floor, and a roof with no `normal`) or a blocker. */
+export function surfaceHit(from, aim, bounds = null, blockers = []) {
+  let best = null;
+  const meet = (length, normal, surface = null, id = null) => {
+    if (length <= MAX_BEAM && (!best || length < best.length)) best = { length, normal, surface, id };
+  };
+  const top = bounds?.height ?? ROOF;
+  const level = (y) => (bounds ? roomFace({ x: 0, y, z: 0 }, [bounds.width / 2, FACE, bounds.depth / 2]) : null);
+  // Down to the floor, or from above the ceiling to its top; up to the ceiling, or from below the floor to its underside.
+  if (aim.y < -EPS) { const y = bounds && from.y > top ? top : 0; meet(Math.max(0, (from.y - y) / -aim.y), { x: 0, y: 1, z: 0 }, level(y)); }
+  if (aim.y > EPS) { const y = bounds && from.y < 0 ? 0 : top; meet(Math.max(0, (y - from.y) / aim.y), bounds ? { x: 0, y: -1, z: 0 } : null, level(y)); }
   if (bounds) for (const [axis, size] of [['x', bounds.width], ['z', bounds.depth]]) {
     const side = Math.sign(aim[axis]);
-    if (Math.abs(aim[axis]) > EPS) meet(Math.max(0, (side * size / 2 - from[axis]) / aim[axis]), { x: 0, y: 0, z: 0, [axis]: -side });
+    if (Math.abs(aim[axis]) <= EPS) continue;
+    const centre = { x: 0, y: bounds.height / 2, z: 0, [axis]: side * size / 2 };
+    meet(Math.max(0, (side * size / 2 - from[axis]) / aim[axis]), { x: 0, y: 0, z: 0, [axis]: -side },
+      roomFace(centre, axis === 'x' ? [FACE, bounds.height / 2, bounds.depth / 2] : [bounds.width / 2, bounds.height / 2, FACE]));
   }
-  for (const wall of walls) { const hit = wallHit(from, aim, wall); if (hit) meet(hit.length, hit.normal); }
+  for (const blocker of blockers) { const hit = blockerHit(from, aim, blocker); if (hit) meet(hit.length, hit.normal, hit.surface, hit.id); }
   return best;
 }
 
@@ -93,15 +206,35 @@ export function poolOn(end, normal, aim, radius) {
     normal, along, across: cross(along, normal), major: minor / Math.max(GRAZE, cos), minor };
 }
 
-function beamLight(light, emission, floor = false, bounds = null, walls = [], direction = null) {
+const boxDistance = (box, point) => {
+  const o = sub(point, box.centre);
+  return Math.hypot(...box.axes.map((axis, i) => Math.max(0, Math.abs(dot(o, axis)) - box.half[i])));
+};
+
+/**
+ * Where a pool may show (the pool shader clips to it): on the surface it lies on, in the room whose polygon
+ * holds its centre, and not past a wall from its centre, so nothing spills under or around a wall.
+ */
+function poolClip(pool, hit, room) {
+  const area = room.rooms.find((candidate) => insidePolygon(candidate.polygon, pool.at.x, pool.at.z));
+  const walls = room.blockers.filter((blocker) => {
+    const distance = blocker.wall && blocker.id !== hit.id ? boxDistance(blocker, pool.at) : 0;
+    return distance > 0 && distance < pool.major;
+  }).map(({ centre, axes, half }) => ({ centre, axes, half }));
+  return { surface: hit.surface, room: area?.polygon ?? null, walls };
+}
+
+/** `room`: { bounds, blockers, rooms } of an imported room, null in the generic venue. */
+function beamLight(light, emission, floor = false, room = null, direction = null) {
   const from = light.position, aim = direction ?? beamDirection(emission, floor);
-  const hit = surfaceHit(from, aim, bounds, walls);
+  const hit = surfaceHit(from, aim, room?.bounds ?? null, room?.blockers ?? []);
   const length = hit ? hit.length : MAX_BEAM;
   const end = { x: from.x + aim.x * length, y: from.y + aim.y * length, z: from.z + aim.z * length };
   const radius = Math.tan((emission.beamAngle ?? 22) * Math.PI / 360) * length;
   const pool = hit?.normal && radius > 0 ? poolOn(end, hit.normal, aim, radius) : null;
   // A lamp of known lumen lights its pool by the area it spreads over; a par of unknown lumen keeps full strength.
   if (pool && light.lumen) pool.level = Math.min(1, light.lumen / (Math.PI * pool.major * pool.minor) / POOL_FULL);
+  if (pool && room) pool.clip = poolClip(pool, hit, room);
   return { ...light, kind: 'par', aim, length, end, radius, pool };
 }
 
@@ -231,8 +364,7 @@ export function roomRig(fixtures, rig, model, profiles = {}) {
     lightObjects.get(object.lightBindingId).push(object);
   }
   const indices = new Map(fixtures.map((fixture, index) => [fixture.id, index]));
-  const walls = boxWalls(model.objects);
-  const surfaces = boxWalls(model.objects, true);
+  const room = { bounds: model.bounds, blockers: blockersOf(model.objects), rooms: model.rooms || [] };
   const { resolved, mapped, outputs } = resolveBindings(fixtures, rig, model.bindings);
   let estimated = 0;
   for (const { binding, sources, missingSources } of resolved) {
@@ -251,7 +383,7 @@ export function roomRig(fixtures, rig, model, profiles = {}) {
     const offset = target && { x: target.x - origin.x, y: target.y - origin.y, z: target.z - origin.z };
     const aim = offset && Math.hypot(offset.x, offset.y, offset.z) >= 0.001 ? unit(offset) : null;
     const directed = (source, body) => ({ ...beamLight({ lumen: BULB_LUMEN, ...source }, { kind: 'beam', beamAngle: emission?.beamAngle ?? 100 },
-      false, model.bounds, surfaces, aim), body, ...(body === 0 ? { weight: 0 } : {}) });
+      false, room, aim), body, ...(body === 0 ? { weight: 0 } : {}) });
     if (lightObjects.has(binding.id)) {
       for (const object of lightObjects.get(binding.id)) {
         objectLights.push({ objectId: object.id, sources });
@@ -272,7 +404,7 @@ export function roomRig(fixtures, rig, model, profiles = {}) {
         }
       }
     } else if (aim) lamps.push(directed(light, ROOM_BULB));
-    else if (emission?.kind === 'beam') lamps.push({ ...beamLight(light, emission, fixture.group === 'floor', model.bounds, walls), body: ROOM_BULB });
+    else if (emission?.kind === 'beam') lamps.push({ ...beamLight(light, emission, fixture.group === 'floor', room), body: ROOM_BULB });
     else if (emission?.kind === 'strip' || !emission && !binding.sources && rig.cellMaps[indices.get(binding.fixtureId)]) cells.push({ ...light, size: POINT_CELL });
     else lamps.push({ ...light, kind: 'bulb', aim: null, length: 0, body: ROOM_BULB });
   }
@@ -287,7 +419,7 @@ export function roomRig(fixtures, rig, model, profiles = {}) {
     for (let unit = start; unit < start + count; unit++) {
       const light = { unit, fixture: fixture.id, position: plotPosition(rig, unit, model.bounds), plot: true, ...(flux ? { lumen: flux.lumen / count } : {}) };
       if (rig.cellMaps[index] || emission.kind === 'strip') cells.push({ ...light, size: POINT_CELL });
-      else if (emission.kind === 'beam') lamps.push({ ...beamLight(light, emission, fixture.group === 'floor', model.bounds, walls), body: ROOM_BULB });
+      else if (emission.kind === 'beam') lamps.push({ ...beamLight(light, emission, fixture.group === 'floor', room), body: ROOM_BULB });
       else lamps.push({ ...light, kind: 'bulb', aim: null, length: 0, body: ROOM_BULB });
     }
   });
@@ -301,9 +433,10 @@ export function roomRig(fixtures, rig, model, profiles = {}) {
   const missing = fixtures.filter((fixture) => !mapped.has(fixture.id));
   const partial = fixtures.filter((fixture, index) => mapped.has(fixture.id) && mapped.get(fixture.id).size < rig.ranges[index].count);
   const shared = [...outputs.values()].filter((output) => output.bindings.length > 1);
-  const clusters = roomLightClusters([...lamps, ...cells, ...objectEmitters]);
+  const { lights: clusters, unlit: unlitRooms } = roomLights([...lamps, ...cells, ...objectEmitters], model);
   const objectClusters = objectEmitters.map(({ cluster, weight }) => ({ cluster, weight }));
-  return { lamps, cells, objectLights, objectClusters, bodies, trusses: [], missing, partial, plotted, unresolved, incomplete, shared, estimated, clusters };
+  return { lamps, cells, objectLights, objectClusters, bodies, trusses: [], missing, partial, plotted, unresolved, incomplete, shared, estimated,
+    clusters, unlitRooms };
 }
 
 /** The box an explicit cell map spans, a pixel wider than its pixels: the body Stage draws them in when no room object is the fixture. */
@@ -372,10 +505,96 @@ export function roomLightClusters(emitters, k = ROOM_LIGHTS) {
   return cx.map((_, c) => ({ x: cx[c], y: cy[c], z: cz[c] }));
 }
 
+const ROOM_INSET = 0.3;
+// A light inside the room box stays this far off its floor and ceiling; one outside it stays outside.
+const lightHeight = (y, height) => (y < 0 || y > height ? y : Math.max(0.25, Math.min(height - 0.15, y)));
+
 /** A light a little into the room from its cluster, so the wall or shelf its emitters sit on is not lit from a hair away. */
-export function roomLightAt(centre, { height }, inset = 0.3) {
+export function roomLightAt(centre, { height }, inset = ROOM_INSET) {
   const across = Math.hypot(centre.x, centre.z), k = across > inset ? (across - inset) / across : 0;
-  return { x: centre.x * k, y: Math.max(0.25, Math.min(height - 0.15, centre.y)), z: centre.z * k };
+  return { x: centre.x * k, y: lightHeight(centre.y, height), z: centre.z * k };
+}
+
+function nearestOnEdges(polygon, x, z) {
+  let best = null;
+  for (let i = 0; i < polygon.length; i++) {
+    const [x0, z0] = polygon[i], [x1, z1] = polygon[(i + 1) % polygon.length];
+    const ex = x1 - x0, ez = z1 - z0, t = Math.max(0, Math.min(1, ((x - x0) * ex + (z - z0) * ez) / (ex * ex + ez * ez)));
+    const px = x0 + t * ex, pz = z0 + t * ez, distance = Math.hypot(x - px, z - pz);
+    if (!best || distance < best.distance) best = { x: px, z: pz, distance, edge: i };
+  }
+  return best;
+}
+
+/**
+ * A light inside its own room, `inset` off the polygon's edges as far as the room allows: each edge nearer than
+ * that pushes it away by half of what it lacks, so a room narrower than twice the inset holds it on its centre line.
+ */
+export function insetInRoom(centre, polygon, inset = ROOM_INSET) {
+  const area = polygon.reduce((sum, [x0, z0], i) => { const [x1, z1] = polygon[(i + 1) % polygon.length]; return sum + x0 * z1 - x1 * z0; }, 0);
+  const inward = (edge) => {
+    const [x0, z0] = polygon[edge], [x1, z1] = polygon[(edge + 1) % polygon.length], length = Math.hypot(x1 - x0, z1 - z0);
+    return area > 0 ? [-(z1 - z0) / length, (x1 - x0) / length] : [(z1 - z0) / length, -(x1 - x0) / length];
+  };
+  let x = centre.x, z = centre.z;
+  if (!insidePolygon(polygon, x, z)) {
+    const edge = nearestOnEdges(polygon, x, z), [nx, nz] = inward(edge.edge);
+    x = edge.x + nx * EPS; z = edge.z + nz * EPS;
+  }
+  const start = { x, z };
+  for (let round = 0; round < 48; round++) {
+    let dx = 0, dz = 0;
+    for (let i = 0; i < polygon.length; i++) {
+      const near = nearestOnEdges([polygon[i], polygon[(i + 1) % polygon.length]], x, z);
+      if (near.distance >= inset) continue;
+      const [nx, nz] = near.distance > 1e-9 ? [(x - near.x) / near.distance, (z - near.z) / near.distance] : inward(i);
+      dx += nx * (inset - near.distance); dz += nz * (inset - near.distance);
+    }
+    if (Math.hypot(dx, dz) < 1e-9) break;
+    x += dx / 2; z += dz / 2;
+  }
+  return insidePolygon(polygon, x, z) ? { x, z } : start;
+}
+
+/** The room an emitter is in: the first whose polygon holds it, else the one whose polygon is nearest. */
+function roomIndex(rooms, { x, z }) {
+  const holding = rooms.findIndex((room) => insidePolygon(room.polygon, x, z));
+  if (holding >= 0) return holding;
+  let best = 0;
+  rooms.forEach((room, index) => { if (nearestOnEdges(room.polygon, x, z).distance < nearestOnEdges(rooms[best].polygon, x, z).distance) best = index; });
+  return best;
+}
+
+/**
+ * The room's `k` lights: every occupied room gets one, the rest go one at a time to the room with the most
+ * emitters per light, each clustered inside its room (roomLightClusters) and set in from its walls. Past `k`
+ * occupied rooms, the `k` with the most emitters (ties in file order) get one each and `unlit` names the others,
+ * whose emitters add to no light. Without polygons, the whole room is clustered as one. Writes each emitter's `cluster`.
+ */
+export function roomLights(emitters, { bounds, rooms = [] }, k = ROOM_LIGHTS) {
+  if (!rooms.length) return { lights: roomLightClusters(emitters, k).map((centre) => roomLightAt(centre, bounds)), unlit: [] };
+  const members = rooms.map(() => []);
+  for (const emitter of emitters) if (emitter.position && emitterWeight(emitter) > 0) members[roomIndex(rooms, emitter.position)].push(emitter);
+  const occupied = rooms.map((_, index) => index).filter((index) => members[index].length)
+    .sort((a, b) => members[b].length - members[a].length || a - b);
+  const lit = occupied.slice(0, k), share = new Map(lit.map((index) => [index, 1]));
+  for (let spare = k - lit.length; spare > 0; spare--) {
+    const open = lit.filter((index) => share.get(index) < members[index].length);
+    if (!open.length) break;
+    const next = open.reduce((best, index) => (members[index].length / share.get(index) > members[best].length / share.get(best)
+      || members[index].length / share.get(index) === members[best].length / share.get(best) && index < best ? index : best));
+    share.set(next, share.get(next) + 1);
+  }
+  const lights = [];
+  for (const index of [...lit].sort((a, b) => a - b)) {
+    const offset = lights.length;
+    for (const centre of roomLightClusters(members[index], share.get(index))) {
+      const at = insetInRoom(centre, rooms[index].polygon);
+      lights.push({ x: at.x, y: lightHeight(centre.y, bounds.height), z: at.z });
+    }
+    for (const emitter of members[index]) emitter.cluster += offset;
+  }
+  return { lights, unlit: occupied.slice(k).sort((a, b) => a - b).map((index) => rooms[index].label) };
 }
 
 export function meanLightRGB(sources, frame, out, scratch = new Float32Array(3)) {
