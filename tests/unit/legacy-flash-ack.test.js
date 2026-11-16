@@ -1,7 +1,7 @@
 // The seven classic programs that strike flashes (strobe-fx flashLit) wait for the photosensitivity
 // acknowledgement as the spec looks marked Rapid flash do; PR #94 left them without it. The rows say
-// so, naming one before the acknowledgement is refused, the renderer and the preview draw nothing of
-// them, and the automatic show leaves them out of its plan until it is given.
+// so, naming one before the acknowledgement is refused, and the renderer and the preview draw nothing
+// of them until it is given.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createRenderer, withInputDefaults } from '../../src/server/renderer.ts';

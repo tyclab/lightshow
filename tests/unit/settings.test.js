@@ -179,7 +179,7 @@ test('pythonPath only accepts a Python interpreter', () => {
 });
 
 test('live input settings: off by default, a source it knows, a latency in range', () => {
-  assert.deepStrictEqual(DEFAULTS.live, { enabled: false, source: 'loopback', device: '', latencyMs: 0, director: true, pythonPath: '' });
+  assert.deepStrictEqual(DEFAULTS.live, { enabled: false, source: 'loopback', device: '', latencyMs: 0, pythonPath: '' });
   const s = store().load();
   assert.deepStrictEqual(s.update({ live: { enabled: true, source: 'input', device: 'Line In', latencyMs: -40 } }).sort(),
     ['live.device', 'live.enabled', 'live.latencyMs', 'live.source']);

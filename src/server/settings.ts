@@ -71,7 +71,6 @@ const DEFAULTS: Settings = {
     // Blank for the system default; otherwise a device name, or part of one.
     device: '',
     latencyMs: 0,
-    director: true,
     // Blank detects one that can import what src/live_input.py needs.
     pythonPath: '',
   },
@@ -206,7 +205,6 @@ const schema = z.object({
     source: z.enum(['loopback', 'input']),
     device: z.string().max(256),
     latencyMs: z.number().int().min(-500).max(500),
-    director: z.boolean(),
     // Restrict interpreter names so the setting cannot select an arbitrary executable.
     pythonPath: z.string().max(4096).refine(
       (value) => value === '' || PYTHON_BASENAME_RE.test(value.trim().split(/[\\/]/).pop() ?? ''),
@@ -248,9 +246,10 @@ const schema = z.object({
 }).strict();
 
 // What an earlier build stored and this one no longer reads: a file that still holds one loads as if it did not and is
-// written back without it. The planned show, its analysis and the track services went on 2026-11-15.
+// written back without it. The planned show, its analysis and the track services went on 2026-11-15, and with them
+// Play By Ear (`live.director`): Auto is the live director, so there is nothing left for it to switch.
 const RETIRED_GROUPS = ['setup', 'sources', 'spotify', 'deezer', 'auto', 'analysis'];
-const RETIRED_KEYS = ['live.autoSync'];
+const RETIRED_KEYS = ['live.autoSync', 'live.director'];
 
 /** Drops what this build no longer reads, the analysis interpreter becoming the live input's; returns what it dropped. */
 function retire(values: Record<string, unknown>): string[] {

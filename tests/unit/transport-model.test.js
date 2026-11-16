@@ -83,17 +83,11 @@ test('secondary transport names the timeline\'s and the auto show\'s state witho
 
 test('loading a sequence does not select or start a programme', () => {
   assert.deepEqual(chooseDriver('set'), [{ path: '/api/sequence', method: 'PUT', body: { id: 'set' } }]);
-  assert.equal(driverOf({ control: { programme: 'auto' }, sequence: { loaded: { id: 'set' } }, showOn: true }), 'auto');
+  assert.equal(driverOf({ control: { programme: 'auto' }, sequence: { loaded: { id: 'set' } } }), 'auto');
 });
 
 test('unloading a sequence only unloads its document', () => {
   assert.deepEqual(chooseDriver(''), [{ path: '/api/sequence', method: 'DELETE' }]);
-});
-
-test('analysis source and readiness never create an implicit Start action', () => {
-  for (const source of ['spotify', 'deezer', 'nowplaying', 'prolink', 'live', 'hybrid']) {
-    assert.deepEqual(transportButtons('auto', { autoSource: source, activeSource: source, autoShow: { status: 'ready' } }), []);
-  }
 });
 
 test('sequence looping keeps its saved bounds', () => {

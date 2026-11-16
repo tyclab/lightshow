@@ -1877,20 +1877,6 @@ input[type=range]::-moz-range-thumb {
 .auto-badge-idle        { background: var(--surface); color: var(--muted); }
 .auto-badge-playing     { background: var(--wash-blue); color: var(--accent); }
 
-.auto-controls {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 12px;
-  flex-wrap: wrap;
-}
-.auto-controls label {
-  font-size: 10px;
-  color: var(--muted);
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
 .auto-select {
   background: var(--surface);
   border: 1px solid var(--border);
@@ -2118,7 +2104,6 @@ input[type=range]::-moz-range-thumb {
 .transport-btn:hover:not(:disabled) { filter: brightness(1.1); }
 .transport-btn:disabled { opacity: .55; cursor: default; }
 .transport-glyph { font-size: 12px; line-height: 1; }
-.transport-cancel { min-height: 36px; }
 
 /* — the shared panel shell every block in this view uses — */
 .panel {

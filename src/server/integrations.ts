@@ -266,7 +266,7 @@ function setupIntegrations({ io, midi,
 
   function syncLiveDirector(): void {
     if (!liveDirector) return;
-    const drive = showWanted && liveListening() && settings.get('live.director');
+    const drive = showWanted && liveListening();
     if (drive && !liveDirector.active) liveDirector.start();
     else if (!drive && liveDirector.active) liveDirector.stop();
   }

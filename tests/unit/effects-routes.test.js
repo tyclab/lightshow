@@ -55,12 +55,6 @@ async function serve(t, { cues } = {}) {
   const effectLibrary = new EffectLibrary(path.join(dir, 'effects.json')).load();
   // Every random colour an activation rolls comes from this seed, so a test knows the colours.
   const paletteStore = new PaletteStore(path.join(dir, 'palettes.json'), { seed: () => [...SEED] }).load();
-  const autoShow = {
-    running: false, track: null, syncOffsetMs: 0, autoSyncMs: 0, analysis: null,
-    getPositionMs: () => 0, getClientState: () => ({}), start() {}, stop() {},
-    isCached: () => false, gridFor: () => null, isPrefetching: () => false,
-    applyQueueOrder() {}, setPaletteSize() {}, setIntensity() {}, setSyncOffsetMs() {}, adjustAutoSync() {},
-  };
   const midi = { enabled: false, sendFeedback() {}, listPorts: () => [], onLearn() {}, close() {}, connect() { return true; }, setControlFeedback() {} };
   const app = express();
   app.use(express.json());
@@ -71,7 +65,7 @@ async function serve(t, { cues } = {}) {
   });
   const applier = { applyChanged() {}, disarmed() {} };
   // The MIDI busking surface drives the production control coordinator, so the routes get the real one.
-  installControlRuntime(t, { autoShow, integrations, applier });
+  installControlRuntime(t, { integrations, applier });
   attachRoutes(app, { integrations, applier, ...(cues ? { cues } : {}) });
   await new Promise((r) => server.listen(0, '127.0.0.1', r));
   const url = `http://127.0.0.1:${server.address().port}`;

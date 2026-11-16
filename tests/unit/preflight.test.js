@@ -185,7 +185,7 @@ test('a node answering the poll passes the Art-Net check', async () => {
 function withLive(t, live) {
   const group = settings.group.bind(settings);
   t.mock.method(settings, 'group', (name) => (name === 'live'
-    ? { enabled: true, source: 'loopback', device: '', latencyMs: 0, autoSync: true, director: true, ...live }
+    ? { enabled: true, source: 'loopback', device: '', latencyMs: 0, ...live }
     : group(name)));
 }
 

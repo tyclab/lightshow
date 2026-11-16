@@ -342,7 +342,7 @@ to effects; pad banks launch effects or patterns over the look.
 | Auto Show | 5 | What the Auto show does by ear (playing, idle, or waiting for the live input), over the stage |
 | Sequence | 6 | Create/load sequences; timeline tools and recording; lanes, clips and patterns behind Edit |
 | Rig | 7 | Plan, patch, fixture profiles and outputs |
-| Sources | 8 | The live input: what it hears, Play By Ear, room latency and its Python |
+| Sources | 8 | The live input: what it hears, room latency and its Python |
 | Settings | 9 | Show behaviour, safety, MIDI, engine and server access |
 | Preflight | 0 | Run the pre-show checks |
 
@@ -770,7 +770,7 @@ New mapping revisions discard delayed and partially staged colours.
 | `hue` | `bridges: []`, `latencyMs: 0`, `strobe: 'flash'`; each paired bridge has an id, address, enabled flag, area and write-only credentials |
 | `picture` | `source: 'effects'`, `'visualizer'` or `'squid'`; `blackPoint: 0.12`, the peak under which a picture unit stays dark; `decode: false`, sRGB to linear light; `grade`: the room picture's optional colour grade, off by default, `{ enabled: false, whiteLimit: 0, saturation: 1, ceiling: 1, hueCeiling: 1 }`; see [Room picture](#room-picture) |
 | `outputs` | `armed: false`; always reset to false at startup. `idleDisarmMin: 15`: minutes armed with nothing playing before the outputs disarm themselves; `0` never. `idleStopMin: 60`: minutes disarmed without a control action or page input before a show is stopped as Stop does and an idle page pauses its preview; `0` never |
-| `live` | `enabled: false`, `source: 'loopback'`, `device: ''`, `latencyMs: 0`, `director: true`, `pythonPath: ''` (blank detects an interpreter that can run the live input) |
+| `live` | `enabled: false`, `source: 'loopback'`, `device: ''`, `latencyMs: 0`, `pythonPath: ''` (blank detects an interpreter that can run the live input) |
 | `clock` | `tempoMode: 'auto'` or `'manual'` |
 | `audio` | `mode: 'tempo'`, the party master controls, `ldjTrigger: 0.3` |
 | `safety` | `photosensitivityAcknowledged: false` (ends at each disarm and start), `strobeMaxLatchSec: 60`, `hdFlashIntervalMs: 350`, `flashLimit: false` |
@@ -781,7 +781,7 @@ New mapping revisions discard delayed and partially staged colours.
 `server.host`, `server.port`, `server.token` and the engine thread require a restart.
 Other settings apply immediately. The UI lists pending restart keys. A file from
 an earlier build loads without the groups this one no longer reads (`sources`,
-`spotify`, `deezer`, `auto`, `analysis`, `live.autoSync`), one log line naming
+`spotify`, `deezer`, `auto`, `analysis`, `live.autoSync`, `live.director`), one log line naming
 them, and is written back without them; its `analysis.pythonPath` becomes
 `live.pythonPath`.
 
@@ -1795,8 +1795,7 @@ receipts, so it holds on every platform; it assumes the pipe holds a few kilobyt
 beyond those 1024 samples (Linux's holds 64 KiB; the Windows pipe was not measured).
 
 The auto show is the live director (`src/show/live-director.ts`). It plays while
-Auto is the programme, the live input listens and **Play By Ear** (`live.director`)
-is on, and answers what it hears: a new look on a section change, cut when the
+Auto is the programme and the live input listens, and answers what it hears: a new look on a section change, cut when the
 music rises and faded when it falls; Rising Wall, or the pattern at double pace,
 over a build-up; a burst on a drop; now and then an accent on a spike; dark in a
 silence, with a new look when the music returns; and a new look after sixteen bars

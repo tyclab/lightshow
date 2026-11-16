@@ -213,7 +213,7 @@ test('one existing health timer emits bounded summaries and survives collection 
 
 test('health routes expose liveness and detailed status', async (t) => {
   const app = express();
-  attachRoutes(app, { integrations: { broadcast() {} }, autoShow: { status: 'idle', running: false, error: null } });
+  attachRoutes(app, { integrations: { broadcast() {} } });
   const server = await new Promise((r) => { const s = app.listen(0, '127.0.0.1', () => r(s)); });
   t.after(() => new Promise((r) => server.close(r)));
   const get = (p) => fetch(`http://127.0.0.1:${server.address().port}${p}`).then((res) => res.json());

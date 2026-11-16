@@ -370,7 +370,6 @@ test('render input defaults apply only to omitted audio settings', () => {
 test('the live director and the audio features both hear every reading', async () => {
   const s = await serve();
   try {
-    state.autoSource = 'live';
     s.live.start({ source: 'loopback' });
     s.hear();
     s.integrations.startAutoShow();
@@ -382,12 +381,11 @@ test('the live director and the audio features both hear every reading', async (
     assert.strictEqual(s.integrations.audio.features.frame().t, 2, 'and so did the audio features');
     s.integrations.stopAutoShow();
   } finally {
-    state.autoSource = 'auto';
     await s.close();
   }
 });
 
-test('a settings apply, a restart and the return from the Python setup keep the bands', async () => {
+test('a settings apply, a restart and a stop and start keep the bands', async () => {
   const s = await serve();
   try {
     const bandsOf = (args) => args[args.indexOf('--bands') + 1];
@@ -407,7 +405,7 @@ test('a settings apply, a restart and the return from the Python setup keep the 
     assert.strictEqual(s.spawned.length, 2);
     assert.strictEqual(bandsOf(s.spawned[1]), KEY);
 
-    // The Python setup stops it and starts it again from its options.
+    // Stopped and started again from its own options, it keeps them.
     const before = s.live.options;
     s.live.stop();
     s.live.start(before);
@@ -432,7 +430,6 @@ test('Disco band updates preserve the input process and beat lock', async () => 
   let liveNow = 10000;
   const s = await serve({ now: () => liveNow });
   const pattern = state.pattern;
-  const autoSource = state.autoSource;
   try {
     s.applier.applyChanged(settings.update({ live: { enabled: true } }));
     assert.strictEqual(s.spawned.length, 1);
@@ -446,7 +443,6 @@ test('Disco band updates preserve the input process and beat lock', async () => 
     };
     const take = () => { const sent = proc.asked.at(-1); layout = sent.bands; s.live.handleLine(JSON.stringify(sent)); };
     hear(5);
-    state.autoSource = 'live';
     s.integrations.startAutoShow();
     const key = s.live.getBeatReading().key;
     const epoch = s.integrations.audio.features.frame().generation;
@@ -490,7 +486,6 @@ test('Disco band updates preserve the input process and beat lock', async () => 
   } finally {
     await s.call('DELETE', '/api/voices');
     state.pattern = pattern;
-    state.autoSource = autoSource;
     await s.close();
   }
 });

@@ -111,7 +111,7 @@ test("engine settings show resolved runtime values", () => {
 });
 
 test('a select keeps a stored value the list no longer has, and says so', () => {
-  ui.settingsSig.value = { settings: { live: { enabled: true, source: 'input', device: 'Scarlett 2i2', director: true, latencyMs: 0 } }, secrets: {} };
+  ui.settingsSig.value = { settings: { live: { enabled: true, source: 'input', device: 'Scarlett 2i2', latencyMs: 0 } }, secrets: {} };
   const html = ui.html(ui.h(ui.SettingsSection, { ...ui.LIVE, ctx: { liveDevices: { outputs: ['Speakers'], inputs: ['Line In'] } } }));
   assert.match(html, /Scarlett 2i2 \(not found\)/);
   assert.match(html, /The default input/, 'the input list, for an input');
