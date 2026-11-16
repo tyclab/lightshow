@@ -47,8 +47,9 @@ export function frameStats(frames) {
  * - The one real regression in the record, PCF shadow filtering (run 43680724700, 0afb24d8): steady 197.4, rebuild
  *   200.0.
  * `perFrameMs` = 170 is the geometric midpoint of 145.4 and 197.4, rounded: 17 % above the worst unchanged window,
- * and the regression 16 % above it. The 32 attempts since (runs 43782143462 and 43802058662, 2026-11-16) stay at or
- * below 126.1 steady and 132.7 rebuild (43802058662 attempt 3).
+ * and the regression 16 % above it. Six windows after the record stay below it too; the highest is bounded at 151.2
+ * steady (43765771698, exact value not kept). The 32 attempts since (runs 43782143462 and 43802058662, 2026-11-16) stay
+ * at or below 126.1 steady and 132.7 rebuild (43802058662 attempt 3).
  *
  * The per-frame time follows the runner: a frame of an unchanged stage costs 33 to 126 ms of long tasks across those
  * 32 attempts. So it catches a regression that slows every frame on a slow runner, and can miss it on a fast one,
