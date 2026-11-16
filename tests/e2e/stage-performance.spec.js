@@ -2,7 +2,7 @@ import { writeFile } from 'node:fs/promises';
 import { test, expect } from '@playwright/test';
 import { open, set, state, reset } from './helpers.js';
 import { stageImage } from './stage-image.js';
-import { frameBudget, longTaskMsPerFrame } from './browser-budget.js';
+import { frameBudget, frameStats, longTaskMsPerFrame } from './browser-budget.js';
 
 for (const frameInterval of [0, 100]) test(`Stage idles between visible changes and redraws lights and camera input${frameInterval ? ' at 10 Hz' : ''}`, async ({ page, request }) => {
   await page.addInitScript((frameInterval) => {
@@ -107,11 +107,31 @@ test('a room of many walls rebuilds its shadows, and draws steady frames, within
     expect(result.ok()).toBe(true);
   };
   const snapshot = () => page.evaluate(() => window.__lightshowPerformance.snapshot());
+  // A window's report with its drawn frames, read together.
+  const capture = () => page.evaluate(() => ({ ...window.__lightshowPerformance.snapshot(), frames: window.__stageFrames.list() }));
+  const startWindow = () => page.evaluate(() => { window.__lightshowPerformance.reset(); window.__stageFrames.reset(); });
   try {
     const model = walledRoom(before.fixtures[0].id);
     expect(model.objects.length).toBe(142);
     await replace(model);
     await set(request, { pattern: 'ensemble' });
+    // Measurement only: every animation frame that issues a WebGL draw, as [start, callback ms], from the last
+    // window start on. It decides nothing yet; the log and the attachments carry it from every run.
+    await page.addInitScript(() => {
+      const frames = [];
+      let drew = false;
+      for (const name of ['drawElements', 'drawElementsInstanced', 'drawArrays', 'drawArraysInstanced']) {
+        const original = window.WebGL2RenderingContext.prototype[name];
+        window.WebGL2RenderingContext.prototype[name] = function (...args) { drew = true; return original.apply(this, args); };
+      }
+      const raf = window.requestAnimationFrame.bind(window);
+      window.requestAnimationFrame = (callback) => raf((now) => {
+        drew = false;
+        const start = performance.now();
+        try { callback(now); } finally { if (drew) frames.push([start, performance.now() - start]); }
+      });
+      window.__stageFrames = { list: () => frames.slice(), reset: () => { frames.length = 0; } };
+    });
     await page.goto('/?performance=1#stage');
     await page.locator('.offline-veil').waitFor({ state: 'detached' });
     await expect.poll(async () => (await snapshot()).counts['scene.shadowMaps'] || 0, { timeout: 15_000 }).toBe(8);
@@ -120,17 +140,17 @@ test('a room of many walls rebuilds its shadows, and draws steady frames, within
     // are built again and every light's map renders again, one light a frame.
     await replace({ ...model, bindings: model.bindings.map((entry) => ({ ...entry, position: { ...entry.position, x: entry.position.x + 0.2 } })) });
     await page.locator('.stage-room-panel > summary').click();
-    await page.evaluate(() => window.__lightshowPerformance.reset());
+    await startWindow();
     await page.getByRole('button', { name: 'Reload room', exact: true }).click();
     await expect.poll(async () => (await snapshot()).counts['scene.shadowMaps'] || 0, { timeout: 15_000 }).toBe(8);
-    const rebuild = await snapshot();
+    const rebuild = await capture();
     await attach('rebuild-timing.json', rebuild);
 
     // Steady frames: the look plays on the demo beat; no map renders again. Then the same with Room light off.
     const steadyFrames = async () => {
-      await page.evaluate(() => window.__lightshowPerformance.reset());
+      await startWindow();
       await expect.poll(async () => (await snapshot()).counts['scene.draws'] || 0, { timeout: 15_000 }).toBeGreaterThan(20);
-      return snapshot();
+      return capture();
     };
     const steady = await steadyFrames();
     await attach('steady-timing.json', steady);
@@ -143,6 +163,12 @@ test('a room of many walls rebuilds its shadows, and draws steady frames, within
       perFrame: Math.round(longTaskMsPerFrame(report) * 10) / 10,
       submit: Math.round(report.timings['scene.renderSubmit']?.max ?? 0), draws: report.counts['scene.draws'], ms: Math.round(report.elapsedMs) });
     console.log(`stage budget ${JSON.stringify({ rebuild: longest(rebuild), steady: longest(steady), unlit: longest(unlit) })}`);
+    // One line a window, and its frames: every CI attempt leaves them in its log, pass or fail.
+    const cores = await page.evaluate(() => navigator.hardwareConcurrency ?? null);
+    for (const [name, report] of Object.entries({ rebuild, steady, unlit })) {
+      console.log(`stage window ${JSON.stringify({ window: name, cores, ...longest(report), ...frameStats(report.frames) })}`);
+      console.log(`stage frames ${JSON.stringify({ window: name, frames: report.frames.map(([start, ms]) => [Math.round(start), Math.round(ms * 10) / 10]) })}`);
+    }
     expect(frameBudget(rebuild), 'the rebuild').toEqual({ ok: true, failures: [] });
     expect(frameBudget(steady), 'steady frames').toEqual({ ok: true, failures: [] });
     expect(steady.counts['scene.shadowMaps'] || 0, 'steady frames render no shadow map').toBe(0);

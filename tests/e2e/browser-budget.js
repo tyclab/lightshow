@@ -38,6 +38,25 @@ export function longTaskMsPerFrame(report) {
  * made (266 ms in run 43757175776's rebuild; 265 ms in the steady windows of 43757006879 and 43740656470), fails a
  * single freeze.
  */
+/** The nearest-rank quantile q of values, as performance.js reports its p95; 0 for none. */
+function quantile(values, q) {
+  const sorted = [...values].sort((a, b) => a - b);
+  return sorted.length ? sorted[Math.max(0, Math.ceil(sorted.length * q) - 1)] : 0;
+}
+
+/**
+ * One window's drawn frames, from the spec's frame recorder: each entry is [start, callback ms] of an animation
+ * frame that issued a WebGL draw. An interval runs from one drawn frame's start to the next one's; the callback is
+ * the main-thread time of the frame's animation callbacks. Medians and p90s, in ms.
+ */
+export function frameStats(frames) {
+  const intervals = frames.slice(1).map(([start], i) => start - frames[i][0]);
+  const callbacks = frames.map(([, ms]) => ms);
+  const round = (n) => Math.round(n * 10) / 10;
+  return { frames: frames.length, interval50: round(quantile(intervals, 0.5)), interval90: round(quantile(intervals, 0.9)),
+    callback50: round(quantile(callbacks, 0.5)), callback90: round(quantile(callbacks, 0.9)) };
+}
+
 export function frameBudget(report, { perFrameMs = 170, taskCeilingMs = 532, maxRenderMs = 200 } = {}) {
   const failures = [];
   const frames = report.counts['scene.draws'] || 0;
