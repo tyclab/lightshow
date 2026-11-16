@@ -53,23 +53,9 @@ test('a stack fills in as many steps as there are lamps, full on the last', () =
   assert.deepStrictEqual(lit(2), [0, 1, 2, 3, 4, 5]);
 });
 
-test('hit flashes with the drums when the lanes are ones a light may follow', () => {
+test('hit flashes on the grid: nothing sends the engine a drum reading', () => {
   const rig = pars(4);
-  const kickOnly = { mix: 0.5, kick: 0, snare: 0, hats: 0, groove: 0 };
-  // Between the steps, a kick the grid does not have: the rig flashes on it.
-  const offGrid = frame(rig, { pattern: 'hit' }, clock(0.5, { pulse: { ...kickOnly, kick: 1, groove: 1 } }));
-  assert.deepStrictEqual(offGrid, [255, 255, 255, 255]);
-  // On the step with nothing hit, the grid still pulses, at half its height.
-  const quiet = frame(rig, { pattern: 'hit' }, clock(0, { pulse: kickOnly }))[0];
-  assert.strictEqual(quiet, Math.round(35 + (hitBrightness(0) - 35) * 0.5));
-  // A soft kick is a soft flash.
-  const soft = frame(rig, { pattern: 'hit' }, clock(0.5, { pulse: { ...kickOnly, kick: 0.5, groove: 0.5 } }))[0];
-  assert.strictEqual(soft, Math.round(35 + 220 * 0.5));
-  // Lanes a light should not follow (no groove read), or none: the grid as
-  // it always was.
-  for (const pulse of [null, { mix: 0.5, kick: 1, snare: 0, hats: 0 }]) {
-    assert.strictEqual(frame(rig, { pattern: 'hit' }, clock(0.5, { pulse }))[0], hitBrightness(0.5));
-  }
+  for (const at of [0, 0.25, 0.5]) assert.deepStrictEqual(frame(rig, { pattern: 'hit' }, clock(at)), Array(4).fill(hitBrightness(at)), `${at}`);
 });
 
 test('on a rig of pars a build-up\'s picture plays over its span too', () => {

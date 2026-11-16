@@ -216,20 +216,6 @@ export interface Expression {
 /** What a show asks the expression channel for; any key may be missing. */
 export type ShowDynamics = Partial<Expression>;
 
-/** Levels and decaying drum hits at pixel rate, 0–1; unavailable stems are absent. */
-export interface PulseReading {
-  mix: number;
-  drums?: number;
-  bass?: number;
-  vocals?: number;
-  other?: number;
-  kick: number;
-  snare: number;
-  hats: number;
-  /** Normalized drum-lane intensity; present only for detector version 2 or newer. */
-  groove?: number;
-}
-
 /** How a pixel effect is laid over the cells of LED bars. */
 export type PixelMap = 'stage' | 'bar' | 'mirror';
 

@@ -68,7 +68,7 @@ test('party effects register on their fixture or pixel level', () => {
 
 test('the same moment draws the same picture, placed or not', () => {
   for (const id of PARTY) {
-    const ctx = { ...at(1234, 128, 2), pulse: { mix: 0.6, kick: 0.5, snare: 0, hats: 0.2 } };
+    const ctx = { ...at(1234, 128, 2), dynamics: { level: 0.6, bass: 0.5 } };
     assert.deepStrictEqual(draw(id, { ...ctx, plan: CORNERS }), draw(id, { ...ctx, plan: CORNERS }), id);
     assert.deepStrictEqual(draw(id, ctx), draw(id, ctx), `${id}, unplaced`);
     for (const d of dims(draw(id, { n: 7, plan: plan([FL, FR, BR, BL, MID, [30, 70], [60, 20]]), ...ctx }))) {
@@ -126,7 +126,7 @@ test('radial pulse: a ring from the middle of the room out to its corners once a
   const late = draw('radial-pulse', { n: 5, plan: five, ...at(1500) });
   assert.ok(late[0][1] > late[4][1], `then the corners: ${dims(late)}`);
   assert.deepStrictEqual(dims(late).slice(0, 4), new Array(4).fill(late[0][1]), 'all four corners alike');
-  const quiet = draw('radial-pulse', { n: 5, plan: five, ...at(600), pulse: { mix: 0.2, bass: 0.1, kick: 0, snare: 0, hats: 0 } });
+  const quiet = draw('radial-pulse', { n: 5, plan: five, ...at(600), dynamics: { bass: 0.1 } });
   assert.ok(quiet[4][1] < early[4][1], 'the bass drives it');
 });
 
@@ -184,20 +184,18 @@ test('breathe: the whole room as one, in and out over a bar, the colour drifting
 });
 
 test('volume gate: a wash that opens with the music', () => {
-  const loud = draw('volume-gate', { plan: ROW, ...at(300), pulse: { mix: 1, kick: 0, snare: 0, hats: 0 } });
-  const soft = draw('volume-gate', { plan: ROW, ...at(300), pulse: { mix: 0.3, kick: 0, snare: 0, hats: 0 } });
+  const loud = draw('volume-gate', { plan: ROW, ...at(300), dynamics: { level: 1 } });
+  const soft = draw('volume-gate', { plan: ROW, ...at(300), dynamics: { level: 0.3 } });
   for (let i = 0; i < 4; i++) assert.ok(loud[i][1] > soft[i][1], `lamp ${i}: ${soft[i][1]} → ${loud[i][1]}`);
   assert.ok(soft.every(([, d]) => d > 0), 'never shut');
 });
 
-test('confetti: three lamps in four pop on the step and die away, or follow the kick', () => {
+test('confetti: three lamps in four pop on the step and die away', () => {
   const start = draw('confetti', { n: 16, ...at(0) });
   const lit = dims(start).filter((d) => d === 255).length;
   assert.ok(lit >= 8 && lit <= 15, `${lit} of 16 popped`);
   assert.ok(dims(start).every((d) => d === 255 || d === 0), 'hard on or off at the pop');
   assert.ok(dims(draw('confetti', { n: 16, ...at(450) })).every((d) => d === 0), 'gone by the end of the step');
-  const kicked = draw('confetti', { n: 16, ...at(0), pulse: { mix: 0.5, kick: 0.5, snare: 0, hats: 0 } });
-  assert.ok(dims(kicked).some((d) => d === 128) && !dims(kicked).some((d) => d === 255), 'as hard as the kick');
   // Never closer together than 400 ms: at eighths (62.5 ms steps) the pops
   // land every seventh step, and the hold between covers the next step.
   const fast = (ms) => dims(draw('confetti', { n: 16, ...at(ms, 120, 8) })).map((d) => d === 255);

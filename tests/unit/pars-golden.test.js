@@ -161,7 +161,7 @@ function engineHash() {
         }
       }
       applyPatch({ pixelMap: 'stage' });
-      // `hit` with no drum pulse: the engine takes none since the planned track show went.
+      // `hit` on the clock alone: nothing sends the engine a drum reading.
       scene({ ...base, pattern: 'hit' }, 64);
     });
   } finally {

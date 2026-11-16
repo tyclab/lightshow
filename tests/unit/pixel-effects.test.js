@@ -6,7 +6,7 @@ import test from 'node:test';
 import assert from 'node:assert';
 import { CELL_PATTERNS, gradientAt } from '../../src/shared/patterns.ts';
 import { COLOR_PRESETS, PATTERNS } from '../../src/server/presets.ts';
-import { draw, panel, PULSE } from '../helpers/pixel-patterns.js';
+import { draw, panel, LOUD_BASS } from '../helpers/pixel-patterns.js';
 
 const RED = COLOR_PRESETS[0];
 const BLUE = COLOR_PRESETS[5];
@@ -89,24 +89,25 @@ test('plasma moves and stays inside the look\'s colours', () => {
 // ── Panels: after LedFx's and WLED's matrix effects ─────────────────────────
 
 test('bars: each band a column, filled from the bottom as high as it plays', () => {
-  const { at } = panel('bars', 7, 10, { pulse: PULSE });
+  // On the beat: the clock's kick is hit and its snare silent; the bass and the voice are the show's dynamics.
+  const { at } = panel('bars', 7, 10, { dynamics: LOUD_BASS });
   const lit = (c) => [...Array(10).keys()].filter((r) => at(c, r)[1] >= 170).length;
   assert.ok(lit(0) >= 9, `the kick, hit, fills its column: ${lit(0)}`);
   assert.strictEqual(lit(3), 1, 'the snare, silent, only its bottom cell');
   assert.ok(lit(1) > lit(5), 'the bass stands taller than the voice');
   assert.ok(at(1, 9)[1] >= 170 && at(5, 0)[1] < 170, 'filled from the bottom, not the top');
   // On a strip there is no height: each band lights its stretch as it plays.
-  const strip = dims(draw('bars', { n: 14, pulse: PULSE }));
+  const strip = dims(draw('bars', { n: 14, dynamics: LOUD_BASS }));
   assert.ok(strip[0] > strip[6], `kick bright, snare dim: ${strip}`);
 });
 
 test('fire rendering follows bass height and deterministic time', () => {
-  const quiet = panel('fire', 8, 16, { stepPos: 3.2, pulse: { ...PULSE, bass: 0.1, kick: 0 } });
-  const loud = panel('fire', 8, 16, { stepPos: 3.2, pulse: { ...PULSE, bass: 1, kick: 1 } });
+  const quiet = panel('fire', 8, 16, { stepPos: 3.2, dynamics: { ...LOUD_BASS, bass: 0.1 } });
+  const loud = panel('fire', 8, 16, { stepPos: 3.2, dynamics: { ...LOUD_BASS, bass: 1 } });
   const row = (p, r) => [...Array(8).keys()].reduce((sum, c) => sum + p.at(c, r)[1], 0);
   assert.ok(row(loud, 15) > row(loud, 2), 'the bottom row burns brighter than the top');
   assert.ok(row(loud, 8) > row(quiet, 8), 'and the bass drives the flames higher');
-  assert.deepStrictEqual(panel('fire', 8, 16, { stepPos: 3.2, pulse: PULSE }).out, panel('fire', 8, 16, { stepPos: 3.2, pulse: PULSE }).out);
+  assert.deepStrictEqual(panel('fire', 8, 16, { stepPos: 3.2, dynamics: LOUD_BASS }).out, panel('fire', 8, 16, { stepPos: 3.2, dynamics: LOUD_BASS }).out);
 });
 
 test('rain: drops falling down each column in time, the head in the lift colour', () => {
@@ -211,10 +212,6 @@ test('the strobe core strikes white in the middle, over a wash in the look\'s co
   assert.ok(struck[0][0] === RED && struck[0][1] > 100, 'the edges hold the wash');
   const between = draw('core', { n: 9, ...at(250) });
   assert.ok(!WHITE(between[4][0]) && between[4][1] < between[0][1], 'between strikes the core only glows');
-  // With the pulse, on the kick as it was hit, not on the grid.
-  const off = draw('core', { n: 9, ...at(10), pulse: { mix: 0.8, kick: 0.1, snare: 0, hats: 0 } });
-  const kick = draw('core', { n: 9, ...at(250), pulse: { mix: 0.8, kick: 0.95, snare: 0, hats: 0 } });
-  assert.deepStrictEqual([WHITE(off[4][0]), WHITE(kick[4][0])], [false, true]);
 });
 
 test('the random ramps swell every zone at a moment of its own, and are cut', () => {
