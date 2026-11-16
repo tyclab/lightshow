@@ -113,7 +113,13 @@ test('stopped and disarmed, the stage shows the selected look without a click', 
 
   await plotFormat(page);
   await expect(plotTag(page)).toHaveText(DEMO);
-  const frames = await lampFrames(page, 3000, true);
+  // The wave lights one lamp at a time and leaves every lamp dark for 2 to 3 s between its laps (about 6.5 s each on the
+  // demo beat), its crests between 78 and 194: sampled until a crest has passed, not for a window that can fall between.
+  const frames = [];
+  await expect.poll(async () => {
+    frames.push(...await lampFrames(page, 1500, true));
+    return new Set(frames).size > 3 && frames.some((light) => level(light) > 100);
+  }, { timeout: 15_000 }).toBe(true);
   expect(new Set(frames).size, 'the plot moves too').toBeGreaterThan(3);
   expect(frames.some((light) => level(light) > 100), 'and is lit').toBe(true);
 
