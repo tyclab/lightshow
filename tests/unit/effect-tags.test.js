@@ -22,7 +22,7 @@ const KIND_REACTS = { beat: 133, static: 19, bands: 5, level: 2, sections: 0 };
 const PINNED = {
   solid: 'static rig',
   fade: 'beat rig',
-  hit: 'bands rig / track',
+  hit: 'beat rig',
   strobe: 'static rig',
   'color-cycle': 'beat rig',
   rainbow: 'beat ownColours',
@@ -44,14 +44,14 @@ const PINNED = {
   comet: 'beat bars',
   burst: 'beat bars',
   plasma: 'beat bars',
-  meter: 'bands level bars / track',
-  drums: 'bands bars / track',
-  stems: 'bands bars / track',
+  meter: 'beat bars',
+  drums: 'beat bars',
+  stems: 'static bars',
   rise: 'sections bars / track',
-  impact: 'bands bars / track',
-  bars: 'bands bars / track',
-  fire: 'bands bars / track',
-  rain: 'bands bars / track',
+  impact: 'beat bars',
+  bars: 'beat bars',
+  fire: 'beat bars',
+  rain: 'beat bars',
   'flash-chase': 'beat bars rapid',
   'flash-scatter': 'beat bars rapid',
   'flash-fill': 'beat bars',
@@ -60,16 +60,16 @@ const PINNED = {
   'ramp-scatter': 'beat bars',
   'decay-scatter': 'beat bars',
   'flash-burst': 'beat bars rapid',
-  core: 'bands bars rapid / track',
+  core: 'beat bars rapid',
   'position-chase': 'beat',
-  'radial-pulse': 'bands / track',
+  'radial-pulse': 'beat',
   'spatial-wash': 'beat',
   'bounce-scan': 'beat',
   streak: 'beat',
   starlight: 'beat',
   breathe: 'beat rig',
-  'volume-gate': 'level / track',
-  confetti: 'bands / track',
+  'volume-gate': 'beat',
+  confetti: 'beat',
   'anchor-fill': 'beat',
   halves: 'beat',
   flip: 'beat',
@@ -165,13 +165,13 @@ test('the eleven tags and their counts over the 111 looks', () => {
   ]);
   const counts = Object.fromEntries(Object.keys(TAGS).map((tag) => [tag, count(VISIBLE, tag)]));
   assert.deepEqual(counts, {
-    beat: 79, static: 7, bands: 19, level: 4, sections: 3,
+    beat: 90, static: 8, bands: 8, level: 2, sections: 3,
     rig: 17, room: 39, bars: 21, ownColours: 8, energy: 11, rapid: 16,
   });
   const reactive = VISIBLE.filter((row) => row.tags.some((tag) => REACTIVE_TAGS.has(tag)));
-  assert.equal(reactive.length, 25);
+  assert.equal(reactive.length, 13);
   assert.deepEqual(Object.fromEntries(Object.keys(SOURCES).map((s) => [s, reactive.filter((r) => r.via.includes(s)).length])),
-    { track: 16, live: 10 });
+    { track: 4, live: 10 });
 });
 
 test('tags restate the fields the server already sends: pixel, room mapping, rapid flash, the energy family', () => {

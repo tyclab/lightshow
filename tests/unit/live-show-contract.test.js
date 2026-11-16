@@ -24,7 +24,7 @@ import { renderInput, startEngine, stopEngine } from '../../src/server/engine.ts
 import { applyPatch } from '../../src/server/patch.ts';
 import { state, voices, getClientState, getLiveState } from '../../src/server/state.ts';
 import { control } from '../../src/server/control.ts';
-import { settings, SettingsStore } from '../../src/server/settings.ts';
+import { settings } from '../../src/server/settings.ts';
 import * as output from '../../src/server/output.ts';
 import { showStore } from '../../src/server/show-store.ts';
 import { PATTERNS } from '../../src/server/presets.ts';
@@ -62,14 +62,14 @@ function liveInput() {
   return input;
 }
 
-async function serve(t, { live: liveValues = {} } = {}) {
+async function serve(t) {
   applyPatch({ running: false, masterBlackout: false, pattern: 'chase' });
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'live-show-'));
   const midi = { enabled: false, sendFeedback() {}, listPorts: () => [], onLearn() {}, close() {}, connect() { return true; }, setControlFeedback() {} };
   const values = settings._values;
   const ownSave = Object.hasOwn(settings, 'save') ? settings.save : null;
   settings._values = { ...values, safety: { ...values.safety, photosensitivityAcknowledged: false }, outputs: { ...values.outputs, armed: false },
-    live: { ...values.live, ...liveValues }, picture: { ...values.picture, source: 'effects' } };
+    picture: { ...values.picture, source: 'effects' } };
   settings.save = () => {};
   const app = express();
   app.use(express.json());
@@ -156,23 +156,6 @@ test('Party start as Home Assistant runs it: the cue\'s look holds half a minute
   assert.equal(renderInput().pattern, state.pattern, 'and it is what renders');
   assert.deepEqual(untouched(), before, 'Freeze, Blackout and the picture source are not the start\'s or the cue\'s');
   assert.equal(control.snapshot().playing, true);
-});
-
-// Play By Ear went with the planned show: a file that turned it off loads without it, and Auto still drives.
-test('a settings file with Play By Ear off loads without it, and Auto still plays by ear', async (t) => {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'live-show-settings-'));
-  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
-  const file = path.join(dir, 'settings.json');
-  fs.writeFileSync(file, JSON.stringify({ formatVersion: 1, values: { live: { enabled: true, latencyMs: 12, director: false } } }));
-  t.mock.method(console, 'warn', () => {});
-  const stored = new SettingsStore(file).load().group('live');
-  assert.equal('director' in stored, false, 'the key is dropped on load');
-  assert.equal(stored.latencyMs, 12, 'the rest of the group is kept');
-  const s = await serve(t, { live: stored });
-  assert.equal((await sendControl(s.call, 'start', 'auto')).status, 200);
-  assert.equal(director().active, true, 'Auto drives the director');
-  s.live.event('TRANSITION', { to: 'high' });
-  assert.ok(DIRECTOR_LOOKS.has(renderInput().pattern), 'and its events reach the render');
 });
 
 test('Auto starts, stops and switches with no analysis anywhere, and leaves Freeze and Blackout', async (t) => {

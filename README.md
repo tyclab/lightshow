@@ -401,7 +401,7 @@ a look appears.
 | | **Static** | follows neither the beat nor any input: constant, or timed by a fixed rate of its own |
 | | **Bands & drums** | follows stems, drum hits or frequency bands |
 | | **Audio level** | follows the overall loudness |
-| | **Song sections** | follows the build-up the auto show sets |
+| | **Song sections** | follows a song's sections or a build-up's progress |
 | Surface | **Whole rig** | gives every light the same value at once |
 | | **Room-placed** | is placed by room positions (Mapping: Through room) |
 | | **Bars & panels** | draws cell by cell (a pixel effect) |
@@ -409,10 +409,10 @@ a look appears.
 | Use & safety | **Energy** | is an energy hold or a strobe voice over the running look |
 | | **Rapid ⚡** | with the outputs armed, plays only after the photosensitivity acknowledgement |
 
-A reaction also says where its input comes from: **track** (what the auto show sets:
-the progress of a build-up it plays; stems and drum hits come from no source now, and
-picked by hand the look runs on its clock) or **live** (the Reactive audio mode with
-live input). The expression channel (`showDynamics`) is not counted as an input: only a
+A reaction also says where its input comes from: **track** (a song's sections and
+stems: the stopped preview's demo track sends them; the rig sends none, only a look's own
+build-up span sets the progress, and otherwise the look runs on its clock) or **live**
+(the Reactive audio mode with live input). The expression channel (`showDynamics`) is not counted as an input: only a
 patch through the API sets it; when set it shapes many classic patterns and dims every
 lamp look alike, and otherwise each of them sees the same resting values. A look laid out along
 the Rig plot (every classic pattern that uses positions) carries no surface tag; a plot
@@ -781,7 +781,7 @@ New mapping revisions discard delayed and partially staged colours.
 `server.host`, `server.port`, `server.token` and the engine thread require a restart.
 Other settings apply immediately. The UI lists pending restart keys. A file from
 an earlier build loads without the groups this one no longer reads (`sources`,
-`spotify`, `deezer`, `auto`, `analysis`, `live.autoSync`, `live.director`), one log line naming
+`spotify`, `deezer`, `auto`, `analysis`, `live.autoSync`), one log line naming
 them, and is written back without them; its `analysis.pythonPath` becomes
 `live.pythonPath`.
 
