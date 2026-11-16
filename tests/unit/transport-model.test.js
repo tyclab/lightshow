@@ -61,7 +61,8 @@ test('the strip holds Show and Perform, and the Setup menu five entries in three
   ]);
   assert.deepEqual(SETUP_VIEWS, SETUP_GROUPS.flatMap((group) => group.views));
   assert.deepEqual(Object.fromEntries(Object.entries(PANELS).map(([view, panels]) => [view, panels.map((panel) => panel.label)])), {
-    rig: ['Plan & patch', 'Room', 'Profiles', 'Outputs'], sources: ['Live input', 'Auto show'], settings: ['Show', 'MIDI', 'Check', 'System'],
+    effects: ['Effects', 'Cues'], rig: ['Plan & patch', 'Room', 'Profiles', 'Outputs'], sources: ['Live input', 'Auto show'],
+    settings: ['Show', 'MIDI', 'Check', 'System'],
   });
 });
 

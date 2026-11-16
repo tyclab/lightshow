@@ -1,5 +1,5 @@
 import { SpatialControls } from './SpatialControls.jsx';
-import { startAudition } from '../audition.js';
+import { StageView } from './StageView.jsx';
 import { HardwareFit } from './HardwareFit.jsx';
 import { ADMISSION_LABELS } from './setup/Hardware.jsx';
 import { gradientSettings } from './GradientEditor.jsx';
@@ -448,7 +448,11 @@ function ParamControls({ spec, caps, families, lib, fixtures, setParam, setKind,
 
 // ── The card ────────────────────────────────────────────────────────────────
 
-export function Inspector({ id, onSelect, onPlay, onClose, inline = null, onApply, auditionTargets = 'shared', auditionUnavailable = null }) {
+/**
+ * `stage`: the editor draws the open draft on a stage of its own (G7), in this browser on the demo beat, wherever the
+ * stopped preview would draw a look: not while armed, under Blackout or with the preview paused, and held by Freeze.
+ */
+export function Inspector({ id, onSelect, onPlay, onClose, inline = null, onApply, auditionTargets = 'shared', auditionUnavailable = null, stage = false }) {
   const s = pick(['families', 'patterns', 'fixtures', 'pattern', 'armed']);
   const lib = librarySig.value;
   const families = s.families || lib.families || [];
@@ -611,6 +615,7 @@ export function Inspector({ id, onSelect, onPlay, onClose, inline = null, onAppl
         {dirty && <span class="insp-dirty">Changed</span>}
       </div>
       {preset.desc && <p class="effect-inspector-desc">{preset.desc}</p>}
+      {stage && <div class="effect-inspector-stage"><StageView compact draft={{ id: preset.id, spec, name: draft.name }} /></div>}
 
       <div class="insp-grid">
         {!inline && <Field label="Name" path="name">
@@ -655,13 +660,10 @@ export function Inspector({ id, onSelect, onPlay, onClose, inline = null, onAppl
 
       <div class="insp-actions">
         {onPlay && !playing && <button type="button" class="btn sm" disabled={dirty}
-          title={dirty ? 'Save your changes to play them as the main effect, or use Audition on Stage to try them.' : undefined}
+          title={dirty ? 'Save your changes to play them as the main effect; Hold on live rig tries them on the rig.' : undefined}
           onClick={() => onPlay(preset.id)}>Play</button>}
         <button type="button" class="btn sm" disabled={paletteInvalid || !!auditionUnavailable} aria-pressed={audition.held.has('inspector-audition')}
           title="Launch a voice on the live engine while held" {...auditionProps}>Hold on live rig</button>
-        <button type="button" class="btn sm" disabled={paletteInvalid || !!s.armed} onClick={() => {
-          startAudition(`draft:${preset.id}`, spec, draft.name); if (onClose) onClose(); window.location.hash = 'stage';
-        }}>Audition on Stage</button>
         {inline && <button type="button" class="btn sm" disabled={paletteInvalid || applying} onClick={apply}>Apply to clip</button>}
         {preset.source === 'user' && <button type="button" class="btn sm" disabled={!dirty || paletteInvalid} onClick={saveInPlace}>Save</button>}
         {!naming && <button type="button" class="btn sm" onClick={() => { setNaming(true); setCopyName(`${draft.name} copy`); }}>Save as…</button>}

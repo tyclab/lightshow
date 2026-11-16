@@ -42,8 +42,8 @@ test('an idle disarmed page releases its feeds and Resume brings them back', asy
   expect(await playing(request), 'the page pauses only itself').toBe(true);
 
   // Every view that draws a stage says it, with the page still paused.
-  // G7: Stage is Rig's Room; Music's Auto show draws no stage.
-  for (const view of ['effects', 'stage', 'rig/plan']) {
+  // G7: Stage is Rig's Room; Music's Auto show draws no stage, nor does Effect settings outside its editor.
+  for (const view of ['stage', 'rig/plan']) {
     await page.evaluate((v) => { window.location.hash = `#${v}`; }, view);
     await expect(notice(page), view).toBeVisible();
     await expect(notice(page), view).toHaveCount(1);

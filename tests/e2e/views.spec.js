@@ -136,7 +136,7 @@ test('Show\'s room starts in the top half of a tablet, under a header that never
 // panels (Rig's Room, Music's Auto show, Settings' Check), Sources is named Music, and every address and digit that
 // opened a view opens its place.
 
-const TABLISTS = { perform: 'Instruments', rig: 'Rig', sources: 'Music', settings: 'Settings' };
+const TABLISTS = { perform: 'Instruments', effects: 'Effect settings', rig: 'Rig', sources: 'Music', settings: 'Settings' };
 const panelTab = (page, view, name) => page.getByRole('tablist', { name: TABLISTS[view], exact: true }).getByRole('tab', { name, exact: true });
 const ROOM = '#panel-rig .stage3d-view:not(.compact)', AUTO = '#panel-sources .auto-show', CHECK = '#panel-settings #preflight-title';
 
@@ -144,7 +144,7 @@ const ROOM = '#panel-rig .stage3d-view:not(.compact)', AUTO = '#panel-sources .a
 // a part only that place draws]. The bare address of a view with panels is in the tests of the remembered panel.
 const PLACES = [
   ['show', 'show', 'show', null, '.show-body'],
-  ['effects', 'effects', 'effects', null, '.manual-view'], ['manual', 'effects', 'effects', null, '.manual-view'],
+  ['effects/catalogue', 'effects/catalogue', 'effects', 'Effects', '.effects-catalogue'], ['effects/cues', 'effects/cues', 'effects', 'Cues', null],
   ['perform/pads', 'perform/pads', 'perform', 'Pads', '.perform-pads'],
   ['perform/matrix', 'perform/matrix', 'perform', 'Matrix', null], ['matrix', 'perform/matrix', 'perform', 'Matrix', null],
   ['stage', 'rig/room', 'rig', 'Room', ROOM],
@@ -313,6 +313,7 @@ test('G7: a deep link beats a remembered view and a remembered panel', async ({ 
       localStorage.setItem('lightshow.rig.tab', 'outputs');
       localStorage.setItem('lightshow.sources.tab', 'auto');
       localStorage.setItem('lightshow.settings.tab', 'midi');
+      localStorage.setItem('lightshow.effects.tab', 'cues');
     } catch { /* private mode */ }
   });
   // With no address the page opens what it remembers: the view, and its panel.
@@ -322,6 +323,7 @@ test('G7: a deep link beats a remembered view and a remembered panel', async ({ 
     ['rig/profiles', 'rig/profiles', 'rig', 'Profiles', null], ['stage', 'rig/room', 'rig', 'Room', ROOM],
     ['sources/live', 'sources/live', 'sources', 'Live input', null], ['preflight', 'settings/check', 'settings', 'Check', CHECK],
     ['settings/system', 'settings/system', 'settings', 'System', null],
+    ['effects/catalogue', 'effects/catalogue', 'effects', 'Effects', '.effects-catalogue'],
   ]) {
     await page.goto('about:blank');
     await page.goto(`/#${place[0]}`);
@@ -333,7 +335,8 @@ test('G7: a deep link beats a remembered view and a remembered panel', async ({ 
   await expect(page.locator('#panel-rig')).toBeVisible();
   await expect(panelTab(page, 'rig', 'Outputs'), '#rig/nowhere').toHaveAttribute('aria-selected', 'true');
   // A view's bare address opens the panel it remembers.
-  for (const place of [['rig', 'rig/outputs', 'rig', 'Outputs', null], ['sources', 'sources/auto', 'sources', 'Auto show', AUTO], ['settings', 'settings/midi', 'settings', 'MIDI', null]]) {
+  for (const place of [['rig', 'rig/outputs', 'rig', 'Outputs', null], ['sources', 'sources/auto', 'sources', 'Auto show', AUTO], ['settings', 'settings/midi', 'settings', 'MIDI', null],
+    ['effects', 'effects/cues', 'effects', 'Cues', null], ['manual', 'effects/cues', 'effects', 'Cues', null]]) {
     await page.goto('about:blank');
     await page.goto(`/#${place[0]}`);
     await expectPlace(page, place, 'bare, with a remembered panel');
@@ -341,7 +344,8 @@ test('G7: a deep link beats a remembered view and a remembered panel', async ({ 
 });
 
 test('G7: a view\'s bare address opens its first panel the first time, and the one last used after that', async ({ page }) => {
-  for (const [view, first, other, otherId] of [['sources', 'Live input', 'Auto show', 'auto'], ['rig', 'Plan & patch', 'Room', 'room'], ['settings', 'Show', 'Check', 'check']]) {
+  for (const [view, first, other, otherId] of [['sources', 'Live input', 'Auto show', 'auto'], ['rig', 'Plan & patch', 'Room', 'room'], ['settings', 'Show', 'Check', 'check'],
+    ['effects', 'Effects', 'Cues', 'cues']]) {
     await page.goto('about:blank');
     await page.goto(`/#${view}`);
     await expect(panelTab(page, view, first), `#${view} the first time`).toHaveAttribute('aria-selected', 'true');

@@ -60,13 +60,16 @@ test('one Strobe catalogue entry exposes colour modes and preserves old selectio
   const names = await page.locator('.effects-catalogue .pattern-btn .name').allTextContents();
   expect(names.filter((name) => /^Strobe(?: · Main effect)?$/.test(name))).toHaveLength(1);
   expect(names.some((name) => /White Strobe|Colour Strobe/.test(name))).toBe(false);
+  // G7: Colours left Effect settings; Show holds them.
+  await open(page, 'show');
   await expect(page.getByLabel('Colour distribution')).toHaveValue('first');
   await page.getByLabel('Colour distribution').selectOption('white');
   await until(request, (s) => s.pattern === 'color-strobe' && s.effectColours?.mode === 'white');
   await expect(page.getByText('White emitters ignore palettes.', { exact: false })).toBeVisible();
 });
 
-test('background follows Colours on mobile, remains accessible from Stage, and the header is themed', async ({ page, request }) => {
+// G7: Background left the Room and Effect settings; Show holds it.
+test('background follows Colours on mobile and is set there, not on the Room, and the header is themed', async ({ page, request }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await open(page, 'show');
   const colours = await page.locator('.show-colours').boundingBox();
@@ -77,9 +80,10 @@ test('background follows Colours on mobile, remains accessible from Stage, and t
     expect(theme.colour).not.toBe(theme.background);
   }
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
-  await page.goto('/#stage');
   const background = page.getByRole('region', { name: 'Background lighting' });
   await background.getByRole('button', { name: 'Fixed colour', exact: true }).click();
   await until(request, (s) => s.background.mode === 'fixed');
-  await expect(page.getByRole('region', { name: 'Background lighting' })).toBeVisible();
+  await page.goto('/#stage');
+  await expect(page.locator('#panel-rig .stage3d-view')).toBeVisible();
+  await expect(page.getByRole('region', { name: 'Background lighting' })).toHaveCount(0);
 });

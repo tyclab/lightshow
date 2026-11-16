@@ -1,15 +1,11 @@
-import { Background } from './components/Background.jsx';
 import { render } from 'preact';
 import { useState, useEffect, useLayoutEffect, useRef, useCallback } from 'preact/hooks';
 import { field } from './state.js';
 import { setUpDevice } from './device.js';
 
 import { Header } from './components/Header.jsx';
-import { CommandBar } from './components/CommandBar.jsx';
-import { Bands } from './components/Bands.jsx';
 import { Effects } from './components/Effects.jsx';
 import { Cues } from './components/Cues.jsx';
-import { StagePreview } from './components/StagePreview.jsx';
 import { ConnectionVeil } from './components/ConnectionVeil.jsx';
 import { ShortcutsOverlay } from './components/Shortcuts.jsx';
 import { Perform } from './components/Perform.jsx';
@@ -20,9 +16,9 @@ import { useTapShortcut } from './keys.js';
 import { RigView } from './components/setup/RigView.jsx';
 import { SourcesView } from './components/setup/SourcesView.jsx';
 import { SettingsView } from './components/setup/SettingsView.jsx';
-import { showPanel } from './components/setup/SubTabs.jsx';
+import { showPanel, SubPanel, SubTabs, useSubTab } from './components/setup/SubTabs.jsx';
 
-import { VIEWS, STRIP_VIEWS, SETUP_VIEWS, SETUP_GROUPS, viewShortcut, resolveRoute } from './views.js';
+import { VIEWS, STRIP_VIEWS, SETUP_VIEWS, SETUP_GROUPS, PANELS as VIEW_PANELS, viewShortcut, resolveRoute } from './views.js';
 import { useDismiss } from './popover.js';
 import { pageTitle } from './brand.js';
 
@@ -177,18 +173,19 @@ function SetupMenu({ mode, setMode, autoActive }) {
   );
 }
 
+// Effect settings: the catalogue with its editor, and the saved cues to rename, overwrite or delete (recall and save are on Show).
 function EffectsView() {
+  const [tab, setTab] = useSubTab('effects', VIEW_PANELS.effects);
   return (
     <div class="manual-view">
-      <div class="manual-col col-patterns"><Background /><Cues /><Effects /></div>
-      <div class="manual-col col-colors"><Bands /></div>
-      <div class="manual-col col-fixtures"><StagePreview /></div>
+      <SubTabs view="effects" tabs={VIEW_PANELS.effects} tab={tab} setTab={setTab} label="Effect settings" />
+      <SubPanel view="effects" tab={tab}>{tab === 'cues' ? <Cues /> : <Effects />}</SubPanel>
     </div>
   );
 }
 
 // The bars stacked above a view, whose heights the sticky offsets in style.css read.
-const BARS = [['header', '.app-header'], ['commands', '.command-bar'], ['views', '.mode-nav'], ['effects', '.effects-tools']];
+const BARS = [['header', '.app-header'], ['views', '.mode-nav'], ['effects', '.effects-tools']];
 
 const PANELS = {
   show: Show,
@@ -213,8 +210,6 @@ function Root() {
     showMode(next);
   }, []);
   const Panel = PANELS[mode];
-  // Show uses the header's look controls; Perform also carries its own transport.
-  const bare = mode === 'show' || mode === 'perform';
   useTapShortcut();
 
   // The bars' heights as the ResizeObserver reports them, from the layout the
@@ -276,7 +271,6 @@ function Root() {
         document.getElementById(`panel-${mode}`)?.focus();
       }}>Skip to the controls</a>
       <Header />
-      {!bare && <CommandBar transport={mode !== 'sequence'} />}
       <nav class="mode-nav" aria-label="Views">
         <ModeTabs mode={mode} setMode={setMode} />
       </nav>

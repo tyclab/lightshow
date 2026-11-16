@@ -24,7 +24,6 @@ async function load() {
         export { StrobePad } from './public-src/components/StrobePad.jsx';
         export { Pads } from './public-src/components/Pads.jsx';
         export { GlobalControls } from './public-src/components/GlobalControls.jsx';
-        export { CommandBar } from './public-src/components/CommandBar.jsx';
         export { createPadPresses, rapidPad, padKey } from './public-src/voice-pad.js';
         export { createVoiceHolds } from './public-src/hold-control.js';
         export { stopAllVoices, FreezePad, toggleFreeze } from './public-src/components/Perform.jsx';
@@ -295,24 +294,11 @@ test('rapid pad controls gate presses until acknowledgement', () => {
   ];
   given({ safety: { photosensitivityAcknowledged: false }, pads: { layout, lit: [] }, patterns: CATALOGUE_ROWS, effects: [] });
   const deck = ui.html(ui.h(ui.Pads, { initialBank: 0 }));
-  const strip = ui.html(ui.h(ui.CommandBar, {}));
-  for (const html of [deck, strip]) {
-    const asking = [...html.matchAll(/<button[^>]*data-safety="ask"[^>]*>/g)].length;
-    assert.strictEqual(asking, 3, html);
-    assert.doesNotMatch(html, /title="Glow[^"]*"[^>]*data-safety="ask"/);
-  }
+  const asking = [...deck.matchAll(/<button[^>]*data-safety="ask"[^>]*>/g)].length;
+  assert.strictEqual(asking, 3, deck);
+  assert.doesNotMatch(deck, /title="Glow[^"]*"[^>]*data-safety="ask"/);
   given({ safety: { photosensitivityAcknowledged: true }, pads: { layout, lit: [] }, patterns: CATALOGUE_ROWS, effects: [] });
   assert.doesNotMatch(ui.html(ui.h(ui.Pads, { initialBank: 0 })), /data-safety="ask"/);
-  assert.doesNotMatch(ui.html(ui.h(ui.CommandBar, {})), /data-safety="ask"/);
-});
-
-test('a strip pad with no label is named by its content, as on the deck', () => {
-  given({ safety: { photosensitivityAcknowledged: true }, pads: { layout: [pad(0, '', { kind: 'preset', id: 'energy.glow' })], lit: [] } });
-  const html = ui.html(ui.h(ui.CommandBar, {}));
-  const deck = ui.html(ui.h(ui.Pads, { initialBank: 0 }));
-  const name = html.match(/class="cb-energy-name">([^<]+)</)?.[1];
-  assert.ok(name);
-  assert.equal(name, deck.match(/class="pad-label">([^<]+)</)?.[1]);
 });
 
 const BUILTIN = [{ id: 'ldjFire', app: 'ldj', colours: ['#FF0000', '#FF8800'] }, { id: 'hdDefault', app: 'hd', colours: ['#00FF00', { random: true }] }];

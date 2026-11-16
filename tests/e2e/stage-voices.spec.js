@@ -44,7 +44,9 @@ test('voices appear over the stage look and disappear when stopped', async ({ pa
     await open(page, 'stage');
     await expect(page.locator('.stage3d-tools .panel-tag')).toHaveText('Preview (disarmed)');
     await expect(page.getByRole('img', { name: /The rig in 3D/ })).toHaveAttribute('aria-label', /previewing with outputs disarmed/);
-    await open(preview, 'effects');
+    // G7: Effect settings' plot went; Show's stage in 2D carries the same line, and Show lists the voices.
+    await open(preview, 'show');
+    await preview.locator('.stage3d-tools').getByRole('button', { name: '2D plot', exact: true }).click();
     const now = preview.locator('.stage-now');
     await expect(now).toContainText(start.patterns.find((row) => row.id === start.pattern).name);
     await expect(preview.locator('.playing-voice')).toHaveCount(0);

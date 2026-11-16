@@ -248,12 +248,12 @@ function useEditorHeight(body, open) {
 }
 
 /** Any other effect: its own palette on the wheel and in order, recoloured, resized or replaced from the list; the effect decides how it plays it. */
-function EffectPalette({ colour, palettes, masked, classic, show, frozen }) {
+function EffectPalette({ colour, palettes, masked, classic, frozen }) {
   const body = colour.current;
   const entries = body.colours || [];
   const [selected, setSelected] = useState(0);
   const editorId = useId();
-  const [editing, setEditing] = useState(show ? editorOpen : false);
+  const [editing, setEditing] = useState(editorOpen);
   const toggleEditor = () => {
     const open = !editing;
     setEditing(open);
@@ -306,46 +306,33 @@ function EffectPalette({ colour, palettes, masked, classic, show, frozen }) {
   </select></label>;
   const whiteNote = <p class="muted">White emitters ignore palettes. Choose First colour or Cycle palette for colour.</p>;
   const editorBody = useRef(null);
-  useEditorHeight(editorBody, !!show && editing && !white);
-  if (show) {
-    // Show (the operator, 2026-11-14): the palettes stay in view; the wheel and the colour order fold together under one button.
-    const named = active && active !== 'off' ? palettes.find((p) => p.id === active) ?? { id: active } : null;
-    return <>
-      <section class="card bands show-palettes" aria-label="Palettes">
-        {frozen}
-        <div class="card-title band-title"><span>Palettes</span>{reset}</div>
-        {masked && <p class="muted" role="status">{masked}</p>}
-        <div class="show-palette-current">
-          <span class="show-palette-label">Selected palette</span>
-          <strong class="show-palette-name">{named ? paletteName(named) : s.effectColours ? 'Custom colours' : 'The effect’s own colours'}</strong>
-          <span class="show-palette-strip" style={{ background: strip({ colours: strings }) }} aria-hidden="true" />
-        </div>
-        {distribution}
-        {white ? whiteNote : paletteList}
-      </section>
-      {!white && <section class="card show-fold" aria-label="Colour editing">
-        <button type="button" class="show-fold-toggle" aria-expanded={editing} aria-controls={editorId} onClick={toggleEditor}>
-          <span class="show-fold-text"><strong>Edit colours</strong><small>Colour wheel &amp; colour order</small></span>
-          <span class="show-fold-chevron" aria-hidden="true">⌄</span>
-        </button>
-        <div id={editorId} class="show-fold-body" ref={editorBody} hidden={!editing}>
-          {editing && <div class="band-channel" role="group" aria-label="Effect palette">
-            <div class="band-editor"><div class="band-sequence">{wheel}{order}</div></div>
-          </div>}
-        </div>
-      </section>}
-    </>;
-  }
+  useEditorHeight(editorBody, editing && !white);
+  // Show (the operator, 2026-11-14): the palettes stay in view; the wheel and the colour order fold together under one button.
+  const named = active && active !== 'off' ? palettes.find((p) => p.id === active) ?? { id: active } : null;
   return <>
-    <div class="card-title band-title"><span>Colours</span>{reset}</div>
-    {masked && <p class="muted" role="status">{masked}</p>}
-    {distribution}
-    {white ? whiteNote : <div class="band-channel" role="group" aria-label="Effect palette">
-      <div class="band-editor">
-        <div class="band-sequence">{wheel}{order}</div>
-        {paletteList}
+    <section class="card bands show-palettes" aria-label="Palettes">
+      {frozen}
+      <div class="card-title band-title"><span>Palettes</span>{reset}</div>
+      {masked && <p class="muted" role="status">{masked}</p>}
+      <div class="show-palette-current">
+        <span class="show-palette-label">Selected palette</span>
+        <strong class="show-palette-name">{named ? paletteName(named) : s.effectColours ? 'Custom colours' : 'The effect’s own colours'}</strong>
+        <span class="show-palette-strip" style={{ background: strip({ colours: strings }) }} aria-hidden="true" />
       </div>
-    </div>}
+      {distribution}
+      {white ? whiteNote : paletteList}
+    </section>
+    {!white && <section class="card show-fold" aria-label="Colour editing">
+      <button type="button" class="show-fold-toggle" aria-expanded={editing} aria-controls={editorId} onClick={toggleEditor}>
+        <span class="show-fold-text"><strong>Edit colours</strong><small>Colour wheel &amp; colour order</small></span>
+        <span class="show-fold-chevron" aria-hidden="true">⌄</span>
+      </button>
+      <div id={editorId} class="show-fold-body" ref={editorBody} hidden={!editing}>
+        {editing && <div class="band-channel" role="group" aria-label="Effect palette">
+          <div class="band-editor"><div class="band-sequence">{wheel}{order}</div></div>
+        </div>}
+      </div>
+    </section>}
   </>;
 }
 
@@ -365,7 +352,8 @@ function PictureColours() {
   </section>;
 }
 
-export function Bands({ show = false }) {
+/** Show's colours (Effect settings had a card of its own until G7): the bands of a band effect, else the palettes and the fold. */
+export function Bands() {
   const colour = useColourTarget('base');
   const { audio, palette, control } = pick(['audio', 'palette', 'control']);
   const palettes = useLibraryPalettes();
@@ -377,12 +365,9 @@ export function Bands({ show = false }) {
   const masked = override ? `The global palette override (Perform) is playing instead of these ${bands ? 'band colours' : 'colours'}. Turn it Off there to hear them.`
     : bands && colour.spec.palette?.length ? 'This effect’s own palette plays instead of its bands: Reset to play the bands.' : null;
   const frozen = control?.frozen && <p class="hint">The picture is frozen. Colour edits appear when you Resume.</p>;
-  if (show && !bands) {
-    return <EffectPalette key={colour.s.pattern} colour={colour} palettes={palettes} masked={masked} classic={palette} show frozen={frozen} />;
-  }
-  return <section class="card bands" aria-label={bands ? 'Bands' : 'Colours'}>
+  if (!bands) return <EffectPalette key={colour.s.pattern} colour={colour} palettes={palettes} masked={masked} classic={palette} frozen={frozen} />;
+  return <section class="card bands" aria-label="Bands">
     {frozen}
-    {bands ? <BandChannels colour={colour} palettes={palettes} masked={masked} audio={audio} />
-      : <EffectPalette key={colour.s.pattern} colour={colour} palettes={palettes} masked={masked} classic={palette} />}
+    <BandChannels colour={colour} palettes={palettes} masked={masked} audio={audio} />
   </section>;
 }

@@ -1,5 +1,4 @@
 import { performanceReport } from '../performance.js';
-import { Background } from './Background.jsx';
 import { useEffect, useLayoutEffect, useRef, useState } from 'preact/hooks';
 import { effect } from '@preact/signals';
 import { pick, connectedSig, dmxSig, dmxReceivedAt, field, idlePause, pictureImageSig, wantPicture } from '../state.js';
@@ -38,22 +37,31 @@ const readHaze = () => {
   }
 };
 
-/** `compact`: the stage alone, for the Show view — the room loads here, its panel and the notes stay in Stage. */
-export function StageView({ compact = false } = {}) {
+/**
+ * `compact`: the stage alone, for the Show view — the room loads here, its panel and the notes stay in Stage.
+ * `draft` ({ id, spec, name }): the effect editor's stage (G7), which draws the draft on the demo beat in this browser
+ * wherever the stopped preview draws the selected look, and while the show plays disarmed; armed, under Blackout or with
+ * the preview paused it is the stage as everywhere else, and Freeze holds the draft's frame.
+ */
+export function StageView({ compact = false, draft = null } = {}) {
   const s = pick(['fixtures', 'profiles', 'colorPresets', 'armed', 'masterBlackout', 'control']);
   const connected = connectedSig.value;
   const fixtures = s.fixtures || [];
   const profiles = s.profiles || {};
   const audition = auditionSig.value;
-  const auditioning = audition.active && !s.armed;
+  // The editor's stage draws its own draft and never the audition.
+  const auditioning = !draft && audition.active && !s.armed;
   const [format, setFormat] = useState('3d');
   const pause = idlePause.paused.value;
   const paused = pause !== null;
+  const frozen = !!s.control?.frozen;
   const mode = stageMode({ connected, armed: s.armed, blackout: s.masterBlackout, paused: pause,
-    playing: !!s.control?.playing, layers: !!s.control?.layers, frozen: !!s.control?.frozen, unmet: pictureUnmetSig.value });
-  const demo = mode.demo && !auditioning;
-  const dark = auditioning ? null : mode.note;
-  const tagClass = `panel-tag${!auditioning && mode.tag === 'Blackout' ? ' blackout' : ''}`;
+    playing: !!s.control?.playing, layers: !!s.control?.layers, frozen, unmet: pictureUnmetSig.value });
+  const drafting = !!draft && connected && !paused && !s.masterBlackout && !s.armed;
+  const demo = drafting || (mode.demo && !auditioning);
+  const dark = auditioning || drafting ? null : mode.note;
+  const tag = drafting ? (frozen ? 'Draft · held by Freeze' : 'Draft · demo beat') : auditioning ? 'Audition · browser only' : mode.tag;
+  const tagClass = `panel-tag${tag === 'Blackout' ? ' blackout' : ''}`;
   const [status, setStatus] = useState('loading');   // loading | ready | nowebgl | error
   const [view, setView] = useState('audience');
   const [haze, setHaze] = useState(readHaze);
@@ -73,16 +81,16 @@ export function StageView({ compact = false } = {}) {
     loadRoom().then((result) => { if (live && result.ok) setRoomState(result); });
     return () => { live = false; };
   }, [compact]);
-  useDmxFeed(!auditioning);
+  useDmxFeed(!auditioning && !drafting);
 
   const { rig, placed } = keptRig(fixtures, profiles, room);
   const space = useUnitSpace(rig, [rig], room);
   const auditionSample = useAuditionSampler(space, auditioning && format === '3d');
-  const demoSample = useDemoLookSampler(space, demo && format === '3d');
+  const demoSample = useDemoLookSampler(space, demo && format === '3d', drafting ? draft : null);
 
   // What the frame loop reads, without restarting it for every change.
   const live = useRef({});
-  live.current = { fixtures, profiles, rig, auditionSample, demoSample, auditioning, format, dark: !mode.lit, presets: s.colorPresets };
+  live.current = { fixtures, profiles, rig, auditionSample, demoSample, auditioning, drafting, format, dark: !mode.lit, presets: s.colorPresets };
 
   // The canvas and its scene come from the pool and go back to it (scene-pool.js):
   // a return to this view reuses the WebGL context instead of making another.
@@ -144,7 +152,7 @@ export function StageView({ compact = false } = {}) {
     const stop = effect(() => {
       const image = pictureImageSig.value;
       const picture = field('picture').value;
-      const painting = !auditionSig.value.active && idlePause.paused.value === null && picture?.source === 'visualizer' && !!picture.input;
+      const painting = !auditionSig.value.active && !live.current.drafting && idlePause.paused.value === null && picture?.source === 'visualizer' && !!picture.input;
       scene.current.setPicture(painting ? image : null);
     });
     return () => { stop(); release(); };
@@ -263,7 +271,8 @@ export function StageView({ compact = false } = {}) {
   const bars = rig.cellMaps.filter(Boolean).length;
   const description = `The rig in 3D from ${VIEW_NAMES[view]}: `
     + `${fixtures.length} fixtures${bars ? `, ${bars} of them bars` : ''}, ${parts} lights, `
-    + `${auditioning ? `auditioning ${audition.name || audition.id}; browser only, outputs disarmed` : !connected ? 'offline'
+    + `${drafting ? `previewing the draft of ${draft.name || draft.id} on the demo beat in this browser${frozen ? ', held by Freeze' : ''}; nothing is transmitted`
+      : auditioning ? `auditioning ${audition.name || audition.id}; browser only, outputs disarmed` : !connected ? 'offline'
       : paused ? `preview paused${pause.cause === 'idle' ? ' for want of input' : ''}, lights drawn off` : s.masterBlackout ? 'Blackout is on, every light is dark'
       : s.armed ? 'showing the live output' : demo ? 'previewing the selected look on the demo beat in this browser; nothing is transmitted'
         : 'previewing with outputs disarmed; nothing is transmitted'}.`;
@@ -272,13 +281,12 @@ export function StageView({ compact = false } = {}) {
 
   return (
     <div class={`stage3d-view${compact ? ' compact' : ''}`}>
-      {!compact && <Background />}
       {!compact && <StageRoomPanel snapshot={roomState} coverage={room ? placed : null} fixtures={fixtures} rig={rig} onChange={setRoomState} />}
       {!compact && <Audition />}
       <div class="stage3d-tools" role="toolbar" aria-label="Stage view">
-        <StageTag class={tagClass} tag={auditioning ? 'Audition · browser only' : mode.tag} />
-        {!auditioning && mode.unmet && <span class="stage-unmet" role="status">{mode.unmet}</span>}
-        <PreviewToggle pausable={mode.pausable && !auditioning} />
+        <StageTag class={tagClass} tag={tag} />
+        {!auditioning && !drafting && mode.unmet && <span class="stage-unmet" role="status">{mode.unmet}</span>}
+        <PreviewToggle pausable={drafting || (mode.pausable && !auditioning)} />
         <div class="segmented" role="group" aria-label="Stage format">
           <button type="button" class="btn sm" aria-pressed={format === '3d'} onClick={() => setFormat('3d')}>3D room</button>
           <button type="button" class="btn sm" aria-pressed={format === 'plot'} onClick={() => setFormat('plot')}>2D plot</button>
@@ -300,7 +308,7 @@ export function StageView({ compact = false } = {}) {
             onInput={(e) => setHaze(Number(e.target.value))} />
         </label>}
       </div>
-      {format === 'plot' && <StagePreview controls={false} />}
+      {format === 'plot' && <StagePreview draftLook={drafting ? draft : null} />}
       <div class="stage3d-wrap" style={format === 'plot' ? { display: 'none' } : undefined}>
         <div ref={host} class="stage3d-host" />
         {status === 'loading' && <p class="stage3d-note">Setting the stage…</p>}

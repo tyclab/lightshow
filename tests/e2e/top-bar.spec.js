@@ -437,14 +437,15 @@ test('while the visualizer picture arrives the Colours card says the picture set
     const send = () => ask('picture:frame', { leaseId: lease.leaseId, data: new Uint8Array(units.units * 3).fill(200) });
     await send();
     timer = setInterval(send, 250);
-    await open(page, 'effects');
+    // G7: Colours left Effect settings; Show's card gives way to the same line.
+    await open(page, 'show');
     const card = page.getByRole('region', { name: 'Colours', exact: true });
     const follow = card.getByRole('switch', { name: 'Colours follow the picture' });
     await expect(follow).toBeChecked();
     await expect(card.getByText('Colour order')).toHaveCount(0);
     await follow.click();
     await until(request, (s) => s.picture.source === 'effects');
-    await expect(card.getByText('Colour order')).toBeVisible();
+    await expect(page.getByRole('region', { name: 'Palettes', exact: true }), 'the effect\'s colours come back').toBeVisible();
     expect((await state(request)).control.blackout).toBe(false);
   } finally {
     clearInterval(timer);

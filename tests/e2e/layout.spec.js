@@ -274,7 +274,7 @@ test('catalogue controls scroll clear of sticky tools', async ({ page }) => {
   await page.setViewportSize({ width: 1180, height: 820 });
   await open(page, 'effects');
   // The sticky offsets follow the bars at the next rendering step (a ResizeObserver); measure once they have.
-  await expect.poll(() => page.evaluate(() => [['header', '.app-header'], ['commands', '.command-bar'], ['views', '.mode-nav'], ['effects', '.effects-tools']]
+  await expect.poll(() => page.evaluate(() => [['header', '.app-header'], ['views', '.mode-nav'], ['effects', '.effects-tools']]
     .every(([bar, selector]) => Math.abs(parseFloat(getComputedStyle(document.documentElement).getPropertyValue(`--${bar}-height`))
       - document.querySelector(selector).getBoundingClientRect().height) < 0.5))).toBe(true);
   const row = page.locator('.effects-catalogue .pattern-btn').nth(3);

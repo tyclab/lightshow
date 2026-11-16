@@ -34,7 +34,8 @@ test('audio response applies changed fields, preserves concurrent settings, and 
   }
 });
 
-for (const view of ['perform', 'effects']) test(`${view}: half and double change global tempo without changing beat division and respect tempo bounds`, async ({ page, request }) => {
+// G7: ½ and ×2 were also on the command bar of every Setup view; with it gone they are Perform's.
+for (const view of ['perform']) test(`${view}: half and double change global tempo without changing beat division and respect tempo bounds`, async ({ page, request }) => {
   const before = await state(request);
   try {
     await set(request, { bpm: 123.5, beatDivision: 4 });

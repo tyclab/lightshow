@@ -31,7 +31,8 @@ async function load() {
         export { NowPlaying, PlayingVoices } from './public-src/components/NowPlaying.jsx';
         export { SHORTCUTS } from './public-src/components/Shortcuts.jsx';
         export { VIEWS } from './public-src/views.js';
-        export { CommandBar } from './public-src/components/CommandBar.jsx';
+        export { TempoControls } from './public-src/components/TempoControls.jsx';
+        export { Cues } from './public-src/components/Cues.jsx';
         export { Effects, PhotosensitivityConfirm, editingSig, filtersSig, FILTER_AXES, filterByChips, chipCounts, byName, matchesSearch, catalogueRows, catalogueOf, quickDeck, tapRow, usePress, utilityEffect } from './public-src/components/Effects.jsx';
         export { TAGS, legacyTags, specTags, tagFields } from './src/shared/effects/tags.ts';
         export { mappingOf } from './src/shared/effects/mapping.ts';
@@ -112,7 +113,8 @@ test('the Perform view has the bank, the strobe, Tap, Freeze and Stop pads, and 
   assert.deepStrictEqual(names, ['Tap', 'Freeze', 'Stop pads']);
   assert.deepStrictEqual(padLabels(html), ['Kill', 'Blinder', 'Strobe', 'Colour strobe', 'UV', 'Glow', 'Domino', 'Empty']);
   assert.match(html, /class="strobe-hold"/);
-  assert.strictEqual(count(html, 'aria-pressed="true"'), 2, 'the Override destination and Off are pressed');
+  assert.strictEqual(count(html, 'aria-pressed="true"'), 3, 'the Override destination, Off and the beat division in use are pressed');
+  assert.match(html, /aria-pressed="true" title="Beat division 1\/2"/, 'G7: the beat division moved here from the command bar');
   assert.match(html, /aria-pressed="true" data-override="off"/, 'no palette override: Off is pressed');
   assert.match(html, /aria-label="Palette destination"/);
   assert.match(html, />Main effect<.*>Global override</);
@@ -250,25 +252,23 @@ test('sync health says whether the live input, which Auto follows, hears the mus
   assert.doesNotMatch(html, /Intensity|Following|Now and next|perform-progress/, 'nothing of the planned show is left on Perform');
 });
 
-test('command bar exposes tempo and division; the master stays in the header', () => {
+// G7: the command bar goes; its typed tempo, beat division and −1/+1 (operator: "Keep on Perform") join ½ and ×2 on Perform.
+test('Perform holds the typed tempo, −1, +1, ½, ×2 and the beat division; the master stays in the header', () => {
   given({});
-  const html = ui.html(ui.h(ui.CommandBar, {}));
-  const divisions = [...html.matchAll(/title="Beat division 1\/(\d+)"/g)].map((m) => Number(m[1]));
+  const html = ui.html(ui.h(ui.Perform, {}));
+  const tempo = html.slice(html.indexOf('aria-label="Tempo"'));
+  const divisions = [...tempo.matchAll(/title="Beat division 1\/(\d+)"/g)].map((m) => Number(m[1]));
   assert.deepStrictEqual(divisions, [1, 2, 4, 8, 16]);
-  assert.match(html, /aria-label="Tempo 124.5 BPM. Press to type a tempo."/);
+  assert.match(tempo, /aria-label="Tempo 124.5 BPM. Press to type a tempo."/);
+  for (const label of ['Tempo −1 BPM', 'Tempo \\+1 BPM', 'Half tempo', 'Double tempo, ×2']) assert.match(tempo, new RegExp(`aria-label="${label}"`));
   assert.doesNotMatch(html, /Master dimmer|BLACKOUT/, 'blackout and the master sit in the header above every view');
   assert.match(ui.html(ui.h(ui.Header, {})), /aria-label="Master dimmer" aria-valuetext="50 percent"/);
-  assert.match(html, /<section class="command-bar" aria-label="Live controls">/);
-  assert.doesNotMatch(ui.html(ui.h(ui.CommandBar, { transport: false })), /cb-transport/, 'no empty transport block without a transport');
 });
 
 test('a follow control sits beside the clock only while a tempo is held by hand', () => {
   given({});
-  assert.doesNotMatch(ui.html(ui.h(ui.CommandBar, {})), /cb-bpm-follow/);
   assert.doesNotMatch(ui.html(ui.h(ui.Perform, {})), /perform-follow/);
   given({ clock: { source: 'tap', bpm: 140, byHand: true }, bpm: 140 });
-  assert.match(ui.html(ui.h(ui.CommandBar, {})),
-    /class="cb-bpm-source[^"]*"[^>]*>[^<]*<\/span><button type="button" class="cb-bpm-follow"/);
   // The chip carrying the clock's BPM, whatever its wording.
   assert.match(ui.html(ui.h(ui.Perform, {})),
     /class="perform-chip-value">[^<]*\b140\b[^<]*<\/span><\/span><button type="button" class="perform-follow"/);
@@ -483,6 +483,25 @@ test('the search finds a look by name, description, id and family as before, and
   assert.ok(find('chase').includes('chase') && find('v2.neural').includes('v2.neural'), 'by name and id');
   assert.ok(find('spatial').includes('v2.grooveWave'), 'by family name');
   assert.deepStrictEqual(find(''), rows.map((r) => r.id));
+});
+
+// G7: the editor on Effect settings draws the open draft on a stage of its own; "Audition on Stage" and its jump go.
+test('the editor on Effect settings carries its own stage and Hold on live rig, and no Audition on Stage', () => {
+  givenLibrary({});
+  const html = ui.html(ui.h(ui.Inspector, { id: 'v2.grooveWave', stage: true }));
+  assert.match(html, /class="effect-inspector-stage"><div class="stage3d-view compact">/);
+  assert.match(html, />Hold on live rig</);
+  assert.doesNotMatch(html, /Audition on Stage/);
+  assert.doesNotMatch(ui.html(ui.h(ui.Inspector, { id: 'v2.grooveWave' })), /effect-inspector-stage/, 'a clip\'s editor in Sequence has none');
+});
+
+// G7: recall and save stay on Show; Effect settings' Cues panel renames, overwrites and deletes.
+test('the Cues panel renames, overwrites and deletes each cue, and neither recalls nor saves', () => {
+  given({ cues: [{ id: 'c1', name: 'Warm', pattern: 'solid', bpm: 120, colors: [] }], colorPresets: [] });
+  const html = ui.html(ui.h(ui.Cues, {}));
+  for (const label of [/Rename &quot;Warm&quot;/, /Overwrite &quot;Warm&quot; with what/, /Delete &quot;Warm&quot;/]) assert.match(html, label);
+  assert.match(html, /class="cue-name">Warm</);
+  assert.doesNotMatch(html, /Save current look|cue-recall|Restore saved background/);
 });
 
 test("a Spatial preset opens in the inspector", () => {
@@ -807,14 +826,9 @@ test('Show keeps effect selection, Background and Bands; a Disco shows its bands
   assert.match(palettes, /Selected palette/);
   assert.match(colours, /<button type="button" class="show-fold-toggle" aria-expanded="false"[^>]*>.*?Edit colours/s);
   assert.doesNotMatch(colours, /colour-wheel-disc|Palette colour order/, 'folded on a fresh page: neither the wheel nor the order');
-  const own = /<section class="card bands" aria-label="Colours"[^>]*>(.*?)<\/section>/s.exec(ui.html(ui.h(ui.Bands)))[1];
-  assert.match(own, /aria-label="Effect palette"/);
-  assert.match(own, /class="colour-wheel-disc adds"/, 'its palette sits on the wheel, and a tap there adds a colour');
-  assert.match(own, /aria-label="Palette colour order"/);
-  assert.match(own, /aria-label="Colour distribution"/);
-  assert.doesNotMatch(own, /Bass band|Fast Pulse/);
-  assert.match(own, /<div class="card-title band-title"><span>Colours<\/span><\/div>/);
-  assert.doesNotMatch(card + own, /band-mode|band-for|for Ambient|for Scatter Strobe/, 'neither card names the effect');
+  assert.match(palettes, /aria-label="Colour distribution"/);
+  assert.doesNotMatch(palettes, /Bass band|Fast Pulse/);
+  assert.doesNotMatch(card + palettes, /band-mode|band-for|for Ambient|for Scatter Strobe/, 'neither card names the effect');
 });
 
 test('one button on Show folds the wheel and the colour order: folded first, remembered under its own key, deaf to the old one', () => {
@@ -824,22 +838,20 @@ test('one button on Show folds the wheel and the colour order: folded first, rem
     removeItem: (key) => stored.delete(key) };
   const toggle = /<button type="button" class="show-fold-toggle" aria-expanded="(true|false)" aria-controls="[^"]+"[^>]*>.*?Edit colours.*?<\/button>/s;
   try {
-    const fresh = ui.html(ui.h(ui.Bands, { show: true }));
+    const fresh = ui.html(ui.h(ui.Bands));
     assert.strictEqual(toggle.exec(fresh)?.[1], 'false', 'the old key changes nothing');
     assert.doesNotMatch(fresh, /colour-wheel-disc|Palette colour order/);
     assert.match(fresh, /aria-label="Search Effect palettes"/, 'the palettes stay');
     assert.strictEqual(count(fresh, 'show-fold-toggle'), 1, 'one button for both');
     assert.ok(!stored.has('lightshow.show.colourWheel'), 'the old key is removed');
     stored.set('lightshow.show.colourEditor', 'open');
-    const open = ui.html(ui.h(ui.Bands, { show: true }));
+    const open = ui.html(ui.h(ui.Bands));
     assert.strictEqual(toggle.exec(open)?.[1], 'true');
-    assert.match(open, /colour-wheel-disc/);
+    assert.match(open, /aria-label="Effect palette"/);
+    assert.match(open, /class="colour-wheel-disc adds"/, 'its palette sits on the wheel, and a tap there adds a colour');
     assert.match(open, /aria-label="Palette colour order"/);
-    const effects = ui.html(ui.h(ui.Bands));
-    assert.doesNotMatch(effects, /show-fold|show-palettes|Edit colours/, 'the Effect settings view keeps its card');
-    assert.match(effects, /colour-wheel-disc/);
     globalThis.localStorage.getItem = () => { throw new Error('storage unavailable'); };
-    assert.strictEqual(toggle.exec(ui.html(ui.h(ui.Bands, { show: true })))?.[1], 'false');
+    assert.strictEqual(toggle.exec(ui.html(ui.h(ui.Bands)))?.[1], 'false');
   } finally {
     delete globalThis.localStorage;
   }
@@ -1125,14 +1137,6 @@ test('voice holds release their own tokens', () => {
   assert.deepStrictEqual(holds.held(), []);
 });
 
-test('the command bar\'s strip is pads bank A', () => {
-  given({});
-  const html = ui.html(ui.h(ui.CommandBar, {}));
-  assert.match(html, /class="cb-energy-label">PADS</);
-  const names = [...html.matchAll(/class="cb-energy-name">([^<]*)</g)].map((m) => m[1]);
-  assert.deepStrictEqual(names, ['Kill', 'Blinder', 'Strobe', 'Colour strobe', 'UV', 'Glow', 'Domino']);
-});
-
 
 test('every live status surface renders the shared state', () => {
   givenLibrary({
@@ -1148,13 +1152,10 @@ test('every live status surface renders the shared state', () => {
   }
 });
 
-test('pad labels agree between the deck and command bar', () => {
+test('a pad with no label is named by its preset', () => {
   const entry = pad(0, 0, '', { kind: 'preset', id: 'hd.neonDomino' });
   givenLibrary({ pads: { layout: [entry], lit: [] } });
   const labels = padLabels(ui.html(ui.h(ui.Pads, {})));
-  const strip = ui.html(ui.h(ui.CommandBar, {}));
-  const rendered = /class="cb-energy-name">([^<]*)</.exec(strip);
-  assert.strictEqual(labels[0], rendered[1]);
   assert.strictEqual(labels[0], ui.CATALOGUE.find((row) => row.id === entry.content.id).name);
 });
 
@@ -1491,12 +1492,10 @@ test('voice stop uses the visible voice identifier', async () => {
   } finally { globalThis.fetch = realFetch; }
 });
 
-test('saved pattern pad names agree between the deck and command bar', () => {
+test('a saved pattern pad is named by its pattern', () => {
   const entry = pad(0, 0, '', { kind: 'pattern', id: 'p1' });
   givenLibrary({ pads: { layout: [entry], lit: [] }, sequencePatterns: [{ id: 'p1', name: 'Closing phrase' }] });
   assert.strictEqual(padLabels(ui.html(ui.h(ui.Pads, {})))[0], 'Closing phrase');
-  const strip = ui.html(ui.h(ui.CommandBar, {}));
-  assert.strictEqual(/class="cb-energy-name">([^<]*)</.exec(strip)[1], 'Closing phrase');
 });
 
 

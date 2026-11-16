@@ -5,7 +5,7 @@ import { resolverOf } from '../preview-inputs.js';
 import { requiresAcknowledgement } from '../../src/shared/effects/registry.ts';
 import { fmtTime } from '../utils.js';
 
-export function Audition({ compact = false }) {
+export function Audition() {
   const s = pick(['patterns', 'armed', 'safety']), a = auditionSig.value;
   const library = librarySig.value;
   const rows = [...(s.patterns || []).filter((p) => !p.retired), ...(library.user || []).filter((p) => !(s.patterns || []).some((r) => r.id === p.id))];
@@ -17,7 +17,7 @@ export function Audition({ compact = false }) {
       <button type="button" class={`btn sm${a.active ? ' active' : ''}`} disabled={!!s.armed} aria-pressed={a.active}
         onClick={() => a.active ? setAudition({ active: false, playing: false }) : startAudition(a.id, a.spec, a.name)}>
         {a.active ? 'Close audition' : 'Audition effects'}</button>
-      {!compact && <span class="muted">Demo track · {DEMO_BPM} BPM · browser preview while disarmed</span>}
+      <span class="muted">Demo track · {DEMO_BPM} BPM · browser preview while disarmed</span>
       {s.armed && <span class="muted">Disarm outputs to audition.</span>}
     </div>
     {a.active && <>

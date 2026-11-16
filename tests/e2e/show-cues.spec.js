@@ -108,3 +108,35 @@ test('an earlier cue save does not close a reopened dialog or drop its name', as
     await page.unrouteAll({ behavior: 'wait' });
   }
 });
+
+// G7: Effect settings' Cues panel renames, overwrites with the look on stage and deletes, each with undo; recall and
+// save are Show's, so the panel has neither.
+test('Effect settings\' Cues panel renames, overwrites and deletes a cue, and recalls and saves nothing', async ({ page, request }) => {
+  await set(request, { pattern: 'solid' });
+  const saved = await (await request.post('/api/cues', { data: { name: 'Warm' } })).json();
+  expect(saved.ok).toBe(true);
+  await open(page, 'effects/cues');
+  const panel = page.locator('#subpanel-effects');
+  await expect(panel.getByRole('button', { name: /Save|Recall/ })).toHaveCount(0);
+  await expect(panel.getByLabel('Restore saved background on recall')).toHaveCount(0);
+
+  await panel.getByRole('button', { name: 'Rename "Warm"', exact: true }).click();
+  await panel.locator('.cue-name-input').fill('Warmer');
+  await panel.locator('.cue-name-input').press('Enter');
+  await until(request, (s) => s.cues.some((c) => c.name === 'Warmer'));
+  await expect(panel.locator('.cue-name')).toHaveText(['Warmer']);
+
+  await set(request, { pattern: 'chase' });
+  await panel.getByRole('button', { name: 'Overwrite "Warmer" with what\'s on stage now', exact: true }).click();
+  await until(request, (s) => s.cues.some((c) => c.name === 'Warmer' && c.pattern === 'chase'));
+  const undo = (said) => page.locator('.toast', { hasText: said }).getByRole('button', { name: 'Undo', exact: true });
+  await undo('Overwrote "Warmer"').click();
+  await until(request, (s) => s.cues.some((c) => c.name === 'Warmer' && c.pattern === 'solid'));
+
+  await panel.getByRole('button', { name: 'Delete "Warmer"', exact: true }).click();
+  await until(request, (s) => s.cues.length === 0);
+  await expect(panel.locator('.cue-empty')).toBeVisible();
+  await undo('Deleted "Warmer"').click();
+  await until(request, (s) => s.cues.some((c) => c.name === 'Warmer'));
+  await expect(panel.locator('.cue-name')).toHaveText(['Warmer']);
+});

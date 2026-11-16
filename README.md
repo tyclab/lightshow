@@ -170,9 +170,9 @@ when they do not fit, the page scrolls. On a phone, in one column, the order is 
 Palettes, Edit colours, Background, the stage and the effects list each two fifths of the
 window. The stage opens in **3D room**, with **2D plot** available beside it. Stop controls remain
 under the stage when pads are playing.
-Effect settings holds the full catalogue, effect editing and mapping controls,
-the same Bands card and fixture overrides; Perform is the tablet surface for pads, strobes, the Matrix board
-and tempo tools; Sequence arranges clips or runs a playlist; Stage shows the
+Effect settings holds the full catalogue and mapping controls, the effect editor with a stage of its own
+that draws the open draft, and the saved cues to rename, overwrite or delete; Perform is the tablet surface for
+pads, strobes, the Matrix board and the tempo (typed, −1 and +1, ½ and ×2, the beat division); Sequence arranges clips or runs a playlist; Stage shows the
 rig in 3D with its room bindings. Arming is a separate action
 from preparing or previewing a look, and a stage previews by itself. Disarmed and stopped, with no pad,
 held energy effect, Identify or Freeze, Stage and the fixture plot draw the selected look (its effect and
@@ -258,8 +258,10 @@ uses its own palette and transport under the live master; like the demo beat, it
 each light as it emits, a dimmer channel's level times the emitters. It sends no look, engine, room or output
 commands. It runs only while the outputs are disarmed, so rapid effects audition
 without a question. Arming ends the audition. In the
-inspector, **Audition on Stage** previews an edited draft; **Hold on live rig**
-is the separate live voice control. The stopped, disarmed stage's own preview runs on the same demo
+editor on Effect settings, the open draft plays on a stage of its own on the same demo beat, with the live
+colours, wherever the stopped preview would draw a look and while the show plays disarmed; armed, under Blackout
+or with the preview paused that stage is drawn as everywhere else, and Freeze holds the draft's frame. **Hold on
+live rig** is the separate live voice control. The stopped, disarmed stage's own preview runs on the same demo
 beat with the live look in place of the audition's demo palette.
 
 ```mermaid
@@ -347,7 +349,7 @@ to effects; pad banks launch effects or patterns over the look.
 | Show | 1 | The room in 3D and the looks beside it |
 | Perform | 3 | Pads and Matrix, transport, strobe, tap, colours and the room picture's colour grade |
 | Rig | 7 | **Plan & patch** (the plan, the patch and the fixture inspector), **Room** (the rendered rig in 3D: import a room and bind its lights; **4** opens it), **Profiles**, **Outputs** (Art-Net, sACN, WLED, DDP, OpenRGB, Hue and the hardware limits) |
-| Effect settings | 2 | Effects catalogue and inspector, cues, the Bands card and the stage preview |
+| Effect settings | 2 | **Effects** (the catalogue and the editor, whose own stage draws the open draft) and **Cues** (rename, overwrite or delete a saved cue; Show recalls and saves) |
 | Sequence | 6 | Create/load sequences; timeline tools and recording; lanes, clips and patterns behind Edit |
 | Music | 8 | **Live input** (device, source, room latency, its Python, and what it hears now) and **Auto show** (what the Auto show does by ear: playing, idle, or waiting for the live input; **5** opens it) |
 | Settings | 9 | **Show** (an unattended show's stop, the flash limit, Hue's flash), **MIDI**, **Check** (the pre-show check, the DMX monitor and the log; **0** opens it), **System** (engine and server access) |
@@ -396,11 +398,10 @@ Perform, Effect settings and the stage preview share the same status line:
 main effect, sequence transport, visible voices and palette override. The
 highlighted catalogue row, tagged **Main effect**, identifies it; a sequence or
 voice may be above it. Perform and Effect settings list visible voices with individual Stop
-buttons. Perform's **Stop pads**, and **Stop all voices** on Show and Effect settings, also clear
+buttons. Perform's **Stop pads** and Show's **Stop all voices** also clear
 latched and off-bank effects; the programme plays on.
 
-Pads with no custom label use the catalogue name on both Perform and the
-command bar. Once, hold and loop are distinct launch modes. The header's ⋮
+Pads with no custom label use the catalogue name. Once, hold and loop are distinct launch modes. The header's ⋮
 selects theme, screen wake lock and fullscreen for the current device.
 
 ### Effects catalogue and tags
@@ -1694,7 +1695,7 @@ Unsaved changes are marked, and replacing or unloading them asks for confirmatio
 Timing and playlist settings are under Edit; saved tempo, music mode and initial
 palette take effect on Play. Select a clip to edit its timing/targets or open its
 effect settings. Apply to clip embeds that edited effect without changing its
-source preset. **Hold on live rig** launches a live voice using the clip's targets and releases on exit. **Audition on Stage** previews the draft locally while disarmed.
+source preset. **Hold on live rig** launches a live voice using the clip's targets and releases on exit.
 Playlist rows move the playhead by click or keyboard without starting or stopping
 the programme. Select the sequence on Perform's shelf, then start or stop it with the header's Play. Saved patterns can be renamed, mapped to lanes or deleted.
 Clips can carry a name; selected clips can be grouped, moved together by beats

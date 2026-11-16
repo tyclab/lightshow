@@ -23,8 +23,9 @@ test('Space taps tempo without retriggering a clicked button', async ({ page, re
   expect((await state(request)).masterBlackout).toBe(false);
 });
 
+// G7: the typed tempo and the division row left with the command bar for Perform's tempo controls.
 test('a tempo can be typed, to a tenth', async ({ page, request }) => {
-  await open(page, 'effects');
+  await open(page, 'perform');
   await page.getByRole('button', { name: /Press to type a tempo/ }).click();
   const field = page.getByRole('spinbutton', { name: 'Tempo, BPM' });
   await field.fill('128.5');
@@ -37,7 +38,7 @@ test('a tempo can be typed, to a tenth', async ({ page, request }) => {
 });
 
 test('the division row goes to 1/16', async ({ page, request }) => {
-  await open(page, 'effects');
+  await open(page, 'perform');
   await page.getByRole('button', { name: '1/16', exact: true }).click();
   await until(request, (s) => s.beatDivision === 16);
 });

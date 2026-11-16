@@ -38,7 +38,8 @@ test('DMX flows only while a view that draws it is on screen', async ({ page }) 
   await open(page, 'perform');
   await page.waitForTimeout(600);
   expect(seen.frames, 'Perform draws no DMX').toBe(0);
-  await openFromSetup(page, 'Effect settings');
+  // G7: Effect settings' plot went; Rig's plan draws the feed.
+  await openFromSetup(page, 'Rig');
   await expect.poll(() => seen.frames, { timeout: 3000 }).toBeGreaterThan(0);
 });
 

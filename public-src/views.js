@@ -18,6 +18,7 @@ export const SETUP_GROUPS = [...new Set(SETUP_VIEWS.map((v) => v.group))]
 
 /** The panels of the views that have them, the first the one a view opens on. Perform's are its instruments (Perform.jsx). */
 export const PANELS = {
+  effects: [{ id: 'catalogue', label: 'Effects' }, { id: 'cues', label: 'Cues' }],
   rig: [{ id: 'plan', label: 'Plan & patch' }, { id: 'room', label: 'Room' }, { id: 'profiles', label: 'Profiles' }, { id: 'outputs', label: 'Outputs' }],
   sources: [{ id: 'live', label: 'Live input' }, { id: 'auto', label: 'Auto show' }],
   settings: [{ id: 'show', label: 'Show' }, { id: 'midi', label: 'MIDI' }, { id: 'check', label: 'Check' }, { id: 'system', label: 'System' }],

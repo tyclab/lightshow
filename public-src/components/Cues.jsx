@@ -4,7 +4,8 @@ import { colorToCss, formatBpm } from '../utils.js';
 
 // The cue list rides the state broadcast as summaries — id, name, and enough to
 // draw a swatch. Recall, save and edit all go through the REST endpoints, which
-// broadcast the new list back; api() reports any refusal as a toast.
+// broadcast the new list back; api() reports any refusal as a toast. Show recalls
+// and saves (ShowCues.jsx); Effect settings' Cues panel renames, overwrites and deletes (G7).
 const cueApi = (path, init) => api(`/api/cues${path}`, init);
 
 /** Saves the look on stage as a new cue; an empty name leaves the naming to the server. */
@@ -25,7 +26,7 @@ function Swatches({ colors, presets }) {
   );
 }
 
-function CueRow({ cue, presets, editing, setEditing, restoreBackground }) {
+function CueRow({ cue, presets, editing, setEditing }) {
   const [draft, setDraft] = useState(cue.name);
 
   // Delete and rebuild-from-scratch are not the same thing, and "×" sits right
@@ -88,15 +89,11 @@ function CueRow({ cue, presets, editing, setEditing, restoreBackground }) {
 
   return (
     <div class="cue-row">
-      <button
-        class={`cue-recall ${cue.blackout ? 'blackout' : ''}`}
-        onClick={() => recallCue(cue.id, restoreBackground)}
-        title={`Recall "${cue.name}" — ${cue.pattern} at ${formatBpm(cue.bpm)} BPM`}
-      >
+      <span class={`cue-summary ${cue.blackout ? 'blackout' : ''}`} title={`${cue.pattern} at ${formatBpm(cue.bpm)} BPM`}>
         <Swatches colors={cue.colors} presets={presets} />
         <span class="cue-name">{cue.name}</span>
         <span class="cue-meta">{cue.pattern} · {formatBpm(cue.bpm)}</span>
-      </button>
+      </span>
       <button
         class="btn icon sm"
         title="Rename"
@@ -119,57 +116,22 @@ function CueRow({ cue, presets, editing, setEditing, restoreBackground }) {
   );
 }
 
+/** Effect settings' Cues panel: every saved cue, to rename, overwrite with the look on stage, or delete, each with undo. */
 export function Cues() {
   const s = pick(['cues', 'colorPresets']);
   const cues = s.cues || [];
   const presets = s.colorPresets || [];
   const [editing, setEditing] = useState(null);
-  const [saving, setSaving] = useState(false);
-  const [restoreBackground, setRestoreBackground] = useState(false);
-  const [name, setName] = useState('');
-
-  const save = async () => {
-    const res = await saveCue(name);
-    // Keep the form open on failure so the name the operator typed survives.
-    if (!res.ok) return;
-    setName('');
-    setSaving(false);
-  };
 
   return (
     <div class="card">
       <div class="card-title">Cues</div>
-      <label><input type="checkbox" checked={restoreBackground} onChange={(e) => setRestoreBackground(e.target.checked)} /> Restore saved background on recall</label>
-
-      {saving ? (
-        <div class="cue-save-row">
-          <input
-            class="cue-name-input"
-            placeholder="Name this look"
-            value={name}
-            autoFocus
-            onInput={(e) => setName(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') save();
-              if (e.key === 'Escape') { setName(''); setSaving(false); }
-            }}
-          />
-          <button class="btn active sm" onClick={save}>Save</button>
-          <button class="btn sm" onClick={() => { setName(''); setSaving(false); }}>Cancel</button>
-        </div>
-      ) : (
-        <button class="btn active cue-capture" onClick={() => setSaving(true)}>
-          + Save current look
-        </button>
-      )}
-
       {cues.length === 0
-        ? <div class="cue-empty">No cues yet. Build a look, then save it here to get back to it in one press.</div>
+        ? <div class="cue-empty">No cues yet. Save the look on stage as a cue from Show.</div>
         : (
           <div class="cue-list">
             {cues.map((cue) => (
               <CueRow
-                restoreBackground={restoreBackground}
                 key={cue.id}
                 cue={cue}
                 presets={presets}
