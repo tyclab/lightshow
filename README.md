@@ -781,7 +781,7 @@ New mapping revisions discard delayed and partially staged colours.
 `server.host`, `server.port`, `server.token` and the engine thread require a restart.
 Other settings apply immediately. The UI lists pending restart keys. A file from
 an earlier build loads without the groups this one no longer reads (`sources`,
-`spotify`, `deezer`, `auto`, `analysis`, `live.autoSync`, `live.director`), one log line naming
+`spotify`, `deezer`, `auto`, `analysis`, `live.autoSync`), one log line naming
 them, and is written back without them; its `analysis.pythonPath` becomes
 `live.pythonPath`.
 

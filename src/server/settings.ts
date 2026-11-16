@@ -246,8 +246,8 @@ const schema = z.object({
 }).strict();
 
 // What an earlier build stored and this one no longer reads: a file that still holds one loads as if it did not and is
-// written back without it. The planned show, its analysis and the track services went on 2026-11-15, and with them
-// Play By Ear (`live.director`): Auto is the live director, so there is nothing left for it to switch.
+// written back without it. The planned show, its analysis and the track services went on 2026-11-15; `live.director`
+// stays listed only so that the strict schema still loads a file that holds it.
 const RETIRED_GROUPS = ['setup', 'sources', 'spotify', 'deezer', 'auto', 'analysis'];
 const RETIRED_KEYS = ['live.autoSync', 'live.director'];
 
