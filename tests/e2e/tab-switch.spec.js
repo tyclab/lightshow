@@ -107,7 +107,8 @@ async function redBars(request) {
 const restore = (request, before) => set(request, { pattern: before.pattern, basePalette: before.basePalette,
   overridePalette: before.overridePalette });
 
-test('switching between Show and Effects keeps one WebGL context for the room and one for the plot\'s light', async ({ page, request }) => {
+// G7: Effect settings' plot went; Rig's plan carries the same light layer.
+test('switching between Show and Rig keeps one WebGL context for the room and one for the plan\'s light', async ({ page, request }) => {
   test.setTimeout(60_000);
   await page.addInitScript(countContexts);
   // The plot's layer in WebGL 2 even where the browser draws WebGL in software, as here.
@@ -118,12 +119,12 @@ test('switching between Show and Effects keeps one WebGL context for the room an
     await open(page, 'show');
     await expect(page.locator('.show-room .stage3d-canvas')).toBeVisible();
     for (let round = 0; round < 4; round++) {
-      await openFromSetup(page, 'Effect settings');
-      await expect(page.getByRole('group', { name: 'Stage layout, viewed from the audience' })).toBeVisible();
+      await openFromSetup(page, 'Rig');
+      await expect(page.getByRole('group', { name: /^Plan of the rig from above/ })).toBeVisible();
       await page.locator('#tab-show').click();
       await expect(page.getByRole('img', { name: /The rig in 3D/ })).toBeVisible();
     }
-    // On Show: the room's context on screen, the plot's kept for the next return to Effects (cell-layer.js).
+    // On Show: the room's context on screen, the plan's kept for the next return to Rig (cell-layer.js).
     expect(await page.evaluate(() => window.webglContexts())).toEqual({ made: 2, live: 1, detached: 1 });
   } finally {
     await remove();
@@ -131,12 +132,14 @@ test('switching between Show and Effects keeps one WebGL context for the room an
   }
 });
 
-// G7: the Fixtures card left Effect settings, and its swatches with it.
-test('the Effects stage plot paints bar cells and lamps on one canvas, from the live feed', async ({ page, request }) => {
+// G7: the Fixtures card left Effect settings with its swatches, and so did its plot; the stage's 2D plot on Show is the
+// same component.
+test('the stage plot paints bar cells and lamps on one canvas, from the live feed', async ({ page, request }) => {
   const before = await state(request);
   const remove = await redBars(request);
   try {
-    await open(page, 'effects');
+    await open(page, 'show');
+    await page.locator('.stage3d-tools').getByRole('button', { name: '2D plot', exact: true }).click();
     const plot = page.getByRole('group', { name: 'Stage layout, viewed from the audience' });
     await expect(plot.locator('canvas.stage-cells-canvas')).toHaveCount(1);
     await expect(plot.locator('.stage-cell')).toHaveCount(0);
@@ -163,7 +166,8 @@ test('a lost WebGL context that comes back draws again; one that does not gives 
   const before = await state(request);
   const remove = await redBars(request);
   try {
-    await open(page, 'effects');
+    await open(page, 'show');
+    await page.locator('.stage3d-tools').getByRole('button', { name: '2D plot', exact: true }).click();
     const plot = page.getByRole('group', { name: 'Stage layout, viewed from the audience' });
     await expect.poll(async () => (await cellPixels(page)).red).toBeGreaterThan(500);
     await page.locator('canvas.stage-cells-canvas').evaluate((canvas) => { canvas.dataset.marked = 'yes'; });
@@ -205,7 +209,7 @@ test('the 2D layer, where there is no WebGL 2, lights the cells and every lamp u
 
 test('the bars above each view are measured again for the sticky offsets after a view switch', async ({ page }) => {
   await open(page, 'show');
-  const bars = { header: '.app-header', commands: '.command-bar', views: '.mode-nav', effects: '.effects-tools' };
+  const bars = { header: '.app-header', views: '.mode-nav', effects: '.effects-tools' };
   const offsets = () => page.evaluate((bars) => {
     const css = getComputedStyle(document.documentElement);
     return Object.entries(bars).map(([name, selector]) => {
@@ -291,8 +295,8 @@ test('a return to Show draws the room the scene built, rebuilding and compiling 
     await page.waitForTimeout(500);
     const linked = await page.evaluate(() => window.programLinks.length);
     for (let round = 0; round < 3; round++) {
-      await openFromSetup(page, 'Effect settings');
-      await expect(page.getByRole('group', { name: 'Stage layout, viewed from the audience' })).toBeVisible();
+      await openFromSetup(page, 'Rig');
+      await expect(page.getByRole('group', { name: /^Plan of the rig from above/ })).toBeVisible();
       const drawn = await page.evaluate(() => window.draws);
       await page.locator('#tab-show').click();
       await expect(page.getByRole('img', { name: /The rig in 3D/ })).toBeVisible();

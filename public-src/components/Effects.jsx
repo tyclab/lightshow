@@ -218,7 +218,7 @@ function InspectorSheet({ id, onSelect, onPlay, onClose }) {
   return (
     <div class="effect-sheet-veil" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
       <div ref={box} class="effect-sheet" role="dialog" aria-modal="true" aria-label="Edit effect" tabIndex={-1}>
-        <Inspector id={id} onSelect={onSelect} onPlay={onPlay} onClose={onClose} />
+        <Inspector id={id} onSelect={onSelect} onPlay={onPlay} onClose={onClose} stage />
       </div>
     </div>
   );
@@ -393,7 +393,7 @@ export function Effects() {
         ))}
         {filters.length > 0 && <button type="button" class="effects-chip effects-chip-clear" onClick={() => { filtersSig.value = []; }}>Clear</button>}
       </div>
-      <PlayingVoices stopAll />
+      <PlayingVoices />
       <div class="effects-deck" role="group" aria-label="Favourites, your presets and party effects">
         {deck.length === 0 && <p class="effects-empty">{query || filters.length ? 'No featured effects match.' : 'Star an effect to pin it here.'}</p>}
         {deck.map((row) => <Pad key={row.id} {...rowProps(row)} />)}

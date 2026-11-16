@@ -399,14 +399,14 @@ test('E shows Show with its effects search ready, and does nothing while typing,
   await field.focus();
   await page.keyboard.press('e');
   await expect(field).toHaveValue('e');
-  await expect(page).toHaveURL(/#effects$/);
+  await expect(page).toHaveURL(/#effects\/catalogue$/);
 
   // Under a modal dialog (the Arm acknowledgement).
   await page.locator('.app-header').getByRole('button', { name: 'Arm', exact: true }).click();
   const dialog = page.getByRole('alertdialog', { name: 'Rapid flashing' });
   await expect(dialog).toBeVisible();
   await dialog.press('e');
-  await expect(page).toHaveURL(/#effects$/);
+  await expect(page).toHaveURL(/#effects\/catalogue$/);
   await dialog.getByRole('button', { name: 'Cancel' }).click();
   await expect(dialog).toHaveCount(0);
 

@@ -116,7 +116,8 @@ test('Stage and the fixture plot distinguish disarmed preview from armed output'
     await expect(stage).toHaveAttribute('aria-label', /Blackout is on, every light is dark/);
     await control(request, 'restore');
     await expect(label).toHaveText('Live output');
-    await open(page, 'effects');
+    // G7: Effect settings' own plot went; the stage's 2D plot carries the same tag.
+    await page.getByRole('button', { name: '2D plot', exact: true }).click();
     const plot = page.locator('.stage-panel .panel-tag');
     await expect(plot).toHaveText('Live output');
     await control(request, 'disarm');

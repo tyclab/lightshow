@@ -20,7 +20,7 @@ test.afterEach(async ({ request }) => {
   await set(request, { background: FOLLOW });
 });
 
-test('the chip reads Main effect and the picture layers follow the Background card', async ({ page, request }) => {
+test('the chip reads Main effect and the picture layers follow the Background card', async ({ page, context, request }) => {
   const { fixtures, patterns } = await state(request);
   const chase = nameOf(patterns, 'chase');
   await open(page, 'effects');
@@ -37,7 +37,10 @@ test('the chip reads Main effect and the picture layers follow the Background ca
   await expect(layer('main')).toBeVisible();
   await expect(layer('background')).toHaveText('Background: Follow effect · Whole rig');
 
-  const panel = page.getByRole('region', { name: 'Background lighting' });
+  // G7: the Background card left Effect settings; it is Show's, here in a second page beside the layers.
+  const show = await context.newPage();
+  await open(show, 'show');
+  const panel = show.getByRole('region', { name: 'Background lighting' });
   await panel.getByRole('button', { name: 'Fixed colour', exact: true }).click();
   await until(request, (s) => s.background?.mode === 'fixed');
   await expect(layer('background')).toHaveText('Background: Fixed colour · Whole rig');

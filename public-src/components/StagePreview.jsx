@@ -6,10 +6,9 @@ import { pictureUnmetSig } from '../picture-source.js';
 import { useDmxFeed, useDmxPaint } from '../use-dmx.js';
 import { frames } from '../frame-paint.js';
 import { useUnitSpace } from '../unit-space.js';
-import { Audition } from './Audition.jsx';
 import { auditionSig, demoBeatSig, useAuditionSampler, useDemoLookSampler } from '../audition.js';
 import { NowPlaying } from './NowPlaying.jsx';
-import { PreviewToggle, StageTag } from './PreviewPaused.jsx';
+import { StageTag } from './PreviewPaused.jsx';
 import { stagePositions } from '../../src/shared/stage.ts';
 import { buildRig, gridLabel, lineOf, rigSignature } from '../../src/shared/rig.ts';
 import { STAGE_EDGES, clamp, geometryOf, placeAt, pointIn, surfaceStyle } from '../stage-geometry.js';
@@ -51,12 +50,18 @@ function paintPlot(surface, layer, { drawn, rig, positions, preview, shown, conn
   if (cells && paintLayer(cells, cells.units.map((u) => colours[u]), lights)) frames.schedule(cells.ease);
 }
 
-export function StagePreview({ controls = true } = {}) {
+/**
+ * The stage's 2D plot, under the toolbar of the stage it belongs to (StageView), which holds Pause preview, the unmet
+ * source's line and the audition. `draftLook` ({ id, spec, name }): the effect editor's draft, drawn on the demo beat in
+ * the selected look's place (G7).
+ */
+export function StagePreview({ draftLook = null } = {}) {
   const s = pick(KEYS);
   const fixtures = s.fixtures || NONE;
   const connected = connectedSig.value;
   const audition = auditionSig.value;
-  const auditioning = audition.active && !s.armed;
+  const drafting = !!draftLook;
+  const auditioning = !drafting && audition.active && !s.armed;
   const { edit } = stagePreviewSig.value;
   const setUi = (patch) => { stagePreviewSig.value = { ...stagePreviewSig.value, ...patch }; };
   const [draft, setDraft] = useState(null);
@@ -89,11 +94,11 @@ export function StagePreview({ controls = true } = {}) {
   // One entry per light: a par, or each cell of a bar.
   const auditionSample = useAuditionSampler(space, auditioning);
   // Stopped and disarmed, the selected look on the demo beat (G6); its clock re-renders only this plot.
-  const demoSample = useDemoLookSampler(space, mode.demo && !auditioning);
+  const demoSample = useDemoLookSampler(space, drafting || (mode.demo && !auditioning), draftLook);
   const preview = auditioning ? auditionSample(audition.position, fixtures, s.colorPresets, rig)
     : demoSample ? demoSample(demoBeatSig.value, fixtures, s.colorPresets, rig) : null;
   // Live, the plot paints the DMX feed; auditioning, it draws the audition's own frames.
-  const live = !auditioning;
+  const live = !auditioning && !drafting;
   useDmxFeed(live);
   const surface = useRef(null);
   const lightHost = useRef(null);
@@ -139,15 +144,13 @@ export function StagePreview({ controls = true } = {}) {
   return <section class="panel stage-panel">
     <header class="panel-head">
       <h2 class="panel-title">Stage preview</h2>
-      <StageTag class={`panel-tag${!auditioning && mode.tag === 'Blackout' ? ' blackout' : ''}`} tag={auditioning ? 'Audition · browser only' : mode.tag} />
-      {controls && !auditioning && mode.unmet && <span class="stage-unmet" role="status">{mode.unmet}</span>}
+      <StageTag class={`panel-tag${!auditioning && !drafting && mode.tag === 'Blackout' ? ' blackout' : ''}`}
+        tag={drafting ? (s.control?.frozen ? 'Draft · held by Freeze' : 'Draft · demo beat') : auditioning ? 'Audition · browser only' : mode.tag} />
       <span class="stage-head-actions">
-        {controls && <PreviewToggle pausable={mode.pausable && !auditioning} />}
-        <button class={`btn sm ${edit ? 'active' : ''}`} disabled={!connected || auditioning} aria-pressed={edit}
+        <button class={`btn sm ${edit ? 'active' : ''}`} disabled={!connected || auditioning || drafting} aria-pressed={edit}
           onClick={() => { setUi({ edit: !edit }); drag.current = null; setDraft(null); }}> {edit ? 'Done positioning' : 'Position fixtures'}</button>
       </span>
     </header>
-    {controls && <Audition compact />}
     <div ref={surface} class={`stage-surface ${edit ? 'editing' : ''}`} role="group"
       aria-label="Stage layout, viewed from the audience"
       style={surfaceStyle}>
@@ -218,7 +221,7 @@ export function StagePreview({ controls = true } = {}) {
     <p class="look-note">{edit
       ? `Drag fixtures or use arrow keys.${rig.hasPixels ? ' Drag a bar\'s end handle to turn or stretch it.' : ''} Positions are saved with the show.`
       : 'Numbers are patch order. Patterns travel across the stage as placed here, left to right. Colours approximate the output.'}</p>
-    {!auditioning && mode.note && <p class={`look-note stage-dark${mode.tag === 'Blackout' ? ' blackout' : ''}`} role="status">{mode.note}</p>}
-    <p class="stage-now" aria-live="polite"><strong>{auditioning ? 'Audition' : 'Now playing'}</strong> {auditioning ? audition.name || audition.id : <NowPlaying />}</p>
+    {!auditioning && !drafting && mode.note && <p class={`look-note stage-dark${mode.tag === 'Blackout' ? ' blackout' : ''}`} role="status">{mode.note}</p>}
+    <p class="stage-now" aria-live="polite"><strong>{drafting ? 'Draft' : auditioning ? 'Audition' : 'Now playing'}</strong> {drafting ? draftLook.name || draftLook.id : auditioning ? audition.name || audition.id : <NowPlaying />}</p>
   </section>;
 }

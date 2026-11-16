@@ -90,20 +90,27 @@ function holdDemoBeat() {
   };
 }
 
-/** The selected look on the demo beat while `enabled` and disarmed, else null: arming drops it in the same render. It sends nothing. */
-export function useDemoLookSampler(space, enabled) {
+/**
+ * The selected look on the demo beat while `enabled` and disarmed, else null: arming drops it in the same render. It sends
+ * nothing. With `draft` ({ id, spec }), the draft plays in the look's place (the effect editor's stage, G7), and while the
+ * picture is frozen it holds the frame it had.
+ */
+export function useDemoLookSampler(space, enabled, draft = null) {
   const s = pick(DEMO_KEYS), library = librarySig.value;
   // What an unmet source owns, dark on the demo beat (G5): its key, so a broadcast that changes nothing keeps the sampler.
   const picture = field('picture').value, fixtures = field('fixtures').value;
+  const frozen = !!draft && !!field('control').value?.frozen;
   const owned = JSON.stringify(unmetOwned({ picture, fixtures, profiles: s.profiles }));
   const active = enabled && s.armed === false;
   useEffect(() => (active ? holdDemoBeat() : undefined), [active]);
   const sampler = useMemo(() => {
     if (!active) return null;
-    const sample = demoLookSampler({ ...s, picture, fixtures }, { library, space });
+    const sample = demoLookSampler({ ...s, picture, fixtures }, { library, space, draft });
     // Each look starts the demo beat from its beginning, so a mount or an edit never walks up to half a minute in one task.
     const from = demoBeatSig.peek();
     return (at, ...rest) => sample((((at - from) % DEMO_DURATION_MS) + DEMO_DURATION_MS) % DEMO_DURATION_MS, ...rest);
-  }, [active, space, library.user, owned, ...DEMO_KEYS.map((key) => s[key])]);
-  return active ? sampler : null;
+  }, [active, space, library.user, owned, draft?.id, draft?.spec, ...DEMO_KEYS.map((key) => s[key])]);
+  const heldAt = useMemo(() => (frozen ? demoBeatSig.peek() : null), [frozen]);
+  const drawn = useMemo(() => (sampler && heldAt !== null ? (at, ...rest) => sampler(heldAt, ...rest) : sampler), [sampler, heldAt]);
+  return active ? drawn : null;
 }

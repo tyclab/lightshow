@@ -19,7 +19,7 @@ export function Show() {
           <ShowEffects />
         </div>
         <div class="show-side">
-          <div class="show-colours"><Bands show /></div>
+          <div class="show-colours"><Bands /></div>
           <Background />
         </div>
       </div>

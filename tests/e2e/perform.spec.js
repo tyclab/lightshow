@@ -3,7 +3,7 @@
 // switching; blackout; palettes; the faders.
 
 import { test, expect } from '@playwright/test';
-import { control, open, reset, state, until } from './helpers.js';
+import { control, open, reset, set, state, until } from './helpers.js';
 
 test.beforeEach(async ({ request, page }) => {
   await reset(request);
@@ -125,20 +125,47 @@ test('armed, a rapid preset pad asks before the acknowledgement on the deck and 
     await dialog.getByRole('button', { name: 'Cancel' }).click();
     await expect(dialog).toBeHidden();
     await expect(pad).toHaveAttribute('aria-pressed', String(litBefore));
-    // The command bar's strip, on every view but Perform.
-    await open(page, 'effects');
-    const strip = (await state(request)).pads.layout.filter((p) => p.bank === 0 && p.content).sort((a, b) => a.slot - b.slot);
-    const onStrip = page.locator('.cb-energy-btn').nth(strip.findIndex((p) => p.slot === white.slot));
-    await expect(onStrip).toHaveAttribute('data-safety', 'ask');
-    await onStrip.click();
-    await expect(dialog).toBeVisible();
-    await dialog.getByRole('button', { name: 'Cancel' }).click();
+    // G7: the command bar and its strip of bank A went; the deck is where the pads are played.
     const s = await state(request);
     expect(!!s.pads.lit[white.index]).toBe(litBefore);
     expect(s.safety.photosensitivityAcknowledged).toBe(false);
   } finally {
     await request.put('/api/pads/0/0', { data: before });
     await control(request, 'disarm');
+  }
+});
+
+// G7: the command bar went; its typed tempo, beat division and −1/+1 (operator: "Keep on Perform") are Perform's, beside ½ and ×2.
+test('Perform types the tempo, nudges it by one, halves and doubles it, and sets the beat division', async ({ page, request }) => {
+  const before = await state(request);
+  const now = async () => (await state(request)).bpm;
+  try {
+    await set(request, { bpm: 120, beatDivision: 1 });
+    await open(page, 'perform');
+    const tempo = page.getByRole('group', { name: 'Tempo', exact: true });
+    await tempo.getByRole('button', { name: 'Tempo 120 BPM. Press to type a tempo.' }).click();
+    await tempo.getByLabel('Tempo, BPM').fill('128.5');
+    await tempo.getByLabel('Tempo, BPM').press('Enter');
+    await expect.poll(now, 'typed').toBe(128.5);
+    await tempo.getByRole('button', { name: 'Tempo 128.5 BPM. Press to type a tempo.' }).click();
+    await tempo.getByLabel('Tempo, BPM').fill('90');
+    await tempo.getByLabel('Tempo, BPM').press('Escape');
+    await expect(tempo.getByRole('button', { name: 'Tempo 128.5 BPM. Press to type a tempo.' })).toBeVisible();
+    expect(await now(), 'Escape leaves the tempo as it was').toBe(128.5);
+    await tempo.getByRole('button', { name: 'Tempo +1 BPM' }).click();
+    await expect.poll(now, '+1').toBe(129.5);
+    await tempo.getByRole('button', { name: 'Tempo −1 BPM' }).click();
+    await expect.poll(now, '−1').toBe(128.5);
+    await tempo.getByRole('button', { name: 'Half tempo' }).click();
+    await expect.poll(now, '½').toBeCloseTo(64.25, 1);
+    await tempo.getByRole('button', { name: 'Double tempo, ×2' }).click();
+    await expect.poll(now, '×2').toBeCloseTo(128.5, 1);
+    const division = tempo.getByRole('group', { name: 'Beat division' });
+    await division.getByRole('button', { name: '1/4', exact: true }).click();
+    await expect.poll(async () => (await state(request)).beatDivision, 'beat division').toBe(4);
+    await expect(division.getByRole('button', { name: '1/4', exact: true })).toHaveAttribute('aria-pressed', 'true');
+  } finally {
+    await set(request, { bpm: before.bpm, beatDivision: before.beatDivision });
   }
 });
 

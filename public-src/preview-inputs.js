@@ -64,10 +64,12 @@ export function unmetOwned(s) {
  * acknowledgement is the state's answer, given while disarmed as in the engine's own disarmed picture; the
  * sampler never writes one, and the look's flash limit applies. The units an unmet source owns are dark, as on the rig (G5).
  */
-export function demoLookSampler(s, { library = null, space = null } = {}) {
+export function demoLookSampler(s, { library = null, space = null, draft = null } = {}) {
   const base = previewOptions(s, { library });
+  // An editor's draft plays in the selected look's place, with the live colours, as it would once played (G7).
+  const resolveEffect = draft ? (id) => (id === draft.id ? withEffectColours(id, draft.spec, s.effectColours) : base.resolveEffect(id)) : base.resolveEffect;
   const look = {
-    pattern: s.pattern, bpm: DEMO_BPM, beatDivision: s.beatDivision || 1,
+    pattern: draft ? draft.id : s.pattern, bpm: DEMO_BPM, beatDivision: s.beatDivision || 1,
     colorA: s.colorA ?? 0, colorB: s.colorB ?? 0, colorC: s.colorC ?? 0, colorD: s.colorD ?? 0,
     // Given even when null, so the four colours count as the palette's and not as edits of it.
     basePalette: s.basePalette ?? null,
@@ -75,10 +77,11 @@ export function demoLookSampler(s, { library = null, space = null } = {}) {
     pixelMap: s.pixelMap ?? null, pixelPattern: s.pixelPattern ?? null, panelPattern: s.panelPattern ?? null,
   };
   const sample = createPreviewSampler([{ timeMs: 0, action: 'patch', data: look }], null, {
-    ...base, sequence: null, space, audioSource: DEMO_AUDIO_SOURCE, light: true,
+    ...base, resolveEffect, sequence: null, space, audioSource: DEMO_AUDIO_SOURCE, light: true,
     safety: { acknowledged: s.safety?.photosensitivityAcknowledged === true, hdFlashIntervalMs: s.safety?.hdFlashIntervalMs ?? 350 },
   });
-  return darkOwned(underMaster(sample, s.masterDimmer), unmetOwned(s));
+  // A draft is the editor's, not the picture source's: an unmet source darkens the rig, not the draft.
+  return darkOwned(underMaster(sample, s.masterDimmer), draft ? null : unmetOwned(s));
 }
 
 /** `sample` under the master, which scales each fixture's trim as the engine multiplies them (renderer.ts). */

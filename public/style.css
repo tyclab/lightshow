@@ -150,7 +150,7 @@ html, body {
   line-height: 1.5;
   height: 100%;
   overflow-x: clip;
-  scroll-padding-top: calc(var(--header-height, 47px) + var(--commands-height, 0px) + var(--views-height, 0px));
+  scroll-padding-top: calc(var(--header-height, 47px) + var(--views-height, 0px));
   scroll-padding-bottom: 64px;
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
@@ -299,197 +299,20 @@ main {
 /* =============================================================
    COMMAND BAR (sticky, always-visible live ops)
    ============================================================= */
-.command-bar {
-  position: sticky;
-  top: var(--header-height, 47px);
-  z-index: 80;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 8px 12px;
-  background: var(--surface);
-  border-bottom: 1px solid var(--border);
-  flex-wrap: wrap;
-}
-
-.cb-divider {
-  width: 1px;
-  align-self: stretch;
-  background: var(--border);
-  margin: 0 4px;
-}
-
-.cb-block { display: flex; align-items: center; gap: 10px; }
 
 /* — Tempo block — */
-.cb-tempo { gap: 10px; }
-.cb-bpm {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  line-height: 1;
-  min-width: 60px;
-}
-.cb-bpm-num {
-  font-size: 30px;
-  font-weight: 800;
-  letter-spacing: -0.04em;
-  font-family: var(--font-sans);
-  font-variant-numeric: tabular-nums;
-  color: var(--text);
-}
-.cb-bpm-label {
-  font-size: 9px;
-  font-weight: 800;
-  letter-spacing: 0.18em;
-  color: var(--muted);
-  margin-top: 2px;
-}
-button.cb-bpm-num {
-  background: none;
-  border: 0;
-  padding: 0;
-  cursor: text;
-  font-family: inherit;
-}
-button.cb-bpm-num:focus-visible { outline: .125rem solid var(--accent); outline-offset: .1875rem; border-radius: 4px; }
-.cb-bpm-input {
-  width: 4.2em;
-  font: 800 26px/1 var(--mono);
-  color: var(--text);
-  background: var(--surface-2);
-  border: 1px solid var(--accent);
-  border-radius: var(--radius-sm);
-  text-align: center;
-  padding: 2px 4px;
-}
-.cb-bpm.pulse .cb-bpm-num {
-  animation: bpm-pulse var(--bpm-period, 500ms) cubic-bezier(.2, .7, .2, 1) infinite;
-}
 /* What the pattern clock keeps time by: Live / Tap. */
-.cb-bpm-source {
-  margin-top: 4px;
-  padding: 1px 6px;
-  border: 1px solid var(--border);
-  border-radius: 999px;
-  font-size: 8px;
-  font-weight: 800;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  color: var(--muted);
-  cursor: help;
-}
-.cb-bpm-source.locked { color: var(--accent); border-color: var(--accent); }
-.cb-bpm-sources { display: flex; gap: 4px; align-items: center; }
-.cb-bpm-follow {
-  margin-top: 4px;
-  padding: 1px 6px;
-  border: 1px solid var(--accent);
-  border-radius: 999px;
-  background: var(--accent-fill);
-  color: var(--text-on-accent);
-  font: inherit;
-  font-size: 8px;
-  font-weight: 800;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  cursor: pointer;
-}
-.cb-bpm-follow:hover { background: var(--accent-hover); }
-.cb-bpm-follow:focus-visible { outline: .125rem solid var(--accent); outline-offset: .1875rem; }
-
-.cb-tap {
-  height: 44px;
-  padding: 0 18px;
-  font-size: 12px;
-  font-weight: 700;
-  letter-spacing: 0.16em;
-  background: var(--accent-fill);
-  color: var(--text-on-accent);
-  border: none;
-  border-radius: var(--radius-sm);
-  cursor: pointer;
-  user-select: none;
-}
-.cb-tap:hover { background: var(--accent-hover); }
-.cb-tap:active { transform: scale(.97); }
-
-.cb-bpm-controls {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-.cb-bpm-controls > .cb-divs { display: flex; gap: 2px; }
-.cb-bpm-nudge { display: flex; gap: 4px; align-items: center; }
-.cb-bpm-nudge .btn { flex: 1; justify-content: center; }
 
 /* — Transport block — */
-.cb-transport { gap: 10px; flex: 1; min-width: 280px; }
-
-.cb-play {
-  width: 44px; height: 44px;
-  border-radius: 50%;
-  border: 1px solid var(--border-hi);
-  background: var(--card-hi);
-  color: var(--text);
-  font-size: 16px;
-  cursor: pointer;
-  flex-shrink: 0;
-}
-.cb-play:hover { border-color: var(--accent); }
-.cb-play.active {
-  background: var(--wash-blue);
-  border-color: var(--accent);
-  color: var(--text-blue);
-}
 
 /* — Energy strip — */
-.cb-energy { gap: 10px; }
-.cb-energy-label {
-  font-size: 9px;
-  font-weight: 800;
-  letter-spacing: 0.18em;
-  color: var(--muted);
-}
-.cb-energy-grid {
-  display: flex;
-  gap: 6px;
-  flex-wrap: nowrap;
-}
-.cb-energy-btn {
-  position: relative;
-  padding: 0 11px;
-  height: 38px;
-  border-radius: var(--radius-sm);
-  background: var(--wash-amber);
-  border: 1px solid var(--amber);
-  color: var(--text-amber);
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.05em;
-  cursor: pointer;
-  user-select: none;
-  white-space: nowrap;
-}
-.cb-energy-btn:hover {
-  border-color: var(--amber);
-  background: var(--wash-amber);
-  color: var(--text-hover);
-}
-.cb-energy-btn.active {
-  background: var(--wash-amber);
-  border-color: var(--amber);
-  box-shadow: inset 0 0 0 1px var(--amber);
-  color: var(--text-amber);
-}
-.cb-energy-name { display: inline-block; }
 
 /* =============================================================
    MODE TABS
    ============================================================= */
 .mode-nav {
   position: sticky;
-  top: calc(var(--header-height, 47px) + var(--commands-height, 0px));
+  top: var(--header-height, 47px);
   z-index: 70;
   display: flex;
   align-items: center;
@@ -550,7 +373,7 @@ button.cb-bpm-num:focus-visible { outline: .125rem solid var(--accent); outline-
 .mode-setup-menu {
   position: absolute; top: calc(100% + .25rem); left: 0; z-index: 110;
   display: grid; width: max-content; min-width: 16rem; max-width: calc(100vw - 1rem);
-  max-height: calc(100dvh - var(--header-height, 0px) - var(--commands-height, 0px) - var(--views-height, 0px) - .5rem);
+  max-height: calc(100dvh - var(--header-height, 0px) - var(--views-height, 0px) - .5rem);
   overflow-y: auto; overscroll-behavior: contain;
   padding: .375rem; background: var(--panel-solid); border: 1px solid var(--border-hi); border-radius: var(--radius);
   box-shadow: 0 .75rem 2rem rgba(0, 0, 0, .45);
@@ -674,6 +497,9 @@ button.cb-bpm-num:focus-visible { outline: .125rem solid var(--accent); outline-
 .perform-gate-hint { font-size: 13px; color: var(--text-2); text-align: right; }
 
 .perform-sync { display: flex; flex-wrap: wrap; gap: 8px; }
+.perform-tempo, .perform-divisions { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; }
+.perform-bpm { min-width: 4.5em; font-variant-numeric: tabular-nums; }
+.perform-bpm-input { width: 5.5em; }
 .perform-chip {
   display: inline-flex;
   align-items: center;
@@ -777,7 +603,7 @@ main.mode-show { --show-top: .71rem; --show-bottom: 3rem; padding-block: var(--s
   display: flex; flex-direction: column; gap: var(--show-gap);
   /* The window's share; the safety notice, toolbar and pads take theirs inside it and the stage canvas gets what is left.
      The open colour editor adds its height, published as the bars' heights are: the page grows by it. */
-  min-height: calc(100dvh - var(--header-height, 0rem) - var(--commands-height, 0rem) - var(--views-height, 0rem) - var(--show-top) - var(--show-bottom)
+  min-height: calc(100dvh - var(--header-height, 0rem) - var(--views-height, 0rem) - var(--show-top) - var(--show-bottom)
     + var(--show-editor-height, 0rem));
 }
 /* The open editor makes the page scroll: the scrollbar's room is taken with the click, before the editor is measured. */
@@ -903,15 +729,9 @@ html:has(.show-fold-toggle[aria-expanded="true"]) { scrollbar-gutter: stable; }
 }
 
 /* =============================================================
-   MANUAL VIEW — 3-column working surface
+   EFFECT SETTINGS — its panels, Effects and Cues
    ============================================================= */
-.manual-view {
-  display: grid;
-  grid-template-columns: 1.1fr 1fr 1.4fr;
-  gap: 10px;
-  align-items: start;
-}
-.manual-col { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.manual-view { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
 
 /* =============================================================
    CARDS
@@ -1283,7 +1103,7 @@ input[type=range]::-moz-range-thumb {
 /* The search stays in reach while the catalogue scrolls by; the filters scroll with it, so the list keeps the screen. */
 .effects-tools {
   position: sticky;
-  top: calc(var(--header-height, 47px) + var(--commands-height, 0px) + var(--views-height, 0px));
+  top: calc(var(--header-height, 47px) + var(--views-height, 0px));
   z-index: 2;
   display: flex;
   flex-direction: column;
@@ -1453,6 +1273,8 @@ input[type=range]::-moz-range-thumb {
   box-shadow: -1rem 0 3rem rgba(0, 0, 0, .35);
 }
 .effect-sheet:focus { outline: none; }
+.effect-inspector-stage { margin: .5rem 0; }
+.effect-inspector-stage .stage3d-wrap { height: max(14rem, 40svh); }
 .effect-inspector .card-title { justify-content: space-between; }
 .effect-inspector-title { flex: 1; }
 .effect-inspector-head { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin-bottom: 6px; font-size: 13px; }
@@ -1707,27 +1529,13 @@ input[type=range]::-moz-range-thumb {
 /* =============================================================
    RESPONSIVE
    ============================================================= */
-@media (max-width: 1280px) {
-  .manual-view { grid-template-columns: 1fr 1fr; }
-  .manual-view .col-fixtures { grid-column: 1 / -1; }
-}
-
 @media (max-width: 900px) {
-  .command-bar { gap: 10px; padding: 10px 14px; }
-  .cb-divider { display: none; }
-  .cb-energy { width: 100%; }
-  .cb-energy-grid { flex-wrap: wrap; }
 
-  .manual-view { grid-template-columns: 1fr; }
   main { padding: 14px; }
 }
 
 @media (max-width: 640px) {
   .nav-link { padding: 4px 10px; font-size: 11px; }
-  .cb-tempo { gap: 10px; }
-  .cb-bpm-num { font-size: 28px; }
-  .cb-tap { height: 48px; padding: 0 16px; }
-  .cb-energy-btn { padding: 0 10px; height: 38px; font-size: 10px; }
 
   .pattern-grid { grid-template-columns: 1fr; }
 }
@@ -1735,8 +1543,6 @@ input[type=range]::-moz-range-thumb {
 /* =============================================================
    CUE STACK
    ============================================================= */
-.cue-capture { width: 100%; justify-content: center; }
-
 .cue-save-row { display: flex; gap: 6px; align-items: center; }
 .cue-save-row .cue-name-input { flex: 1; min-width: 0; }
 
@@ -1764,7 +1570,7 @@ input[type=range]::-moz-range-thumb {
 .cue-row { display: flex; align-items: center; gap: 4px; }
 .cue-row.editing { padding: 1px 0; }
 
-.cue-recall {
+.cue-summary {
   flex: 1;
   min-width: 0;
   display: flex;
@@ -1775,13 +1581,9 @@ input[type=range]::-moz-range-thumb {
   border-radius: var(--radius-sm);
   padding: 6px 8px;
   color: var(--text);
-  font: inherit;
   font-size: 12px;
-  text-align: left;
-  cursor: pointer;
 }
-.cue-recall:hover { border-color: var(--accent); background: var(--card-hi); }
-.cue-recall.blackout { opacity: .7; }
+.cue-summary.blackout { opacity: .7; }
 
 .cue-name {
   flex: 1;
@@ -2323,7 +2125,6 @@ input[type=range]::-moz-range-thumb {
    keyboard in a dark room is exactly where that matters. */
 .btn:focus-visible,
 .pattern-btn:focus-visible,
-.cb-energy-btn:focus-visible,
 .energy-btn:focus-visible,
 .segmented-btn:focus-visible,
 .palette-btn:focus-visible,
@@ -2334,7 +2135,6 @@ input[type=range]::-moz-range-thumb {
 
 @media (prefers-reduced-motion: reduce) {
   /* The beat pulse is the only chrome that moves; the tempo is also a number. */
-  .cb-bpm.pulse .cb-bpm-num,
   .bpm-display.pulse {
     animation: none;
   }
@@ -2704,7 +2504,7 @@ input[type=range]::-moz-range-thumb {
 .stage3d-wrap { --ground: #07070e; --ink: #eceef6; --edge-strong: rgba(160, 175, 215, .75); }
 .stage3d-wrap {
   position: relative;
-  height: clamp(240px, calc(100dvh - var(--header-height, 47px) - var(--commands-height, 0px) - var(--views-height, 0px) - 200px), 900px);
+  height: clamp(240px, calc(100dvh - var(--header-height, 47px) - var(--views-height, 0px) - 200px), 900px);
   background: var(--ground);
   border: 1px solid var(--border);
   border-radius: var(--radius);
@@ -2817,8 +2617,7 @@ input[type=range]::-moz-range-thumb {
    ============================================================= */
 @media (pointer: coarse) {
   .btn, .btn.sm, .btn.icon, .segmented-btn, .mode-tab, .mode-setup-item, .nav-link,
-  .header-tool, .header-theme, .stat-pill.gate, .stat-pill.control, .cb-energy-btn, .cb-tap, .cb-play, .cb-bpm-follow,
-  .palette-btn, .pattern-btn, .cue-recall, .cue-capture,
+  .header-tool, .header-theme, .stat-pill.gate, .stat-pill.control, .palette-btn, .pattern-btn,
   .transport-btn, .auto-select, .shortcuts-tab,
   .sub-tab, .remove-btn, .file-upload-btn,
   .effects-chip, .effect-star, .effect-edit, .palette-random, .insp-check,
@@ -2829,7 +2628,6 @@ input[type=range]::-moz-range-thumb {
   .effect-pad-tap { min-height: 88px; }
   .btn.icon, .shortcuts-tab { min-width: 44px; }
   .shortcuts-tab { width: 44px; height: 44px; }
-  .cb-divs .btn, .cb-bpm-nudge .btn { min-width: 44px; }
   input[type=checkbox], input[type=radio] { width: 24px; height: 24px; }
   /* A fader's thumb is what the finger has to land on. */
   input[type=range] { height: 10px; }
@@ -2878,7 +2676,6 @@ input[type=range]::-moz-range-thumb {
 .pad-cell:focus-visible { outline: .125rem solid var(--accent); outline-offset: .1875rem; }
 .pad-label { font-size: 1.05rem; font-weight: 700; text-align: center; line-height: 1.15; overflow-wrap: anywhere; }
 .pad-glyph { position: absolute; top: 6px; right: 8px; font-size: .8rem; color: var(--muted); }
-.cb-energy-btn { border-color: color-mix(in srgb, var(--pad-accent, var(--accent)) 55%, var(--border)); }
 
 .strobe-pad { display: grid; grid-template-columns: 1fr auto auto; gap: 10px; align-items: stretch; }
 .strobe-hold {
@@ -3127,16 +2924,6 @@ input[type=range]::-moz-range-thumb {
 .stage-now strong { margin-right: 6px; text-transform: uppercase; font-size: .8rem; letter-spacing: .06em; opacity: .75; }
 .seq-beyond { margin: 6px 0; padding: 8px 10px; border: 1px solid currentColor; border-radius: var(--radius-sm); }
 
-@media (max-width: 560px) {
-  .command-bar { flex-wrap: nowrap; gap: 6px; padding: 6px 8px; }
-  .cb-tempo { gap: 6px; }
-  .cb-bpm { min-width: 42px; }
-  .cb-bpm-num { font-size: 22px; }
-  .cb-bpm-controls, .cb-bpm-source, .cb-energy, .cb-play { display: none; }
-  .cb-tap { min-width: 44px; height: 44px; padding: 0 8px; }
-  .cb-transport { min-width: 0; gap: 6px; }
-}
-
 @media (max-width: 900px) and (orientation: landscape) {
   .perform-utility { position: fixed; bottom: 0; left: 0; right: 0; z-index: 75; padding: 6px 14px; background: var(--surface); }
   .perform-utility .perform-pad { min-height: 52px; padding: 4px; }
@@ -3160,8 +2947,6 @@ input[type=range]::-moz-range-thumb {
   .perform-controls > .sub-panel { order: 1; }
 }
 @media (max-width: 560px) {
-  .command-bar .cb-energy, .command-bar .cb-divider { display: none; }
-  .command-bar { gap: 6px; }
   .transport-compact .transport-btn > span:last-child { display: none; }
   .transport-compact .transport-btn { min-width: 44px; }
   .transport-buttons { gap: 4px; }

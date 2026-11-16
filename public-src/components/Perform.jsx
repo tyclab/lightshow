@@ -12,7 +12,7 @@ import { Matrix } from './Matrix.jsx';
 import { SubTabs, SubPanel, useSubTab } from './setup/SubTabs.jsx';
 import { AudioMeters } from './AudioMeters.jsx';
 import { StrobesOff } from './Photosensitivity.jsx';
-import { TempoScale } from './TempoScale.jsx';
+import { TempoControls } from './TempoControls.jsx';
 import { PictureGrade } from './PictureGrade.jsx';
 import { BpmCapture } from './BpmCapture.jsx';
 import { LiveAutomation } from './LiveAutomation.jsx';
@@ -23,7 +23,8 @@ import { LiveAutomation } from './LiveAutomation.jsx';
  *
  *   strobes      off until the photosensitivity acknowledgement, one tap from it
  *   now playing  what the rig is showing
- *   sync         what the lights are keeping time by, and whether the live input hears
+ *   sync         what the lights are keeping time by, and whether the live input hears;
+ *                the tempo typed, nudged by one, halved or doubled, and the beat division
  *   pads         two banks of eight, each played as its launch mode says,
  *                the strobe held, tap tempo and stop all voices
  *   palettes     one tap writes the whole look's colours
@@ -34,7 +35,7 @@ import { LiveAutomation } from './LiveAutomation.jsx';
  */
 
 function SyncHealth() {
-  const s = pick(['bpm', 'clock', 'live']);
+  const s = pick(['bpm', 'beatDivision', 'clock', 'live']);
   const connected = connectedSig.value;
   const clock = clockSource(s.clock && s.clock.source);
   const byHand = !!(s.clock && s.clock.byHand);
@@ -59,10 +60,7 @@ function SyncHealth() {
             <button type="button" class="perform-follow" onClick={followMusic}
               title="The tempo is held by hand: follow the live beat again">Follow the music</button>
           )}
-          {c.id === 'clock' && <>
-            <TempoScale bpm={s.bpm} direction="half" />
-            <TempoScale bpm={s.bpm} direction="double" />
-          </>}
+          {c.id === 'clock' && <TempoControls bpm={s.bpm} beatDivision={s.beatDivision} />}
         </Fragment>
       ))}
     </section>

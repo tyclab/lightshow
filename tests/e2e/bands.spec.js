@@ -140,40 +140,33 @@ test('a band sequence: a palette loads its points, a tap adds, a drag never adds
   await until(request, (s) => s.effectColours === null);
 });
 
-test('another effect keeps its own palette, chosen from the same list and the same wheel, in Show and Effects', async ({ page, request }) => {
+// G7: Colours left Effect settings; Show holds them.
+test('another effect keeps its own palette, chosen from the same list and the same wheel, in Show', async ({ page, request }) => {
   await request.put('/api/settings', { data: { safety: { photosensitivityAcknowledged: true } } });
   try {
-    await set(request, { pattern: 'v2.scatterStrobe' });
-    for (const view of ['show', 'effects']) {
-      await set(request, { effectColours: null });
-      await open(page, view);
-      // Show splits the card (the operator, 2026-11-14): Palettes, then the wheel and the order under one fold.
-      const card = page.getByRole('region', { name: view === 'show' ? 'Palettes' : 'Colours', exact: true });
-      const editor = view === 'show' ? page.getByRole('region', { name: 'Colour editing', exact: true }) : card;
-      await expect(card.getByRole('group', { name: 'Bass band' })).toHaveCount(0);
-      if (view === 'show') {
-        await expect(editor.getByRole('button', { name: /^Edit colours/ })).toHaveAttribute('aria-expanded', 'false');
-        await expect(card.getByLabel('Search Effect palettes')).toBeVisible();
-      }
-      await card.getByLabel('Search Effect palettes').fill('red');
-      await card.locator('[data-palette="redCyan"]').click();
-      await until(request, (s) => s.effectColours?.palette?.colours.join(',') === '#FF0000,#00BFFF');
-      if (view === 'show') {
-        await expect(card.getByText('Selected palette', { exact: true })).toBeVisible();
-        await expect(card.locator('.show-palette-name')).toHaveText('Red Cyan');
-        await editor.getByRole('button', { name: /^Edit colours/ }).click();
-      }
-      await editor.getByLabel('Palette colour 2', { exact: true }).fill('#ffc800');
-      await until(request, (s) => s.effectColours?.palette?.colours.join(',') === '#FF0000,#FFC800');
-      if (view === 'show') await expect(card.locator('.show-palette-name')).toHaveText('Custom colours');
-      await expect(card.getByLabel('Colour distribution')).toBeVisible();
-    }
+    await set(request, { pattern: 'v2.scatterStrobe', effectColours: null });
+    await open(page, 'show');
+    // Show splits the card (the operator, 2026-11-14): Palettes, then the wheel and the order under one fold.
+    const card = page.getByRole('region', { name: 'Palettes', exact: true });
+    const editor = page.getByRole('region', { name: 'Colour editing', exact: true });
+    await expect(card.getByRole('group', { name: 'Bass band' })).toHaveCount(0);
+    await expect(editor.getByRole('button', { name: /^Edit colours/ })).toHaveAttribute('aria-expanded', 'false');
+    await expect(card.getByLabel('Search Effect palettes')).toBeVisible();
+    await card.getByLabel('Search Effect palettes').fill('red');
+    await card.locator('[data-palette="redCyan"]').click();
+    await until(request, (s) => s.effectColours?.palette?.colours.join(',') === '#FF0000,#00BFFF');
+    await expect(card.getByText('Selected palette', { exact: true })).toBeVisible();
+    await expect(card.locator('.show-palette-name')).toHaveText('Red Cyan');
+    await editor.getByRole('button', { name: /^Edit colours/ }).click();
+    await editor.getByLabel('Palette colour 2', { exact: true }).fill('#ffc800');
+    await until(request, (s) => s.effectColours?.palette?.colours.join(',') === '#FF0000,#FFC800');
+    await expect(card.locator('.show-palette-name')).toHaveText('Custom colours');
+    await expect(card.getByLabel('Colour distribution')).toBeVisible();
   } finally {
     await set(request, { pattern: DISCO });
     await request.put('/api/settings', { data: { safety: { photosensitivityAcknowledged: false } } });
   }
 });
-
 
 test('one button folds the wheel and the colour order, folded on a fresh browser, remembered over a reload, deaf to the old key', async ({ page, request }) => {
   await set(request, { pattern: 'ldj.Swirl' });

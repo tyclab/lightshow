@@ -82,12 +82,17 @@ test('palette sliders preserve auxiliary emitters and hue pair is a draft until 
   expect(writes).toEqual([]);
 });
 
-test('a diagonal draft auditions with explicit floor-to-height endpoints without saving it', async ({ page, request }) => {
+// G7: the editor on Effect settings draws its open draft on a stage of its own; "Audition on Stage" and its jump went.
+const draftStage = (sheet) => sheet.locator('.effect-inspector-stage');
+const plotLamps = (where) => where.locator('.stage-fixture').evaluateAll((nodes) => nodes.map((node) => ((node.dataset.light || '').match(/\d+/g) || []).map(Number)));
+
+test('a diagonal draft is drawn on the editor\'s stage with explicit floor-to-height endpoints, without saving it', async ({ page, request }) => {
   const before = await protectedState(request), writes = watchControlWrites(page);
   await open(page, 'effects');
   await page.getByLabel('Search effects').fill('Groove Wave');
   await page.getByRole('button', { name: 'Edit Groove Wave', exact: true }).first().click();
   const sheet = page.getByRole('dialog', { name: 'Edit effect' });
+  await expect(sheet.getByRole('button', { name: 'Audition on Stage' })).toHaveCount(0);
   await sheet.getByText('Advanced', { exact: true }).click();
   await sheet.getByLabel('Use explicit start point', { exact: true }).check();
   await sheet.getByLabel('Use explicit end point', { exact: true }).check();
@@ -96,40 +101,78 @@ test('a diagonal draft auditions with explicit floor-to-height endpoints without
   await sheet.getByLabel('End height (metres)', { exact: true }).fill('2.4');
   await sheet.getByLabel('End Z (metres)', { exact: true }).fill('3');
   await expect(sheet).toContainText('Y height above the floor');
-  await sheet.getByRole('button', { name: 'Audition on Stage', exact: true }).click();
-  await expect(page.getByLabel('Audition effect', { exact: true })).toHaveValue('draft:v2.grooveWave');
-  await expect(page.getByRole('img', { name: /The rig in 3D/ })).toHaveAttribute('aria-label', /auditioning Groove Wave/);
+  await expect(draftStage(sheet).locator('.stage3d-tools .panel-tag')).toHaveText('Draft · demo beat');
+  await expect(draftStage(sheet).getByRole('img', { name: /The rig in 3D/ }))
+    .toHaveAttribute('aria-label', /previewing the draft of Groove Wave on the demo beat in this browser; nothing is transmitted/);
+  await expect(page).toHaveURL(/#effects\/catalogue$/);
   expect(await protectedState(request)).toEqual(before);
   expect(writes).toEqual([]);
 });
 
-test('saved effect and its edited palette audition without updating the library or live controls', async ({ page, request }) => {
-  const created = await request.post('/api/effects', { data: { name: 'Audition saved wash', spec: {
-    kind: 'v2.wash', params: {}, palette: ['#FF0000', '#00FFFF'], brightness: 1,
+test('a saved effect\'s edited palette is drawn on the editor\'s stage without updating the library or live controls', async ({ page, request }) => {
+  const created = await request.post('/api/effects', { data: { name: 'Draft saved wash', spec: {
+    kind: 'v2.wash', params: {}, palette: ['#FF0000'], brightness: 1,
   } } });
   expect(created.ok()).toBe(true);
   const { preset } = await created.json();
   try {
     const before = await protectedState(request), writes = watchControlWrites(page);
-    await open(page, 'stage');
-    await page.getByRole('button', { name: 'Audition effects', exact: true }).click();
-    await page.getByLabel('Audition effect', { exact: true }).selectOption(preset.id);
-    await page.evaluate(() => { window.location.hash = 'effects'; });
+    await open(page, 'effects');
     await page.getByLabel('Search effects').fill(preset.name);
     await page.getByRole('button', { name: `Edit ${preset.name}`, exact: true }).first().click();
     const sheet = page.getByRole('dialog', { name: 'Edit effect' });
+    await draftStage(sheet).getByRole('button', { name: '2D plot', exact: true }).click();
+    // Each lamp's dominant channel: the demo beat moves the wash's level, not its colour.
+    const red = ([r, g, b]) => r > 60 && r > 2 * g && r > 2 * b, green = ([r, g, b]) => g > 60 && g > 2 * r && g > 2 * b;
+    await expect.poll(async () => (await plotLamps(draftStage(sheet))).some(red), 'the saved red first').toBe(true);
     await sheet.getByLabel('Colour 1 hue', { exact: true }).fill('120');
     await expect(sheet.getByLabel('Colour 1', { exact: true })).toHaveValue('#00FF00');
-    await sheet.getByRole('button', { name: 'Audition on Stage', exact: true }).click();
-    await expect(page.getByLabel('Audition effect', { exact: true })).toHaveValue(`draft:${preset.id}`);
-    await page.getByRole('button', { name: 'Pause demo', exact: true }).click();
-    await page.getByLabel('Audition position', { exact: true }).fill('0');
-    await page.getByRole('button', { name: '2D plot', exact: true }).click();
-    const lights = await page.locator('.stage-fixture').evaluateAll((nodes) => nodes.map((node) => ((node.dataset.light || '').match(/\d+/g) || []).map(Number)));
-    expect(lights).toContainEqual([0, 255, 0]);
+    await expect.poll(async () => (await plotLamps(draftStage(sheet))).some(green), 'then the edit').toBe(true);
+    expect((await plotLamps(draftStage(sheet))).some(red), 'and the red is gone').toBe(false);
     expect(await protectedState(request)).toEqual(before);
     expect(writes).toEqual([]);
   } finally { await request.delete(`/api/effects/${preset.id}`); }
+});
+
+test('the editor\'s stage gives way to Arm, Blackout and Pause preview, and Freeze holds the draft still', async ({ page, request }) => {
+  await open(page, 'effects');
+  await page.getByLabel('Search effects').fill('Chase');
+  await page.getByRole('button', { name: 'Edit Chase', exact: true }).first().click();
+  const stage = draftStage(page.getByRole('dialog', { name: 'Edit effect' }));
+  const tag = stage.locator('.stage3d-tools .panel-tag');
+  await stage.getByRole('button', { name: '2D plot', exact: true }).click();
+  const frames = async (ms) => { const seen = new Set(); const end = Date.now() + ms; while (Date.now() < end) seen.add(JSON.stringify(await plotLamps(stage))); return seen.size; };
+  await expect(tag).toHaveText('Draft · demo beat');
+  await expect.poll(() => frames(1500), 'the draft moves on the demo beat').toBeGreaterThan(1);
+  try {
+    await control(request, 'arm');
+    await expect(tag).toHaveText('Live output');
+    await control(request, 'disarm');
+    await expect(tag).toHaveText('Draft · demo beat');
+
+    await control(request, 'blackout');
+    await expect(tag).toHaveText('Blackout');
+    await control(request, 'restore');
+    await expect(tag).toHaveText('Draft · demo beat');
+
+    await stage.getByRole('button', { name: 'Pause preview' }).click();
+    await expect(tag).toHaveText('Preview paused');
+    await stage.getByRole('button', { name: 'Resume preview' }).click();
+    await expect(tag).toHaveText('Draft · demo beat');
+
+    await control(request, 'start', 'look');
+    await control(request, 'freeze');
+    await expect(tag).toHaveText('Draft · held by Freeze');
+    expect(await frames(2000), 'held: one frame').toBe(1);
+    await control(request, 'resume');
+    await expect(tag).toHaveText('Draft · demo beat');
+    await expect.poll(() => frames(1500), 'moving again').toBeGreaterThan(1);
+  } finally {
+    await control(request, 'disarm');
+    await control(request, 'restore');
+    await control(request, 'resume');
+    await control(request, 'stop');
+  }
 });
 
 test('arming ends Audition even after navigating away, and disarming never resumes it', async ({ page, request }) => {

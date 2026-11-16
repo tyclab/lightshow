@@ -1,10 +1,11 @@
 import { test, expect } from '@playwright/test';
 import { open, reset, state, until } from './helpers.js';
 
+// G7: Background left Effect settings and the Room; Show holds it.
 test('background modes and six-channel colour persist without changing transport gates', async ({ page, request }) => {
   await reset(request);
   const initial = await state(request);
-  await open(page, 'effects');
+  await open(page, 'show');
   const panel = page.getByRole('region', { name: 'Background lighting' });
   await expect(panel).toBeVisible();
   await panel.getByRole('button', { name: 'Fixed colour', exact: true }).click();
@@ -40,7 +41,7 @@ test('background fixtures: wash fixtures and a picked set persist; the whole rig
   await request.post('/api/set', { data: { background: { version: 1, mode: 'fixed', level: .4, colour: { r: 255, g: 120, b: 0, w: 0, a: 0, uv: 0 } } } });
   const { fixtures } = await state(request);
   expect(fixtures.length).toBeGreaterThan(1);
-  await open(page, 'effects');
+  await open(page, 'show');
   const panel = page.getByRole('region', { name: 'Background lighting' });
   const scope = panel.getByRole('combobox', { name: 'Background fixtures' });
   await expect(scope).toHaveValue('rig');

@@ -206,11 +206,15 @@ for (const format of FORMATS) {
   });
 }
 
-// G7: Music's Auto show draws no stage; the full stage is Rig's Room.
+// G7: Music's Auto show draws no stage; the full stage is Rig's Room, and on Effect settings the editor has a stage of its own.
 test('the stage of every other view offers the one button too', async ({ page, request }) => {
   await control(request, 'stop');
   for (const view of ['stage', 'effects']) {
     await open(page, view);
+    if (view === 'effects') {
+      await page.getByLabel('Search effects').fill('Chase');
+      await page.getByRole('button', { name: 'Edit Chase', exact: true }).first().click();
+    }
     await expect(pauseButton(page), view).toHaveCount(1);
     await pauseButton(page).click();
     await expect(notice(page), view).toHaveCount(1);
@@ -220,9 +224,10 @@ test('the stage of every other view offers the one button too', async ({ page, r
 });
 
 // An audition is not a preview row: it keeps drawing whatever the pause, so it offers no Pause preview (G1).
-test('no Pause preview while auditioning, on the stage in 3D and 2D and on a plot of its own', async ({ page, request }) => {
+// G7: Effect settings' plot of its own went with its Audition row; the editor's stage draws its draft, not the audition.
+test('no Pause preview while auditioning, on the stage in 3D and 2D', async ({ page, request }) => {
   await control(request, 'stop');
-  for (const [view, format] of [['stage', '3D'], ['stage', '2D'], ['effects', null]]) {
+  for (const [view, format] of [['stage', '3D'], ['stage', '2D']]) {
     const where = `${view}${format ? ` ${format}` : ''}`;
     await open(page, view);
     if (format) await useFormat(page, format);
@@ -252,13 +257,16 @@ const plotHead = (page) => page.locator('.stage-panel .panel-head').first().eval
 });
 
 // The plot header was laid out for one button at its right end (F3 of the review of G1): Pause preview sits beside it.
+// G7: the plot with Pause preview in its own header went from Effect settings; the stage's plot (Show here) has the
+// button in the stage's toolbar, and its header keeps Position fixtures at the right end.
 for (const [width, height] of [[1280, 900], [390, 844]]) {
   test(`${width} wide, the plot header keeps Position fixtures at its right end and Pause preview beside it`, async ({ page, request }) => {
     await page.setViewportSize({ width, height });
-    for (const view of ['effects']) for (const armed of [false, true]) {
+    for (const view of ['show']) for (const armed of [false, true]) {
       await control(request, armed ? 'arm' : 'disarm');
       await control(request, 'stop');
       await open(page, view);
+      await useFormat(page, '2D');
       await expect(pauseButton(page)).toHaveCount(armed ? 0 : 1);
       const head = await plotHead(page);
       const what = `${view}, ${width} wide, ${armed ? 'armed, as on main' : 'previewing'}`;

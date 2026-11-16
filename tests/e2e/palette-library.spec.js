@@ -9,7 +9,8 @@ test.beforeEach(async ({ request, page }) => {
     name: 'Saved six-channel palette', colours: ['#123456789ABC', '#010203040506'], gradients: [gradient], gradient: 'Wash',
   } })).json();
   paletteId = result.palette.id;
-  await open(page, 'effects');
+  // G7: Colours left Effect settings; Show's Palettes card manages them.
+  await open(page, 'show');
   await page.getByRole('button', { name: 'Manage palettes' }).click();
   await page.getByLabel('Saved palette', { exact: true }).selectOption(paletteId);
 });
