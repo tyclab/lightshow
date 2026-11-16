@@ -846,7 +846,7 @@ test("busking from MIDI reaches the looks, the palettes, the voices, the strobe 
   const { busk } = s.midi;
   const looks = busk.looks();
   assert.ok(looks.some((r) => r.id === 'chase') && looks.some((r) => r.app === 'ldj'), 'the patterns and the effects the pages get');
-  assert.ok(busk.palettes().includes('redCyan'));
+  assert.ok(busk.palettes().includes('tycStation') && !busk.palettes().includes('redCyan'), 'the palettes it steps through are the offered ones');
 
   const started = await s.call('POST', '/api/voices', { preset: 'hd.iceStrike', mode: 'latched' });
   assert.equal(started.status, 200);
