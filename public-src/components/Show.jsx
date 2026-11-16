@@ -5,11 +5,11 @@ import { Bands } from './Bands.jsx';
 import { Background } from './Background.jsx';
 import { ShowEffects, pictureForm } from './ShowEffects.jsx';
 import { ShowCues } from './ShowCues.jsx';
-import { pictureReceivingSig, pictureSourceSig } from '../picture-source.js';
+import { pictureSourceSig } from '../picture-source.js';
 
 /** Show: the stage over the effects; Palettes, the colour editor and Background beside them, or under them on a phone. */
 export function Show() {
-  const picture = pictureForm(pictureSourceSig.value, pictureReceivingSig.value);
+  const picture = pictureForm(pictureSourceSig.value);
   return (
     <div class="show-view">
       <StrobesOff perform />

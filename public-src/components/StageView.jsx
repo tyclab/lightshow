@@ -4,6 +4,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'preact/hooks';
 import { effect } from '@preact/signals';
 import { pick, connectedSig, dmxSig, dmxReceivedAt, field, idlePause, pictureImageSig, wantPicture } from '../state.js';
 import { rigLights, stageMode } from '../utils.js';
+import { pictureUnmetSig } from '../picture-source.js';
 import { useDmxFeed } from '../use-dmx.js';
 import { useUnitSpace } from '../unit-space.js';
 import { hasBeams, lightRGB, STAGE_W, STAGE_D, TRUSS_H } from '../stage3d/world.js';
@@ -49,7 +50,7 @@ export function StageView({ compact = false } = {}) {
   const pause = idlePause.paused.value;
   const paused = pause !== null;
   const mode = stageMode({ connected, armed: s.armed, blackout: s.masterBlackout, paused,
-    playing: !!s.control?.playing, layers: !!s.control?.layers, frozen: !!s.control?.frozen });
+    playing: !!s.control?.playing, layers: !!s.control?.layers, frozen: !!s.control?.frozen, unmet: pictureUnmetSig.value });
   const demo = mode.demo && !auditioning;
   const dark = auditioning ? null : mode.note;
   const tagClass = `panel-tag${!auditioning && mode.tag === 'Blackout' ? ' blackout' : ''}`;
@@ -277,6 +278,7 @@ export function StageView({ compact = false } = {}) {
       {!compact && <Audition />}
       <div class="stage3d-tools" role="toolbar" aria-label="Stage view">
         <span class={tagClass}>{auditioning ? 'Audition · browser only' : mode.tag}</span>
+        {!auditioning && mode.unmet && <span class="stage-unmet" role="status">{mode.unmet}</span>}
         {mode.pausable && !auditioning && <PausePreview />}
         <div class="segmented" role="group" aria-label="Stage format">
           <button type="button" class="btn sm" aria-pressed={format === '3d'} onClick={() => setFormat('3d')}>3D room</button>

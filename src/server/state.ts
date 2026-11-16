@@ -14,7 +14,7 @@ import { conductor } from './conductor.ts';
 import { isArmed } from './armed.ts';
 import { wledStatus } from './wled-watch.ts';
 import { liveStatusAll as hueStatus } from './hue.ts';
-import { pictureInput } from './picture-live.ts';
+import { pictureInput, pictureState } from './picture-live.ts';
 import { safety } from './safety.ts';
 import { HttpError } from '../errors.ts';
 import { footprintOf, universesOf, isInternalUniverse, placeAddressless } from '../shared/placement.ts';
@@ -458,7 +458,7 @@ function getLiveState() {
     armed: isArmed(),
     // Pages pause their preview after the same minutes without input.
     idleStopMin: settings.get('outputs.idleStopMin'),
-    picture: { ...settings.group('picture'), input: pictureInput.status() },
+    picture: { ...settings.group('picture'), input: pictureInput.status(), unmet: pictureState.unmet },
     rigRevision: rigRevision(),
     // Labels for the patch table and inspector; never the keys.
     hueStrobe: settings.group('hue').strobe ?? 'flash',

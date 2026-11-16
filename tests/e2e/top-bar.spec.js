@@ -113,7 +113,12 @@ test('each picture source segment is a plain choice: the chosen one sends and op
   const posted = [];
   page.on('request', (r) => { if (r.method() === 'POST' && r.url().endsWith('/api/picture/source')) posted.push(r.postDataJSON().source); });
   const NAMES = { effects: 'Effects', visualizer: 'Visualizer', squid: 'Squid' };
-  for (const id of ['effects', 'visualizer', 'squid']) {
+  // G5: Squid without an LED panel is refused and changes nothing; this rig has none (picture-unmet.spec.js adds one).
+  const refused = await request.post('/api/picture/source', { data: { source: 'squid' } });
+  expect(refused.status()).toBe(409);
+  expect(await refused.json()).toMatchObject({ code: 'squid_no_panel' });
+  await expect(source(page).locator('[data-source="squid"]'), 'no panel: Squid is not offered').toHaveCount(0);
+  for (const id of ['effects', 'visualizer']) {
     await request.post('/api/picture/source', { data: { source: id } });
     const chosen = source(page).locator(`[data-source="${id}"]`);
     await expect(chosen).toHaveAttribute('aria-pressed', 'true');
@@ -132,8 +137,13 @@ test('each picture source segment is a plain choice: the chosen one sends and op
     const after = (await state(request)).control;
     for (const key of ['frozen', 'blackout', 'armed', 'playing']) expect(after[key], `${id} → ${other}: ${key}`).toBe(before[key]);
   }
+  // G5: disarmed, Visualizer cannot paint: the chosen segment is amber and its tooltip says why.
   await request.post('/api/picture/source', { data: { source: 'visualizer' } });
-  await expect(source(page).locator('[data-source="visualizer"]')).toHaveAccessibleDescription('Arm the outputs; the picture needs a live rig');
+  const visualizer = source(page).locator('[data-source="visualizer"]');
+  await expect(visualizer).toHaveAccessibleDescription('Visualizer: outputs disarmed');
+  await expect(visualizer).toHaveClass(/\bunmet\b/);
+  await request.post('/api/picture/source', { data: { source: 'effects' } });
+  await expect(source(page).locator('[data-source="effects"]')).not.toHaveClass(/\bunmet\b/);
 });
 
 // Show v3 fixes, G4 (2026-11-15): "also why do we have plkay and freese? both very close connected?"

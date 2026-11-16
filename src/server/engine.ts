@@ -28,7 +28,7 @@ import type { SequenceFrame } from './sequencer.ts';
 import { validateSpec } from '../shared/effects/registry.ts';
 import { effectContentKey } from '../shared/effects/layer.ts';
 import { pixelInputs } from './pixel-input-live.ts';
-import { pictureInput } from './picture-live.ts';
+import { observePicture, pictureInput } from './picture-live.ts';
 import { squidPicture } from './squid-picture.ts';
 import { FrameBarrier } from './frame-barrier.ts';
 import { control } from './control.ts';
@@ -251,7 +251,13 @@ function renderInput({ points = true }: { points?: boolean } = {}): RenderInput 
   const pictureSource = settings.get('picture.source');
   const picture = pictureInput.current(thread === 'worker' ? WORKER_CLOCK_SHIFT : 0);
   // The Squid feeds the largest panel by the pixel path; outside feeds wait meanwhile.
-  const squid = pictureSource === 'squid' ? squidPicture.frame(conductor.peek(), thread === 'worker' ? WORKER_CLOCK_SHIFT : 0) : squidPicture.stop();
+  const reading = conductor.peek();
+  const squid = pictureSource === 'squid' ? squidPicture.frame(reading, thread === 'worker' ? WORKER_CLOCK_SHIFT : 0) : squidPicture.stop();
+  const audio = runAudioSource(), audioMode = settings.get('audio.mode');
+  // The source's facts after its frame (G5): `picture.unmet`, and the units whose picture is dark without them.
+  // Nothing sends the engine stems since the planned show went (#221): Stems in Space has only the reactive bands.
+  const pictureOwns = observePicture(pictureSource, { beatPos: reading.beatPos, effect, audio: audioMode === 'reactive' ? audio : null,
+    stems: undefined });
   return {
     running: state.running,
     programmePlaying: state.running,
@@ -282,8 +288,8 @@ function renderInput({ points = true }: { points?: boolean } = {}): RenderInput 
     syncTest: syncRequest,
     identify: identify.request(),
     universes: activeUniverses(),
-    audio: runAudioSource(),
-    audioMode: settings.get('audio.mode'),
+    audio,
+    audioMode,
     master: { ...(masterSource?.() ?? settings.get('audio.master')) },
     // Always include safety settings so live output cannot use legacy absent-safety admission.
     safety: {
@@ -297,6 +303,7 @@ function renderInput({ points = true }: { points?: boolean } = {}): RenderInput 
     voices: voiceFrames(),
     pixelInputs: pictureSource === 'squid' ? (squid ? [squid] : []) : pixelInputs.frames(thread === 'worker' ? WORKER_CLOCK_SHIFT : 0),
     picture: pictureSource === 'visualizer' ? picture : null,
+    pictureOwns,
     pictureGrade: settings.get('picture.grade'),
     pictureDecode: settings.get('picture.decode'),
     pictureBlackPoint: settings.get('picture.blackPoint'),

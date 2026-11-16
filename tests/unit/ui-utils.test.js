@@ -128,3 +128,15 @@ test('the blackout state a dark stage draws with turns a lit par off', () => {
   assert.equal(utils.fixtureOutputColor(par, barState([128, 200, 100, 50])), 'rgb(100,50,25)');
   assert.equal(utils.fixtureOutputColor(par, barState([128, 200, 100, 50], { masterBlackout: true })), '#000');
 });
+
+// G5: the stage shows the unmet line beside its tag wherever it draws the show, never while it draws nothing of it.
+test('the stage carries the picture source\'s unmet line beside its tag while it draws the show', () => {
+  const line = 'Visualizer: outputs disarmed';
+  for (const patch of [{}, { playing: true }, { armed: true }, { blackout: true }]) {
+    assert.equal(utils.stageMode({ ...STOPPED, unmet: line, ...patch }).unmet, line, JSON.stringify(patch));
+  }
+  for (const patch of [{ paused: true }, { connected: false }]) {
+    assert.equal(utils.stageMode({ ...STOPPED, unmet: line, ...patch }).unmet, undefined, JSON.stringify(patch));
+  }
+  assert.equal(utils.stageMode({ ...STOPPED, unmet: null }).unmet, undefined, 'met: no line');
+});

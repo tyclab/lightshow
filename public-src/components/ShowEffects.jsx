@@ -1,14 +1,14 @@
 import { signal } from '@preact/signals';
 import { useEffect, useId, useLayoutEffect, useRef, useState } from 'preact/hooks';
 import { connectedSig, idlePause, librarySig, pick, send } from '../state.js';
-import { pictureReceivingSig, pictureSourceSig } from '../picture-source.js';
+import { pictureSourceSig, pictureUnmetSig } from '../picture-source.js';
 import { byName, catalogueOf, matchesSearch, tapRow, utilityEffect } from './Effects.jsx';
 import { Photosensitivity, acknowledgeThen } from './Photosensitivity.jsx';
 import { AudioReactiveColours, audioReactiveChoices, isAudioReactive } from './AudioReactiveColours.jsx';
 import { stageMode } from '../utils.js';
 
-/** The one-sentence form: the Visualizer source with a picture arriving. */
-export const pictureForm = (source, receiving) => source === 'visualizer' && !!receiving;
+/** The one-sentence form: the Visualizer source, met or not (G5), offers no effect to choose. */
+export const pictureForm = (source) => source === 'visualizer';
 
 /** E asks for the effects search; the card takes the request once it is on screen, from whichever view E was pressed on. */
 export const searchRequestSig = signal(0);
@@ -17,11 +17,11 @@ const typing = (target) => ['INPUT', 'TEXTAREA', 'SELECT'].includes(target?.tagN
 
 /**
  * E chooses an effect: true when it is taken, and Show's search is asked for. Not in a field, under a modal dialog
- * or while the card offers nothing to choose (the Visualizer picture arriving); the caller switches to Show.
+ * or while the card offers nothing to choose (the Visualizer source); the caller switches to Show.
  */
 export function effectsKey(e) {
   if (e.repeat || e.defaultPrevented || e.ctrlKey || e.altKey || e.metaKey || typing(e.target) || e.key?.toLowerCase() !== 'e') return false;
-  if (document.querySelector('[aria-modal="true"]') || pictureForm(pictureSourceSig.value, pictureReceivingSig.value)) return false;
+  if (document.querySelector('[aria-modal="true"]') || pictureForm(pictureSourceSig.value)) return false;
   e.preventDefault();
   searchRequestSig.value += 1;
   return true;
@@ -29,13 +29,13 @@ export function effectsKey(e) {
 
 const HELD = { frozen: ['The picture is frozen.', 'after Resume'], stopped: ['The show is stopped.', 'when the show plays'],
   both: ['The picture is frozen and the show is stopped.', 'after Resume and play'] };
-const PICTURE = 'the Visualizer picture paints the room; the main effect shows again when the picture stops or when Effects is chosen in the header.';
+const PICTURE = 'the Visualizer picture paints the room; effects are chosen here while the picture source is Effects.';
 
 /** What the Effects box says, from the show, Freeze and the picture source: it never names as playing what Freeze or a stop holds back.
  * `previewing`: the stage draws the selected effect on the demo beat, stopped and disarmed (G6). */
-export function effectsBox({ running, frozen, source, receiving, previewing = false }) {
+export function effectsBox({ running, frozen, source, previewing = false }) {
   const [held, when] = HELD[frozen && !running ? 'both' : frozen ? 'frozen' : running ? '' : 'stopped'] ?? [];
-  if (pictureForm(source, receiving)) {
+  if (pictureForm(source)) {
     return { picture: true, text: held ? `${held} ${when[0].toUpperCase()}${when.slice(1)}, ${PICTURE}` : `${PICTURE[0].toUpperCase()}${PICTURE.slice(1)}` };
   }
   const hint = !held ? null : previewing && when === HELD.stopped[1] ? `${held} The preview shows the selected effect; Play sends it.` : `${held} The selected effect plays ${when}.`;
@@ -71,7 +71,8 @@ export function ShowEffects() {
   const s = pick(['pattern', 'patterns', 'effects', 'families', 'safety', 'running', 'control', 'live', 'armed', 'masterBlackout']);
   const previewing = stageMode({ connected: connectedSig.value, armed: s.armed !== false, blackout: !!s.masterBlackout, paused: idlePause.paused.value !== null,
     playing: !!s.control?.playing, layers: !!s.control?.layers, frozen: !!s.control?.frozen }).demo;
-  const box = effectsBox({ running: !!s.running, frozen: !!s.control?.frozen, source: pictureSourceSig.value, receiving: pictureReceivingSig.value, previewing });
+  const box = effectsBox({ running: !!s.running, frozen: !!s.control?.frozen, source: pictureSourceSig.value, previewing });
+  const unmet = pictureUnmetSig.value;
   const lib = librarySig.value;
   const families = s.families || lib.families || [];
   const { allRows, rows: catalogue, playingId } = catalogueOf(s, lib, families, []);
@@ -140,6 +141,7 @@ export function ShowEffects() {
     {box.picture ? <section class="card contained-effects contained-picture" aria-labelledby={`${id}-title`}>
       <h2 class="card-title" id={`${id}-title`}>Effects</h2>
       <p role="status">{box.text}</p>
+      {unmet && <p class="hint unmet-line" role="status">{unmet}</p>}
     </section> : <section class="card contained-effects" aria-labelledby={`${id}-title`}>
       <div class="contained-head">
         <h2 class="card-title" id={`${id}-title`}>Effects</h2>
@@ -147,6 +149,7 @@ export function ShowEffects() {
           {words.length ? `${found.length} of ${rows.length} effects` : `${rows.length} effects`}
         </span>
       </div>
+      {unmet && <p class="hint unmet-line" role="status">{unmet}</p>}
       {box.hint && <p class="hint contained-hint" role="status">{box.hint}</p>}
       {s.live?.director?.holding && <p class="hint contained-hold" role="status">
         Auto holds the picked look; it chooses again on a bar half a minute after the last pick.</p>}

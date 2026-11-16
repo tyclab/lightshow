@@ -1,7 +1,7 @@
 import { effect, signal } from '@preact/signals';
 import { useEffect, useMemo, useRef } from 'preact/hooks';
 import { stateSig, librarySig, stagePreviewSig, field, pick } from './state.js';
-import { demoLookSampler, previewOptions, resolverOf, underMaster } from './preview-inputs.js';
+import { demoLookSampler, previewOptions, resolverOf, underMaster, unmetOwned } from './preview-inputs.js';
 import { createPreviewSampler } from '../src/shared/preview.ts';
 import { DEMO_AUDIO_SOURCE, DEMO_BPM, DEMO_DURATION_MS } from '../src/shared/demo-track.ts';
 
@@ -93,14 +93,17 @@ function holdDemoBeat() {
 /** The selected look on the demo beat while `enabled` and disarmed, else null: arming drops it in the same render. It sends nothing. */
 export function useDemoLookSampler(space, enabled) {
   const s = pick(DEMO_KEYS), library = librarySig.value;
+  // What an unmet source owns, dark on the demo beat (G5): its key, so a broadcast that changes nothing keeps the sampler.
+  const picture = field('picture').value, fixtures = field('fixtures').value;
+  const owned = JSON.stringify(unmetOwned({ picture, fixtures, profiles: s.profiles }));
   const active = enabled && s.armed === false;
   useEffect(() => (active ? holdDemoBeat() : undefined), [active]);
   const sampler = useMemo(() => {
     if (!active) return null;
-    const sample = demoLookSampler(s, { library, space });
+    const sample = demoLookSampler({ ...s, picture, fixtures }, { library, space });
     // Each look starts the demo beat from its beginning, so a mount or an edit never walks up to half a minute in one task.
     const from = demoBeatSig.peek();
     return (at, ...rest) => sample((((at - from) % DEMO_DURATION_MS) + DEMO_DURATION_MS) % DEMO_DURATION_MS, ...rest);
-  }, [active, space, library.user, ...DEMO_KEYS.map((key) => s[key])]);
+  }, [active, space, library.user, owned, ...DEMO_KEYS.map((key) => s[key])]);
   return active ? sampler : null;
 }

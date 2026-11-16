@@ -145,9 +145,11 @@ plays (after Resume, or when the show plays; stopped and disarmed, that the prev
 sends it). While the Auto show plays by ear (the live
 director), a look picked by hand holds until the first bar half a minute after the last pick,
 and the box says **Auto holds the picked look** meanwhile (`live.director.holding` in the state).
-While the **Visualizer** source has a picture
-arriving the box says so in one sentence instead; the list returns when the picture stops or
-when **Effects** is chosen in the header. The list does not offer the
+Under the **Visualizer** source the box
+is one sentence with nothing to choose, the picture arriving or not, with an amber line while it
+cannot paint; the list returns when **Effects** is chosen in the header. Under **Squid**, and under
+**Effects** for Stems in Space with nothing to follow, the amber line sits above the list
+([Unmet picture source](#unmet-picture-source)). The list does not offer the
 utility effects (the strobes, Blinder, UV Wash, Kill, Glow and the strobe overlays): pads, cues,
 sequences, the API and Effect settings keep them, and one that plays is still named. With an
 Audio-reactive effect selected, playing, frozen or stopped, its Active and Mellow looks and its colour
@@ -201,9 +203,12 @@ the same on every view, including while scrolling through Show:
 - **Picture source** comes first: **Effects**, **Visualizer** and **Squid** (offered once the
   rig has an LED panel; see [Squid picture](#squid-picture)). Each segment only chooses what
   paints the room: another source is one tap away, and the chosen one names no effect and
-  opens nothing; its tooltip says what it paints with (for the Visualizer, whether the
-  picture arrives). The main effect is chosen in Show's effects list (**E** on any view).
-  It still shows while no picture arrives and 2 s after the picture stops.
+  opens nothing; its tooltip says what it paints with. The main effect is chosen in Show's
+  effects list (**E** on any view). A source that cannot paint is never masked by the main
+  effect: the units it owns go dark while the show plays, and the chosen segment turns amber
+  with the reason as its tooltip ("Visualizer: no picture sender since 21:03:12", "Squid: no
+  LED panel"); Show's Effects card and the stage say it too. See
+  [Unmet picture source](#unmet-picture-source).
 - **Auto show** is one switch, on exactly while the Auto show is the programme. Off
   goes back to the selected picture. Switching never starts or stops playback: playing,
   the new programme takes over in one go (a sequence lets its held picture go; it plays
@@ -1185,8 +1190,9 @@ place on the plot. The unit list's signature then carries the room's revision: a
 a room import the server answers the helper's next claim `STALE`, and the helper
 fetches the positions again at once and claims anew. Update the browser
 helper with the server so it samples grid cells too. Voices, pads, Identify, overrides and
-blackouts stay above it, the master and trims still apply, and two seconds
-without a frame shows the effects again. With **Effects** selected the server
+blackouts stay above it, and the master and trims still apply. Without a frame (none
+yet, two seconds without one, or the sender's last one refused) the units the picture owns
+are dark, not the effects: see [Unmet picture source](#unmet-picture-source). With **Effects** selected the server
 accepts and ignores room frames; the browser helper releases all its light
 inputs instead, including dedicated curtain and panel feeds, and resumes when
 **Visualizer** is selected. Other external
@@ -1251,8 +1257,8 @@ grade off. A settings file with `picture.grade`, `picture.blackPoint` or
 aside and start from defaults: take the keys out before rolling back.
 
 One sender holds the picture at a time; `GET /api/picture` reports the selected
-source, the black point, the decode, the grade and the live lease without pixel
-data. The picture a frame carries goes
+source, the black point, the decode, the grade, the live lease without pixel
+data and `unmet`. The picture a frame carries goes
 to the pages subscribed to the picture topic (`picture-image`, the newest up to
 24 times a second, null once the sender is gone), and the 3D Stage, the one
 subscriber, paints it on the room's screens: the objects a room
@@ -1286,9 +1292,52 @@ row. They need the photosensitivity acknowledgement as any picture does, and the
 programme playing. While Squid is chosen, outside pixel feeds and the room picture
 wait, and the browser helper releases its leases as under **Effects**. The files are
 decoded once (65 ms on a desktop CPU) after Squid is chosen and outside the frame loop (the
-panel shows its effect meanwhile); choosing another source frees the 8 MB of frames.
+panel is dark meanwhile and the source reads `loading`); choosing another source frees the
+8 MB of frames. A rig without an LED panel cannot be given the Squid: `POST
+/api/picture/source` answers 409 `squid_no_panel` and changes nothing.
 A settings file holding `picture.source: 'squid'` is refused by builds from before
 it: choose another source before rolling back.
+
+### Unmet picture source
+
+A chosen source that cannot paint is shown, not masked (the operator, 2026-11-15: the scene
+"just playing until conditions for the visulaisizter or shquid are matched" was "bullshit
+and confusion"). The state's `picture.unmet` (in `/api/state/live`, `/api/state` and `GET
+/api/picture`) lists what the server observes, one entry per fact, `{ code, since, detail? }`
+with `since` in epoch milliseconds, `[]` when the source paints:
+
+| Source | Code | While | Cleared by |
+|---|---|---|---|
+| Visualizer | `disarmed` | outputs disarmed (a lease needs Arm) | Arm |
+| Visualizer | `unacknowledged` | photosensitivity not acknowledged | the acknowledgement |
+| Visualizer | `no-sender` | no lease; `since` the last frame, or the server's start | a claim |
+| Visualizer | `no-frame` | a lease with no frame yet | a valid frame |
+| Visualizer | `rig-changed` | the rig change ended the lease | a new claim |
+| Visualizer | `bad-frame` | the owner's last frame was refused (`detail`: why); no frame is held | its next valid frame |
+| Squid | `no-panel` | no DDP grid of at least 2 × 2 | a rig with one |
+| Squid | `panel-unmapped` | the panel has no cell map the renderer can use | a rig that maps it |
+| Squid | `loading` | the loops decode or resize | done |
+| Squid | `loops-failed` | the loops did not load (`detail`: the error) | a load that succeeds, on choosing Squid again |
+| Squid | `no-beat` | the clock gives no finite beat | a finite beat |
+| Squid | `unacknowledged` | armed and not acknowledged | the acknowledgement |
+| Squid | `board-problem` | the panel's WLED ignores the stream or does not answer (`detail`) | the report clearing |
+| Effects | `no-stems` | Stems in Space with neither stems nor reactive bands | either arriving |
+
+While the show plays, the units the unmet source owns emit nothing: under Visualizer every
+unit without a valid pixel feed of its own, under Squid its panel (every other lamp keeps
+the main effect). The dark takes the picture's place, above the sequence, the effect and
+the Background, which does not fill it as it fills a black picture; voices, pads,
+overrides, Identify, Freeze's held light and Blackout stay above it, and it fades through
+the outputs' configured transitions like any other change. Stems in Space draws only the
+stems or bands that arrive (bands only in the reactive audio mode); a stem it lacks is
+zero. The disarmed demo beat draws the owned units dark too. A frame from a sender without
+the lease is refused without touching the owner's picture; a helper that fails to capture
+releases its lease and shows as `no-sender` (its own reason stays on its status page).
+`board-problem` says what the board reports: the dark is sent, but a board that ignores the
+stream may not show it. The server logs one line per source change, lease claim, release
+and expiry with its reason, and change of the codes. Home Assistant's party start keeps
+the stored source, so a stored Visualizer with no sender gives a dark room and the reason
+on the deck.
 
 ### OpenRGB
 
