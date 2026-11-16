@@ -39,23 +39,24 @@ test.afterEach(async ({ request }) => {
   await reset(request);
 });
 
+// A steady look, not a moving one: a wave lights one lamp at a time with the room dark between its laps, so a frame of it
+// taken at one moment can be as dark as the unmet stage (CI, 2026-11-16: 34 pixels lit against 17). The thresholds are
+// the stage tests' own (show.spec.js): lit above 1 % of the canvas, dark below 0.1 %.
 test('under Visualizer the stopped, disarmed stage draws the room dark on the demo beat and says why, in 3D and 2D', async ({ page, request }) => {
-  await set(request, { pattern: 'v2.grooveWave', basePalette: { colours: ['#FF0000000000', '#0000FF000000'] }, background: BACKGROUND_OFF });
+  await set(request, { pattern: 'solid', basePalette: { colours: ['#FF0000000000'] }, background: BACKGROUND_OFF });
   await control(request, 'stop');
   await open(page, 'show');
-  // Effects first: the demo beat lights and moves the look.
+  // Effects first: the demo beat lights the look.
   await expect(tag(page)).toHaveText(DEMO);
   await expect(stageLine(page)).toHaveCount(0);
-  await stageImage(page, { remember: 'effects' });
-  expect(await stageMotion(page, 'effects'), 'the look moves on the demo beat').toBeGreaterThanOrEqual(50);
-  const lit = await stageImage(page);
+  await expect.poll(async () => (await stageImage(page)).litShare, 'the look lights the haze').toBeGreaterThan(0.01);
 
   await request.post('/api/picture/source', { data: { source: 'visualizer' } });
   await expect(stageLine(page)).toHaveText('Visualizer: outputs disarmed');
   await expect(tag(page)).toHaveText(DEMO);
   await expect(segment(page, 'visualizer')).toHaveAccessibleDescription('Visualizer: outputs disarmed');
   await expect(cardLine(page)).toHaveText('Visualizer: outputs disarmed');
-  await expect.poll(async () => (await stageImage(page, { remember: 'dark' })).litShare, 'the lamps go dark').toBeLessThan(lit.litShare / 4);
+  await expect.poll(async () => (await stageImage(page, { remember: 'dark' })).litShare, 'the lamps go dark').toBeLessThan(0.001);
   expect(await stageMotion(page, 'dark', { timeout: 3000 }), 'nothing moves').toBe(0);
 
   await plotFormat(page);
@@ -64,7 +65,7 @@ test('under Visualizer the stopped, disarmed stage draws the room dark on the de
 
   await request.post('/api/picture/source', { data: { source: 'effects' } });
   await expect(stageLine(page)).toHaveCount(0);
-  await expect.poll(async () => (await plotLights(page)).some(({ light }) => level(light) > 100), 'Effects lights them again').toBe(true);
+  await expect.poll(async () => (await plotLights(page)).every(({ light }) => level(light) > 100), 'Effects lights them again').toBe(true);
 });
 
 // A DDP grid of 4 × 3 beside the rig's own lamps: the Squid's panel. A generic DDP device, so no board is polled.
