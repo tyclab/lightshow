@@ -221,8 +221,9 @@ the same on every view, including while scrolling through Show:
   programme that cannot start (no sequence loaded, no listening live input) is
   refused with the reason.
 - **Resume** shows only while the picture is frozen, in a place kept for it (the empty
-  `[ ]` above), so Blackout and Arm never move; Freeze itself has no button, it is an
-  `/api/control` action (Home Assistant, the API). **Blackout/Restore** and
+  `[ ]` above), so Blackout and Arm never move; Freeze's button is on Perform, beside
+  Tap (**Freeze**, reading **Resume** while frozen), and Freeze is also an `/api/control`
+  action (Home Assistant, the API). **Blackout/Restore** and
   **Arm/Disarm** keep their own 44 px buttons at fixed places. Armed shows on the button itself: filled red, **● Armed**
   over **Disarm**; so does Blackout, filled red as well: **● Blackout** over **Restore**
   (below 1280 px wide the dot drops, so the word fits).

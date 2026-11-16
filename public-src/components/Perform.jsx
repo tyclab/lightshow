@@ -1,6 +1,7 @@
 import { HardwareFit } from './HardwareFit.jsx';
 import { Fragment } from 'preact';
-import { api, connectedSig, emitTap, followMusic, pick } from '../state.js';
+import { api, connectedSig, emitTap, field, followMusic, pick } from '../state.js';
+import { controlPending, takeControl } from '../control.js';
 import { clockSource, formatBpm } from '../utils.js';
 import { NowPlaying, PlayingVoices } from './NowPlaying.jsx';
 import { Pads } from './Pads.jsx';
@@ -71,14 +72,34 @@ function SyncHealth() {
 /** Every voice off, hidden and waiting ones too (DELETE /api/voices); the look and the patterns play on. */
 export const stopAllVoices = () => api('/api/voices', { method: 'DELETE' });
 
+/** Freeze holds the whole picture and Resume releases it: the global control's freeze and resume (POST /api/control). */
+export const toggleFreeze = () => takeControl(field('control').peek()?.frozen ? 'resume' : 'freeze');
+
+/** Freeze on Perform (operator, 2026-11-16: "Put it back"); while the picture is frozen it reads Resume, as the header's Resume does. */
+export function FreezePad() {
+  const { control: c } = pick(['control']);
+  const ready = connectedSig.value && c?.version === 1;
+  const frozen = !!c?.frozen;
+  return (
+    <button type="button" class={`perform-pad pad-freeze${frozen ? ' active' : ''}`} aria-pressed={frozen}
+      disabled={!ready || controlPending.value > 0 || !!c?.pending || c?.ready === false} onClick={toggleFreeze}
+      title={frozen ? 'The picture is frozen. Resume releases the hold; it does not start a stopped programme.'
+        : 'Freeze holds the whole picture. Resume releases the hold; it does not start a stopped programme.'}>
+      <span class="perform-pad-name">{frozen ? 'Resume' : 'Freeze'}</span>
+      <span class="perform-pad-hint">{frozen ? 'release the hold' : 'hold the picture'}</span>
+    </button>
+  );
+}
+
 function Utility() {
   return (
-    <section class="perform-utility" aria-label="Tap and stop pads">
+    <section class="perform-utility" aria-label="Tap, Freeze and stop pads">
       <button type="button" class="perform-pad pad-tap" onPointerDown={(e) => { if (e.button === 0) emitTap(); }}
         onKeyDown={(e) => { if ((e.key === 'Enter' || e.key === ' ') && !e.repeat) { e.preventDefault(); emitTap(); } }}>
         <span class="perform-pad-name">Tap</span>
         <span class="perform-pad-hint">tempo</span>
       </button>
+      <FreezePad />
       <button type="button" class="perform-pad pad-stop-voices" onClick={stopAllVoices}
         title="Ends every pad and voice, latched and off-bank ones too; the programme plays on">
         <span class="perform-pad-name">Stop pads</span>

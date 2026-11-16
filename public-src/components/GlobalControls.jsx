@@ -79,7 +79,7 @@ export function GlobalControls() {
   );
   return <div class="global-controls" role="group" aria-label="Global show controls">
     <PlayControl c={c} sequence={sequence} ready={ready} pending={pending} />
-    {/* Freeze has no button (2026-11-15); Resume shows while the picture is frozen, in a slot kept so Blackout and Arm never move. */}
+    {/* Freeze's button is on Perform (2026-11-16); Resume shows here while the picture is frozen, in a slot kept so Blackout and Arm never move. */}
     <span class="global-hold">
       {c?.frozen && <button type="button" class="btn global-control global-resume active" disabled={!ready || pending || c?.ready === false}
         title="The picture is frozen. Resume releases the hold; it does not start a stopped programme." onClick={() => takeControl('resume')}>Resume</button>}
