@@ -3,17 +3,14 @@
 import test from 'node:test';
 import assert from 'node:assert';
 import crypto from 'node:crypto';
-import fs from 'node:fs';
-import path from 'node:path';
 
 import { state, voices } from '../../src/server/state.ts';
 import * as universes from '../../src/server/universes.ts';
-import { renderFrame, resizeFixtureBuffers, setPulseSource } from '../../src/server/engine.ts';
+import { renderFrame, resizeFixtureBuffers } from '../../src/server/engine.ts';
 import { conductor } from '../../src/server/conductor.ts';
 import { applyPatch, applyOverride, setFixtureMaxBrightness } from '../../src/server/patch.ts';
-import { PATTERNS, COLOR_PRESETS } from '../../src/server/presets.ts';
+import { COLOR_PRESETS } from '../../src/server/presets.ts';
 import { createPreviewSampler } from '../../src/shared/preview.ts';
-import AutoShow from '../../src/auto-show.ts';
 import { acknowledgeFlashes } from '../helpers/acknowledged.js';
 
 // Intentional hash changes, each checked against the prior rendering:
@@ -31,11 +28,12 @@ import { acknowledgeFlashes } from '../helpers/acknowledged.js';
 // 7. Across all 30 planned variants, the only 60 changes remove running:true from opening intents and patches.
 //    The renderer and preview digests are unchanged; planned content no longer starts the programme.
 // 6. Aligned software strobes change 41/2,908 frames only at Hue offsets 48–57; every PAR byte stays unchanged.
+// 8. The engine takes no drum pulse since the planned track show went, so the `hit` scene runs without one. The
+//    previous engine, given no pulse for that scene, renders these same two digests.
 const GOLDEN = {
-  engine: 'ea626b365ae6d70791a448fb139bcea5bfb911cdf091726d0696041093ff44a3',
-  pars: 'f09adeceba236949a3dbf0326a7f37186921a63d97fc0ec33c90bc3e0920db51',
+  engine: 'f441f95975b77acd35c9b32b6193ef7e525a75ac587d0cef7becb097fb224b45',
+  pars: '8c32e3525aad245b0c1a8f6bdb01d19f1f343f0aa3f9877b91923a5ea090cf71',
   preview: '65bd25548046cbe773dba9b0fee279aa99c3fc922498d7cfb965724057119178',
-  director: '463425690b4323485a4bb383870bbb785f58c2100af9f3cfc61d837c4833e965',
 };
 
 /** A seeded stand-in for Math.random, so twinkle rolls the same dice every run. */
@@ -98,7 +96,7 @@ function engineHash() {
   const pars = crypto.createHash('sha256');
   state.artnet.enabled = false;
   let beat = 0;
-  conductor.setProlinkSource(() => ({ beatPos: beat, bpm: 120 }));
+  conductor.setLiveSource(() => ({ beatPos: beat, bpm: 120 }));
   try {
     withPinnedWorld(({ advance }) => {
       const frames = (n) => {
@@ -163,19 +161,11 @@ function engineHash() {
         }
       }
       applyPatch({ pixelMap: 'stage' });
-      // `hit` on the drums as they are hit: a kick on every beat and one
-      // between the second and third, with drum lanes a light may follow.
-      setPulseSource(() => {
-        const since = Math.min(beat % 1, Math.abs(beat % 4 - 1.5));
-        const kick = since < 0.3 ? 1 - since / 0.3 : 0;
-        return { mix: 0.6, kick, snare: 0, hats: 0, groove: kick };
-      });
+      // `hit` on the clock alone: nothing sends the engine a drum reading.
       scene({ ...base, pattern: 'hit' }, 64);
-      setPulseSource(null);
     });
   } finally {
-    conductor.setProlinkSource(null);
-    setPulseSource(null);
+    conductor.setLiveSource(null);
   }
   return { engine: hash.digest('hex'), pars: pars.digest('hex') };
 }
@@ -228,32 +218,6 @@ function previewHash() {
  * Math.pow moved by one unit in the last place between Node 22 and 24, and a
  * hash of every bit was pinning the JavaScript engine rather than the show.
  */
-function toTenDigits(_key, value) {
-  return typeof value === 'number' && !Number.isInteger(value) ? Number(value.toPrecision(10)) : value;
-}
-
-function directorHash() {
-  const hash = crypto.createHash('sha256');
-  const dir = path.join(import.meta.dirname, '..', 'fixtures', 'tracks');
-  for (const file of fs.readdirSync(dir).sort()) {
-    const doc = JSON.parse(fs.readFileSync(path.join(dir, file), 'utf8'));
-    for (const intensity of [25, 50, 90]) {
-      for (const paletteSize of [4, 'auto']) {
-        const show = new AutoShow(() => {}, COLOR_PRESETS, PATTERNS);
-        show._worker.shutdown();
-        show.analysis = doc.analysis || doc;
-        show.intensity = intensity;
-        show.paletteSize = paletteSize;
-        show.buildTimeline();
-        assert.ok(show.intents.every(intent => intent.running === undefined));
-        assert.ok(show.timeline.every(event => event.data?.running === undefined));
-        hash.update(JSON.stringify(show.intents, toTenDigits));
-        hash.update(JSON.stringify(show.timeline, toTenDigits));
-      }
-    }
-  }
-  return hash.digest('hex');
-}
 
 test('a rig of pars renders exactly the frames it always has', () => {
   // The colour strobe burst is among them: the operator has acknowledged it.
@@ -267,8 +231,4 @@ test('a rig of pars renders exactly the frames it always has', () => {
 
 test('the rehearsal preview of a rig of pars is unchanged', () => {
   assert.strictEqual(previewHash(), GOLDEN.preview);
-});
-
-test('the director plans a rig of pars exactly as it always has', () => {
-  assert.strictEqual(directorHash(), GOLDEN.director);
 });

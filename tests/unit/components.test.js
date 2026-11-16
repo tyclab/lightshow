@@ -20,7 +20,7 @@ async function load() {
         export { render as html } from 'preact-render-to-string';
         export { h, options } from 'preact';
         export { store } from './public-src/state.js';
-        export { Perform, sourceHealth } from './public-src/components/Perform.jsx';
+        export { Perform } from './public-src/components/Perform.jsx';
         export { Show } from './public-src/components/Show.jsx';
         export { ShowEffects, effectsBox, effectsKey, searchRequestSig } from './public-src/components/ShowEffects.jsx';
         export { Header, StatusDetails } from './public-src/components/Header.jsx';
@@ -77,8 +77,7 @@ function given(state) {
     bpm: 124.5, beatDivision: 2, running: true, masterDimmer: 128, masterBlackout: false,
     energyEffects: EFFECTS, energyOverride: null, clock: { source: 'tap', bpm: 124.5 },
     palettes: [{ id: 'arctic', name: 'Arctic', colors: { 4: [1, 2, 3, 4] } }, { id: 'volcanic', name: 'Volcanic', colors: { 4: [5, 6, 7, 8] } }],
-    palette: 'volcanic', colorPresets: [], activeSource: 'timer',
-    autoShow: { status: 'idle', intensity: 70 },
+    palette: 'volcanic', colorPresets: [],
     pads: { layout: LAYOUT, lit: Array(16).fill(null) }, voices: [], strobe: STROBE,
     ...state,
   } });
@@ -119,8 +118,7 @@ test('the Perform view has the bank, the strobe, tap and Stop pads, and leaves t
   assert.match(html, />Main effect<.*>Global override</);
   assert.strictEqual(count(html, 'role="switch"'), 0, 'arm, blackout and the master live in the header');
   assert.doesNotMatch(html, /Master dimmer|Picture source/);
-  assert.match(html, /aria-valuetext="70 percent"/, 'the show\'s intensity');
-  assert.match(html, /Nothing loaded/);
+  assert.doesNotMatch(html, /Intensity|Nothing loaded/, 'no planned show: no intensity fader, no track (G8)');
   assert.doesNotMatch(html, /Latch effects/, 'a pad\'s launch mode says how it plays');
 });
 
@@ -156,13 +154,13 @@ test('unacknowledged strobe notices follow server safety state', () => {
 test('every status pill keeps its place in every state', () => {
   const LABELS = ['BPM', 'Energy', 'Flash', 'Auto', 'Hue'];
   const STATES = {
-    'nothing known yet': { bpm: null, masterDimmer: undefined, autoShow: undefined },
+    'nothing known yet': { bpm: null, masterDimmer: undefined, live: undefined },
     'disarmed, idle': { armed: false },
     armed: { armed: true },
     'blackout on': { masterBlackout: true },
     'an energy override': { energyOverride: 'blinder' },
     'the flash limit on': { flashLimit: true },
-    'the auto show playing': { showOn: true, autoShow: { status: 'playing', intensity: 70 } },
+    'the auto show playing': { live: { listening: true, director: { active: true } } },
     'a sequence loaded': { sequence: { loaded: { id: 'set', name: 'Set' }, playing: true, lanes: [] } },
     'strobes refused': { safety: { photosensitivityAcknowledged: false, hdFlashIntervalMs: 350, strobeMaxLatchSec: 60 } },
     'strobes allowed': { safety: { photosensitivityAcknowledged: true, hdFlashIntervalMs: 350, strobeMaxLatchSec: 60 } },
@@ -242,19 +240,13 @@ test('global blackout and a running voice\'s pad show their independent pressed 
   assert.match(ui.html(ui.h(ui.Perform, {})), /class="pad-cell lit"[^>]*data-slot="4"[^>]*aria-pressed="true"/);
 });
 
-test('sync health says when the source the show follows is not working', () => {
-  const { sourceHealth } = ui;
-  assert.strictEqual(sourceHealth({ activeSource: 'prolink', prolink: { connected: true } }), 'ok');
-  assert.strictEqual(sourceHealth({ activeSource: 'prolink', prolink: { connected: true, stale: true } }), 'warn');
-  assert.strictEqual(sourceHealth({ activeSource: 'prolink', prolink: { connected: false } }), 'off');
-  assert.strictEqual(sourceHealth({ activeSource: 'spotify', spotify: { authenticated: false } }), 'off');
-  assert.strictEqual(sourceHealth({ activeSource: 'hybrid', hybrid: { driver: 'spotify' } }), 'warn');
-  assert.strictEqual(sourceHealth({ activeSource: 'timer' }), 'none');
-
-  given({ activeSource: 'prolink', prolink: { connected: false }, autoShow: { status: 'idle', error: { message: 'no beats', at: 1 } } });
+test('sync health says whether the live input, which Auto follows, hears the music', () => {
+  given({ live: { listening: false } });
+  assert.match(ui.html(ui.h(ui.Perform, {})), /chip-off.*?Live input.*?not listening.*?\(not working\)/s);
+  given({ live: { listening: true } });
   const html = ui.html(ui.h(ui.Perform, {}));
-  assert.match(html, /chip-off.*?PRO DJ LINK.*?\(not working\)/s);
-  assert.match(html, /chip-warn" title="no beats"/, 'a failed analysis is flagged, with why');
+  assert.match(html, /chip-ok.*?Live input.*?listening/s);
+  assert.doesNotMatch(html, /Intensity|Following|Now and next|perform-progress/, 'nothing of the planned show is left on Perform');
 });
 
 test('command bar exposes tempo and division; the master stays in the header', () => {
@@ -366,7 +358,7 @@ test('Effects lists every look once, A to Z, each with the tags its code states'
   assert.deepStrictEqual(badgesOf(rowOf(html, 'chase')), ['Beat only']);
   assert.deepStrictEqual(badgesOf(rowOf(html, 'energy.whiteStrobe')), ['Beat only', 'Whole rig', 'Own colours', 'Energy', 'Rapid ⚡']);
   assert.match(rowOf(html, 'v2.impact'), /title="Follows stems, drum hits or frequency bands\. Reacts in the reactive audio mode with live input"/);
-  assert.match(rowOf(html, 'radial-pulse'), /title="[^"]*Reacts only while the auto show plays an analysed track; picked by hand it runs on its clock"/);
+  assert.match(rowOf(html, 'radial-pulse'), /title="[^"]*Reacts to what the auto show sets, the progress of a build-up it plays; stems and drum hits come from no source now\. Picked by hand it runs on its clock"/);
   // A rapid flash carries its warning, its ⚡ hidden from screen readers; a slow one does not.
   assert.match(rowOf(html, 'hd.voltageConfetti'), /class="effect-tag badge-rapid" data-tag="rapid"[^>]*>Rapid <span aria-hidden="true">⚡<\/span>/);
   assert.match(rowOf(html, 'ldj.TrueStrobe'), /badge-rapid/);
@@ -1144,7 +1136,7 @@ test('one header row: the picture source first, then play, Resume\'s slot, Black
   given({ armed: false, picture: { source: 'effects', input: null }, fixtures: [], profiles: {}, families: [],
     pattern: 'swirl', patterns: [{ id: 'swirl', name: 'Swirl' }],
     control: { version: 1, programme: 'look', playing: false, frozen: false, blackout: false, armed: false },
-    safety: { photosensitivityAcknowledged: true }, showOn: false, autoShow: { status: 'idle', intensity: 70 } });
+    safety: { photosensitivityAcknowledged: true } });
   const header = ui.html(ui.h(ui.Header));
   const order = ['aria-label="Picture source"', 'aria-label="Global show controls"', 'aria-label="Auto show"', 'aria-label="Play selected picture"',
     'class="global-hold"', '>Blackout</button>', 'aria-label="Arm"', 'aria-label="Master dimmer"', '<button type="button" class="status-chip', 'aria-label="This device"'];

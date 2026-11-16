@@ -4,7 +4,7 @@
 import { test, expect } from '@playwright/test';
 import { createRequire } from 'node:module';
 import { io } from 'socket.io-client';
-import { armFromHeader, autoSwitch, control, loadTrack, open, playButton, reset, set, state, unloadTrack, until } from './helpers.js';
+import { armFromHeader, autoSwitch, control, listenLive, open, playButton, reset, set, state, stopListening, until } from './helpers.js';
 import { VIEWS } from '../../public-src/views.js';
 
 const AXE = createRequire(import.meta.url).resolve('axe-core/axe.min.js');
@@ -202,18 +202,18 @@ test('the header has one Auto show switch and it follows the programme', async (
 });
 
 test('a refused Auto switch while playing leaves the programme and the switch as they were', async ({ page, request }) => {
-  await unloadTrack(request);
+  await stopListening(request);
   await open(page, 'effects');
   expect((await state(request)).control).toMatchObject({ programme: 'look', playing: true });
   await autoSwitch(page).click();
-  await expect(page.locator('.toast:not(.leaving)', { hasText: 'Analyse a track or select a listening live input before starting the auto show' })).toHaveCount(1);
+  await expect(page.locator('.toast:not(.leaving)', { hasText: 'Turn on the live input and wait until it listens before starting the auto show' })).toHaveCount(1);
   expect((await state(request)).control).toMatchObject({ programme: 'look', playing: true });
   await expect(autoSwitch(page)).toHaveAttribute('aria-checked', 'false');
   await expect(playButton(page, 'Stop')).toBeVisible();
 });
 
 test('stopped, the Auto switch turns on and Play says why it cannot start', async ({ page, request }) => {
-  await unloadTrack(request);
+  await stopListening(request);
   await control(request, 'stop');
   await open(page, 'effects');
   await autoSwitch(page).click();
@@ -221,14 +221,14 @@ test('stopped, the Auto switch turns on and Play says why it cannot start', asyn
   await expect(autoSwitch(page)).toHaveAttribute('aria-checked', 'true');
   expect((await state(request)).control.playing).toBe(false);
   await playButton(page, 'Play', 'auto').click();
-  await expect(page.locator('.toast:not(.leaving)', { hasText: 'Analyse a track or select a listening live input before starting the auto show' })).toHaveCount(1);
+  await expect(page.locator('.toast:not(.leaving)', { hasText: 'Turn on the live input and wait until it listens before starting the auto show' })).toHaveCount(1);
   expect((await state(request)).control).toMatchObject({ programme: 'auto', playing: false });
   await expect(playButton(page, 'Play', 'auto')).toBeVisible();
 });
 
 // Show v3, words 4: "why do i need to stop playback for the change from look to auto? any technical reson at all?"
 test('the Auto switch changes the programme and nothing else, playing and stopped, both ways', async ({ page, request }) => {
-  await loadTrack(request);
+  await listenLive(request);
   try {
     await open(page, 'effects');
     for (const playing of [true, false]) {
@@ -250,7 +250,7 @@ test('the Auto switch changes the programme and nothing else, playing and stoppe
   } finally {
     await control(request, 'stop');
     await control(request, 'resume');
-    await unloadTrack(request);
+    await stopListening(request);
   }
 });
 

@@ -4,12 +4,10 @@ import type { Character } from './look.ts';
 import type { LiveEvent, LiveReading } from '../live-input.ts';
 
 /**
- * The live director: a show for music nobody analysed, played by ear.
+ * The live director: the auto show, played by ear.
  *
- * The auto show plans a whole track ahead from its analysis. When there is no
- * analysis — a track still being analysed, a DJ on gear nothing here can read,
- * a band — the live input still hears the music, and this answers what it
- * hears as it hears it, in the same vocabulary the planned show uses:
+ * Nothing names the track or knows it ahead: the live input hears the music,
+ * and this answers what it hears as it hears it:
  *
  *   the beat         the patterns step on it already: the pattern clock
  *                    follows the live input (conductor.ts `live`);

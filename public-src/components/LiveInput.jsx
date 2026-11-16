@@ -21,7 +21,7 @@ export function LiveInput() {
         <span style={{ fontSize: '11px', color: 'var(--muted)', fontWeight: 600 }}>{statusText(live)}</span>
         <a class="btn sm" style={{ marginLeft: 'auto' }} href="#sources">Settings</a>
       </div>
-      <div class="prolink-info">
+      <div class="drawer-info">
         <div>
           {live.source === 'input' ? 'Input' : 'What this computer plays'}
           {live.device ? <> · <strong>{live.device}</strong></> : ''}

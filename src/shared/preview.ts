@@ -186,8 +186,11 @@ const CHECKPOINTS = 16;
 // A copy costs about five frames' stepping: a walk moves to one ahead of it only when that saves more.
 const COPY_FRAMES = 8;
 
+// The rig's clock epoch, which a reset of its clock moves: the preview's clock never resets.
+const PREVIEW_EPOCH = 0;
+
 /** What a stepped frame does with an event once it is due. */
-type EventOp = { kind: 'voice'; voice: VoiceFrame } | { kind: 'end'; id: string } | { kind: 'seek' } | null;
+type EventOp = { kind: 'voice'; voice: VoiceFrame } | { kind: 'end'; id: string } | null;
 
 /** A `voice` event's voice, checked once; null for one that is not well formed. */
 function voiceOf(event: PreviewEvent, beatPos: number): VoiceFrame | null {
@@ -293,11 +296,8 @@ interface Walk {
   expression: Expression;
   phase: number;
   lastBeat: number | null;
-  lastEpoch: number;
   lastNow: number | null;
   lastSweep: number;
-  /** Seek markers so far: the rig's clock epoch. */
-  epoch: number;
   base: { key: string; id: string; kind: string; seed: Seed; startedAtMs: number } | null;
   /** The voices launched and not ended, in launch order. */
   voices: Map<string, VoiceFrame>;
@@ -337,12 +337,12 @@ function copyWalk(w: Walk): Walk {
   };
 }
 
-/** A copy of the walk to start from again: a scene's or a seek's for good, a periodic one while it is used. */
+/** A copy of the walk to start from again: a scene's for good, a periodic one while it is used. */
 interface Checkpoint { walk: Walk; periodic: boolean; used: number }
 
 const emptyWalk = (k: number, intervalMs: number): Walk => ({
   k, cursor: 0, stepper: new EffectStepper(), outputGuard: new OutputGuard(intervalMs), hardwareClock: new HardwareClock(), expression: { ...EXPRESSION_REST }, phase: 0,
-  lastBeat: null, lastEpoch: 0, lastNow: null, lastSweep: -Infinity, epoch: 0, base: null, voices: new Map(), records: new Map(), strobes: new Set(),
+  lastBeat: null, lastNow: null, lastSweep: -Infinity, base: null, voices: new Map(), records: new Map(), strobes: new Set(),
   compat: null, fadeOf: null, fade: null, shown: [], output: null, seq: newSequenceRun(),
 });
 
@@ -447,8 +447,6 @@ function createPreviewSampler(events: readonly PreviewEvent[] = [], grid: GridSo
     } else if (event.action === 'voice-end') {
       const id = (event.data as Partial<PreviewVoiceEnd> | null | undefined)?.id;
       if (typeof id === 'string') op = { kind: 'end', id };
-    } else if (event.action === 'seek') {
-      op = { kind: 'seek' };
     }
     frames.push({ timeMs: event.timeMs, beatPos, look, anchor, anchorBeat, burst, expression, motionPhase, fade });
     ops.push(op);
@@ -457,10 +455,10 @@ function createPreviewSampler(events: readonly PreviewEvent[] = [], grid: GridSo
   // A voice event anywhere means the timeline owns its voices, as a renderer input with `voices` does.
   const explicitVoices = timeline.some((e) => e.action === 'voice' || e.action === 'voice-end');
   const patterns = [...new Set(frames.map((f) => f.look.pattern))];
-  // An event that launches the base again (a seek, or a new pattern or anchor step: the base's id): a copy is kept before it.
+  // An event that launches the base again (a new pattern or anchor step: the base's id): a copy is kept before it.
   const keyframe = timeline.map((e, i) => {
     const before = frames[i - 1] ?? { look: OPENING, anchor: 0 };
-    return ops[i]?.kind === 'seek' || (e.action === 'patch' && (frames[i].look.pattern !== before.look.pattern || frames[i].anchor !== before.anchor));
+    return e.action === 'patch' && (frames[i].look.pattern !== before.look.pattern || frames[i].anchor !== before.anchor);
   });
 
   /** The look's four colours, resolved against the colour table. */
@@ -672,8 +670,7 @@ function createPreviewSampler(events: readonly PreviewEvent[] = [], grid: GridSo
         // A relaunch under an id goes to the end of the table, as a new launch.
         w.voices.delete(op.voice.id);
         w.voices.set(op.voice.id, op.voice);
-      } else if (op.kind === 'end') w.voices.delete(op.id);
-      else w.epoch++;
+      } else w.voices.delete(op.id);
     }
   }
 
@@ -713,7 +710,7 @@ function createPreviewSampler(events: readonly PreviewEvent[] = [], grid: GridSo
       if (seen.has(v.id)) continue;
       seen.add(v.id);
       const holdsGrid = v === compat || v.holdsGrid === true;
-      const played: VoiceFrame = { ...v, anchorBeat: voiceAnchor(w.records, w.stepper, v, launchOf(v), w.epoch, f.anchorBeat ?? beatPos, holdsGrid) };
+      const played: VoiceFrame = { ...v, anchorBeat: voiceAnchor(w.records, w.stepper, v, launchOf(v), PREVIEW_EPOCH, f.anchorBeat ?? beatPos, holdsGrid) };
       if (v === compat && !safetyGiven) admitted.add(played);
       voices.push(played);
     }
@@ -731,9 +728,8 @@ function createPreviewSampler(events: readonly PreviewEvent[] = [], grid: GridSo
     const target = s.showDynamics || null;
     w.expression = blendExpression(w.expression, target, Math.min(0.25, dt / 1000));
     const beatPos = beatAt(t, f);
-    const dBeats = w.lastBeat !== null && w.lastEpoch === w.epoch ? Math.min(4, Math.max(0, beatPos - w.lastBeat)) : 0;
+    const dBeats = w.lastBeat !== null ? Math.min(4, Math.max(0, beatPos - w.lastBeat)) : 0;
     w.lastBeat = beatPos;
-    w.lastEpoch = w.epoch;
     w.phase = (w.phase + motionAdvance(dBeats, w.expression.motion)) % 1;
     const bpm = beatGrid ? localBpm(beatGrid, t) : Math.max(20, s.bpm || 120);
     if (t - w.lastSweep >= 1000 || t < w.lastSweep) {
@@ -785,9 +781,9 @@ function createPreviewSampler(events: readonly PreviewEvent[] = [], grid: GridSo
       const cells = cellsOf(e, `${split}|${pixelMap}`, () => rig.layout(split, pixelMap));
       const division = Math.max(1, s.beatDivision || 1);
       const id = `base:${s.pattern}:${f.anchor}`;
-      // Keyed as the renderer keys it: a new id (pattern or anchor step), content, layout or seek
-      // launches it again; a scene sending the same pattern on the same step does not.
-      const key = canonical([id, effectContentKey(spec), cells.key, w.epoch]);
+      // Keyed as the renderer keys it: a new id (pattern or anchor step), content or layout launches it
+      // again; a scene sending the same pattern on the same step does not.
+      const key = canonical([id, effectContentKey(spec), cells.key, PREVIEW_EPOCH]);
       if (!w.base || w.base.key !== key) {
         relaunchEffect(w.stepper, w.base, id, spec.kind);
         w.base = { key, id, kind: spec.kind, seed: seedFrom(id), startedAtMs: t };

@@ -1,22 +1,21 @@
 import { performanceReport } from '../performance.js';
 import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
 import { pick, dmxSig, connectedSig, emitFixture, idlePause, latestSent, stagePreviewSig } from '../state.js';
-import { colorToCss, fixtureOutputColor, fixtureCellColors, meanLight, fmtTime, patchedAt, stageMode } from '../utils.js';
+import { colorToCss, fixtureOutputColor, fixtureCellColors, meanLight, patchedAt, stageMode } from '../utils.js';
 import { useDmxFeed, useDmxPaint } from '../use-dmx.js';
 import { frames } from '../frame-paint.js';
-import { useRehearsalTrack, useRehearsalSampler, useUnitSpace } from '../rehearsal.js';
+import { useUnitSpace } from '../unit-space.js';
 import { Audition } from './Audition.jsx';
-import { auditionSig, demoBeatSig, setAudition, useAuditionSampler, useDemoLookSampler } from '../audition.js';
+import { auditionSig, demoBeatSig, useAuditionSampler, useDemoLookSampler } from '../audition.js';
 import { NowPlaying } from './NowPlaying.jsx';
 import { PausePreview, PreviewPaused } from './PreviewPaused.jsx';
-import { useTimeline } from '../use-timeline.js';
 import { stagePositions } from '../../src/shared/stage.ts';
 import { buildRig, gridLabel, lineOf, rigSignature } from '../../src/shared/rig.ts';
 import { STAGE_EDGES, clamp, geometryOf, placeAt, pointIn, surfaceStyle } from '../stage-geometry.js';
 import { layoutOf, paintLayer, useCellLayer } from '../cell-layer.js';
 
 // The state the plot draws from; any other key changes without waking it.
-const KEYS = ['fixtures', 'profiles', 'armed', 'autoShow', 'colorPresets', 'masterBlackout', 'masterDimmer', 'control'];
+const KEYS = ['fixtures', 'profiles', 'armed', 'colorPresets', 'masterBlackout', 'masterDimmer', 'control'];
 const NONE = [];
 
 /**
@@ -57,8 +56,7 @@ export function StagePreview({ controls = true } = {}) {
   const connected = connectedSig.value;
   const audition = auditionSig.value;
   const auditioning = audition.active && !s.armed;
-  const { data } = useTimeline();
-  const { edit, playing, position } = stagePreviewSig.value;
+  const { edit } = stagePreviewSig.value;
   const setUi = (patch) => { stagePreviewSig.value = { ...stagePreviewSig.value, ...patch }; };
   const [draft, setDraft] = useState(null);
   const drag = useRef(null);
@@ -82,28 +80,19 @@ export function StagePreview({ controls = true } = {}) {
   }, [drawn, s.profiles]);
   const signature = useMemo(() => rigSignature(drawn), [drawn]);
   const unplaced = drawn.filter((f) => !f.position).length;
-  const duration = (data?.duration || 0) * 1000;
-  // Rehearsal needs a timeline to rehearse. Deriving it rather than clearing the
-  // flag in an effect keeps the panel honest the moment the analysis goes away,
-  // and means losing it does not cost the operator their scrub position.
-  const rehearsal = !auditioning && stagePreviewSig.value.rehearsal && !!data;
-  const mode = stageMode({ rehearsing: rehearsal, connected, armed: s.armed, blackout: s.masterBlackout, paused: idlePause.paused.value !== null,
+  const mode = stageMode({ connected, armed: s.armed, blackout: s.masterBlackout, paused: idlePause.paused.value !== null,
     playing: !!s.control?.playing, layers: !!s.control?.layers, frozen: !!s.control?.frozen });
   // An idle page's lights draw as the blackout draws them: off.
   const shown = mode.lit ? s : { ...s, masterBlackout: true };
-  // The timeline data carries the analysed beats, so the chase steps here on
-  // the same beats the rig will step on.
   const space = useUnitSpace(rig, [signature, s.profiles]);
-  const sample = useRehearsalSampler(data, space, rehearsal);
   // One entry per light: a par, or each cell of a bar.
   const auditionSample = useAuditionSampler(space, auditioning);
   // Stopped and disarmed, the selected look on the demo beat (G6); its clock re-renders only this plot.
   const demoSample = useDemoLookSampler(space, mode.demo && !auditioning);
-  const preview = auditioning ? auditionSample(audition.position, fixtures, s.colorPresets, rig) : rehearsal ? sample(position, fixtures, s.colorPresets, rig)
+  const preview = auditioning ? auditionSample(audition.position, fixtures, s.colorPresets, rig)
     : demoSample ? demoSample(demoBeatSig.value, fixtures, s.colorPresets, rig) : null;
-  // Live, the plot paints the DMX feed; rehearsing, it draws the timeline and
-  // has no reason to wake — and re-sample the whole timeline — on every frame.
-  const live = !rehearsal && !auditioning;
+  // Live, the plot paints the DMX feed; auditioning, it draws the audition's own frames.
+  const live = !auditioning;
   useDmxFeed(live);
   const surface = useRef(null);
   const lightHost = useRef(null);
@@ -112,33 +101,7 @@ export function StagePreview({ controls = true } = {}) {
   const layer = useCellLayer(lightHost, drawn.length > 0, () => paintPlot(surface.current, layer.current, inputs.current));
   useDmxPaint(() => paintPlot(surface.current, layer.current, inputs.current), live && !demoSample);
 
-  // Follows the *track*, not the timeline. A replan — an intensity nudge, a
-  // palette change — re-mints timelineRevision and hands us a new `data` for the
-  // same music; resetting on that ejected the operator from rehearsal and rewound
-  // to 0:00 at exactly the moment they were rehearsing for.
-  //
-  // And only when the track *changes*: the panel is unmounted by a view
-  // switch, and an effect that ran on every mount reset the rehearsal each
-  // time the operator looked at another view and came back (A7.26). The
-  // track it was rehearsing is kept beside the rest of its state.
-  useRehearsalTrack(s.autoShow);
-
   useEffect(() => { if (!connected) { drag.current = null; setDraft(null); setUi({ edit: false }); } }, [connected]);
-  useEffect(() => {
-    if (!playing || !rehearsal || !duration) return;
-    let last = performance.now();
-    const timer = setInterval(() => {
-      const now = performance.now();
-      const delta = Math.min(250, now - last);
-      last = now;
-      // Read the signal rather than closing over `position`: the effect is not
-      // re-run on every tick, so a captured value would be stale after the first.
-      const current = stagePreviewSig.value;
-      stagePreviewSig.value = { ...current, position: Math.min(duration, current.position + delta) };
-    }, 50);
-    return () => clearInterval(timer);
-  }, [playing, rehearsal, duration]);
-  useEffect(() => { if (duration && position >= duration) setUi({ playing: false }); }, [position, duration]);
 
   /** Where the pointer is on the plot, in the percent space positions use. */
   const pointOf = (event) => pointIn(event.currentTarget.parentElement.getBoundingClientRect(), event.clientX, event.clientY);
@@ -256,16 +219,5 @@ export function StagePreview({ controls = true } = {}) {
       : 'Numbers are patch order. Patterns travel across the stage as placed here, left to right. Colours approximate the output.'}</p>
     {!auditioning && mode.note && <p class={`look-note stage-dark${mode.tag === 'Blackout' ? ' blackout' : ''}`} role="status">{mode.note}</p>}
     <p class="stage-now" aria-live="polite"><strong>{auditioning ? 'Audition' : 'Now playing'}</strong> {auditioning ? audition.name || audition.id : <NowPlaying />}</p>
-    {data && !auditioning && <div class="stage-rehearsal">
-      <button class={`btn sm ${rehearsal ? 'active' : ''}`} aria-pressed={rehearsal}
-        onClick={() => { setAudition({ active: false, playing: false }); setUi({ rehearsal: !rehearsal, playing: false }); }}>{rehearsal ? 'Return to live' : 'Rehearse track'}</button>
-      {rehearsal && <>
-        <button class="btn sm" onClick={() => setUi({ position: position >= duration ? 0 : position, playing: !playing })}>{playing ? 'Pause preview' : 'Play preview'}</button>
-        <input type="range" min="0" max={duration} step="100" value={position} aria-label="Rehearsal position"
-          aria-valuetext={fmtTime(position)} onInput={(event) => setUi({ position: Number(event.target.value) })} />
-        <span>{fmtTime(position)} / {fmtTime(duration)}</span>
-        <p class="look-note">Browser rehearsal only. Live playback and fixture output continue independently.</p>
-      </>}
-    </div>}
   </section>;
 }

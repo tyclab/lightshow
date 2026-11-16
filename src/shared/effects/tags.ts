@@ -8,7 +8,7 @@ import type { EffectSpec } from './types.ts';
 
 export type TagId = 'beat' | 'static' | 'bands' | 'level' | 'sections' | 'rig' | 'room' | 'bars' | 'ownColours' | 'energy' | 'rapid';
 export type TagAxis = 'reacts' | 'surface' | 'colour' | 'use';
-/** Where a reaction's input comes from: the auto show's analysed track, or live input in reactive audio mode. */
+/** Where a reaction's input comes from: what the auto show sets (a build-up's progress), or live input in reactive audio mode. */
 export type TagSource = 'track' | 'live';
 
 export interface LookTags { tags: TagId[]; via: TagSource[] }
@@ -18,7 +18,7 @@ export const TAGS: Readonly<Record<TagId, { name: string; axis: TagAxis; desc: s
   static: { name: 'Static', axis: 'reacts', desc: 'Follows neither the beat nor any input: constant, or timed by a fixed rate of its own' },
   bands: { name: 'Bands & drums', axis: 'reacts', desc: 'Follows stems, drum hits or frequency bands' },
   level: { name: 'Audio level', axis: 'reacts', desc: 'Follows the overall loudness' },
-  sections: { name: 'Song sections', axis: 'reacts', desc: 'Follows the song section or the build the show sets' },
+  sections: { name: 'Song sections', axis: 'reacts', desc: 'Follows the build-up the auto show sets' },
   rig: { name: 'Whole rig', axis: 'surface', desc: 'Every light gets the same value at once' },
   room: { name: 'Room-placed', axis: 'surface', desc: 'Placed by room positions in metres: listener, anchors, height' },
   bars: { name: 'Bars & panels', axis: 'surface', desc: 'Drawn cell by cell on bars and panels' },
@@ -38,7 +38,7 @@ export const TAG_AXES: readonly { id: TagAxis; name: string; tags: readonly TagI
 export const REACTIVE_TAGS: ReadonlySet<TagId> = new Set(['bands', 'level', 'sections']);
 
 export const SOURCES: Readonly<Record<TagSource, { name: string; desc: string }>> = Object.freeze({
-  track: { name: 'track', desc: 'Reacts only while the auto show plays an analysed track; picked by hand it runs on its clock' },
+  track: { name: 'track', desc: 'Reacts to what the auto show sets, the progress of a build-up it plays; stems and drum hits come from no source now. Picked by hand it runs on its clock' },
   live: { name: 'live', desc: 'Reacts in the reactive audio mode with live input' },
 });
 
@@ -52,8 +52,8 @@ const tagged = (tags: Iterable<TagId>, via: Iterable<TagSource> = []): LookTags 
 
 // The 59 legacy pattern ids have no spec to derive from; each entry follows the pattern function's own reads.
 // They lay out on the Rig plot (roomOf builds from plot positions), never in room metres, so none is Room-placed.
-// The auto show's expression is no input tag: only the show sets it, by hand every reader sees the resting
-// expression, and under the show it shapes 37 of these patterns and dims every lamp look alike.
+// The expression channel is no input tag: only a patch through the API sets it, otherwise every reader sees the
+// resting expression, and when set it shapes 37 of these patterns and dims every lamp look alike.
 const LEGACY: Readonly<Record<string, LookTags>> = Object.freeze({
   solid: tagged(['static', 'rig']),
   fade: tagged(['beat', 'rig']),

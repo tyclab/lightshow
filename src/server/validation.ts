@@ -3,7 +3,7 @@ import { backgroundSchema } from '../shared/background.ts';
 import { z } from 'zod';
 import { admissionPolicySchema, rateOverrideSchema } from '../shared/hardware.ts';
 import net from 'node:net';
-import { COLOR_PRESETS, AUTO_SOURCES, TEMPO_MODES, SYNC_OFFSET_LIMIT_MS } from './presets.ts';
+import { COLOR_PRESETS, TEMPO_MODES } from './presets.ts';
 import { paletteBodySchema } from '../shared/palette-model.ts';
 import { FIXTURE_GROUPS } from '../shared/stage.ts';
 import { EMITTERS, PIXEL_MAPS, MAX_CELLS_PER_FIXTURE, MAX_PROFILE_CHANNELS } from '../shared/rig.ts';
@@ -113,7 +113,6 @@ const artnetSchema = z.object({
 const patchSchema = z.object({
   bpm: z.number().min(20).max(300).optional(),
   tempoMode: z.enum(TEMPO_MODES).optional(),
-  anchorMs: z.number().finite().optional(),
   beatDivision: z.number().int().min(1).max(16).optional(),
   running: z.boolean().optional(),
   pattern: z.string().min(1).max(64).optional(),
@@ -146,14 +145,6 @@ const patchSchema = z.object({
   palette: z.string().min(1).max(64).nullable().optional(),
   paletteSize: z.union([z.literal(2), z.literal(3), z.literal(4)]).optional(),
   artnet: artnetSchema.optional(),
-  prolinkEnabled: z.boolean().optional(),
-  autoSource: z.enum(AUTO_SOURCES).optional(),
-  autoPaletteSize: z.union([z.literal(2), z.literal(3), z.literal(4),
-    z.literal('auto')]).optional(),
-  autoIntensity: z.number().min(0).max(100).optional(),
-  autoSyncOffsetMs: z.number().int()
-    .min(-SYNC_OFFSET_LIMIT_MS).max(SYNC_OFFSET_LIMIT_MS).optional(),
-  autoPrefetchDepth: z.number().int().min(1).max(5).optional(),
 }).strict();
 
 const overrideSchema = z.object({
@@ -364,24 +355,6 @@ const showSchema = z.object({
   })).optional(),
 }).passthrough();
 
-const deezerTrackSchema = z.object({
-  name: z.string().max(512).optional(),
-  title: z.string().max(512).optional(),
-  artist: z.string().max(512).optional(),
-  album: z.string().max(512).optional(),
-  albumArt: z.string().max(2048).nullable().optional(),
-  isrc: z.string().max(32).nullable().optional(),
-  trackId: z.union([z.string().max(128), z.number()]).nullable().optional(),
-  durationMs: z.number().nonnegative().max(24 * 60 * 60 * 1000).optional(),
-  progressMs: z.number().nonnegative().max(24 * 60 * 60 * 1000).optional(),
-  isPlaying: z.boolean().optional(),
-}).passthrough();
-
-const deezerStateSchema = z.object({
-  current: deezerTrackSchema.nullable().optional(),
-  upcoming: z.array(deezerTrackSchema).max(50).optional(),
-}).passthrough();
-
 const midiConnectSchema = z.object({
   input: z.string().nullable().optional(),
   output: z.string().nullable().optional(),
@@ -439,25 +412,6 @@ const hueDisconnectSchema = z.object({
   removeFixtures: z.boolean().optional(),
 }).strict();
 
-const trackMs = z.number().finite().min(0).max(24 * 3600 * 1000);
-const overlaySchema = z.object({
-  palette: z.string().regex(/^[A-Za-z0-9-]{1,64}$/).nullable().optional(),
-  sections: z.array(z.object({
-    atMs: trackMs,
-    pattern: z.string().min(1).max(64).optional(),
-    pixelPattern: z.string().min(1).max(64).nullable().optional(),
-    panelPattern: z.string().min(1).max(64).nullable().optional(),
-  }).strict()).max(256).optional(),
-  accents: z.object({
-    add: z.array(z.object({
-      atMs: trackMs,
-      burst: z.enum(['blinder', 'white-strobe', 'color-strobe', 'uv-wash', 'kill', 'glow']),
-      durationMs: z.number().int().min(120).max(2000).optional(),
-    }).strict()).max(512).optional(),
-    remove: z.array(trackMs).max(512).optional(),
-  }).strict().optional(),
-}).strict();
-
 function validate<S extends z.ZodTypeAny>(schema: S, value: unknown, label: string): z.output<S> {
   const result = schema.safeParse(value);
   if (!result.success) {
@@ -475,7 +429,6 @@ export type FixtureEdit = z.output<typeof fixtureMessageSchema>;
 export type FixtureRestore = z.output<typeof fixtureRestoreSchema>;
 export type ProfileInput = z.output<typeof profileSchema>;
 export type ShowFile = z.output<typeof showSchema>;
-export type DeezerState = z.output<typeof deezerStateSchema>;
 
 export {
   pictureSourceSchema,
@@ -485,7 +438,6 @@ export {
   hexColour,
   paletteOverride,
   patchSchema,
-  deezerStateSchema,
   overrideSchema,
   overrideMessageSchema,
   fixtureMessageSchema,
@@ -503,6 +455,5 @@ export {
   wledRefreshSchema,
   ddpAddSchema,
   fixtureAddSchema,
-  overlaySchema,
   validate,
 };

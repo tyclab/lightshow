@@ -15,7 +15,7 @@ const logQuery = z.object({
 export function attachOpsRoutes(app: Express, ctx: RouteContext): void {
   app.get('/healthz', (_req, res) => res.json({ ok: true }));
 
-  app.get('/api/health', (_req, res) => res.json(health({ autoShow: ctx.autoShow })));
+  app.get('/api/health', (_req, res) => res.json(health()));
 
   // Require a supervisor for restart so the command cannot stop a server that nobody will relaunch.
   app.post('/api/server/restart', (_req, res) => {

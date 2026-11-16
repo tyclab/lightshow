@@ -26,22 +26,14 @@ export interface ApplierDeps {
     connect(input: string | null, output: string | null): boolean;
     setControlFeedback(on: boolean): void;
   };
-  spotify: {
-    localCallbackUrl: string;
-    setLoopbackPort(port: number): void;
-    configure(config: { clientId: string; clientSecret: string; proxyBase: string }): void;
-  };
-  smtc: { start(): void; stop(): void };
   live?: { start(options: { source: 'loopback' | 'input'; device?: string; latencyMs?: number }): void; stop(): void } | null;
   midiClock?: { setPort(port: string): void } | null;
-  deezer: { init(arl: string): Promise<unknown>; canDecrypt?(): boolean };
-  autoShow?: { restartWorker?(reason: string): void; settleLocalAnalysis?(): void } | null;
   applyPatch(patch: unknown): unknown;
   broadcast(): void;
   voices?: { stopAll(): number };
 }
 
-function createApplier({ midi, spotify, smtc, live = null, midiClock = null, deezer, autoShow, applyPatch, broadcast, voices = liveVoices }: ApplierDeps) {
+function createApplier({ midi, live = null, midiClock = null, applyPatch, broadcast, voices = liveVoices }: ApplierDeps) {
   const bootValues = {
     server: {
       host: settings.get('server.host'),
@@ -52,28 +44,6 @@ function createApplier({ midi, spotify, smtc, live = null, midiClock = null, dee
       thread: settings.get('engine.thread'),
     },
   };
-
-  function refreshCallbackUrl() {
-    const configured = settings.get('server.publicUrl');
-    const host = bootValues.server.host;
-    const shown = (host === '0.0.0.0' || host === '::') ? 'localhost' : host;
-    const base = configured
-      ? configured.replace(/\/+$/, '')
-      : `http://${shown}:${bootValues.server.port}`;
-    spotify.localCallbackUrl = `${base}/auth/spotify/callback`;
-    spotify.setLoopbackPort(bootValues.server.port);
-    return base;
-  }
-
-  function applySpotify() {
-    spotify.configure({
-      clientId: settings.get('spotify.clientId'),
-      clientSecret: settings.get('spotify.clientSecret'),
-      proxyBase: settings.get('spotify.proxyBase'),
-    });
-    refreshCallbackUrl();
-  }
-
 
   function ensureSacnCid() {
     if (settings.get('sacn.cid')) return;
@@ -131,11 +101,6 @@ function createApplier({ midi, spotify, smtc, live = null, midiClock = null, dee
     midi.connect(settings.get('midi.input') || null, settings.get('midi.output') || null);
   }
 
-  function applySmtc() {
-    if (settings.get('sources.smtc')) smtc.start();
-    else smtc.stop();
-  }
-
   function applyLive() {
     if (!live) return;
     const config = settings.group('live');
@@ -153,46 +118,13 @@ function createApplier({ midi, spotify, smtc, live = null, midiClock = null, dee
     if (tempoMode !== state.tempoMode) applyPatch({ tempoMode });
   }
 
-  function applyProlink() {
-    applyPatch({ prolinkEnabled: settings.get('sources.prolink') });
-  }
-
-  // Invalidate the interpreter probe and recycle its worker so both adopt a changed Python setting.
+  // Invalidate the interpreter probe so a changed Python setting is used from the next start.
   function applyPython() {
     pythonEnv._reset();
     const info = pythonEnv.resolve();
     console.log(`[python] interpreter is now ${pythonEnv.describe()}`);
     pythonEnv.warnIfUnusable();
-    if (autoShow && autoShow.restartWorker) autoShow.restartWorker('interpreter changed');
     return info;
-  }
-
-  function applySeparator() {
-    console.log(`[analysis] separator is now ${settings.get('analysis.separator')}`);
-    if (autoShow && autoShow.restartWorker) autoShow.restartWorker('separator changed');
-  }
-
-  function applyStructureModel() {
-    console.log(`[analysis] structure model is now ${settings.get('analysis.structureModel')}`);
-    if (autoShow && autoShow.restartWorker) autoShow.restartWorker('structure model changed');
-  }
-
-  function applyGpuMemory() {
-    console.log(`[analysis] GPU memory is now ${settings.get('analysis.gpuMemory')}`);
-    if (autoShow && autoShow.restartWorker) autoShow.restartWorker('GPU memory changed');
-  }
-
-  function applyLocalWorker() {
-    console.log(`[analysis] local worker is now ${settings.get('analysis.localWorker')}`);
-    if (autoShow && autoShow.settleLocalAnalysis) autoShow.settleLocalAnalysis();
-  }
-
-  function applyDeezer() {
-    const arl = settings.get('deezer.arl');
-    if (!arl) return;
-    deezer.init(arl).catch((err) => {
-      console.warn(`[deezer] Init failed: ${messageOf(err)} — will fall back to yt-dlp`);
-    });
   }
 
   function applySafety() {
@@ -231,17 +163,9 @@ function createApplier({ midi, spotify, smtc, live = null, midiClock = null, dee
     { match: (k) => k === 'midi.input' || k === 'midi.output', run: applyMidi },
     { match: (k) => k === 'midi.controlFeedback', run: applyControlFeedback },
     { match: (k) => k === 'midi.clockOutput', run: applyMidiClock },
-    { match: (k) => k === 'sources.smtc', run: applySmtc },
-    { match: (k) => k === 'sources.prolink', run: applyProlink },
+    // The interpreter first, so a live input started in the same save starts it.
+    { match: (k) => k === 'live.pythonPath', run: applyPython },
     { match: (k) => k.startsWith('live.'), run: applyLive },
-    { match: (k) => k.startsWith('spotify.') && k !== 'spotify.allowUnverifiedState', run: applySpotify },
-    { match: (k) => k === 'server.publicUrl', run: refreshCallbackUrl },
-    { match: (k) => k === 'deezer.arl', run: applyDeezer },
-    { match: (k) => k === 'analysis.pythonPath', run: applyPython },
-    { match: (k) => k === 'analysis.separator', run: applySeparator },
-    { match: (k) => k === 'analysis.structureModel', run: applyStructureModel },
-    { match: (k) => k === 'analysis.gpuMemory', run: applyGpuMemory },
-    { match: (k) => k === 'analysis.localWorker', run: applyLocalWorker },
     { match: (k) => k === 'safety.flashLimit', run: applySafety },
     { match: (k) => k === 'clock.tempoMode', run: applyClock },
     { match: (k) => k === 'outputs.armed', run: (origin) => applyOutputs({ origin }) },
@@ -252,16 +176,12 @@ function createApplier({ midi, spotify, smtc, live = null, midiClock = null, dee
       ensureSacnCid();
       applySacn();
       applyHue();
-      applySpotify();
       applyMidi();
       applyMidiClock();
-      applySmtc();
       applyLive();
-      applyDeezer();
       applySafety();
       applyClock();
       applyOutputs({ boot: true });
-      if (settings.get('sources.prolink')) applyProlink();
     },
 
     applyChanged(changed: string[], origin?: ArmOrigin) {
@@ -274,9 +194,7 @@ function createApplier({ midi, spotify, smtc, live = null, midiClock = null, dee
     },
 
     pendingRestart() {
-      const pending = settings.pendingRestart(bootValues);
-      if (settings.get('deezer.arl') && deezer.canDecrypt && !deezer.canDecrypt()) pending.push('deezer.arl');
-      return pending;
+      return settings.pendingRestart(bootValues);
     },
 
     disarmed(): number {
@@ -284,7 +202,6 @@ function createApplier({ midi, spotify, smtc, live = null, midiClock = null, dee
     },
 
     bootValues,
-    refreshCallbackUrl,
   };
 }
 

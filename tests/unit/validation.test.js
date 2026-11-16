@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert';
-import { patchSchema, profileSchema, overrideSchema, deezerStateSchema, fixtureMessageSchema, fixtureRestoreSchema, showSchema, validate } from '../../src/server/validation.ts';
+import { patchSchema, profileSchema, overrideSchema, fixtureMessageSchema, fixtureRestoreSchema, showSchema, validate } from '../../src/server/validation.ts';
 
 const ok = (schema, v) => { validate(schema, v, 't'); return true; };
 const rejects = (schema, v) => assert.throws(() => validate(schema, v, 't'));
@@ -50,18 +50,6 @@ test('a profile cannot map channels outside its own footprint', () => {
   assert.ok(ok(profileSchema, { ...base, channelMap: { red: 0, green: 1, blue: 3 } }));
   rejects(profileSchema, { ...base, channelMap: { red: 0, uv: 4 } });    // one past the end
   rejects(profileSchema, { ...base, channelMap: { red: 0, uv: 40 } });   // far past the end
-});
-
-// The extension's payload reaches state that is broadcast to every client, and
-// feeds search queries and cache keys. Field types were coerced; sizes weren't.
-test('deezer state bounds text fields and queue length', () => {
-  assert.ok(ok(deezerStateSchema, {
-    current: { name: 'Song', artist: 'Artist', isrc: 'GBxxx0000001', isPlaying: true },
-    upcoming: [{ name: 'Next', artist: 'Artist' }],
-  }));
-  assert.ok(ok(deezerStateSchema, {}), 'an empty report is legal');
-  rejects(deezerStateSchema, { current: { name: 'x'.repeat(1000) } });
-  rejects(deezerStateSchema, { upcoming: new Array(500).fill({ name: 'a', artist: 'b' }) });
 });
 
 // An undo has to carry enough to put the fixture back exactly as it left —
@@ -118,11 +106,10 @@ test('palette patches accept saved ids and bound palette sizes', () => {
   rejects(patchSchema, { palette: 'arctic', paletteSize: 0 });
 });
 
-test('the auto-show intensity is bounded to a percentage', () => {
-  assert.ok(ok(patchSchema, { autoIntensity: 0 }));
-  assert.ok(ok(patchSchema, { autoIntensity: 100 }));
-  rejects(patchSchema, { autoIntensity: -1 });
-  rejects(patchSchema, { autoIntensity: 101 });
+test('the planned show\'s fields are no patch fields', () => {
+  for (const field of ['autoIntensity', 'autoSyncOffsetMs', 'autoSource', 'autoPaletteSize', 'autoPrefetchDepth', 'anchorMs']) {
+    rejects(patchSchema, { [field]: 1 });
+  }
 });
 
 // The trim rides the fixture message rather than the override, so it has to be

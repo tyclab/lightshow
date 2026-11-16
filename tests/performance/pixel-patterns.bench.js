@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert';
-import { panel, PULSE } from '../helpers/pixel-patterns.js';
+import { panel, LOUD_BASS } from '../helpers/pixel-patterns.js';
 
 test('panel effects fit the established matrix render budget', () => {
   // Relative CPU-work regression, including each pattern's first call.
@@ -8,7 +8,7 @@ test('panel effects fit the established matrix render budget', () => {
     let total = 0;
     for (let round = 0; round < 5; round++) {
       const started = performance.now();
-      for (let k = 0; k < 6; k++) panel(id, 64, 32, { stepPos: k * 0.1, pulse: PULSE });
+      for (let k = 0; k < 6; k++) panel(id, 64, 32, { stepPos: k * 0.1, dynamics: LOUD_BASS });
       total += (performance.now() - started) / 6 / 5;
     }
     return total;

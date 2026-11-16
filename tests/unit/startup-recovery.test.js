@@ -17,7 +17,7 @@ test('a restart recovers a workspace that targets the saved patch, not the defau
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'startup-recovery-'));
   const port = await freePort();
   fs.writeFileSync(path.join(dir, 'settings.json'), JSON.stringify({
-    server: { host: '127.0.0.1', port, token: '' }, artnet: { enabled: false }, sacn: { enabled: false }, sources: { prolink: false, smtc: false },
+    server: { host: '127.0.0.1', port, token: '' }, artnet: { enabled: false }, sacn: { enabled: false },
   }));
   fs.writeFileSync(path.join(dir, 'show.json'), JSON.stringify({
     nextFixtureId: 8, fixtures: [{ id: 7, label: 'Seven', address: 1, universe: 0, profileId: BUILTIN_PROFILE_ID, maxBrightness: 255 }],
@@ -28,7 +28,7 @@ test('a restart recovers a workspace that targets the saved patch, not the defau
     version: 1, sequence, baseline: null, savedSequenceId: null, beat: 0, take: null, takeCompatible: false,
   }));
   const child = spawn(process.execPath, ['server.js', '--no-supervisor'], { cwd: ROOT, stdio: 'ignore', env: {
-    ...process.env, LIGHTSHOW_CONFIG_DIR: dir, LIGHTSHOW_CACHE_DIR: path.join(dir, 'cache'), LIGHTSHOW_LOG_DIR: path.join(dir, 'logs'), LIGHTSHOW_SUPERVISOR: '0',
+    ...process.env, LIGHTSHOW_CONFIG_DIR: dir, LIGHTSHOW_LOG_DIR: path.join(dir, 'logs'), LIGHTSHOW_SUPERVISOR: '0',
   } });
   // The server still writes its logs while it stops: remove its directory only once it has exited.
   const exited = new Promise((resolve) => child.once('exit', resolve));

@@ -124,11 +124,6 @@ const ENERGY_EFFECTS = [...Object.keys(ENERGY_KIND_BY_ID), 'palette-strobe'].map
 
 const ENERGY_EFFECT_IDS = ENERGY_EFFECTS.map((e) => e.id);
 
-// Keep sync bounds shared so settings, MIDI and playback accept the same range.
-const SYNC_OFFSET_LIMIT_MS = 2000;
-
-const AUTO_SOURCES = ['auto', 'hybrid', 'spotify', 'deezer', 'nowplaying', 'prolink', 'live', 'timer'] as const;
-
 const TEMPO_MODES = ['auto', 'manual'] as const;
 
 export {
@@ -141,7 +136,5 @@ export {
   PRESET_ROWS,
   ENERGY_EFFECTS,
   ENERGY_EFFECT_IDS,
-  AUTO_SOURCES,
   TEMPO_MODES,
-  SYNC_OFFSET_LIMIT_MS,
 };

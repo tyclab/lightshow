@@ -2,16 +2,15 @@ import { performanceReport } from '../performance.js';
 import { Background } from './Background.jsx';
 import { useEffect, useLayoutEffect, useRef, useState } from 'preact/hooks';
 import { effect } from '@preact/signals';
-import { pick, connectedSig, dmxSig, dmxReceivedAt, field, idlePause, pictureImageSig, stagePreviewSig, wantPicture } from '../state.js';
-import { fmtTime, rigLights, stageMode } from '../utils.js';
+import { pick, connectedSig, dmxSig, dmxReceivedAt, field, idlePause, pictureImageSig, wantPicture } from '../state.js';
+import { rigLights, stageMode } from '../utils.js';
 import { useDmxFeed } from '../use-dmx.js';
-import { useTimeline } from '../use-timeline.js';
-import { useRehearsalTrack, useRehearsalSampler, useUnitSpace } from '../rehearsal.js';
+import { useUnitSpace } from '../unit-space.js';
 import { hasBeams, lightRGB, STAGE_W, STAGE_D, TRUSS_H } from '../stage3d/world.js';
 import { Audition } from './Audition.jsx';
 import { StagePreview } from './StagePreview.jsx';
 import { PausePreview, PreviewPaused } from './PreviewPaused.jsx';
-import { auditionSig, demoBeatSig, setAudition, useAuditionSampler, useDemoLookSampler } from '../audition.js';
+import { auditionSig, demoBeatSig, useAuditionSampler, useDemoLookSampler } from '../audition.js';
 import { StageRoomPanel } from './StageRoomPanel.jsx';
 import { scenePool } from '../stage3d/scene-pool.js';
 import { keptRig } from '../stage3d/kept-rig.js';
@@ -40,24 +39,20 @@ const readHaze = () => {
 
 /** `compact`: the stage alone, for the Show view — the room loads here, its panel and the notes stay in Stage. */
 export function StageView({ compact = false } = {}) {
-  const s = pick(['fixtures', 'profiles', 'colorPresets', 'autoShow', 'armed', 'masterBlackout', 'control']);
+  const s = pick(['fixtures', 'profiles', 'colorPresets', 'armed', 'masterBlackout', 'control']);
   const connected = connectedSig.value;
   const fixtures = s.fixtures || [];
   const profiles = s.profiles || {};
-  const { data } = useTimeline();
-  const ui = stagePreviewSig.value;
   const audition = auditionSig.value;
   const auditioning = audition.active && !s.armed;
-  const rehearsing = !auditioning && ui.rehearsal && !!data;
   const [format, setFormat] = useState('3d');
   const pause = idlePause.paused.value;
   const paused = pause !== null;
-  const mode = stageMode({ rehearsing, connected, armed: s.armed, blackout: s.masterBlackout, paused,
+  const mode = stageMode({ connected, armed: s.armed, blackout: s.masterBlackout, paused,
     playing: !!s.control?.playing, layers: !!s.control?.layers, frozen: !!s.control?.frozen });
   const demo = mode.demo && !auditioning;
   const dark = auditioning ? null : mode.note;
   const tagClass = `panel-tag${!auditioning && mode.tag === 'Blackout' ? ' blackout' : ''}`;
-  const durationMs = data && data.duration ? data.duration * 1000 : 0;
   const [status, setStatus] = useState('loading');   // loading | ready | nowebgl | error
   const [view, setView] = useState('audience');
   const [haze, setHaze] = useState(readHaze);
@@ -77,18 +72,16 @@ export function StageView({ compact = false } = {}) {
     loadRoom().then((result) => { if (live && result.ok) setRoomState(result); });
     return () => { live = false; };
   }, [compact]);
-  useRehearsalTrack(s.autoShow);
-  useDmxFeed(!rehearsing && !auditioning);
+  useDmxFeed(!auditioning);
 
   const { rig, placed } = keptRig(fixtures, profiles, room);
   const space = useUnitSpace(rig, [rig], room);
-  const sample = useRehearsalSampler(data, space, rehearsing && format === '3d');
   const auditionSample = useAuditionSampler(space, auditioning && format === '3d');
   const demoSample = useDemoLookSampler(space, demo && format === '3d');
 
   // What the frame loop reads, without restarting it for every change.
   const live = useRef({});
-  live.current = { fixtures, profiles, rig, sample, auditionSample, demoSample, auditioning, format, rehearsing, dark: !mode.lit, presets: s.colorPresets, durationMs };
+  live.current = { fixtures, profiles, rig, auditionSample, demoSample, auditioning, format, dark: !mode.lit, presets: s.colorPresets };
 
   // The canvas and its scene come from the pool and go back to it (scene-pool.js):
   // a return to this view reuses the WebGL context instead of making another.
@@ -171,8 +164,7 @@ export function StageView({ compact = false } = {}) {
   useEffect(() => { if (scene.current) scene.current.view(view); }, [view, status]);
 
   // The frame loop: the display's rate. Live frames are read from the DMX
-  // feed when a new one arrives; a rehearsal is sampled every frame, and a
-  // playing one moves on by the time since the last.
+  // feed when a new one arrives; an audition or the demo beat is sampled every frame.
   useEffect(() => {
     if (status !== 'ready') return undefined;
     const box = canvas.current.parentElement;
@@ -191,56 +183,34 @@ export function StageView({ compact = false } = {}) {
     let lastProfiles = null;
     let lastRig = null;
     let lastDark = null;
-    let rehearsalInputs = null;
-    let rehearsalFrame = null;
+    let sampledInputs = null;
+    let sampledFrame = null;
     let lastNow = performance.now();
-    let lastPublish = 0;
-    let position = stagePreviewSig.value.position;
     const tick = (now) => {
       const started = performanceReport ? performance.now() : 0;
       let consumedAt = 0;
       const cur = live.current;
-      const st = stagePreviewSig.value;
       if (cur.format === 'plot' || !sized) { lastNow = now; raf = requestAnimationFrame(tick); return; }
       if (performanceReport) performanceReport.sample('stage.rafInterval', now - lastNow);
       if (cur.auditioning) {
         const at = auditionSig.peek().position;
         const inputs = [at, cur.auditionSample, cur.fixtures, cur.presets, cur.rig];
-        if (!rehearsalInputs || inputs.some((value, i) => value !== rehearsalInputs[i])) {
-          rehearsalInputs = inputs;
-          rehearsalFrame = cur.auditionSample(at, cur.fixtures, cur.presets, cur.rig);
+        if (!sampledInputs || inputs.some((value, i) => value !== sampledInputs[i])) {
+          sampledInputs = inputs;
+          sampledFrame = cur.auditionSample(at, cur.fixtures, cur.presets, cur.rig);
         }
-        scene.current.setLights(rehearsalFrame);
+        scene.current.setLights(sampledFrame);
         lastDmx = null;
       } else if (cur.demoSample) {
         const at = demoBeatSig.peek();
         const inputs = [at, cur.demoSample, cur.fixtures, cur.presets, cur.rig];
-        if (!rehearsalInputs || inputs.some((value, i) => value !== rehearsalInputs[i])) {
-          rehearsalInputs = inputs;
-          rehearsalFrame = cur.demoSample(at, cur.fixtures, cur.presets, cur.rig);
+        if (!sampledInputs || inputs.some((value, i) => value !== sampledInputs[i])) {
+          sampledInputs = inputs;
+          sampledFrame = cur.demoSample(at, cur.fixtures, cur.presets, cur.rig);
         }
-        scene.current.setLights(rehearsalFrame);
-        lastDmx = null;
-      } else if (cur.rehearsing) {
-        if (st.playing && cur.durationMs) {
-          position = Math.min(cur.durationMs, position + Math.min(250, now - lastNow));
-          // The scrubber follows at a tenth of the frame rate; the stage at all of it.
-          if (now - lastPublish > 100 || position >= cur.durationMs) {
-            lastPublish = now;
-            stagePreviewSig.value = { ...st, position, playing: position < cur.durationMs };
-          }
-        } else {
-          position = st.position;
-        }
-        const inputs = [position, cur.sample, cur.fixtures, cur.presets, cur.rig];
-        if (!rehearsalInputs || inputs.some((value, i) => value !== rehearsalInputs[i])) {
-          rehearsalInputs = inputs;
-          rehearsalFrame = cur.sample(position, cur.fixtures, cur.presets, cur.rig);
-        }
-        scene.current.setLights(rehearsalFrame);
+        scene.current.setLights(sampledFrame);
         lastDmx = null;
       } else {
-        position = st.position;
         const dmx = dmxSig.value;
         if (dmx !== lastDmx || cur.fixtures !== lastFixtures || cur.profiles !== lastProfiles || cur.rig !== lastRig || cur.dark !== lastDark) {
           const deriveStarted = performanceReport ? performance.now() : 0;
@@ -288,12 +258,11 @@ export function StageView({ compact = false } = {}) {
     scene.current.nudge(move);
   };
 
-  const setUi = (patch) => { stagePreviewSig.value = { ...stagePreviewSig.value, ...patch }; };
   const parts = rig.units.length;
   const bars = rig.cellMaps.filter(Boolean).length;
   const description = `The rig in 3D from ${VIEW_NAMES[view]}: `
     + `${fixtures.length} fixtures${bars ? `, ${bars} of them bars` : ''}, ${parts} lights, `
-    + `${auditioning ? `auditioning ${audition.name || audition.id}; browser only, outputs disarmed` : rehearsing ? `rehearsing the track at ${fmtTime(ui.position)}` : !connected ? 'offline'
+    + `${auditioning ? `auditioning ${audition.name || audition.id}; browser only, outputs disarmed` : !connected ? 'offline'
       : paused ? `preview paused${pause.cause === 'idle' ? ' for want of input' : ''}, lights drawn off` : s.masterBlackout ? 'Blackout is on, every light is dark'
       : s.armed ? 'showing the live output' : demo ? 'previewing the selected look on the demo beat in this browser; nothing is transmitted'
         : 'previewing with outputs disarmed; nothing is transmitted'}.`;
@@ -329,18 +298,6 @@ export function StageView({ compact = false } = {}) {
           <input type="range" min="0" max="100" value={haze} aria-valuetext={`${haze} percent`}
             onInput={(e) => setHaze(Number(e.target.value))} />
         </label>}
-        <span class="stage3d-sep" aria-hidden="true" />
-        <button type="button" class={`btn sm ${rehearsing ? 'active' : ''}`} aria-pressed={rehearsing} disabled={!data}
-          title={data ? 'Play the loaded track\'s show here, at any moment of it' : 'Rehearsal needs an analysed track'}
-          onClick={() => { setAudition({ active: false, playing: false }); setUi({ rehearsal: !rehearsing, playing: false }); }}>{rehearsing ? 'Back to live' : 'Rehearse track'}</button>
-        {rehearsing && <>
-          <button type="button" class="btn sm" onClick={() => setUi({ position: ui.position >= durationMs ? 0 : ui.position, playing: !ui.playing })}>
-            {ui.playing ? 'Pause' : 'Play'}
-          </button>
-          <input class="stage3d-scrub" type="range" min="0" max={durationMs} step="50" value={ui.position} aria-label="Rehearsal position"
-            aria-valuetext={fmtTime(ui.position)} onInput={(e) => setUi({ position: Number(e.target.value) })} />
-          <span class="stage3d-time">{fmtTime(ui.position)} / {fmtTime(durationMs)}</span>
-        </>}
       </div>
       {format === 'plot' && <StagePreview controls={false} />}
       <div class="stage3d-wrap" style={format === 'plot' ? { display: 'none' } : undefined}>
@@ -360,8 +317,7 @@ export function StageView({ compact = false } = {}) {
         that point; on the stage, the arrow keys turn and tilt and + and − move
         closer. {room ? `${room.name}: imported light positions; fixtures without one are drawn at their Rig plot position and listed above. `
           : 'Generic venue: fixture heights follow the plan when set; otherwise groups supply approximate mounting heights. '}{auditioning
-          ? 'Audition: the demo track drives this effect locally. No commands are sent to the rig.' : rehearsing
-          ? 'Rehearsing: the planned show, as the timeline has it; nothing goes out to the rig.'
+          ? 'Audition: the demo track drives this effect locally. No commands are sent to the rig.'
           : !connected ? 'Offline: the live output is unavailable.' : mode.note ? mode.note : s.armed
             ? 'Live: what is going out to the rig now.' : demo
             ? 'Preview: the selected look on the built-in demo beat, drawn in this browser; outputs are disarmed and nothing is transmitted to the rig.'

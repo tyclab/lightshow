@@ -615,9 +615,6 @@ test('disarm (apply.ts) stops every voice', (t) => {
   const applied = [];
   const applier = createApplier({
     midi: { close() {}, connect() { return true; }, setControlFeedback() {} },
-    spotify: { localCallbackUrl: '', setLoopbackPort() {}, configure() {} },
-    smtc: { start() {}, stop() {} },
-    deezer: { init: async () => {} },
     applyPatch: (patch) => applied.push(patch),
     broadcast() {},
     voices: m,

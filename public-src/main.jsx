@@ -8,7 +8,6 @@ import { Header } from './components/Header.jsx';
 import { CommandBar } from './components/CommandBar.jsx';
 import { Bands } from './components/Bands.jsx';
 import { AutoMode } from './components/AutoMode.jsx';
-import { Warm } from './components/Warm.jsx';
 import { Effects } from './components/Effects.jsx';
 import { Cues } from './components/Cues.jsx';
 import { Fixtures } from './components/Fixtures.jsx';
@@ -19,10 +18,8 @@ import { ShortcutsOverlay } from './components/Shortcuts.jsx';
 import { Perform } from './components/Perform.jsx';
 import { Show } from './components/Show.jsx';
 import { effectsKey } from './components/ShowEffects.jsx';
-import { TimelineView } from './components/TimelineView.jsx';
 import { StageView } from './components/StageView.jsx';
 import { Sequence } from './components/Sequence.jsx';
-import { SubTabs, SubPanel, useSubTab } from './components/setup/SubTabs.jsx';
 import { Transport } from './components/Transport.jsx';
 import { useTapShortcut } from './keys.js';
 import { RigView } from './components/setup/RigView.jsx';
@@ -60,10 +57,10 @@ function rememberView(mode) {
 // The tabs are one stop in the tab order: the arrow keys, Home and End move between
 // them (the ARIA tabs pattern). With a Setup view open no tab is selected and the first is the stop.
 function ModeTabs({ mode, setMode }) {
-  // Subscribes here rather than in Root, so an auto-show status change re-renders
+  // Subscribes here rather than in Root, so a change of the live input re-renders
   // this strip alone instead of the whole tree.
-  const autoShow = field('autoShow').value;
-  const autoActive = !!(autoShow && autoShow.status && autoShow.status !== 'idle');
+  const live = field('live').value;
+  const autoActive = !!(live && live.director && live.director.active);
   const stop = STRIP_VIEWS.some((v) => v.id === mode) ? mode : STRIP_VIEWS[0].id;
 
   const onKeyDown = (e) => {
@@ -193,16 +190,11 @@ function EffectsView() {
   );
 }
 
-const AUTO_TABS = [{ id: 'show', label: 'Show' }, { id: 'timeline', label: 'Timeline' }];
 function AutoView() {
-  const [tab, setTab] = useSubTab('auto', AUTO_TABS);
   return (
     <div class="auto-view">
       <Transport prefer="auto" />
-      <SubTabs view="auto" tabs={AUTO_TABS} tab={tab} setTab={setTab} label="Auto Show" />
-      <SubPanel view="auto" tab={tab}>
-        {tab === 'timeline' ? <TimelineView /> : <><AutoMode /><Warm /></>}
-      </SubPanel>
+      <AutoMode />
     </div>
   );
 }

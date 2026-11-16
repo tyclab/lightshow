@@ -121,6 +121,43 @@ class Sources(unittest.TestCase):
         self.assertEqual(lines[-1], {'type': 'end'})
         self.assertGreater(len([x for x in lines if x['type'] == 'state']), 500)
 
+    @needs_audio
+    def test_the_launcher_the_server_starts_plays_a_pcm_file_and_lists_devices(self):
+        import soundfile
+        import subprocess
+        import sys
+        launcher = os.path.join(os.path.dirname(__file__), '..', '..', 'src', 'live_input.py')
+        track = synth.four_on_the_floor(bpm=128, bars=2)
+
+        def run(*args, hide=()):
+            # As src/live-input.ts runs it: the interpreter, the launcher, the arguments; stdin closed.
+            # `hide` makes capture libraries unimportable, so the list does not depend on this machine's sound.
+            command = [sys.executable, launcher, *args] if not hide else [sys.executable, '-c', (
+                'import runpy, sys\n'
+                f'sys.modules.update(dict.fromkeys({list(hide)!r}))\n'
+                f'sys.argv = [{launcher!r}, *{list(args)!r}]\n'
+                f'runpy.run_path({launcher!r}, run_name="__main__")\n')]
+            done = subprocess.run(command, capture_output=True, text=True,
+                                  stdin=subprocess.DEVNULL, timeout=120, check=False)
+            self.assertEqual(done.returncode, 0, done.stderr[-2000:])
+            return lines_of(done.stdout)
+
+        with tempfile.TemporaryDirectory() as tmp:
+            path = os.path.join(tmp, 'track.wav')
+            soundfile.write(path, track.samples, track.sr, subtype='PCM_16')
+            lines = run('--file', path, '--bands', '0-160,750-2000')
+        self.assertEqual((lines[0]['type'], lines[0]['backend']), ('ready', 'file'))
+        self.assertEqual(lines[-1], {'type': 'end'})
+        states = [x for x in lines if x['type'] == 'state']
+        self.assertGreater(len(states), 200)
+        self.assertGreater(max(x['bpm'] for x in states), 0, 'a tempo is heard')
+        self.assertEqual(len(states[-1]['spectrum']['bands']), 2)
+
+        [devices] = run('--list', hide=('soundcard', 'sounddevice'))
+        self.assertEqual((devices['type'], devices['backend']), ('devices', None))
+        for key in ('outputs', 'inputs', 'outputIds', 'inputIds'):
+            self.assertIsInstance(devices[key], list)
+
     def test_a_sound_card_is_read_a_hop_at_a_time(self):
         from analysis import live
         track = synth.four_on_the_floor(bpm=128, bars=4)

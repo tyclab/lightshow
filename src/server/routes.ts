@@ -3,11 +3,9 @@ import { routeContext, errorHandler } from './routes/common.ts';
 import type { RouteDeps } from './routes/common.ts';
 import { attachLookRoutes } from './routes/look.ts';
 import { attachMidiRoutes } from './routes/midi.ts';
-import { attachSourceRoutes } from './routes/sources.ts';
+import { attachLiveRoutes } from './routes/live.ts';
 import { attachFixtureRoutes } from './routes/fixtures.ts';
 import { attachCueRoutes } from './routes/cues.ts';
-import { attachAutoRoutes, classifyAnalyzeSource, resolveLocalPath } from './routes/auto.ts';
-import { attachWarmRoutes } from './routes/warm.ts';
 import { attachSetupRoutes } from './routes/setup.ts';
 import { attachOutputRoutes } from './routes/outputs.ts';
 import { attachIdentifyRoutes } from './routes/identify.ts';
@@ -23,19 +21,16 @@ import { attachPerformanceRoutes } from './routes/performance.ts';
 import { attachControlRoutes } from './routes/control.ts';
 
 export type { RouteDeps, RouteContext } from './routes/common.ts';
-export type { AnalyzeSource } from './routes/auto.ts';
 
 function attachRoutes(app: Express, deps: RouteDeps): void {
   const ctx = routeContext(deps);
   attachControlRoutes(app);
   attachLookRoutes(app, ctx);
   attachMidiRoutes(app, ctx);
-  attachSourceRoutes(app, ctx);
+  attachLiveRoutes(app);
   attachFixtureRoutes(app, ctx);
   attachOpenRgbRoutes(app, ctx);
   attachCueRoutes(app, ctx);
-  attachAutoRoutes(app, ctx);
-  attachWarmRoutes(app, ctx);
   attachSetupRoutes(app, ctx);
   attachOutputRoutes(app, ctx);
   attachIdentifyRoutes(app, { wled: ctx.wled, hueAreas: ctx.hueAreas, broadcast: () => ctx.integrations.broadcast() });
@@ -53,6 +48,4 @@ function attachRoutes(app: Express, deps: RouteDeps): void {
 
 export {
   attachRoutes,
-  classifyAnalyzeSource,
-  resolveLocalPath,
 };

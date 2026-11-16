@@ -1,12 +1,10 @@
 import { useState } from 'preact/hooks';
 import { DmxMonitor } from './DmxMonitor.jsx';
-import { Prolink } from './Prolink.jsx';
 import { LiveInput } from './LiveInput.jsx';
 import { LogView } from './LogView.jsx';
 
 const TABS = [
   { id: 'dmx',     label: 'DMX Monitor' },
-  { id: 'prolink', label: 'PRO DJ LINK' },
   { id: 'live',    label: 'Live Input' },
   { id: 'log',     label: 'Log' },
 ];
@@ -48,7 +46,6 @@ export function BottomDrawer() {
       {open && (
         <div class="bd-body">
           {tab === 'dmx'     && <DmxMonitor />}
-          {tab === 'prolink' && <Prolink />}
           {tab === 'live'    && <LiveInput />}
           {tab === 'log'     && <LogView />}
         </div>

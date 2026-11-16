@@ -23,24 +23,24 @@ import { acknowledgeFlashes } from '../helpers/acknowledged.js';
 
 test('deltas version changed keys independently by domain', () => {
   const differ = new StateDiffer();
-  const first = differ.diff({ masterDimmer: 255, pattern: 'chase', fixtures: [{ id: 0 }], spotify: { ok: true }, mystery: 1 });
+  const first = differ.diff({ masterDimmer: 255, pattern: 'chase', fixtures: [{ id: 0 }], live: { ok: true }, mystery: 1 });
   assert.deepStrictEqual(first.map((p) => [p.d, p.v, Object.keys(p.set)]), [
     ['look', 1, ['masterDimmer', 'pattern']],
     ['rig', 1, ['fixtures']],
-    ['sources', 1, ['spotify']],
+    ['sources', 1, ['live']],
     ['system', 1, ['mystery']],
   ]);
 
-  assert.deepStrictEqual(differ.diff({ masterDimmer: 128, pattern: 'chase', fixtures: [{ id: 0 }], spotify: { ok: true }, mystery: 1 }),
+  assert.deepStrictEqual(differ.diff({ masterDimmer: 128, pattern: 'chase', fixtures: [{ id: 0 }], live: { ok: true }, mystery: 1 }),
     [{ d: 'look', v: 2, set: { masterDimmer: 128 } }], 'a fader moved: that key, nothing else');
-  assert.deepStrictEqual(differ.diff({ masterDimmer: 128, pattern: 'chase', fixtures: [{ id: 0 }], spotify: { ok: true }, mystery: 1 }), [],
+  assert.deepStrictEqual(differ.diff({ masterDimmer: 128, pattern: 'chase', fixtures: [{ id: 0 }], live: { ok: true }, mystery: 1 }), [],
     'nothing changed, nothing sent');
   assert.deepStrictEqual(differ.diff({ masterDimmer: 128, pattern: 'chase', fixtures: [{ id: 0, label: 'Left' }], mystery: 1 }), [
     { d: 'rig', v: 2, set: { fixtures: [{ id: 0, label: 'Left' }] } },
-    { d: 'sources', v: 2, set: {}, del: ['spotify'] },
+    { d: 'sources', v: 2, set: {}, del: ['live'] },
   ], 'an edited fixture and a key that went away');
   assert.deepStrictEqual(differ.versions(), { look: 2, rig: 2, show: 0, sources: 2, audio: 0, sequence: 0, catalogs: 0, library: 0, voices: 0, pads: 0, system: 1 });
-  assert.strictEqual(domainOf('autoShow'), 'show');
+  assert.strictEqual(domainOf('cues'), 'show');
   assert.strictEqual(domainOf('hueBridges'), 'rig', 'the patch table reads the bridges with the fixtures');
   assert.strictEqual(domainOf('toString'), 'system', 'only the keys it names');
 });
@@ -561,7 +561,7 @@ test('every live-state key is in DOMAIN_OF', () => {
   assert.deepStrictEqual(missing, []);
   // The integrations' keys and the deck's, which need a running server to appear.
   const named = ['strobe', 'pads', 'sequence', 'sequences', 'sequencePatterns', 'voices', 'matrix', 'audio', 'paletteOverride', 'safety', 'effects', 'userPalettes',
-    'spotify', 'nowPlaying', 'prolink', 'live', 'cues', 'warm', 'midi', 'autoShow', 'activeSource', 'showOn'];
+    'live', 'cues', 'midi'];
   assert.deepStrictEqual(named.filter((key) => !hasDomain(key)), []);
   assert.equal(domainOf('matrix'), 'look');
   assert.equal(domainOf('strobe'), 'look');

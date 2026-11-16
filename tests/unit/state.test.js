@@ -7,7 +7,7 @@ import { registerProfile, unregisterProfile } from '../../src/server/profiles.ts
 import { barProfile } from '../../src/server/bar-profile.ts';
 
 const STATIC = ['colorPresets', 'patterns', 'energyEffects', 'strobeFunctions', 'palettes',
-  'syncOffsetLimitMs', 'builtinProfileIds', 'hueProfileIds', 'families', 'builtinPalettes'];
+  'builtinProfileIds', 'hueProfileIds', 'families', 'builtinPalettes'];
 
 // The static catalogues were 63% of a 7 KB payload and went out
 // ten times a second unchanged.

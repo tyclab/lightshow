@@ -47,11 +47,11 @@ test('a real jump back, or a new epoch, is taken as it comes', () => {
   assert.strictEqual(follow.at(1000).epoch, 1);
 });
 
-test('the anchor beat, tempo and source ride along', () => {
+test('the tempo and source ride along', () => {
   const follow = createClockFollower();
-  follow.push(reading(3, { anchorBeat: 2, source: 'auto', bpm: 128 }), 0);
+  follow.push(reading(3, { source: 'live', bpm: 128 }), 0);
   const r = follow.at(0);
-  assert.deepStrictEqual(r, { beatPos: 3, bpm: 128, source: 'auto', epoch: 0, anchorBeat: 2 });
+  assert.deepStrictEqual(r, { beatPos: 3, bpm: 128, source: 'live', epoch: 0 });
 });
 
 test('unusable readings are ignored', () => {

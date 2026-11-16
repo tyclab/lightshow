@@ -22,11 +22,6 @@ export function fmtTime(ms) {
   return `${m}:${(s % 60).toString().padStart(2, '0')}`;
 }
 
-export function fmtPct(v) {
-  if (v == null || !Number.isFinite(v)) return '–';
-  return `${Math.round(v * 100)}%`;
-}
-
 export function formatBpm(bpm) {
   const n = Number(bpm);
   if (bpm == null || !Number.isFinite(n)) return '—';
@@ -35,21 +30,13 @@ export function formatBpm(bpm) {
 }
 
 const CLOCK_SOURCES = {
-  auto: { label: 'Auto', locked: true, title: 'Patterns step on the auto show\'s analysed beats' },
-  cdj: { label: 'CDJ', locked: true, title: 'Patterns step on the playing deck\'s beats (PRO DJ LINK)' },
   live: { label: 'LIVE', locked: true, title: 'Patterns step on the beats heard in the live audio' },
-  track: { label: 'Track', locked: true, title: 'Patterns step on the playing song\'s analysed beats. Tap or set a BPM to take over until the next song' },
   tap: { label: 'Tap', locked: false, title: 'Patterns run free at this BPM: tap tempo, the ± buttons or MIDI set it' },
 };
 
 export function clockSource(id) {
   const key = Object.hasOwn(CLOCK_SOURCES, id) ? id : 'tap';
   return { id: key, ...CLOCK_SOURCES[key] };
-}
-
-export function fmtNum(v, digits = 2) {
-  if (v == null || !Number.isFinite(v)) return '–';
-  return v.toFixed(digits);
 }
 
 export const cellsOfProfile = (profile) => (profile && Array.isArray(profile.cells) && profile.cells.length >= 2
@@ -164,8 +151,7 @@ const BLACKOUT_NOTE = 'Blackout is on: every light is dark. Restore, in the head
  * otherwise the server's feed, which carries Blackout and what arming would send. A paused page holds no
  * feed (`paused`) and draws nothing; the two disarmed previews offer Pause preview (`pausable`). A stage
  * dark for a reason carries a `note` naming it and what ends it. */
-export function stageMode({ rehearsing, connected, armed, blackout, playing = false, layers = false, frozen = false, paused = false }) {
-  if (rehearsing) return { tag: 'Rehearsal', lit: true, demo: false };
+export function stageMode({ connected, armed, blackout, playing = false, layers = false, frozen = false, paused = false }) {
   if (!connected) return { tag: 'Offline', lit: true, demo: false };
   if (paused) return { tag: 'Preview paused', lit: false, demo: false };
   if (blackout) return { tag: 'Blackout', lit: true, demo: false, note: BLACKOUT_NOTE };

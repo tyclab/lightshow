@@ -14,11 +14,5 @@ Read for this topic; paths below are relative to the repository root unless stat
 - Hue application keys are revoked only at account.meethue.com; bridges refuse a
   local DELETE since API 1.31. Check which integration a key backs first.
 - Keep access tokens and credentials out of logs, client state and tracked files.
-- The analysis contract is `src/analysis/document.schema.json`. Regenerate
-  `src/types/analysis.ts` with `npm run gen:analysis-types`; do not hand-edit it.
-  In `src/analysis/version.py`, incompatible changes need a major schema bump,
-  additive changes a minor bump; `MIN_COMPATIBLE` controls cache reanalysis.
-  `src/analysis-cache.ts` reads it with a regex: keep the line as
-  `MIN_COMPATIBLE = 'X.Y'`.
-- Python worker stdout is NDJSON. Keep library logs on stderr and preserve CLI
-  descriptions consumed through `__doc__`. Never fetch model weights during a show.
+- The live input's stdout (`src/live_input.py`, `src/analysis/live.py`) is NDJSON
+  that `src/live-input.ts` reads line by line. Keep library logs on stderr.

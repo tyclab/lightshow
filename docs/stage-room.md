@@ -160,7 +160,7 @@ A furniture object may set `lightBindingId` to an existing binding ID. Its surfa
 retains its base colour while off and emits that binding's current Stage RGB, including weighted
 source mixtures and missing-source black contributions. The binding's separate
 marker is replaced by the object; its coverage and source data are retained. This
-uses the same live/rehearsal frame and power-state semantics as other Stage lights.
+uses the same live/preview frame and power-state semantics as other Stage lights.
 Lit surfaces blend their neutral diffuse colour toward 0.35 × the current linear RGB and
 add restrained emission (intensity 0.25), preserving hue and directional relief.
 An off frame removes emission while leaving the physical shell visible. Multiple

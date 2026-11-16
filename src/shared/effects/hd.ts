@@ -1,7 +1,7 @@
 import { HEX_COLOUR } from '../palette-model.ts';
 // The ten Party families share timing and colours, while each keeps
 // its own spatial kernel, recommended controls and audio response. All times
-// here are beats, so the worker and the rehearsal preview use the same clock.
+// here are beats, so the worker and the stage preview use the same clock.
 
 import { z } from 'zod';
 import type { ZodType } from 'zod';

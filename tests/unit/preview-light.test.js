@@ -1,7 +1,7 @@
-// Preview parity of audition and rehearsal (Show v3 fixes, G1b; review R07). The rig drives a fixture's dimmer
-// channel at the light's level as well as its emitters, so what a dimmed fixture emits is both; the demo beat has
-// drawn it so since Show v3, and audition draws the master as the demo beat does. Both are read through the real
-// hooks of the page (public-src/audition.js, public-src/rehearsal.js) and against the engine's own frame.
+// Preview parity of audition (Show v3 fixes, G1b; review R07). The rig drives a fixture's dimmer channel at the
+// light's level as well as its emitters, so what a dimmed fixture emits is both; the demo beat has drawn it so since
+// Show v3, and audition draws the master as the demo beat does. It is read through the real hook of the page
+// (public-src/audition.js) and against the engine's own frame. Rehearsal went with the planned show (G8).
 
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -26,7 +26,7 @@ const root = path.join(import.meta.dirname, '../..');
 const built = await esbuild.build({
   stdin: { contents: `export { store } from './public-src/state.js';
     export { startAudition, setAudition, useAuditionSampler } from './public-src/audition.js';
-    export { useRehearsalSampler } from './public-src/rehearsal.js'; export { runner } from 'preact/hooks';`, resolveDir: root },
+    export { runner } from 'preact/hooks';`, resolveDir: root },
   bundle: true, format: 'esm', platform: 'node', write: false, logLevel: 'silent',
   alias: { 'socket.io-client': path.join(root, 'tests/helpers/fake-socket-io.js') },
   plugins: [{ name: 'hooks-once', setup(build) {
@@ -96,21 +96,15 @@ test('the fixture under test drives a dimmer channel', () => {
   assert.notEqual(getProfile(state.fixtures[0]).channelMap.dimmer, undefined);
 });
 
-test('audition and rehearsal draw a trimmed dimmer fixture as it emits', async () => {
+test('audition draws a trimmed dimmer fixture as it emits', async () => {
   state.fixtures[0].maxBrightness = 128;
   try {
     const read = await engineLight({ pattern: 'solid', colorA: 3, masterDimmer: 255 });
     const top = Math.max(read.r, read.g, read.b);
     assert.ok(top > 0 && top < 128, `trimmed to half, the rig dims by its emitters and its dimmer: ${JSON.stringify(read)}`);
 
-    const { fix, rig, space } = pageState();
-    const timeline = { timeline: [{ timeMs: 0, action: 'patch', data: { pattern: 'solid', colorA: 3, bpm: 120 } }] };
-    const rehearsal = ui.runner()(() => ui.useRehearsalSampler(timeline, space, true));
-    const [rehearsed] = rehearsal(1000, [fix], COLOR_PRESETS, rig);
-    assert.deepEqual(comparable(read, rehearsed), read, 'rehearsal');
-
     const audition = await engineLight({ pattern: 'solid', masterDimmer: 255, ...AUDITION_LOOK });
-    pageState();
+    const { fix, rig, space } = pageState();
     ui.startAudition('solid'); ui.setAudition({ playing: false });
     const [auditioned] = ui.runner()(() => ui.useAuditionSampler(space))(1000, [fix], COLOR_PRESETS, rig);
     assert.deepEqual(comparable(audition, auditioned), audition, 'audition');
