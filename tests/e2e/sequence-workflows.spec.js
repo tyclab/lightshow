@@ -46,9 +46,9 @@ test('show settings survive Save and a fresh load', async ({ page, request }) =>
   await page.getByRole('button', { name: 'Unload', exact: true }).click();
   await page.getByRole('button', { name: 'Load Workflow', exact: true }).click();
   await expect(page.getByLabel('Start tempo, BPM')).toHaveValue('148');
-  const saved = await current(request);
-  expect(saved).toMatchObject({ bpm: 148, musicMode: 'reactive', timeSignature: { beats: 3, unit: 8 }, snap: 0.5,
-    options: { autoplay: false, shuffle: true, randomPaletteOnLoop: true, initialPalette: palette.id } });
+  // The page shows the loaded document before the server's load answers (CI, 2026-11-16: one read came back null).
+  await expect.poll(() => current(request), 'the server has the loaded sequence').toMatchObject({ bpm: 148, musicMode: 'reactive',
+    timeSignature: { beats: 3, unit: 8 }, snap: 0.5, options: { autoplay: false, shuffle: true, randomPaletteOnLoop: true, initialPalette: palette.id } });
 });
 
 test('seek and previous move the playhead without starting playback', async ({ page, request }) => {
