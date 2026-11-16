@@ -357,6 +357,7 @@ export function roomRig(fixtures, rig, model, profiles = {}) {
   const incomplete = [];
   const objectLights = [];
   const objectEmitters = [];
+  const drawnPixels = [];
   const lightObjects = new Map();
   for (const object of model.objects || []) {
     if (!object.lightBindingId) continue;
@@ -384,11 +385,17 @@ export function roomRig(fixtures, rig, model, profiles = {}) {
     const aim = offset && Math.hypot(offset.x, offset.y, offset.z) >= 0.001 ? unit(offset) : null;
     const directed = (source, body) => ({ ...beamLight({ lumen: BULB_LUMEN, ...source }, { kind: 'beam', beamAngle: emission?.beamAngle ?? 100 },
       false, room, aim), body, ...(body === 0 ? { weight: 0 } : {}) });
+    const pixel = emission?.kind === 'strip' || !emission && !binding.sources && !!rig.cellMaps[index];
     if (lightObjects.has(binding.id)) {
-      for (const object of lightObjects.get(binding.id)) {
+      // What the light gives the room is its own, whatever is drawn for it (emitterWeight): its parts share it by their area.
+      const objects = lightObjects.get(binding.id), areas = objects.map(surfaceArea), area = areas.reduce((sum, value) => sum + value, 0);
+      const run = binding.path ? pathLength(binding.path) : 0;
+      const emitter = run ? { ...light, lumen: (flux?.perMetre ?? STRIP_LUMEN_PER_METRE) * run } : pixel ? { ...light, size: POINT_CELL } : light;
+      if (pixel && !run) drawnPixels.push(emitter);
+      objects.forEach((object, part) => {
         objectLights.push({ objectId: object.id, sources });
-        objectEmitters.push({ position: object.position, weight: object.size ? surfaceWeight(object) : 0 });
-      }
+        objectEmitters.push({ position: object.position, emitter, share: area ? areas[part] / area : 1 / objects.length });
+      });
       if (aim) lamps.push(directed({ ...light, position: origin }, 0));
       continue;
     }
@@ -405,7 +412,7 @@ export function roomRig(fixtures, rig, model, profiles = {}) {
       }
     } else if (aim) lamps.push(directed(light, ROOM_BULB));
     else if (emission?.kind === 'beam') lamps.push({ ...beamLight(light, emission, fixture.group === 'floor', room), body: ROOM_BULB });
-    else if (emission?.kind === 'strip' || !emission && !binding.sources && rig.cellMaps[indices.get(binding.fixtureId)]) cells.push({ ...light, size: POINT_CELL });
+    else if (pixel) cells.push({ ...light, size: POINT_CELL });
     else lamps.push({ ...light, kind: 'bulb', aim: null, length: 0, body: ROOM_BULB });
   }
   // A placed fixture no binding names is drawn where the effects sample it: its Rig plot position in this room (space.ts).
@@ -423,8 +430,8 @@ export function roomRig(fixtures, rig, model, profiles = {}) {
       else lamps.push({ ...light, kind: 'bulb', aim: null, length: 0, body: ROOM_BULB });
     }
   });
-  const pitch = pitches(cells);
-  for (const cell of cells) if (!cell.length && pitch.has(cell.fixture)) {
+  const pitch = pitches([...cells, ...drawnPixels]);
+  for (const cell of [...cells, ...drawnPixels]) if (!cell.length && pitch.has(cell.fixture)) {
     const grid = rig.grids[indices.get(cell.fixture)], dense = grid?.rows > 1 && grid.columns > 1 ? pitch.get(cell.fixture) / PIXEL_PITCH : 1;
     cell.size = pixelSize(pitch.get(cell.fixture));
     if (!cell.lumen) cell.lumen = PIXEL_LUMEN * Math.min(1, dense * dense);
@@ -433,6 +440,7 @@ export function roomRig(fixtures, rig, model, profiles = {}) {
   const missing = fixtures.filter((fixture) => !mapped.has(fixture.id));
   const partial = fixtures.filter((fixture, index) => mapped.has(fixture.id) && mapped.get(fixture.id).size < rig.ranges[index].count);
   const shared = [...outputs.values()].filter((output) => output.bindings.length > 1);
+  for (const part of objectEmitters) part.weight = emitterWeight(part.emitter) * part.share;
   const { lights: clusters, unlit: unlitRooms } = roomLights([...lamps, ...cells, ...objectEmitters], model);
   const objectClusters = objectEmitters.map(({ cluster, weight }) => ({ cluster, weight }));
   return { lamps, cells, objectLights, objectClusters, bodies, trusses: [], missing, partial, plotted, unresolved, incomplete, shared, estimated,
@@ -452,8 +460,9 @@ function bodyOf(fixture, cells) {
 }
 
 // What an emitter adds to the light a room is lit by, against an 806 lm bulb's 1: its lumen where known
-// (emission.ts), else a pixel's hundredth, a strip's 0.6 a metre, a lit surface by its area.
-const surfaceWeight = ({ size }) => Math.min(1, 8 * (size.x * size.y + size.y * size.z + size.x * size.z));
+// (emission.ts), else a pixel's hundredth, a strip's 0.6 a metre. A light drawn as parts of the room adds the same.
+const surfaceArea = ({ size }) => (size ? size.x * size.y + size.y * size.z + size.x * size.z : 0);
+const pathLength = (path) => path.slice(1).reduce((sum, to, i) => sum + Math.hypot(to.x - path[i].x, to.y - path[i].y, to.z - path[i].z), 0);
 export function emitterWeight(emitter) {
   if (emitter.weight !== undefined) return emitter.weight;
   if (emitter.lumen) return emitter.lumen / BULB_LUMEN;
