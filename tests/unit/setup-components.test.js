@@ -141,7 +141,7 @@ test('Settings → Show sets the minutes after which a disarmed show nobody atte
 });
 
 // G8: the interpreter is the live input's setting; the planned show's Auto-Sync and Remember the Night went with it.
-test('Sources → Live input names the Python it runs and offers no analysis or planned show settings', () => {
+test('Music → Live input names the Python it runs and offers no analysis or planned show settings', () => {
   ui.settingsSig.value = { settings: { live: { enabled: false, source: 'loopback', device: '', pythonPath: '' } }, secrets: {} };
   const html = ui.html(ui.h(ui.SettingsSection, ui.LIVE));
   const ids = [...html.matchAll(/id="set-([a-z]+\.[A-Za-z]+)"/g)].map((m) => m[1]);
@@ -185,6 +185,45 @@ test('the inspector: one fixture in full, a bar with its line', () => {
   assert.match(ui.html(ui.h(ui.Inspector, {})), /2 fixtures/);
   ui.rigSelectionSig.value = [];
   assert.match(ui.html(ui.h(ui.Inspector, {})), /Select a fixture/);
+});
+
+// G7 (Show v3 fixes): what the views lost to another place, and what that place holds now.
+test('the inspector holds a fixture\'s group, its override and Off beside Identify', () => {
+  const channels = { r: 10, g: 200, b: 0, w: 0, a: 0, uv: 0, dim: 255, strobe: 0 };
+  given({ fixtures: [fixture(1, 1, 0, 'par', { group: 'back' }), fixture(2, 13, 0, 'par', { override: { ...channels, enabled: true, blackout: false } }),
+    fixture(3, 25, 0, 'par', { override: { ...channels, enabled: false, blackout: true } })] });
+  const pressed = (html, name) => new RegExp(`<button[^>]*aria-pressed="(true|false)"[^>]*>${name}</button>`).exec(html)?.[1];
+  ui.rigSelectionSig.value = [1];
+  let html = ui.html(ui.h(ui.Inspector, {}));
+  const group = html.match(/<select id="insp-group"[^>]*>(.*?)<\/select>/);
+  assert.ok(group, 'a Group field');
+  assert.deepStrictEqual([...group[1].matchAll(/<option[^>]*>([^<]*)</g)].map((m) => m[1]), ['None', 'Front', 'Back', 'Room', 'Floor']);
+  assert.match(group[1], /<option selected value="back">Back</);
+  const actions = html.slice(html.indexOf('class="inspector-actions"'));
+  assert.ok(actions.indexOf('>Identify<') < actions.indexOf('>Override<') && actions.indexOf('>Override<') < actions.indexOf('>Off<'), 'in the row Identify is in');
+  assert.deepStrictEqual([pressed(html, 'Override'), pressed(html, 'Off')], ['false', 'false']);
+  assert.doesNotMatch(html, />Clear<|Override channels/, 'nothing to clear and no channels without an override');
+  ui.rigSelectionSig.value = [2];
+  html = ui.html(ui.h(ui.Inspector, {}));
+  assert.deepStrictEqual([pressed(html, 'Override'), pressed(html, 'Off')], ['true', 'false']);
+  assert.match(html, /aria-label="Override channels"/);
+  assert.match(html, /<input id="insp-override-g"[^>]*value="200"/);
+  assert.match(html, />Clear</);
+  ui.rigSelectionSig.value = [3];
+  html = ui.html(ui.h(ui.Inspector, {}));
+  assert.deepStrictEqual([pressed(html, 'Override'), pressed(html, 'Off')], ['false', 'true']);
+  assert.doesNotMatch(html, /Override channels/, 'Off alone shows no channels');
+  assert.match(html, />Clear</);
+  ui.rigSelectionSig.value = [];
+});
+
+test('Rig → Outputs holds Hardware limits, and Settings → Show no longer sets the picture source', () => {
+  given({ fixtures: [] });
+  ui.settingsSig.value = { settings: { outputs: { armed: false }, safety: { flashLimit: false }, hue: { strobe: 'flash' } }, secrets: {} };
+  assert.match(ui.html(ui.h(ui.Outputs, {})), /<h2 class="panel-title" id="hardware-title">Hardware limits<\/h2>/);
+  const show = ui.html(ui.h(ui.SettingsSection, ui.SHOW));
+  assert.deepStrictEqual([...show.matchAll(/id="set-([a-z]+\.[A-Za-z]+)"/g)].map((m) => m[1]), ['outputs.idleStopMin', 'safety.flashLimit', 'hue.strobe']);
+  assert.doesNotMatch(show, /Picture Source/);
 });
 
 test('a DDP device that is not a WLED is named for what it is, and Outputs offers to add one by size', () => {

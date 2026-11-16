@@ -288,7 +288,7 @@ function Pad({ row, active, favourite, onTap, onEdit, onToggleFavourite }) {
   );
 }
 
-/** A catalogue row: the pattern button as the Manual view has always had it, with the star and the pencil beside. */
+/** A catalogue row: the pattern button as Effect settings has always had it, with the star and the pencil beside. */
 function Row({ row, active, onBars, onPanels, favourite, onTap, onEdit, onToggleFavourite }) {
   const press = usePress(() => onTap(row), () => onEdit(row.id));
   const where = [onBars && 'the bars', onPanels && 'the panels'].filter(Boolean).join(' and ');

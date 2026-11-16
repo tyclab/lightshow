@@ -25,7 +25,7 @@ import { insidePolygon, meanLightRGB, ROOM_LIGHTS, roomViews, STAGE_FOV } from '
  * that only the lights' shadow cameras see, whose maps render again only when
  * the room, the rig or a light's place changes.
  *
- * Loaded on its own (three.js is most of it), the first time the Stage view
+ * Loaded on its own (three.js is most of it), the first time a stage
  * opens. `createStageScene` throws when the browser has no WebGL.
  *
  * It imports nothing of the app's: the room's size and the colour of a light

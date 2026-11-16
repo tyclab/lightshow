@@ -9,7 +9,7 @@ test('MIDI show-control layout is explicit and Undo restores custom bindings', a
   const custom = { cc: { 70: { action: 'adjustMasterDimmer', type: 'absolute' } }, notes: { 80: { action: 'tap' } } };
   await request.put('/api/midi/map', { data: custom });
   try {
-    await open(page, 'settings');
+    await open(page, 'settings/midi');
     const panel = page.getByRole('region', { name: 'MIDI mapping' });
     await expect(panel).toContainText('CC 70 (encoder)');
     await panel.getByRole('combobox', { name: 'MIDI layout' }).selectOption('performance');

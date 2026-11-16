@@ -55,7 +55,7 @@ export function PreflightReport({ report }) {
 export function PreflightView() {
   const { running, report, error, at } = preflightSig.value;
   return (
-    <div class="setup-view preflight-view">
+    <div class="preflight-view">
       <section class="panel" aria-labelledby="preflight-title">
         <header class="panel-head">
           <h2 class="panel-title" id="preflight-title">Pre-show check</h2>

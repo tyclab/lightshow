@@ -36,8 +36,8 @@ export function autoStatus(s) {
     return { id: 'playing', text: 'By ear', title: director.silent ? 'Silence: dark until the music comes back'
       : director.holding ? 'Holding a look picked by hand until the next change' : 'Answering what the live input hears' };
   }
-  if (!live || !live.listening) return { id: 'idle', text: 'Live input not listening', title: 'Turn the live input on under Sources: Auto plays what it hears' };
-  return { id: 'idle', text: 'Idle', title: 'Start Auto in the header' };
+  if (!live || !live.listening) return { id: 'idle', text: 'Live input not listening', title: 'Turn the live input on under Music, Live input: the auto show plays what it hears' };
+  return { id: 'idle', text: 'Idle', title: 'Start it with the Auto show switch in the header' };
 }
 
 export function transportState(driver, s) {

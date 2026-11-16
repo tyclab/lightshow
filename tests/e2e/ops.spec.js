@@ -9,8 +9,9 @@ const AXE = createRequire(import.meta.url).resolve('axe-core/axe.min.js');
 
 test.beforeEach(async ({ request }) => { await reset(request); });
 
+// G7: the log is under Settings, Check.
 async function openLog(page) {
-  await page.getByRole('button', { name: 'Log', exact: true }).click();
+  await page.evaluate(() => { window.location.hash = '#settings/check'; });
   return page.getByRole('log', { name: 'Server log' });
 }
 
@@ -37,14 +38,14 @@ test('the log: what the server has said, filtered, with its health above', async
 });
 
 for (const theme of ['dark', 'light', 'red']) {
-  test(`the log drawer, ${theme} theme, has no axe violations`, async ({ page }) => {
+  test(`the log, ${theme} theme, has no axe violations`, async ({ page }) => {
     await open(page, 'effects', { theme });
     const log = await openLog(page);
     await expect(log.locator('.log-entry').first()).toBeVisible();
     await expect(page.locator('.log-health')).toBeVisible();
     await page.addScriptTag({ path: AXE });
     const violations = await page.evaluate(async () => {
-      const result = await window.axe.run(document.querySelector('.bottom-drawer'), { resultTypes: ['violations'] });
+      const result = await window.axe.run(document.querySelector('.log-view'), { resultTypes: ['violations'] });
       return result.violations.map((v) => `${v.impact} ${v.id}: ${v.nodes.slice(0, 3).map((n) => n.target.join(' ')).join(' | ')}`);
     });
     expect(violations).toEqual([]);

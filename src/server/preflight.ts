@@ -141,7 +141,7 @@ async function checkArtnet({ probe = probeSend, discover = discoverNodes, discov
     return {
       id: 'artnet', label: 'Art-Net output', status: FAIL,
       detail: `Cannot send to ${target.host}:${target.port} — ${send.error}`,
-      fix: 'Check the node IP in Settings → ArtNet Output, and that this machine is on the lighting network.',
+      fix: 'Check the node IP in Rig → Outputs → Art-Net, and that this machine is on the lighting network.',
     };
   }
 
@@ -225,7 +225,7 @@ function checkEngine(status: EngineStatus = engineStatus(), { standalone = false
         + `in the last minute.${timing}`,
       fix: status.thread === 'worker'
         ? 'The machine itself is short of time: close other heavy programs, or plug a laptop in.'
-        : 'Set Settings → Engine → Render On to its own thread and restart.',
+        : 'Set Settings → System → Engine → Render On to its own thread and restart.',
     };
   }
   const note = late ? ` ${late} frame${late === 1 ? '' : 's'} a little late in the last minute.` : '';
@@ -246,7 +246,7 @@ function checkOutputsArmed(armed: boolean = isArmed(), { standalone = false } = 
     return {
       id: 'armed', label, status: WARN,
       detail: 'Outputs disarmed: the show renders, but nothing goes out to the rig.',
-      fix: 'Arm the outputs before doors open — the switch in Perform or Settings → Show, or POST /api/outputs/arm.',
+      fix: 'Arm the outputs before doors open: Arm in the header, or POST /api/control with the action arm.',
     };
   }
   return { id: 'armed', label, status: OK, detail: 'Armed: frames go out to the rig.' };
@@ -257,7 +257,7 @@ function checkSacn(): Check {
   if (!config.enabled) {
     return {
       id: 'sacn', label: 'sACN output', status: INFO,
-      detail: 'Disabled. Turn it on in Settings → sACN (E1.31) if your console speaks it.',
+      detail: 'Disabled. Turn it on in Rig → Outputs → sACN (E1.31) if your console speaks it.',
     };
   }
 
@@ -268,7 +268,7 @@ function checkSacn(): Check {
       id: 'sacn', label: 'sACN output', status: FAIL,
       detail: `Universe ${unmappable.join(', ')} maps outside the ${MIN_UNIVERSE}–${MAX_UNIVERSE} sACN range `
         + `at offset ${config.universeOffset}, so ${unmappable.length === 1 ? 'it' : 'they'} will not be sent.`,
-      fix: 'Change the universe offset in Settings → sACN (E1.31), or move those fixtures.',
+      fix: 'Change the universe offset in Rig → Outputs → sACN (E1.31), or move those fixtures.',
     };
   }
 
@@ -276,7 +276,7 @@ function checkSacn(): Check {
     return {
       id: 'sacn', label: 'sACN output', status: FAIL,
       detail: `Multicast is set to leave from ${config.interface}, which is not an address of this machine.`,
-      fix: 'Pick the show network under Settings → sACN (E1.31) → Network, or let the computer choose.',
+      fix: 'Pick the show network under Rig → Outputs → sACN (E1.31) → Network, or let the computer choose.',
     };
   }
 
@@ -299,7 +299,7 @@ function checkSacn(): Check {
 async function checkWled(client: Pick<WledClient, 'info'> = wledClient): Promise<Check> {
   const wleds = state.fixtures.filter(isWled);
   if (!wleds.length) {
-    return { id: 'wled', label: 'WLED', status: INFO, detail: 'None in the patch. Add one under Settings → Output → WLED.' };
+    return { id: 'wled', label: 'WLED', status: INFO, detail: 'None in the patch. Add one under Rig → Outputs → WLED.' };
   }
   const answers = await Promise.all(wleds.map(async (fix) => {
     const output = fix.output as DdpOutput;
@@ -324,7 +324,7 @@ async function checkWled(client: Pick<WledClient, 'info'> = wledClient): Promise
     return {
       id: 'wled', label: 'WLED', status: FAIL,
       detail: silent.map((a) => `"${a.fix.label}" at ${a.host} does not answer (${a.error})`).join('; '),
-      fix: 'Check it is powered and on this network, or correct its address in Settings → Fixture Patch.',
+      fix: 'Check it is powered and on this network, or correct its address in Rig → Plan & patch.',
     };
   }
   if (resized.length) {
@@ -333,7 +333,7 @@ async function checkWled(client: Pick<WledClient, 'info'> = wledClient): Promise
       detail: resized.map((a) => (a.segment
         ? `"${a.fix.label}" reaches LED ${a.patched}, but its WLED reports ${a.leds}`
         : `"${a.fix.label}" reports ${a.leds} LEDs but is patched as ${a.patched}`)).join('; '),
-      fix: 'Remove it from the patch and add it again under Settings → Output → WLED.',
+      fix: 'Remove it from the patch and add it again under Rig → Outputs → WLED.',
     };
   }
   return {
@@ -606,7 +606,7 @@ function checkPatch(): Check {
     return {
       id: 'patch', label: 'Fixture patch', status: FAIL,
       detail: problems.join('; '),
-      fix: 'Fix the addressing in Settings → Fixture Patch.',
+      fix: 'Fix the addressing in Rig → Plan & patch.',
     };
   }
 
@@ -638,7 +638,7 @@ function checkPython(): Check {
     return {
       id: 'python', label: 'Python', status: FAIL,
       detail: `"${info.exe}" cannot be run — the live input will not start.`,
-      fix: 'Install Python 3 with the packages in requirements.txt, or set a Python\'s full path under Sources → Live input → Python.',
+      fix: 'Install Python 3 with the packages in requirements.txt, or set a Python\'s full path under Music → Live input → Python.',
     };
   }
   if (info.missing.length) {
@@ -691,7 +691,7 @@ function checkMidi(midi: PreflightSubjects['midi']): Check {
 async function checkLiveInput({ list = listLiveDevices }: { list?: () => Promise<LiveDevices> } = {}): Promise<Check> {
   const config = settings.group('live');
   if (!config.enabled) {
-    return { id: 'live', label: 'Live input', status: INFO, detail: 'Off. Turn it on in Settings → Live Input to follow the music by ear.' };
+    return { id: 'live', label: 'Live input', status: INFO, detail: 'Off. Turn it on in Music → Live input to follow the music by ear.' };
   }
   let devices: LiveDevices;
   try {
@@ -699,7 +699,7 @@ async function checkLiveInput({ list = listLiveDevices }: { list?: () => Promise
   } catch (err) {
     return {
       id: 'live', label: 'Live input', status: WARN, detail: messageOf(err),
-      fix: 'Check the Python interpreter under Sources → Live input, and install requirements.txt into it.',
+      fix: 'Check the Python interpreter under Music → Live input, and install requirements.txt into it.',
     };
   }
   if (!devices.backend) {
@@ -718,7 +718,7 @@ async function checkLiveInput({ list = listLiveDevices }: { list?: () => Promise
     return {
       id: 'live', label: 'Live input', status: WARN,
       detail: `"${wanted}" is not among the ${loopback ? 'outputs' : 'inputs'} (${listed.join(', ') || 'none'}).`,
-      fix: 'Plug it in, or pick another in Settings → Live Input.',
+      fix: 'Plug it in, or pick another in Music → Live input.',
     };
   }
   const which = found ? (found === wanted ? found : `${found} (${wanted})`)
@@ -746,7 +746,7 @@ function checkAccess(): Check {
     return {
       id: 'access', label: 'Access', status: FAIL,
       detail: `Bound to ${host} with no access token — anyone on the network could black out the rig.`,
-      fix: 'Set one in Settings → Server & Access → Access Token.',
+      fix: 'Set one in Settings → System → Server & access → Access Token.',
     };
   }
   return {
@@ -788,7 +788,7 @@ async function runPreflight({ midi, standalone = false }:
   const checks: Check[] = [
     { id: 'hardware-capability', label: 'Hardware capability', status: unverified.length ? 'warn' : 'ok',
       detail: `${unverified.length} fixtures have limits without measurements verifying the configured rate. ${constrained.length} fixtures hold or exclude effects they cannot follow.`,
-      fix: unverified.length ? 'Review Hardware limits in Settings and each fixture in Rig.' : null },
+      fix: unverified.length ? 'Review Hardware limits in Rig → Outputs and each fixture in Rig → Plan & patch.' : null },
     checkEngine(engineStatus(), { standalone }),
     checkOutputsArmed(isArmed(), { standalone }),
     artnet,

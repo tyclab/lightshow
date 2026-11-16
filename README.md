@@ -51,7 +51,7 @@ npm start
 ```
 
 Open **http://localhost:3000**. `npm start` builds the browser client and starts
-the server under its supervisor. Set the rig up in Rig, Sources and Settings.
+the server under its supervisor. Set the rig up in Rig, Music and Settings.
 
 The server always starts **disarmed**, including after a crash or restart.
 It also starts with the programme stopped, Blackout off and no held picture or pad
@@ -70,7 +70,7 @@ use those identifiers; no manual data migration is required.
 
 The default bind is `127.0.0.1:3000`. To use another device:
 
-1. In Settings → Server & access, generate an access token and apply it.
+1. In Settings → System → Server & access, generate an access token and apply it.
 2. Set the bind address to `0.0.0.0`, apply, and restart.
 3. Visit `http://<server>:3000/?token=<token>` once per browser, or enter the
    token in the access prompt. The browser saves it and removes it from the URL.
@@ -307,7 +307,7 @@ light** off keeps the shading without it and is remembered in this browser. **Ey
 edge) at 1.6 m; a double-click turns the view around the point under the pointer, and a
 right-drag or two fingers pan within the room.
 
-To run reactive effects, configure and enable live input in Sources, select
+To run reactive effects, configure and enable live input in Music → Live input, select
 Reactive in Perform's Audio panel, and choose a Disco or Audio-reactive preset in
 Effects. Check the meters and preview before arming. Expand Audio response to
 adjust Party sensitivity, threshold, envelope and brightness, or the
@@ -345,20 +345,26 @@ to effects; pad banks launch effects or patterns over the look.
 | View | Shortcut | Purpose |
 |------|----------|---------|
 | Show | 1 | The room in 3D and the looks beside it |
-| Effect settings | 2 | Effects catalogue and inspector, cues, the Bands card, fixture overrides and stage preview |
 | Perform | 3 | Pads and Matrix, transport, strobe, tap, colours and the room picture's colour grade |
-| Stage | 4 | Monitor the rendered rig in 3D, import a room and bind its lights |
-| Auto Show | 5 | What the Auto show does by ear (playing, idle, or waiting for the live input), over the stage |
+| Rig | 7 | **Plan & patch** (the plan, the patch and the fixture inspector), **Room** (the rendered rig in 3D: import a room and bind its lights; **4** opens it), **Profiles**, **Outputs** (Art-Net, sACN, WLED, DDP, OpenRGB, Hue and the hardware limits) |
+| Effect settings | 2 | Effects catalogue and inspector, cues, the Bands card and the stage preview |
 | Sequence | 6 | Create/load sequences; timeline tools and recording; lanes, clips and patterns behind Edit |
-| Rig | 7 | Plan, patch, fixture profiles and outputs |
-| Sources | 8 | The live input: what it hears, room latency and its Python |
-| Settings | 9 | Show behaviour, safety, MIDI, engine and server access |
-| Preflight | 0 | Run the pre-show checks |
+| Music | 8 | **Live input** (device, source, room latency, its Python, and what it hears now) and **Auto show** (what the Auto show does by ear: playing, idle, or waiting for the live input; **5** opens it) |
+| Settings | 9 | **Show** (an unattended show's stop, the flash limit, Hue's flash), **MIDI**, **Check** (the pre-show check, the DMX monitor and the log; **0** opens it), **System** (engine and server access) |
 
-The strip under the header has two tabs, **Show** and **Perform**, and a **Setup** menu with every
-other view under the name in the table; Setup names the view it has open (**Setup · Rig**). A dot
-on Setup, visible with the menu closed, and on its Auto Show entry (which then reads **Running**)
-says that the Auto show is playing by ear. Each view keeps its digit and its hash.
+The strip under the header has two tabs, **Show** and **Perform**, and a **Setup** menu with the
+other five views in three groups: **Rig** (Rig), **Content** (Effect settings, Sequence) and
+**System** (Music, Settings). Setup names the view it has open (**Setup · Rig**). A dot on Setup,
+visible with the menu closed, and on its Music entry (which then reads **Auto show running**)
+says that the Auto show is playing by ear. A view with panels opens the one last used, the first
+one the first time; each view keeps its digit and its hash, and so do the three former views that
+are panels now: **4** and `#stage` open Rig's Room, **5** and `#auto` Music's Auto show, **0** and
+`#preflight` Settings' Check, whichever panel that view last showed.
+
+A fixture's **Group**, **Override** and **Off** are in Rig's inspector, beside Identify: select
+the fixture on the plan or in the patch. Override holds it on the channels under the button
+whatever the show plays; Off keeps it dark and keeps an override under it; Clear leaves it to
+the show.
 
 The global controls and the picture source appear once in the app header,
 including setup views; choosing a source or an effect never starts the programme
@@ -374,9 +380,11 @@ is the programme, **Use selected picture** goes back to the selected picture (so
 the Auto show switch, on and then off). Leaving a stopped sequence lets its held picture
 go without starting anything. **Open the sequence editor** leads to Sequence.
 
-Hashes open a view directly, such as `/#perform` or `/#rig/outputs`.
-Show opens by default. Old `#manual`, `#timeline` and `#matrix` bookmarks redirect
-to Effect settings, Auto Show and Perform → Matrix. The global header stays
+Hashes open a view or one of its panels directly, such as `/#perform` or `/#rig/outputs`; an
+address that names a panel wins over the one the view remembers.
+Show opens by default. Old bookmarks open the place that holds them now: `#manual` Effect
+settings, `#matrix` Perform's Matrix, `#stage` Rig's Room, `#auto` and `#timeline` Music's Auto
+show, `#preflight` Settings' Check. The global header stays
 in one place on every tab. Sequence tools retain timeline Pause and row navigation.
 A paused timeline shows **Resume timeline** in Pause's place, on Perform and in Sequence;
 it carries on from the held beat. The header keeps Stop while the timeline is paused.
@@ -751,7 +759,7 @@ flashes.
 
 ## Configuration
 
-Use Rig, Sources and Settings, then **Apply**. `GET /api/settings` reports
+Use Rig, Music and Settings, then **Apply**. `GET /api/settings` reports
 settings with secrets blanked, per-secret presence flags and pending restart
 keys; `PUT /api/settings` changes selected fields.
 
@@ -976,8 +984,8 @@ on a transition.
 ### Other DDP pixel devices
 
 A DDP receiver that is not a WLED, such as an LED matrix running its own
-firmware, has no API to say what it is. Rig → Outputs → **Other DDP pixel
-devices**, or `POST /api/ddp/add`, adds one from its address, a label and its
+firmware, has no API to say what it is. Rig → Outputs → Other DDP pixel devices,
+or `POST /api/ddp/add`, adds one from its address, a label and its
 size in columns and rows. Its profile is one RGB cell per pixel, numbered row by
 row from the top left (a grid when both sizes are above 1, a strip otherwise),
 and DDP sends the pixels in that order from offset 0 to port 4048. A panel wired
@@ -1173,8 +1181,7 @@ feed reads that same canvas without a desktop capture or OBS process.
 
 ### Room picture
 
-The same canvas can paint the whole rig. The header's picture source (also
-Settings → Show → Picture Source, or `POST /api/picture/source` with
+The same canvas can paint the whole rig. The header's picture source (or `POST /api/picture/source` with
 `{ "source": "effects" | "visualizer" | "squid" }`) chooses what the base layer paints
 from. With **Visualizer** selected, a sender claims the room picture over the
 authenticated socket and sends one RGB colour per rig unit, sampled from the
@@ -1809,7 +1816,7 @@ flash-limited.
 
 The live input hears the music as it plays: what this computer plays (WASAPI
 loopback on Windows, the output's monitor on Linux) or an input, such as a line-in
-off the booth. Enable it in Sources, choose what it listens to and the device, and
+off the booth. Enable it in Music → Live input, choose what it listens to and the device, and
 check that it says **Listening**. The server runs `src/live_input.py` as a
 subprocess under a Python that has the packages in `requirements.txt`:
 
@@ -1817,7 +1824,7 @@ subprocess under a Python that has the packages in `requirements.txt`:
 python -m pip install -r requirements.txt
 ```
 
-`live.pythonPath` (Sources → Live input → Python) names the interpreter; blank
+`live.pythonPath` (Music → Live input → Python) names the interpreter; blank
 detects one, trying a `.venv` in the data directory first and preferring an
 interpreter that has those packages. Preflight's Python check names what is
 missing. Nothing downloads models. What the live input reads from the sound, its
@@ -2342,7 +2349,7 @@ and cannot be set or changed here.
 
 ## Pre-show checks and diagnostics
 
-Run `npm run preflight` or use the Preflight view. Checks cover patch/output
+Run `npm run preflight` or use Settings → Check. Checks cover patch/output
 configuration, Art-Net nodes, sACN conflicts, Hue, WLED/OpenRGB, MIDI, the Python
 the live input runs and the live input's device. Art-Net has nothing to check when
 every fixture goes to its own device (Hue, DDP, OpenRGB) and only an empty
@@ -2361,7 +2368,7 @@ it: by the backend's id (`auto_null`) as well as by name.
 supervisor and effect/voice/sequence counts. Disarmed is informational. In
 `engine`, `skippedFramesLastMinute` counts frames dropped in the last 60 s and
 `skippedFramesTotal` every frame dropped since the engine's ticker started; the
-pre-show engine check and the Settings → Engine note read the last minute only,
+pre-show engine check and the Settings → System → Engine note read the last minute only,
 so a stall at start-up stops warning a minute later. `renderedTotal` counts the
 ticks that rendered a frame. `idle` is true while the outputs are disarmed, no
 page watches the DMX feed and no identify runs: the engine then
@@ -2371,7 +2378,7 @@ names what keeps it from idling, as the performance record does. `eventLoop`
 gives the main thread's delay in milliseconds over the last 30 s window: the
 excess over the 10 ms sampling timer, so an idle loop reads 0.
 
-Logs appear in the terminal, the app's Log drawer and `logs/lightshow.log`.
+Logs appear in the terminal, under Settings → Check in the app and in `logs/lightshow.log`.
 Files are JSON lines, rotated at 10 MB with three retained rotations. The file
 is written off the event loop, so a disk that stalls delays the file, not the
 show; lines still waiting at exit are written before the process ends, and a
@@ -2424,8 +2431,8 @@ Press **?** in the app for this list.
 |-----|--------|
 | **Space** | Tap tempo — also right after clicking a button; a control reached with Tab keeps Space for itself |
 | **1** / **2** / **3** | Show / Effect settings / Perform view |
-| **4** / **5** / **6** | Stage / Auto Show / Sequence view |
-| **7** / **8** / **9** / **0** | Rig / Sources / Settings / Preflight view |
+| **4** / **5** / **6** | Rig view, Room / Music view, Auto show / Sequence view |
+| **7** / **8** / **9** / **0** | Rig / Music / Settings view / Settings view, Check |
 | **←** **→**, **Home** / **End** on the view tabs | Show / Perform |
 | **Enter**, **Space** or **↓** on Setup; **↑** **↓**, **Home** / **End**, **Esc** in its menu | Open the menu; move in it; close it |
 | **←** **→** / **↑** **↓** on a colour point (**Shift** for 10) | Turn its hue / change its saturation on the wheel |
@@ -2503,7 +2510,7 @@ Repository contribution rules and comment-limit approvals live in [AGENTS.md](AG
 
 ## Hardware capability and admission
 
-Settings → Hardware limits defines defaults for DMX, DDP, OpenRGB and Hue,
+Rig → Outputs → Hardware limits defines defaults for DMX, DDP, OpenRGB and Hue,
 plus named product limits. In Rig, select a fixture to choose its product,
 override its flash rate or minimum transition time, and choose its admission
 policy. Profile limits sit above technology defaults; a product overrides

@@ -87,12 +87,13 @@ test('without WebGL the Stage view says so', async ({ page }) => {
   await expect(page.getByRole('alert')).toContainText('needs WebGL');
 });
 
-test('5 opens Auto Show and 4 opens Stage', async ({ page }) => {
+// G7: the two views are panels now, Music's Auto show and Rig's Room.
+test('5 opens the Auto show panel and 4 opens the Room with the full stage', async ({ page }) => {
   await open(page, 'effects');
   await page.locator('body').press('5');
-  await expect(page.locator('#panel-auto .auto-layout')).toBeVisible();
+  await expect(page.locator('#panel-sources .auto-show')).toBeVisible();
   await page.locator('body').press('4');
-  await expect(page.locator('#panel-stage')).toBeVisible();
+  await expect(page.locator('#panel-rig .stage3d-view:not(.compact)')).toBeVisible();
 });
 
 

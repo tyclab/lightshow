@@ -32,6 +32,69 @@ test('selecting a fixture on the plan selects its row and shows it in the inspec
   await expect(page.getByRole('checkbox', { name: `Select ${second.label}` })).toBeChecked();
 });
 
+// G7: Group, Override and Off moved from Effect settings' Fixtures card to the Rig inspector, beside Identify.
+test('the Rig inspector sets a fixture\'s group, holds it on an override and keeps it off, as the Fixtures card did', async ({ page, request }) => {
+  const before = (await state(request)).fixtures[0];
+  const now = (check) => until(request, (s) => check(s.fixtures.find((f) => f.id === before.id)));
+  await open(page, 'rig/plan');
+  await page.locator(`.plan-surface [data-fixture="${before.id}"]`).click();
+  const panel = page.locator('.inspector');
+  const group = panel.getByLabel('Group', { exact: true });
+  const override = panel.getByRole('button', { name: 'Override', exact: true });
+  const off = panel.getByRole('button', { name: 'Off', exact: true });
+  const clear = panel.getByRole('button', { name: 'Clear', exact: true });
+  const channels = panel.getByRole('group', { name: 'Override channels' });
+  try {
+    await expect(panel.locator('.inspector-actions').getByRole('button', { name: 'Identify', exact: true }), 'beside Identify').toBeVisible();
+    await expect(panel.locator('.inspector-actions').getByRole('button', { name: 'Override', exact: true })).toBeVisible();
+    await expect(panel.locator('.inspector-actions').getByRole('button', { name: 'Off', exact: true })).toBeVisible();
+
+    await group.selectOption('back');
+    await now((f) => f.group === 'back');
+    await group.selectOption('');
+    await now((f) => !f.group);
+
+    await expect(override).toHaveAttribute('aria-pressed', 'false');
+    await expect(channels).toHaveCount(0);
+    await override.click();
+    await now((f) => f.override?.enabled === true && f.override.blackout === false);
+    await expect(override).toHaveAttribute('aria-pressed', 'true');
+    await channels.getByLabel('Green', { exact: true }).fill('200');
+    await now((f) => f.override?.g === 200 && f.override.enabled === true);
+
+    // Off gates the fixture and keeps the override under it; releasing Off shows the override again.
+    await off.click();
+    await now((f) => f.override?.blackout === true && f.override.enabled === true && f.override.g === 200);
+    await expect(off).toHaveAttribute('aria-pressed', 'true');
+    await off.click();
+    await now((f) => f.override?.blackout === false && f.override.enabled === true && f.override.g === 200);
+
+    // Clear leaves the fixture to the show.
+    await clear.click();
+    await now((f) => !f.override);
+    await expect(override).toHaveAttribute('aria-pressed', 'false');
+    await expect(channels).toHaveCount(0);
+
+    // Off with no override under it, and releasing it.
+    await off.click();
+    await now((f) => f.override?.blackout === true && !f.override.enabled);
+    await off.click();
+    await now((f) => !f.override);
+
+    // The card they came from is gone from Effect settings.
+    await open(page, 'effects');
+    await expect(page.locator('.manual-view')).toBeVisible();
+    await expect(page.locator('.manual-view').getByText('Fixtures', { exact: true })).toHaveCount(0);
+  } finally {
+    // Whatever failed above, the fixture is left as it was found.
+    await open(page, 'rig/plan');
+    await page.locator(`.plan-surface [data-fixture="${before.id}"]`).click();
+    if (await clear.count()) await clear.click();
+    await group.selectOption(before.group || '');
+    await now((f) => !f.override && (f.group || null) === (before.group || null));
+  }
+});
+
 test('dragging a fixture on the plan moves it on the server', async ({ page, request }) => {
   const before = await state(request);
   await open(page, 'rig');
@@ -140,6 +203,9 @@ test('a setting is applied, and a secret is set and cleared without ever being s
   await flash.setChecked(was);
   await section.getByRole('button', { name: 'Apply' }).click();
 
+  // G7: the server's settings are under Settings, System.
+  await page.getByRole('tablist', { name: 'Settings', exact: true }).getByRole('tab', { name: 'System', exact: true }).click();
+  await expect(page).toHaveURL(/#settings\/system$/);
   const server = page.locator('[data-section="server"]');
   const token = server.getByRole('textbox', { name: 'Access Token' });
   await token.fill('a-secret-token');
@@ -166,25 +232,30 @@ test('the pre-show check runs and says what it found', async ({ page }) => {
   await expect(page.locator('.preflight-row').first()).toBeVisible();
   // Kept when looking elsewhere and coming back.
   await openFromSetup(page, 'Rig');
-  await openFromSetup(page, 'Preflight');
+  await page.locator('body').press('0');
   await expect(page.locator('.preflight-summary')).toBeVisible();
 });
 
 test('the old settings page\'s links land on the views that hold them now', async ({ page }) => {
   await page.goto('/settings.html#music');
-  await expect(page).toHaveURL(/\/#sources$/);
+  await expect(page).toHaveURL(/\/#sources\/live$/);
   await page.locator('#panel-sources').waitFor();
   await page.goto('/settings.html#output');
   await expect(page.locator('#panel-rig')).toBeVisible();
   await expect(page.getByRole('tab', { name: 'Outputs' })).toHaveAttribute('aria-selected', 'true');
   await expect(page).toHaveURL(/#rig\/outputs$/);
   await page.goto('/settings.html#check');
-  await expect(page.locator('#panel-preflight')).toBeVisible();
+  await expect(page.locator('#panel-settings #preflight-title')).toBeVisible();
+  await expect(page).toHaveURL(/#settings\/check$/);
 });
 
 test('a view\'s own tabs follow the arrow keys and the address', async ({ page }) => {
   await open(page, 'rig');
   await page.getByRole('tab', { name: 'Plan & patch' }).focus();
+  // G7: Room is Rig's second panel.
+  await page.keyboard.press('ArrowRight');
+  await expect(page.getByRole('tab', { name: 'Room', exact: true })).toBeFocused();
+  await expect(page).toHaveURL(/#rig\/room$/);
   await page.keyboard.press('ArrowRight');
   await expect(page.getByRole('tab', { name: 'Profiles' })).toBeFocused();
   await expect(page).toHaveURL(/#rig\/profiles$/);

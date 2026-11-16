@@ -1468,7 +1468,13 @@ test('Perform lifts and grades the visualizer picture while it paints the room, 
 
 test('shortcut help derives every view chord from the navigation', () => {
   const items = ui.SHORTCUTS.flatMap((group) => group.items).filter((item) => item.view);
-  assert.deepStrictEqual(items.map((item) => [item.view, item.keys]), ui.VIEWS.map((view) => [view.id, [...(view.shift ? ['Shift'] : []), view.key]]));
+  // G7: the digits of the former Stage, Auto Show and Preflight views name the panel they open.
+  assert.deepStrictEqual(items.map((item) => [item.keys[0], item.view, item.panel ?? null, item.what]), [
+    ['1', 'show', null, 'Show view'], ['2', 'effects', null, 'Effect settings view'], ['3', 'perform', null, 'Perform view'],
+    ['4', 'rig', 'room', 'Rig view, Room'], ['5', 'sources', 'auto', 'Music view, Auto show'], ['6', 'sequence', null, 'Sequence view'],
+    ['7', 'rig', null, 'Rig view'], ['8', 'sources', null, 'Music view'], ['9', 'settings', null, 'Settings view'],
+    ['0', 'settings', 'check', 'Settings view, Check'],
+  ]);
 });
 
 test('voice stop uses the visible voice identifier', async () => {

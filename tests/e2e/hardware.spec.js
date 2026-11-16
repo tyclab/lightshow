@@ -9,23 +9,24 @@ const slowEcho = (page) => page.routeWebSocket(/socket\.io/, (ws) => {
 });
 
 test('hardware disclosure controls are at least 44 pixels high', async ({ page }) => {
-  await open(page, 'settings');
+  await open(page, 'rig/outputs');
   const summaries = page.locator('.hardware-limits summary');
   expect(await summaries.count()).toBeGreaterThan(0);
   for (const summary of await summaries.all()) expect((await summary.boundingBox()).height).toBeGreaterThanOrEqual(44);
 });
 
+// G7: Hardware limits moved from Settings to Rig, Outputs; they save and return as they did.
 test('product and device limits save and return to inherited values', async ({ page, request }) => {
   const previous = (await (await request.get('/api/settings')).json()).settings.hardware;
   const fixture = (await state(request)).fixtures[0];
-  await open(page, 'settings');
+  await open(page, 'rig/outputs');
   const hardware = page.locator('section', { has: page.locator('#hardware-title') });
   await hardware.getByLabel('New product name').fill('Browser product');
   await hardware.getByLabel('Output technology').selectOption('dmx');
   await hardware.getByRole('button', { name: 'Add product limits' }).click();
   await expect(hardware.locator('summary', { hasText: 'Browser product' })).toBeVisible();
   try {
-    await open(page, 'rig');
+    await open(page, 'rig/plan');
     await page.locator(`.plan-surface [data-fixture="${fixture.id}"]`).click();
     const panel = page.locator('.inspector');
     await panel.locator('summary', { hasText: 'Hardware capability' }).click();

@@ -99,7 +99,7 @@ export function SpatialControls({ spec, setParam, advancedControls }) {
       </select>
       <p class="look-note">{mapping === 'room'
         ? 'Follows the lights’ physical positions, including room depth and height. Room bindings make this different from the layout.'
-        : 'Follows the Rig plot like a flat picture. The top of the plot is up; no room setup is needed.'} The Stage view switch only changes how you see the preview.</p>
+        : 'Follows the Rig plot like a flat picture. The top of the plot is up; no room setup is needed.'} The stage’s 3D room and 2D plot switch only changes how you see the preview.</p>
     </div>}
     {!mapping && <p class="look-note">{spec.kind === 'v2.step'
       ? spec.params?.order === 'path' ? 'Follows each strip’s LED order. Room positions do not change this effect.' : 'Uses a random light order. Room positions do not change this effect.'
