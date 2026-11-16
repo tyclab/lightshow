@@ -1,5 +1,5 @@
 // The header ruled in docs/agents/header.md: one row on a desktop, two on a phone; the picture source first, then
-// play, Resume's reserved slot, Blackout, Arm and the master in fixed places, then the status chip and this device's menu.
+// play, Blackout, Arm and the master in fixed places, Resume after them while frozen, then the status chip and this device's menu.
 
 import { test, expect } from '@playwright/test';
 import { createRequire } from 'node:module';
@@ -26,8 +26,9 @@ const header = (page) => page.locator('.app-header');
 const controls = (page) => page.getByRole('group', { name: 'Global show controls' });
 const source = (page) => page.getByRole('group', { name: 'Picture source' });
 const safety = (page) => ({ Blackout: page.locator('.global-blackout'), Arm: page.locator('.global-arm') });
-// Resume's place, kept while nothing is frozen, so Blackout and Arm never move.
-const hold = (page) => page.locator('.global-hold');
+// What must not move when Resume shows (the 2026-10-28 ruling: "the main controls should stay same place all the time").
+const fixed = (page) => ({ play: page.locator('.global-play'), ...safety(page), master: page.locator('.global-master') });
+const resumeButton = (page) => controls(page).getByRole('button', { name: 'Resume', exact: true });
 
 for (const [width, height] of WIDTHS) {
   test(`at ${width}px the header keeps its rows, its budget and 44 px safety buttons`, async ({ page }) => {
@@ -37,7 +38,7 @@ for (const [width, height] of WIDTHS) {
     expect(await header(page).evaluate((e) => e.scrollWidth - e.clientWidth)).toBeLessThanOrEqual(0);
     expect(await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)).toBeLessThanOrEqual(0);
     const parts = {
-      source: source(page), play: page.locator('.global-play'), hold: hold(page), ...safety(page),
+      source: source(page), play: page.locator('.global-play'), ...safety(page),
       master: page.getByRole('slider', { name: 'Master dimmer' }), chip: page.locator('.status-chip'), more: page.getByRole('button', { name: 'This device' }),
     };
     const at = {};
@@ -59,32 +60,34 @@ for (const [width, height] of WIDTHS) {
       expect(Math.max(...rows) - Math.min(...rows)).toBeLessThanOrEqual(2);
       expect(at.source.x).toBeLessThan(at.play.x);
     } else {
-      // Two rows: the source, the chip and ⋮; then play, Resume's slot, Blackout, Arm and the master.
+      // Two rows: the source, the chip and ⋮; then play, Blackout, Arm and the master.
       expect(bar.h).toBeLessThanOrEqual(2 * 56 + 8);
       for (const name of ['chip', 'more']) expect(Math.abs(row(at[name]) - row(at.source))).toBeLessThanOrEqual(2);
-      for (const name of ['play', 'hold', ...SAFETY, 'master']) expect(Math.abs(row(at[name]) - row(at.play))).toBeLessThanOrEqual(2);
+      for (const name of ['play', ...SAFETY, 'master']) expect(Math.abs(row(at[name]) - row(at.play))).toBeLessThanOrEqual(2);
       expect(row(at.play)).toBeGreaterThan(row(at.source) + 30);
     }
     for (let i = 1; i < SAFETY.length; i++) expect(at[SAFETY[i]].x).toBeGreaterThan(at[SAFETY[i - 1]].x);
-    expect(at.play.x).toBeLessThan(at.hold.x);
-    expect(at.hold.x).toBeLessThan(at.Blackout.x);
-    expect(at.hold.w, 'Resume\'s slot').toBeGreaterThanOrEqual(44);
+    expect(at.play.x).toBeLessThan(at.Blackout.x);
+    // PR 9 (2026-11-15, "fix all bugs"): nothing kept between Play and Blackout for what left the header.
+    const gap = await controls(page).evaluate((e) => parseFloat(getComputedStyle(e).columnGap));
+    expect(at.Blackout.x - (at.play.x + at.play.w), 'Play to Blackout: the group\'s own gap').toBeLessThanOrEqual(gap + 0.5);
     if (width === 1915) {
       // The brief's chrome budget: at most 200 px above the Effects content.
       expect((await box(page.locator('main'))).y).toBeLessThanOrEqual(200);
     }
   });
 
-  // Show v3 fixes, G4 (words 6): Freeze leaves the header; Resume shows while frozen, in a slot kept for it.
-  test(`at ${width}px Blackout and Arm stay put whether Resume shows or not, whatever the labels and the effect say`, async ({ page, request }) => {
+  // Show v3 fixes, G4 (words 6): Freeze leaves the header; Resume shows while frozen. PR 9 (2026-11-15, "fix all bugs"):
+  // Resume stands after the master, so nothing keeps a slot for it between Play and Blackout and its appearing moves nothing.
+  test(`at ${width}px Play, Blackout, Arm and the master stay put whether Resume shows or not, whatever the labels and the effect say`, async ({ page, request }) => {
     await page.setViewportSize({ width, height });
     await control(request, 'stop');
     await set(request, { pattern: 'solid' });
     await open(page, 'effects');
     await expect(playButton(page, 'Play')).toBeVisible();
-    await expect(controls(page).getByRole('button', { name: 'Resume', exact: true })).toHaveCount(0);
+    await expect(resumeButton(page)).toHaveCount(0);
     const before = {};
-    for (const [name, locator] of Object.entries({ ...safety(page), hold: hold(page) })) before[name] = await box(locator);
+    for (const [name, locator] of Object.entries(fixed(page))) before[name] = await box(locator);
     const { patterns } = await state(request);
     const longest = patterns.filter((p) => !p.retired).reduce((a, b) => (b.name.length > a.name.length ? b : a));
     await set(request, { pattern: longest.id });
@@ -92,17 +95,45 @@ for (const [width, height] of WIDTHS) {
     for (const action of ['freeze', 'blackout', 'arm']) await control(request, action);
     await expect(controls(page).getByRole('button', { name: 'Armed, Disarm', exact: true })).toBeVisible();
     await expect(controls(page).getByRole('button', { name: 'Blackout, Restore', exact: true })).toBeVisible();
-    await expect(controls(page).getByRole('button', { name: 'Resume', exact: true })).toBeVisible();
+    await expect(resumeButton(page)).toBeVisible();
     await expect(playButton(page, 'Stop')).toBeVisible();
-    for (const [name, locator] of Object.entries({ ...safety(page), hold: hold(page) })) {
+    for (const [name, locator] of Object.entries(fixed(page))) {
       const after = await box(locator);
-      expect(Math.abs(after.x - before[name].x), `${name} x`).toBeLessThanOrEqual(0.5);
-      expect(Math.abs(after.w - before[name].w), `${name} width`).toBeLessThanOrEqual(0.5);
+      for (const key of ['x', 'y', 'w', 'h']) expect(Math.abs(after[key] - before[name][key]), `${name} ${key}`).toBeLessThanOrEqual(0.5);
     }
-    const resume = await box(controls(page).getByRole('button', { name: 'Resume', exact: true }));
-    expect(Math.abs(resume.x - before.hold.x), 'Resume fills its slot').toBeLessThanOrEqual(0.5);
+    const resume = await box(resumeButton(page)), bar = await box(header(page)), chip = await box(page.locator('.status-chip'));
+    expect(resume.x, 'Resume after the master').toBeGreaterThanOrEqual(before.master.x + before.master.w);
+    expect(Math.abs(resume.y + resume.h / 2 - (before.master.y + before.master.h / 2)), 'on the master\'s row').toBeLessThanOrEqual(2);
+    expect(resume.x + resume.w).toBeLessThanOrEqual(bar.x + bar.w + 0.5);
+    if (width > 1000) expect(resume.x + resume.w, 'clear of the status chip').toBeLessThanOrEqual(chip.x);
     expect(resume.w).toBeGreaterThanOrEqual(44);
     expect(resume.h).toBeGreaterThanOrEqual(44);
+  });
+
+  // PR 9 (2026-11-15, "fix all bugs"): the Effects segment kept 274 px for its one word after the picker left it.
+  test(`at ${width}px every picture source segment is as wide as its label, by one rule, chosen or not`, async ({ page, request }) => {
+    await page.setViewportSize({ width, height });
+    await open(page, 'show');
+    for (const id of ['effects', 'visualizer']) {
+      await request.post('/api/picture/source', { data: { source: id } });
+      await expect(source(page).locator(`[data-source="${id}"]`)).toHaveAttribute('aria-pressed', 'true');
+      const segments = await source(page).locator('.picture-segment').evaluateAll((buttons) => buttons.map((button) => {
+        const label = [...button.children].find((part) => getComputedStyle(part).display !== 'none');
+        const css = getComputedStyle(button);
+        const range = document.createRange();
+        range.selectNodeContents(label);
+        return { id: button.dataset.source, width: button.getBoundingClientRect().width, label: range.getBoundingClientRect().width,
+          chrome: ['paddingLeft', 'paddingRight', 'borderLeftWidth', 'borderRightWidth'].reduce((sum, key) => sum + parseFloat(css[key]), 0) };
+      }));
+      expect(segments.length).toBeGreaterThanOrEqual(2);
+      for (const segment of segments) {
+        expect(Math.abs(segment.width - segment.label - segment.chrome), `${id} chosen, ${segment.id}: ${JSON.stringify(segment)}`).toBeLessThanOrEqual(3);
+        expect(segment.width, `${id} chosen, ${segment.id}: at most twice its label`).toBeLessThanOrEqual(2 * segment.label);
+      }
+      const group = await box(source(page));
+      const right = Math.max(...await source(page).locator('.picture-segment').evaluateAll((buttons) => buttons.map((b) => b.getBoundingClientRect().right)));
+      expect(group.x + group.w - right, 'the group ends with its last segment').toBeLessThanOrEqual(2);
+    }
   });
 }
 

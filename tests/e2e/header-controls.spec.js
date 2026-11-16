@@ -63,7 +63,7 @@ for (const width of [1280, 1100, 390]) {
     await page.setViewportSize({ width, height: 844 });
     await open(page, 'show');
     const header = page.locator('.app-header');
-    const boxes = () => page.evaluate(() => Object.fromEntries(['.app-header', '.global-hold', '.global-blackout', '.global-arm']
+    const boxes = () => page.evaluate(() => Object.fromEntries(['.app-header', '.global-play', '.global-blackout', '.global-arm', '.global-master']
       .map((selector) => { const r = document.querySelector(selector).getBoundingClientRect(); return [selector, { x: r.x, w: r.width, h: r.height }]; })));
     const before = await boxes();
     await header.getByRole('button', { name: 'Blackout', exact: true }).click();

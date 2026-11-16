@@ -1,8 +1,8 @@
 import { signal } from '@preact/signals';
-import { useEffect, useId, useLayoutEffect, useRef, useState } from 'preact/hooks';
+import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'preact/hooks';
 import { connectedSig, idlePause, librarySig, pick, send } from '../state.js';
 import { pictureSourceSig, pictureUnmetSig } from '../picture-source.js';
-import { byName, catalogueOf, matchesSearch, tapRow, utilityEffect } from './Effects.jsx';
+import { byName, catalogueOf, matchesSearch, quickDeck, readFavourites, tapRow, utilityEffect } from './Effects.jsx';
 import { Photosensitivity, acknowledgeThen } from './Photosensitivity.jsx';
 import { AudioReactiveColours, audioReactiveChoices, isAudioReactive } from './AudioReactiveColours.jsx';
 import { stageMode } from '../utils.js';
@@ -75,19 +75,24 @@ export function ShowEffects() {
   const unmet = pictureUnmetSig.value;
   const lib = librarySig.value;
   const families = s.families || lib.families || [];
-  const { allRows, rows: catalogue, playingId } = catalogueOf(s, lib, families, []);
+  const favourites = useMemo(readFavourites, []);
+  const { allRows, rows: catalogue, playingId, pins } = catalogueOf(s, lib, families, favourites);
   const rows = catalogue.filter((row) => !utilityEffect(row));
   const twins = twinLines(rows, families);
   const [query, setQuery] = useState('');
   const [focusId, setFocusId] = useState(null);
+  const [deckFocusId, setDeckFocusId] = useState(null);
   const [confirm, setConfirm] = useState(null);
   const search = useRef(null), list = useRef(null), scroll = useRef(null);
   const id = useId();
   const words = query.trim().toLowerCase().split(/\s+/).filter(Boolean);
   const found = byName(rows.filter((row) => words.every((word) => matchesSearch(row, word, families))));
+  // With no search, the deck the header's picker had comes first, in its order: starred, saved here, party looks.
+  const deck = words.length ? [] : quickDeck(rows, pins);
   const playing = rows.find((row) => row.id === playingId) || allRows.find((row) => row.id === playingId);
   const currentName = playing?.name || s.pattern || 'None';
   const focused = found.find((row) => row.id === focusId) || found.find((row) => row.id === playingId) || found[0];
+  const deckFocused = deck.find((row) => row.id === deckFocusId) || deck.find((row) => row.id === playingId) || deck[0];
   const choose = (row) => tapRow(row, !!s.safety?.photosensitivityAcknowledged, setConfirm);
   // The selected look's family, whether it plays, is frozen or stopped: what the header's picker offered before (G3).
   const looks = isAudioReactive(playingId, lib) ? audioReactiveChoices(lib) : [];
@@ -119,10 +124,10 @@ export function ShowEffects() {
     }
   };
   const listKey = (e) => {
-    const buttons = [...list.current.querySelectorAll('button')];
+    const buttons = [...e.currentTarget.querySelectorAll('button')];
     const at = buttons.indexOf(e.target);
     const step = { ArrowLeft: -1, ArrowRight: 1 }[e.key] ?? (e.key === 'ArrowUp' || e.key === 'ArrowDown'
-      ? (e.key === 'ArrowUp' ? -1 : 1) * columnsOf(list.current) : undefined);
+      ? (e.key === 'ArrowUp' ? -1 : 1) * columnsOf(e.currentTarget) : undefined);
     const next = e.key === 'Home' ? 0 : e.key === 'End' ? buttons.length - 1
       : step === undefined ? undefined : Math.max(0, Math.min(buttons.length - 1, at + step));
     if (e.code === 'Space' && at >= 0) {
@@ -136,6 +141,19 @@ export function ShowEffects() {
       search.current?.focus({ preventScroll: true });
     }
   };
+
+  const tile = (row, kind, current, setFocus) => <li key={row.id}>
+    <button type="button" class={kind} data-effect={row.id} aria-current={row.id === playingId ? 'true' : undefined}
+      tabIndex={row.id === current?.id ? 0 : -1} title={[row.name, row.desc || (row.tags || []).join(' · ')].filter(Boolean).join(': ')}
+      onFocus={() => setFocus(row.id)} onClick={() => choose(row)}>
+      <span class="contained-row-text">
+        <span class="contained-row-title">{row.name}</span>
+        {twins.has(row.id) && <span class="contained-row-family">{twins.get(row.id)}</span>}
+      </span>
+      {row.id === playingId && <span class="contained-row-mark" aria-hidden="true">✓</span>}
+      {row.rapidFlash && <span class="contained-rapid" title="Rapid flashing">⚡<span class="sr-only"> Rapid flashing</span></span>}
+    </button>
+  </li>;
 
   return <>
     {box.picture ? <section class="card contained-effects contained-picture" aria-labelledby={`${id}-title`}>
@@ -184,19 +202,11 @@ export function ShowEffects() {
       </div>}
       {looks.length > 0 && <AudioReactiveColours />}
       <div class="contained-scroll" ref={scroll}>
+        {deck.length > 0 && <ul class="contained-list contained-deck" aria-label="Quick effects" onKeyDown={listKey}>
+          {deck.map((row) => tile(row, 'contained-quick', deckFocused, setDeckFocusId))}
+        </ul>}
         <ul class="contained-list" id={`${id}-list`} ref={list} aria-label="Effects" onKeyDown={listKey}>
-          {found.map((row) => <li key={row.id}>
-            <button type="button" class="contained-row" data-effect={row.id} aria-current={row.id === playingId ? 'true' : undefined}
-              tabIndex={row.id === focused?.id ? 0 : -1} title={[row.name, row.desc || (row.tags || []).join(' · ')].filter(Boolean).join(': ')}
-              onFocus={() => setFocusId(row.id)} onClick={() => choose(row)}>
-              <span class="contained-row-text">
-                <span class="contained-row-title">{row.name}</span>
-                {twins.has(row.id) && <span class="contained-row-family">{twins.get(row.id)}</span>}
-              </span>
-              {row.id === playingId && <span class="contained-row-mark" aria-hidden="true">✓</span>}
-              {row.rapidFlash && <span class="contained-rapid" title="Rapid flashing">⚡<span class="sr-only"> Rapid flashing</span></span>}
-            </button>
-          </li>)}
+          {found.map((row) => tile(row, 'contained-row', focused, setFocusId))}
         </ul>
         {!found.length && <div class="contained-empty"><strong>No matching effects.</strong>Try another name or clear the search.</div>}
       </div>

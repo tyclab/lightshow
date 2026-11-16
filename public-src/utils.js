@@ -144,6 +144,12 @@ export function fixtureOutputColor(fix, state, dmxSnapshot) {
   return light ? colorToCss(light) : '#111';
 }
 
+/** Why a paused page draws nothing: `paused` as idle-pause.js holds it, or true. */
+export function pauseNote(paused) {
+  const minutes = paused?.minutes;
+  return paused?.cause === 'idle' ? `Preview paused after ${minutes} ${minutes === 1 ? 'minute' : 'minutes'} without input.` : 'Preview paused.';
+}
+
 const BLACKOUT_NOTE = 'Blackout is on: every light is dark. Restore, in the header, shows the picture again.';
 
 /** What a stage drawing shows, in order (Show v3, G6): nothing is dark for want of a click. Disarmed and
@@ -154,7 +160,7 @@ const BLACKOUT_NOTE = 'Blackout is on: every light is dark. Restore, in the head
  * picture source's `unmet` line beside its tag (G5). */
 export function stageMode({ connected, armed, blackout, playing = false, layers = false, frozen = false, paused = false, unmet = null }) {
   if (!connected) return { tag: 'Offline', lit: true, demo: false };
-  if (paused) return { tag: 'Preview paused', lit: false, demo: false };
+  if (paused) return { tag: 'Preview paused', lit: false, demo: false, note: pauseNote(paused) };
   const line = unmet ? { unmet } : {};
   if (blackout) return { tag: 'Blackout', lit: true, demo: false, note: BLACKOUT_NOTE, ...line };
   if (armed) return { tag: 'Live output', lit: true, demo: false, ...line };

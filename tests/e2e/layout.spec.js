@@ -189,18 +189,27 @@ test('at 1280 by 720 the stage and the effects list keep their floors', async ({
   expect(m.scrollHeight, 'the page scrolls rather than squeezing them').toBeGreaterThan(720);
 });
 
-test('the Preview paused notice stays above the stage on Show, in two columns and in one', async ({ page, request }) => {
+// PR 9 (the operator, 2026-11-15: "fix all bugs"): the note shows over the stage, as the Blackout note does, so the
+// stage keeps its place; Resume preview stands in the toolbar where Pause preview was.
+test('the Preview paused note shows over the stage on Show, in two columns and in one, and moves nothing', async ({ page, request }) => {
   await page.clock.install();
   for (const [width, height] of [[1440, 900], [390, 844]]) {
     await openShow(page, request, width, height);
+    const wrap = page.locator('.show-room .stage3d-wrap'), tools = page.locator('.show-room .stage3d-tools');
+    const [wasWrap, wasTools] = await Promise.all([wrap.boundingBox(), tools.boundingBox()]);
     await page.clock.fastForward('01:00:00');
-    const notice = page.locator('.show-room .preview-paused');
+    const notice = page.locator('.show-room .stage3d-note', { hasText: 'Preview paused after 60 minutes without input.' });
     await expect(notice).toBeVisible();
-    const [box, room, wrap] = await Promise.all([notice, page.locator('.show-room'), page.locator('.show-room .stage3d-wrap')].map((l) => l.boundingBox()));
-    expect(box.y, `${width}: at the top of the stage card`).toBeGreaterThanOrEqual(room.y - 0.5);
-    expect(box.y + box.height, `${width}: above the stage`).toBeLessThanOrEqual(wrap.y);
+    await expect(page.locator('.show-room .preview-paused'), 'no line above the stage').toHaveCount(0);
+    const [box, room, stage, bar] = await Promise.all([notice, page.locator('.show-room'), wrap, tools].map((l) => l.boundingBox()));
+    for (const key of ['x', 'y', 'width', 'height']) {
+      expect(Math.abs(stage[key] - wasWrap[key]), `${width}: the stage ${key}`).toBeLessThanOrEqual(0.5);
+      expect(Math.abs(bar[key] - wasTools[key]), `${width}: the toolbar ${key}`).toBeLessThanOrEqual(0.5);
+    }
+    expect(box.y, `${width}: over the stage`).toBeGreaterThanOrEqual(stage.y);
+    expect(box.y + box.height).toBeLessThanOrEqual(stage.y + stage.height + 0.5);
     expect(box.x + box.width).toBeLessThanOrEqual(room.x + room.width + 0.5);
-    await notice.getByRole('button', { name: 'Resume preview', exact: true }).click();
+    await tools.getByRole('button', { name: 'Resume preview', exact: true }).click();
     await expect(notice).toHaveCount(0);
   }
 });

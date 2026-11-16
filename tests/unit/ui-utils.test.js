@@ -103,8 +103,12 @@ test('Blackout outranks the outputs and playback: the feed, dark, says why', () 
 
 test('an idle page draws nothing, the demo beat included, until Resume preview; offline is as before', () => {
   for (const patch of [{}, { playing: true }, { blackout: true }, { frozen: true }]) {
-    assert.deepEqual(modeOf({ paused: true, ...patch }), { tag: 'Preview paused', lit: false, demo: false }, JSON.stringify(patch));
+    assert.deepEqual(modeOf({ paused: true, ...patch }), { tag: 'Preview paused', lit: false, demo: false, note: 'Preview paused.' }, JSON.stringify(patch));
   }
+  // PR 9 ("fix all bugs", 2026-11-15): the pause's note lies over the stage as the Blackout note does, so it is the mode's note.
+  assert.equal(modeOf({ paused: { cause: 'button' } }).note, 'Preview paused.');
+  assert.equal(modeOf({ paused: { cause: 'idle', minutes: 60 } }).note, 'Preview paused after 60 minutes without input.');
+  assert.equal(modeOf({ paused: { cause: 'idle', minutes: 1 } }).note, 'Preview paused after 1 minute without input.');
   assert.deepEqual(modeOf({ connected: false }), { tag: 'Offline', lit: true, demo: false });
 });
 

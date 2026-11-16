@@ -57,9 +57,10 @@ history. The rulings below stay.
 - The picture source control stays first and only chooses the source (2026-11-15, replacing the
   2026-11-07 effect picker one tap from the header). Each segment is a plain choice: another source is
   one tap, the chosen one names no effect, shows no ▾ and opens nothing; its tooltip is the source's
-  hint line, or its unmet line. Effects are chosen in Show's Effects list, and E on any view opens Show
-  with its search ready, except while typing in a field, under a modal dialog or while Show's card offers
-  nothing to choose (the Visualizer source). Effect settings keeps the catalogue and its editor.
+  hint line, or its unmet line. Every segment is as wide as its label, by one rule, chosen or not (2026-11-15, "fix all
+  bugs" on the milestone review's list). Effects are chosen in Show's Effects list, and E on any view opens Show with its search
+  ready, except while typing in a field, under a modal dialog or while Show's card offers nothing to
+  choose (the Visualizer source). Effect settings keeps the catalogue and its editor.
 - An unmet picture source is shown, not masked (2026-11-15). The server reports `picture.unmet`, the
   facts it observes, each set by one condition and cleared by one event (README, Unmet picture source);
   the page adds no reason of its own. While the show plays, the units the source owns are dark, never
@@ -84,13 +85,18 @@ history. The rulings below stay.
 - A preview can be paused (2026-11-15): "explain to me why the button top stop preview is removed." While
   disarmed and drawing either preview, the stage toolbar in 3D and 2D shows one "Pause preview". It is the
   idle pause entered by hand: this page lets its own `dmx` and `picture` feeds go and says "Preview
-  paused." with Resume preview; Resume or Arm ends it. It sends nothing, leaves the show and other pages
-  as they are, works with `outputs.idleStopMin` 0 and is not stored, so a reload previews again.
+  paused."; Resume or Arm ends it. It sends nothing, leaves the show and other pages as they are, works
+  with `outputs.idleStopMin` 0 and is not stored, so a reload previews again. Paused, by the button or by
+  idleness, the toolbar shows "Resume preview" in Pause preview's box, and the note lies over the stage as
+  the Blackout note does, so neither the toolbar nor the stage moves ("fix all bugs", 2026-11-15). The
+  preview's three tags share one box for the same reason. The Rig view's plan, which has no such toolbar,
+  carries the note and its Resume over the plan; a view without a stage (the DMX monitor's fallback) keeps
+  its line and its own Resume.
 - A disarmed show nobody attends stops after 60 minutes (2026-11-14): "if not we should make sure it
   stops automatically, lets say 60min or somethign?? i mean if show is not arm and page is idel or
   closed". `outputs.idleStopMin` (60, 0 never) without a control action or page input ends it with the
   header's Stop; an idle page releases its feeds and says "Preview paused after 60 minutes without
-  input." with Resume preview, which starts nothing. Armed, neither runs.
+  input."; Resume preview, in Pause preview's place, starts nothing. Armed, neither runs.
 - The strip under the header has two tabs, Show and Perform, and a Setup menu that holds every
   other view (2026-11-14). Every view keeps its hash, alias and digit key. Perform carries the
   sequence shelf and Stop pads. A view switch writes its hash once, at the switch: nothing writes
@@ -116,9 +122,11 @@ history. The rulings below stay.
   rule) is open. Saved looks, clips, pads and cues that named it are migrated when they load, one
   warning each, and a stored `inspired` source loads as Effects.
 - Blackout and Arm keep their own buttons at fixed positions with 44 px touch targets. Freeze has no
-  button (2026-11-15): while the picture is frozen, one Resume shows where Freeze was, on every tab, so
-  a hold is never hidden; its slot stays reserved while it is hidden, so Blackout and Arm keep their
-  positions and sizes. `freeze` and `resume` stay in `/api/control` with their behaviour (pads refused
+  button (2026-11-15): while the picture is frozen, one Resume shows after the master, at the end of the
+  global controls, on every tab, so a hold is never hidden. Nothing is kept for it between Play and
+  Blackout, and its appearing moves nothing: Play, Blackout, Arm and the master keep their positions and
+  sizes ("fix all bugs", 2026-11-15). On a phone the second row has no free width, so its end stays for
+  Resume. `freeze` and `resume` stay in `/api/control` with their behaviour (pads refused
   while frozen, Stop and a programme switch keep Freeze, Home Assistant's party start leaves it). Keep
   every current label reachable, and never name the apps the lightshow was ported from.
 - Show (2026-11-14, 02:29): "the hole color wheel inclusive colour orcder should collapse and just leave
@@ -128,7 +136,10 @@ history. The rulings below stay.
   the "Edit colours" fold and Background on the right; on a phone Stage, Effects, Palettes, Edit colours,
   Background. Effects are name-only tiles, one to five columns by the card's width and the text size, in a
   contained, searchable list with the chosen effect pinned beside the search; the description is the tile's
-  tooltip, and tiles that share a name show their family on a second line.
+  tooltip, and tiles that share a name show their family on a second line. With an empty search the quick
+  deck the header's picker had comes first, in its order (`quickDeck`: the favourites starred in Effect
+  settings, the presets saved here, the party looks), then every effect A to Z; a search shows matches only
+  ("fix all bugs", 2026-11-15).
   It says Current effect only while the show plays unfrozen, Selected effect otherwise. Under the Visualizer
   source the card shows one sentence about it and nothing to choose, met or not, with the amber unmet line
   while it cannot paint; under Squid, and under Effects for Stems in Space, that line sits above the list. Palettes names

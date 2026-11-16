@@ -813,10 +813,12 @@ html:has(.show-fold-toggle[aria-expanded="true"]) { scrollbar-gutter: stable; }
 .contained-list { list-style: none; margin: 0; padding: var(--show-list-pad); display: grid; gap: var(--show-tile-gap); align-content: start;
   grid-template-columns: repeat(auto-fill, minmax(min(100%, max(var(--show-effect-min), calc((100% - 4 * var(--show-tile-gap)) / 5))), 1fr)); }
 .contained-list > li { display: flex; min-width: 0; }
-.contained-row { position: relative; display: flex; align-items: center; gap: .36rem; width: 100%; min-width: 0; min-height: var(--show-tile); padding: .36rem .57rem; border: var(--hairline) solid var(--border); border-radius: var(--radius-sm); background: var(--card); color: var(--text); text-align: left; font: inherit; cursor: pointer; }
-.contained-row:hover { background: var(--wash-blue); }
-.contained-row:focus-visible { outline: .15rem solid var(--accent); outline-offset: -.22rem; background: rgba(90,162,255,.13); }
-.contained-row[aria-current="true"] { border-color: var(--accent); background: rgba(90,162,255,.14); }
+/* The quick deck (starred, saved here, party looks) over the full list, as the header's picker had it. */
+.contained-deck { border-bottom: var(--hairline) solid var(--border); }
+:is(.contained-row, .contained-quick) { position: relative; display: flex; align-items: center; gap: .36rem; width: 100%; min-width: 0; min-height: var(--show-tile); padding: .36rem .57rem; border: var(--hairline) solid var(--border); border-radius: var(--radius-sm); background: var(--card); color: var(--text); text-align: left; font: inherit; cursor: pointer; }
+:is(.contained-row, .contained-quick):hover { background: var(--wash-blue); }
+:is(.contained-row, .contained-quick):focus-visible { outline: .15rem solid var(--accent); outline-offset: -.22rem; background: rgba(90,162,255,.13); }
+:is(.contained-row, .contained-quick)[aria-current="true"] { border-color: var(--accent); background: rgba(90,162,255,.14); }
 .contained-row-text { flex: 1; min-width: 0; display: grid; gap: .07rem; }
 .contained-row-title { overflow-wrap: anywhere; font-size: .93rem; font-weight: 650; line-height: 1.25; }
 .contained-row-family { color: var(--muted); font-size: .79rem; font-weight: 500; line-height: 1.2; overflow-wrap: anywhere; }
@@ -2945,6 +2947,14 @@ input[type=range]::-moz-range-thumb {
   background: var(--card); color: var(--text-amber); font-size: .857rem; line-height: 1.5;
 }
 .preview-paused .btn { margin-inline-start: auto; }
+.preview-paused.over { position: absolute; inset: auto .75rem .75rem; z-index: 3; cursor: default; }
+/* Pause preview and Resume preview share one box, as wide as the longer label. */
+.preview-toggle { flex-direction: column; gap: 0; }
+.preview-toggle::after { content: attr(data-other); height: 0; overflow: hidden; visibility: hidden; }
+.stage-tag { display: inline-flex; flex-direction: column; align-items: center; }
+.stage-tag::before, .stage-tag::after { height: 0; overflow: hidden; visibility: hidden; }
+.stage-tag::before { content: attr(data-alt-a); }
+.stage-tag::after { content: attr(data-alt-b); }
 
 /* =============================================================
    LOG — the server's log and health, in the drawer
@@ -3430,7 +3440,8 @@ input[type=range]::-moz-range-thumb {
 .spatial-fields .insp-field { margin-top: .2rem; }
 
 /* The header (Header.jsx): one row of 56 px on a desktop, two rows on a phone. What paints the room
-   comes first; play, Resume's slot, Blackout and Arm keep fixed widths, so they never move as labels change. */
+   comes first, each source as wide as its label; play, Blackout and Arm keep fixed widths, so they never move
+   as labels change, and Resume, shown only while frozen, comes last, where it moves nothing. */
 .app-header { flex-wrap: nowrap; gap: 8px; min-height: 56px; padding: 6px 12px; }
 .app-header h1 { flex: none; }
 .app-header .site-wordmark { margin: 0; min-width: 44px; justify-content: center; }
@@ -3440,8 +3451,8 @@ input[type=range]::-moz-range-thumb {
   box-shadow: 0 12px 32px rgba(0, 0, 0, .45);
 }
 
-.picture-source { position: relative; flex: 0 1 34rem; min-width: 0; }
-.picture-source-segments { display: flex; min-width: 0; border: 1px solid var(--border-hi); border-radius: var(--radius-sm); overflow: hidden; }
+.picture-source { flex: 0 1 auto; min-width: 0; }
+.picture-source-segments { display: flex; width: fit-content; max-width: 100%; min-width: 0; border: 1px solid var(--border-hi); border-radius: var(--radius-sm); overflow: hidden; }
 .picture-segment {
   flex: none; display: inline-flex; align-items: center; gap: 4px; min-height: 44px; padding: 0 12px;
   background: var(--surface); border: 0; color: var(--text-2); font: inherit; font-size: 13px; font-weight: 600;
@@ -3450,7 +3461,7 @@ input[type=range]::-moz-range-thumb {
 .picture-segment + .picture-segment { border-left: 1px solid var(--border); }
 .picture-segment:hover { background: var(--card-hi); color: var(--text); }
 .picture-segment:focus-visible { outline: .125rem solid var(--accent); outline-offset: -.25rem; }
-.picture-segment.active { flex: 1 1 auto; min-width: 0; background: var(--accent-fill); color: var(--text-on-accent); }
+.picture-segment.active { background: var(--accent-fill); color: var(--text-on-accent); }
 .picture-segment.active:focus-visible { outline-color: var(--text-on-accent); }
 .picture-segment.active:hover { background: var(--accent-fill); color: var(--text-on-accent); cursor: default; }
 /* The chosen source with an unmet precondition (G5): amber, its tooltip says why. */
@@ -3458,7 +3469,7 @@ input[type=range]::-moz-range-thumb {
 .picture-segment.active.unmet:focus-visible { outline-color: var(--text-amber); }
 .picture-short { display: none; }
 
-.global-controls { display: flex; align-items: center; gap: 6px; flex: none; }
+.global-controls { position: relative; display: flex; align-items: center; gap: 6px; flex: none; }
 .global-control { justify-content: center; min-height: 44px; padding: 6px 10px; border-radius: var(--radius-sm); font-size: 13px; }
 .global-control.active { box-shadow: inset 0 -3px currentColor; }
 .global-control.protective { border-color: var(--border-hi); }
@@ -3476,8 +3487,7 @@ input[type=range]::-moz-range-thumb {
 .global-play-main:hover:not(:disabled) { background: var(--accent-fill); border-color: var(--ink); color: var(--text-on-accent); }
 .global-play-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .global-play.playing .global-play-main { background: var(--wash-blue); border-color: var(--accent); color: var(--text); }
-.global-hold { display: flex; flex: none; width: 5.5rem; }
-.global-hold > .global-resume { flex: 1 1 auto; min-width: 0; }
+.global-resume { flex: none; width: 5.5rem; }
 .global-blackout { width: 6.25rem; }
 /* Blackout is unmistakable on the button itself, as Armed is: filled red, the state over the action. */
 .global-blackout.blackout-active { flex-direction: column; gap: 0; line-height: 1.1; box-shadow: var(--glow-red); }
@@ -3523,7 +3533,6 @@ input[type=range]::-moz-range-thumb {
 
 /* A laptop keeps the one row: the master loses its word and the other sources their long names. */
 @media (max-width: 1365px) {
-  .picture-source { flex-basis: 26rem; }
   .global-master-label { display: none; }
   .global-master input { width: 5rem; }
   .global-auto { width: 8.375rem; }
@@ -3538,7 +3547,7 @@ input[type=range]::-moz-range-thumb {
   .global-control { padding: 6px 8px; }
   .global-auto { width: 8.25rem; }
   .global-play-main { width: 5rem; }
-  .global-hold { width: 4.5rem; }
+  .global-resume { width: 4.5rem; }
   .global-blackout { width: 5.25rem; }
   /* The narrower button keeps the whole word in the widest UI fonts; the red fill marks the state. */
   .global-blackout-dot { display: none; }
@@ -3552,11 +3561,12 @@ input[type=range]::-moz-range-thumb {
 @media (max-width: 1000px) {
   .app-header { flex-wrap: wrap; row-gap: 6px; }
   .app-header h1 { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
-  .picture-source { order: 1; flex: 1 1 0; position: static; }
+  .picture-source { order: 1; flex: 1 1 0; }
   .header-status { order: 2; margin-left: 0; position: static; }
   .header-device { order: 3; position: static; }
-  .global-controls { order: 4; flex: 1 1 100%; }
-  .picture-segment.active { min-width: 0; }
+  /* The second row has no free width to give, so its end stays for Resume, which never shifts what it follows. */
+  .global-controls { order: 4; flex: 1 1 100%; padding-inline-end: calc(var(--resume-width, 4.5rem) + 6px); }
+  .global-resume { position: absolute; inset-inline-end: 0; width: var(--resume-width, 4.5rem); }
   .global-master { flex: 0 1 16rem; }
   .global-master input { flex: 1; min-width: 0; }
   .header-popover { left: 8px; right: 8px; width: auto; top: calc(100% + 4px); }
@@ -3573,7 +3583,7 @@ input[type=range]::-moz-range-thumb {
   .global-auto-long { display: none; }
   .global-control { padding: 4px 6px; font-size: 12px; }
   .global-play-main { flex: 1 1 0; width: auto; min-width: 0; padding: .25rem .375rem; }
-  .global-hold { width: 4.1rem; }
+  .global-controls { --resume-width: 4.1rem; padding-inline-end: calc(var(--resume-width) + 4px); }
   .global-blackout { width: 4.6rem; }
   .global-arm { width: 4.1rem; }
   .global-master { flex: 1 1 0; min-width: 3rem; }
