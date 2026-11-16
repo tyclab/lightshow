@@ -71,7 +71,8 @@ test('two balls of 80 cells: the Stage counts and places every cell, the plot la
       expect(Math.max(...xs) - Math.min(...xs)).toBeGreaterThan(6);
     }
 
-    await open(page, 'rig');
+    // G7: #stage left Rig on its Room panel, and a bare #rig opens the panel last used.
+    await open(page, 'rig/plan');
     for (const id of ids) {
       await expect(page.locator(`.plan-surface [data-fixture="${id}"]`)).toHaveAttribute('aria-label', /a panel of 80 cells on 20 × 6/);
     }

@@ -206,9 +206,10 @@ for (const format of FORMATS) {
   });
 }
 
+// G7: Music's Auto show draws no stage; the full stage is Rig's Room.
 test('the stage of every other view offers the one button too', async ({ page, request }) => {
   await control(request, 'stop');
-  for (const view of ['stage', 'effects', 'auto']) {
+  for (const view of ['stage', 'effects']) {
     await open(page, view);
     await expect(pauseButton(page), view).toHaveCount(1);
     await pauseButton(page).click();
@@ -254,7 +255,7 @@ const plotHead = (page) => page.locator('.stage-panel .panel-head').first().eval
 for (const [width, height] of [[1280, 900], [390, 844]]) {
   test(`${width} wide, the plot header keeps Position fixtures at its right end and Pause preview beside it`, async ({ page, request }) => {
     await page.setViewportSize({ width, height });
-    for (const view of ['effects', 'auto']) for (const armed of [false, true]) {
+    for (const view of ['effects']) for (const armed of [false, true]) {
       await control(request, armed ? 'arm' : 'disarm');
       await control(request, 'stop');
       await open(page, view);
@@ -282,17 +283,19 @@ for (const [width, height] of [[1280, 900], [390, 844]]) {
 // PR 9 (the operator, 2026-11-15: "fix all bugs"): paused by the button or by idleness, Resume preview stands in the box
 // Pause preview had, and the note shows over the stage as the Blackout note does, so neither the toolbar nor the stage moves.
 const rect = (locator) => locator.evaluate((e) => { const r = e.getBoundingClientRect(); return { x: r.x, y: r.y, w: r.width, h: r.height }; });
+// G7: #stage opens Rig's Room, whose panel is Rig's.
 for (const [view, format] of [['show', '3D'], ['stage', '3D'], ['stage', '2D']]) {
   for (const cause of ['button', 'idle']) {
     test(`${view} ${format}: paused by ${cause === 'idle' ? 'idleness' : 'the button'}, Resume preview stands where Pause preview stood and nothing moves`, async ({ page, request }) => {
+      const panel = `#panel-${view === 'stage' ? 'rig' : view}`;
       await control(request, 'stop');
       if (cause === 'idle') await page.clock.install();
       await open(page, view);
       await useFormat(page, format);
-      const stage = format === '3D' ? page.locator(`#panel-${view} .stage3d-wrap`) : page.getByRole('group', { name: 'Stage layout, viewed from the audience' });
-      const toolbar = page.locator(`#panel-${view} .stage3d-tools`);
+      const stage = format === '3D' ? page.locator(`${panel} .stage3d-wrap`) : page.getByRole('group', { name: 'Stage layout, viewed from the audience' });
+      const toolbar = page.locator(`${panel} .stage3d-tools`);
       await expect(pauseButton(page)).toHaveCount(1);
-      if (format === '3D') await expect(page.locator(`#panel-${view} .stage3d-canvas`)).toBeVisible();
+      if (format === '3D') await expect(page.locator(`${panel} .stage3d-canvas`)).toBeVisible();
       const before = { button: await rect(pauseButton(page)), stage: await rect(stage), toolbar: await rect(toolbar) };
       if (cause === 'idle') await page.clock.fastForward('01:00:00');
       else await pauseButton(page).click();
