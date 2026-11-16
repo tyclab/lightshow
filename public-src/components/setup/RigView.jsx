@@ -5,19 +5,18 @@ import { Inspector } from './Inspector.jsx';
 import { PatchTable } from './PatchTable.jsx';
 import { Profiles } from './Profiles.jsx';
 import { Outputs, ShowFile } from './Outputs.jsx';
+import { StageView } from '../StageView.jsx';
+import { PANELS } from '../../views.js';
 
 /**
  * The rig: what is hung where and what it is, and where its DMX goes.
  *
  *   plan      the pixel map and the patch, one selection between them
+ *   room      the room the rig hangs in, with the full stage (the former Stage view; #stage and 4 open it)
  *   profiles  the fixture profiles
- *   outputs   Art-Net, sACN, WLED and Hue, and finding them on the network
+ *   outputs   Art-Net, sACN, WLED and Hue, finding them on the network, and what the hardware can do
  */
-const TABS = [
-  { id: 'plan', label: 'Plan & patch' },
-  { id: 'profiles', label: 'Profiles' },
-  { id: 'outputs', label: 'Outputs' },
-];
+const TABS = PANELS.rig;
 
 export function RigView() {
   useSettings();
@@ -36,6 +35,7 @@ export function RigView() {
             <ShowFile />
           </div>
         )}
+        {tab === 'room' && <StageView />}
         {tab === 'profiles' && <Profiles />}
         {tab === 'outputs' && <Outputs />}
       </SubPanel>

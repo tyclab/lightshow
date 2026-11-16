@@ -7,31 +7,24 @@ import { setUpDevice } from './device.js';
 import { Header } from './components/Header.jsx';
 import { CommandBar } from './components/CommandBar.jsx';
 import { Bands } from './components/Bands.jsx';
-import { AutoMode } from './components/AutoMode.jsx';
 import { Effects } from './components/Effects.jsx';
 import { Cues } from './components/Cues.jsx';
-import { Fixtures } from './components/Fixtures.jsx';
 import { StagePreview } from './components/StagePreview.jsx';
-import { BottomDrawer } from './components/BottomDrawer.jsx';
 import { ConnectionVeil } from './components/ConnectionVeil.jsx';
 import { ShortcutsOverlay } from './components/Shortcuts.jsx';
 import { Perform } from './components/Perform.jsx';
 import { Show } from './components/Show.jsx';
 import { effectsKey } from './components/ShowEffects.jsx';
-import { StageView } from './components/StageView.jsx';
 import { Sequence } from './components/Sequence.jsx';
-import { Transport } from './components/Transport.jsx';
 import { useTapShortcut } from './keys.js';
 import { RigView } from './components/setup/RigView.jsx';
 import { SourcesView } from './components/setup/SourcesView.jsx';
 import { SettingsView } from './components/setup/SettingsView.jsx';
-import { PreflightView } from './components/setup/PreflightView.jsx';
+import { showPanel } from './components/setup/SubTabs.jsx';
 
-import { VIEWS, VIEW_IDS, STRIP_VIEWS, SETUP_VIEWS, viewShortcut, resolveRoute } from './views.js';
+import { VIEWS, STRIP_VIEWS, SETUP_VIEWS, SETUP_GROUPS, viewShortcut, resolveRoute } from './views.js';
 import { useDismiss } from './popover.js';
 import { pageTitle } from './brand.js';
-
-const viewOfHash = () => resolveRoute(window.location.hash)?.view;
 
 function initialView() {
   let route = resolveRoute(window.location.hash);
@@ -46,11 +39,11 @@ function initialView() {
 const storeView = (mode) => { try { localStorage.setItem('lightshow.mode', mode); } catch { /* private mode */ } };
 
 // Stored when chosen, not after the view renders: a reload during a slow first render keeps it.
-function rememberView(mode) {
+function rememberView(mode, sub = null) {
   storeView(mode);
-  // A view with tabs of its own keeps its part of the hash (/#rig/outputs).
+  // A view with tabs of its own keeps its part of the hash (/#rig/outputs), unless the switch names a panel.
   const route = resolveRoute(window.location.hash);
-  const path = route?.view === mode ? route.canonical : mode;
+  const path = sub ? `${mode}/${sub}` : route?.view === mode ? route.canonical : mode;
   if (window.location.hash !== `#${path}`) window.history.replaceState(null, '', `#${path}`);
 }
 
@@ -141,7 +134,7 @@ function SetupMenu({ mode, setMode, autoActive }) {
         class={`mode-tab mode-setup-button ${current ? 'active' : ''}`}
         aria-haspopup="menu"
         aria-expanded={open}
-        title={autoActive ? 'Auto Show: Running' : undefined}
+        title={autoActive ? 'Auto show: running' : undefined}
         onClick={() => (open ? setOpen(false) : show(0))}
         onKeyDown={onButtonKey}
       >
@@ -152,28 +145,32 @@ function SetupMenu({ mode, setMode, autoActive }) {
       </button>
       {open && (
         <div ref={menu} class="mode-setup-menu" role="menu" aria-label="Setup" onKeyDown={onMenuKey}>
-          {SETUP_VIEWS.map((v, i) => [
-            i > 0 && SETUP_VIEWS[i - 1].group !== v.group && <div key={`sep-${v.id}`} class="mode-setup-sep" role="separator" />,
-            <button
-              key={v.id}
-              type="button"
-              role="menuitem"
-              tabIndex={-1}
-              class="mode-setup-item"
-              aria-current={mode === v.id ? 'page' : undefined}
-              aria-describedby={`setup-hint-${v.id}`}
-              aria-keyshortcuts={v.key}
-              onClick={() => choose(v.id)}
-            >
-              <span class="mode-tab-icon" aria-hidden="true">{v.icon}</span>
-              <span class="mode-setup-name">{v.label}</span>
-              <span id={`setup-hint-${v.id}`} class="mode-setup-hint" aria-hidden="true">
-                {v.id === 'auto' && autoActive ? 'Running' : v.hint}
-                {v.id === 'auto' && autoActive && <span class="mode-tab-dot" />}
-              </span>
-              <kbd class="mode-setup-key" aria-hidden="true">{v.key}</kbd>
-            </button>,
-          ])}
+          {SETUP_GROUPS.map((group) => (
+            <div key={group.name} class="mode-setup-group" role="group" aria-label={group.name}>
+              <div class="mode-setup-group-name" aria-hidden="true">{group.name}</div>
+              {group.views.map((v) => (
+                <button
+                  key={v.id}
+                  type="button"
+                  role="menuitem"
+                  tabIndex={-1}
+                  class="mode-setup-item"
+                  aria-current={mode === v.id ? 'page' : undefined}
+                  aria-describedby={`setup-hint-${v.id}`}
+                  aria-keyshortcuts={v.key}
+                  onClick={() => choose(v.id)}
+                >
+                  <span class="mode-tab-icon" aria-hidden="true">{v.icon}</span>
+                  <span class="mode-setup-name">{v.label}</span>
+                  <span id={`setup-hint-${v.id}`} class="mode-setup-hint" aria-hidden="true">
+                    {v.id === 'sources' && autoActive ? 'Auto show running' : v.hint}
+                    {v.id === 'sources' && autoActive && <span class="mode-tab-dot" />}
+                  </span>
+                  <kbd class="mode-setup-key" aria-hidden="true">{v.key}</kbd>
+                </button>
+              ))}
+            </div>
+          ))}
         </div>
       )}
     </div>
@@ -185,16 +182,7 @@ function EffectsView() {
     <div class="manual-view">
       <div class="manual-col col-patterns"><Background /><Cues /><Effects /></div>
       <div class="manual-col col-colors"><Bands /></div>
-      <div class="manual-col col-fixtures"><StagePreview /><Fixtures /></div>
-    </div>
-  );
-}
-
-function AutoView() {
-  return (
-    <div class="auto-view">
-      <Transport prefer="auto" />
-      <AutoMode />
+      <div class="manual-col col-fixtures"><StagePreview /></div>
     </div>
   );
 }
@@ -205,14 +193,11 @@ const BARS = [['header', '.app-header'], ['commands', '.command-bar'], ['views',
 const PANELS = {
   show: Show,
   effects: EffectsView,
-  auto: AutoView,
   perform: Perform,
-  stage: StageView,
   sequence: Sequence,
   rig: RigView,
   sources: SourcesView,
   settings: SettingsView,
-  preflight: PreflightView,
 };
 
 function Root() {
@@ -220,7 +205,13 @@ function Root() {
   // the tree re-render on every push; each component now subscribes to what it
   // actually needs.
   const [mode, showMode] = useState(initialView);
-  const setMode = useCallback((next) => { rememberView(next); showMode(next); }, []);
+  // With a panel named (a digit of a former view), the address names it at once and the view is told: the one on
+  // the page now, or the one that mounts for this switch.
+  const setMode = useCallback((next, sub = null) => {
+    rememberView(next, sub);
+    showPanel(next, sub);
+    showMode(next);
+  }, []);
   const Panel = PANELS[mode];
   // Show uses the header's look controls; Perform also carries its own transport.
   const bare = mode === 'show' || mode === 'perform';
@@ -257,9 +248,10 @@ function Root() {
   }, [mode]);
 
   useEffect(() => {
+    // An old address (#stage, #auto, #preflight) is rewritten to the place it opens; the view reads its panel from it.
     const onHash = () => {
-      const hash = viewOfHash();
-      if (VIEW_IDS.includes(hash)) setMode(hash);
+      const route = resolveRoute(window.location.hash);
+      if (route) setMode(route.view);
     };
     window.addEventListener('hashchange', onHash);
     return () => window.removeEventListener('hashchange', onHash);
@@ -270,7 +262,7 @@ function Root() {
     const onKey = (e) => {
       if (effectsKey(e)) { setMode('show'); return; }
       const view = viewShortcut(e);
-      if (view) { e.preventDefault(); setMode(view.id); }
+      if (view) { e.preventDefault(); setMode(view.id, view.sub); }
     };
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
@@ -284,7 +276,7 @@ function Root() {
         document.getElementById(`panel-${mode}`)?.focus();
       }}>Skip to the controls</a>
       <Header />
-      {!bare && <CommandBar transport={mode !== 'auto' && mode !== 'sequence'} />}
+      {!bare && <CommandBar transport={mode !== 'sequence'} />}
       <nav class="mode-nav" aria-label="Views">
         <ModeTabs mode={mode} setMode={setMode} />
       </nav>
@@ -298,7 +290,6 @@ function Root() {
         </div>
       </main>
       <footer class="app-footer">
-        {!bare && <BottomDrawer />}
         <ShortcutsOverlay />
       </footer>
       <ConnectionVeil />

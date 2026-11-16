@@ -6,6 +6,7 @@ import { footprintOf, hasNoAddress } from '../../../src/shared/placement.ts';
 import { identify } from '../../rig-ui.js';
 import { SettingsSection } from './Section.jsx';
 import { ARTNET, SACN, HUE } from './specs.js';
+import { HardwareSettings } from './Hardware.jsx';
 
 /**
  * Where the rig's DMX goes, and what is out there to send it to: Art-Net
@@ -14,6 +15,7 @@ import { ARTNET, SACN, HUE } from './specs.js';
  * PC's OpenRGB devices and the Hue bridges. Each can be made to show itself —
  * a node's locate LEDs and the fixtures on its universes, a WLED's pixels, a
  * PC's keyboard, a Hue lamp — so a device on a list is a device on the truss.
+ * Below them, what the hardware can do: the limits per technology and product.
  */
 
 const OPENRGB_PORT = 6742;
@@ -850,6 +852,7 @@ export function Outputs() {
       <div class="setup-col">
         <Artnet nodes={nodes} setNodes={setNodes} />
         <Sacn />
+        <HardwareSettings />
       </div>
       <div class="setup-col">
         <Universes nodes={nodes} />

@@ -1,6 +1,13 @@
 import { useEffect, useRef, useState } from 'preact/hooks';
 import { useFocusTrap } from '../focus-trap.js';
-import { VIEWS } from '../views.js';
+import { PANELS, PANEL_KEYS, VIEWS } from '../views.js';
+
+const viewOf = (id) => VIEWS.find((view) => view.id === id);
+const panelOf = ({ id, sub }) => PANELS[id].find((panel) => panel.id === sub);
+// Every digit in the order of the keyboard's row, 0 last: a view, or the panel of one that a former view became.
+const DIGITS = [...VIEWS.map((view) => ({ view: view.id, keys: [view.key], what: `${view.label} view` })),
+  ...PANEL_KEYS.map((panel) => ({ view: panel.id, panel: panel.sub, keys: [panel.key], what: `${viewOf(panel.id).label} view, ${panelOf(panel).label}` }))]
+  .sort((a, b) => ((Number(a.keys[0]) + 9) % 10) - ((Number(b.keys[0]) + 9) % 10));
 
 export const SHORTCUTS = [
   {
@@ -8,7 +15,7 @@ export const SHORTCUTS = [
     items: [
       { keys: ['Space'], what: 'Tap tempo — tap along to set the BPM (also after clicking a button)' },
       { keys: ['E'], what: 'Choose the main effect: Show with its effects search ready (not while the Visualizer picture arrives)' },
-      ...VIEWS.map((view) => ({ view: view.id, keys: [...(view.shift ? ['Shift'] : []), view.key], what: `${view.label} view` })),
+      ...DIGITS,
       { keys: ['←', '→'], either: true, what: 'Show or Perform, on the view tabs' },
       { keys: ['↑', '↓'], either: true, what: 'Next or previous entry in the Setup menu; Home and End the first and last' },
     ],

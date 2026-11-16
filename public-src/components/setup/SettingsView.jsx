@@ -1,4 +1,3 @@
-import { HardwareSettings } from './Hardware.jsx';
 import { useEffect, useState } from 'preact/hooks';
 import { pick, socket, emitLive } from '../../state.js';
 import { useSettings, settingsSig, saveSettings, at } from '../../setup-state.js';
@@ -6,11 +5,21 @@ import { SettingsSection } from './Section.jsx';
 import { SHOW, ENGINE, MIDI_CLOCK, SERVER } from './specs.js';
 import { MidiMap } from './MidiMap.jsx';
 import { RestartBanner } from './RestartBanner.jsx';
+import { SubTabs, SubPanel, useSubTab } from './SubTabs.jsx';
+import { PreflightView } from './PreflightView.jsx';
+import { DmxMonitor } from '../DmxMonitor.jsx';
+import { LogView } from '../LogView.jsx';
+import { PANELS } from '../../views.js';
 
 /**
- * Everything else: how the show behaves over a night, the MIDI controller
- * and what its controls do, the engine, and the server itself.
+ * Everything else, in four panels:
+ *
+ *   show    how the show behaves over a night
+ *   midi    the MIDI controller, what its controls do, and the clock it sends
+ *   check   the pre-show check (the former Preflight view; #preflight and 0 open it), the DMX monitor and the log
+ *   system  the engine and the server itself
  */
+const TABS = PANELS.settings;
 
 // Each refresh opens and closes an ALSA client per direction, so not faster.
 const PORTS_REFRESH_MS = 2000;
@@ -97,23 +106,43 @@ export function SettingsView() {
   // and the REST routes flip it too, and the stored copy is only read again on
   // a reconnect.
   const showStored = (path) => (path === 'outputs.armed' ? !!s.armed : at(data && data.settings, path));
+  const [tab, setTab] = useSubTab('settings', TABS);
   return (
     <div class="setup-view">
       <RestartBanner />
-      <div class="setup-columns">
-        <div class="setup-col">
-          <SettingsSection {...SHOW} stored={showStored} />
-          <HardwareSettings />
-          <MidiController />
-          <MidiMap />
-        </div>
-        <div class="setup-col">
-          <SettingsSection {...MIDI_CLOCK} ctx={{ midiOutputs: outputs }} />
-          <SettingsSection {...ENGINE} />
-          <SettingsSection {...SERVER}
-            footer={data && data.configFile ? <p class="setting-help">Stored in {data.configFile}.</p> : null} />
-        </div>
-      </div>
+      <SubTabs view="settings" tabs={TABS} tab={tab} setTab={setTab} label="Settings" />
+      <SubPanel view="settings" tab={tab}>
+        {tab === 'show' && (
+          <div class="setup-columns">
+            <div class="setup-col"><SettingsSection {...SHOW} stored={showStored} /></div>
+          </div>
+        )}
+        {tab === 'midi' && (
+          <div class="setup-columns">
+            <div class="setup-col">
+              <MidiController />
+              <MidiMap />
+            </div>
+            <div class="setup-col"><SettingsSection {...MIDI_CLOCK} ctx={{ midiOutputs: outputs }} /></div>
+          </div>
+        )}
+        {tab === 'check' && (
+          <div class="settings-check">
+            <PreflightView />
+            <DmxMonitor />
+            <LogView />
+          </div>
+        )}
+        {tab === 'system' && (
+          <div class="setup-columns">
+            <div class="setup-col"><SettingsSection {...ENGINE} /></div>
+            <div class="setup-col">
+              <SettingsSection {...SERVER}
+                footer={data && data.configFile ? <p class="setting-help">Stored in {data.configFile}.</p> : null} />
+            </div>
+          </div>
+        )}
+      </SubPanel>
     </div>
   );
 }

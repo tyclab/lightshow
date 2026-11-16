@@ -1,4 +1,4 @@
-// The view shell: Show and Perform as tabs, the other views in the Setup menu, a view per hash, keys to switch.
+// The view shell: Show and Perform as tabs, the other views in the Setup menu, a place per hash, keys to switch.
 
 import { test, expect } from '@playwright/test';
 import { control, listenLive, open, openFromSetup, reset, stopListening } from './helpers.js';
@@ -9,8 +9,8 @@ test('the hash opens a view, and switching views writes it back', async ({ page 
   await open(page, 'perform');
   await expect(page.getByRole('tab', { name: /Perform/ })).toHaveAttribute('aria-selected', 'true');
   await expect(page.locator('.perform-pads')).toBeVisible();
-  await openFromSetup(page, 'Auto Show');
-  await expect(page).toHaveURL(/#auto(?:\/show)?$/);
+  await openFromSetup(page, 'Music');
+  await expect(page).toHaveURL(/#sources\/live$/);
   await page.goBack();
   await page.goto('/#effects');
   await expect(page.locator('#panel-effects')).toBeVisible();
@@ -132,15 +132,44 @@ test('Show\'s room starts in the top half of a tablet, under a header that never
   expect(await page.locator('.global-controls').evaluate((e) => e.scrollWidth - e.clientWidth)).toBeLessThanOrEqual(0);
 });
 
-// Each view: [id, how the strip or the menu names it, its digit, a part of the view only it draws].
-const EVERY_VIEW = [
-  ['show', 'Show', '1', '.show-body'], ['effects', 'Effect settings', '2', '.manual-view'], ['perform', 'Perform', '3', '.perform-view'],
-  ['stage', 'Stage', '4', '#panel-stage'], ['auto', 'Auto Show', '5', '.auto-view'], ['sequence', 'Sequence', '6', '#panel-sequence'],
-  ['rig', 'Rig', '7', '#panel-rig'], ['sources', 'Sources', '8', '#panel-sources'], ['settings', 'Settings', '9', '#panel-settings'],
-  ['preflight', 'Preflight', '0', '#panel-preflight'],
+// G7 (Show v3 fixes): Setup holds five entries in three groups. The former Stage, Auto Show and Preflight views are
+// panels (Rig's Room, Music's Auto show, Settings' Check), Sources is named Music, and every address and digit that
+// opened a view opens its place.
+
+const TABLISTS = { perform: 'Instruments', rig: 'Rig', sources: 'Music', settings: 'Settings' };
+const panelTab = (page, view, name) => page.getByRole('tablist', { name: TABLISTS[view], exact: true }).getByRole('tab', { name, exact: true });
+const ROOM = '#panel-rig .stage3d-view:not(.compact)', AUTO = '#panel-sources .auto-show', CHECK = '#panel-settings #preflight-title';
+
+// Each address: [it, the address the page reads afterwards, its view, the panel it selects (null: the view has none),
+// a part only that place draws]. The bare address of a view with panels is in the tests of the remembered panel.
+const PLACES = [
+  ['show', 'show', 'show', null, '.show-body'],
+  ['effects', 'effects', 'effects', null, '.manual-view'], ['manual', 'effects', 'effects', null, '.manual-view'],
+  ['perform/pads', 'perform/pads', 'perform', 'Pads', '.perform-pads'],
+  ['perform/matrix', 'perform/matrix', 'perform', 'Matrix', null], ['matrix', 'perform/matrix', 'perform', 'Matrix', null],
+  ['stage', 'rig/room', 'rig', 'Room', ROOM],
+  ['auto', 'sources/auto', 'sources', 'Auto show', AUTO], ['auto/show', 'sources/auto', 'sources', 'Auto show', AUTO],
+  ['auto/timeline', 'sources/auto', 'sources', 'Auto show', AUTO], ['timeline', 'sources/auto', 'sources', 'Auto show', AUTO],
+  ['sequence', 'sequence', 'sequence', null, null],
+  ['rig/plan', 'rig/plan', 'rig', 'Plan & patch', '.rig-plan'], ['rig/room', 'rig/room', 'rig', 'Room', ROOM],
+  ['rig/profiles', 'rig/profiles', 'rig', 'Profiles', null], ['rig/outputs', 'rig/outputs', 'rig', 'Outputs', '#hardware-title'],
+  ['sources/live', 'sources/live', 'sources', 'Live input', null], ['sources/auto', 'sources/auto', 'sources', 'Auto show', AUTO],
+  ['settings/show', 'settings/show', 'settings', 'Show', null], ['settings/midi', 'settings/midi', 'settings', 'MIDI', '#midi-title'],
+  ['settings/check', 'settings/check', 'settings', 'Check', CHECK], ['settings/system', 'settings/system', 'settings', 'System', null],
+  ['preflight', 'settings/check', 'settings', 'Check', CHECK],
 ];
 
-test('the strip has Show, Perform and Setup, and every former view still opens', async ({ page }) => {
+async function expectPlace(page, [hash, address, view, panel, part], how) {
+  const what = `#${hash} ${how}`;
+  await expect(page.locator(`#panel-${view}`), what).toBeVisible();
+  if (panel) await expect(panelTab(page, view, panel), what).toHaveAttribute('aria-selected', 'true');
+  if (part) await expect(page.locator(part), what).toBeVisible();
+  await expect(page, what).toHaveURL(new RegExp(`#${address}$`));
+}
+
+const goHash = (page, hash) => page.evaluate((h) => { window.location.hash = `#${h}`; }, hash);
+
+test('G7: the strip has Show and Perform, and the Setup menu five entries in three groups', async ({ page }) => {
   await open(page, 'show');
   const nav = page.getByRole('navigation', { name: 'Views' });
   const tabs = nav.getByRole('tab');
@@ -152,31 +181,215 @@ test('the strip has Show, Perform and Setup, and every former view still opens',
   await expect(setup).toHaveAttribute('aria-expanded', 'false');
   await setup.click();
   const menu = page.getByRole('menu', { name: 'Setup' });
-  const entries = menu.getByRole('menuitem');
-  const listed = EVERY_VIEW.filter(([id]) => id !== 'show' && id !== 'perform').map(([, name]) => name);
-  await expect(entries).toHaveCount(listed.length);
-  for (const [i, name] of listed.entries()) await expect(entries.nth(i)).toHaveAccessibleName(name);
+  await expect(menu.getByRole('menuitem')).toHaveCount(5);
+  await expect(menu.getByRole('group')).toHaveCount(3);
+  const groups = [['Rig', ['Rig']], ['Content', ['Effect settings', 'Sequence']], ['System', ['Music', 'Settings']]];
+  for (const [i, [group, names]] of groups.entries()) {
+    const entries = menu.getByRole('group', { name: group, exact: true }).getByRole('menuitem');
+    await expect(menu.getByRole('group').nth(i), 'the groups in their order').toHaveAccessibleName(group);
+    await expect(entries, group).toHaveCount(names.length);
+    for (const [at, name] of names.entries()) await expect(entries.nth(at), group).toHaveAccessibleName(name);
+  }
   await page.keyboard.press('Escape');
-  for (const [id, name, key, part] of EVERY_VIEW) {
-    const from = id === 'show' ? 'perform' : 'show';
-    await open(page, from);
-    if (id === 'show' || id === 'perform') await nav.getByRole('tab', { name, exact: true }).click();
-    else await openFromSetup(page, name);
-    await expect(page.locator(part), `${name} from the ${id === 'show' || id === 'perform' ? 'strip' : 'menu'}`).toBeVisible();
+  for (const [name, id, key] of [['Rig', 'rig', '7'], ['Effect settings', 'effects', '2'], ['Sequence', 'sequence', '6'], ['Music', 'sources', '8'], ['Settings', 'settings', '9']]) {
+    await open(page, 'show');
+    await openFromSetup(page, name);
+    await expect(page.locator(`#panel-${id}`), `${name} from the menu`).toBeVisible();
     await expect(page).toHaveURL(new RegExp(`#${id}(?:/[a-z]+)?$`));
     await expect(menu).toBeHidden();
     await expect(page.locator(`#panel-${id}`), 'the panel keeps a name without its tab').toHaveAccessibleName(name);
-    await open(page, from);
+    await expect(setup, 'the button names the open view').toContainText(name);
+    await expect(page).toHaveTitle(new RegExp(name));
+    await open(page, 'show');
     await page.locator('body').press(key);
-    await expect(page.locator(part), `${name} on ${key}`).toBeVisible();
-    await page.goto(`/#${id}`);
-    await expect(page.locator(part), `${name} by its hash`).toBeVisible();
+    await expect(page.locator(`#panel-${id}`), `${name} on ${key}`).toBeVisible();
   }
-  for (const [alias, canonical, part] of [['manual', 'effects', '.manual-view'], ['timeline', 'auto', '.auto-layout'], ['matrix', 'perform/matrix', '.perform-view']]) {
-    await page.goto(`/#${alias}`);
-    await expect(page.locator(part), `#${alias}`).toBeVisible();
-    await expect(page).toHaveURL(new RegExp(`#${canonical}$`));
+  for (const [name, id, key] of [['Show', 'show', '1'], ['Perform', 'perform', '3']]) {
+    await open(page, 'rig');
+    await nav.getByRole('tab', { name, exact: true }).click();
+    await expect(page.locator(`#panel-${id}`), `${name} from the strip`).toBeVisible();
+    await open(page, 'rig');
+    await page.locator('body').press(key);
+    await expect(page.locator(`#panel-${id}`), `${name} on ${key}`).toBeVisible();
   }
+});
+
+test('G7: every old hash, sub-hash and alias opens its place on a fresh load and a reload', async ({ page }) => {
+  test.setTimeout(180_000);
+  for (const place of PLACES) {
+    await page.goto('about:blank');
+    await page.goto(`/#${place[0]}`);
+    await expectPlace(page, place, 'on a fresh load');
+  }
+  for (const place of PLACES.filter(([hash, address]) => hash !== address)) {
+    await page.goto('about:blank');
+    await page.goto(`/#${place[0]}`);
+    await expectPlace(page, place, 'before the reload');
+    await page.reload();
+    await expectPlace(page, place, 'after a reload');
+  }
+});
+
+test('G7: every old hash, sub-hash and alias opens its place from an open page, from another view and from a sibling panel', async ({ page }) => {
+  test.setTimeout(180_000);
+  // The sibling a view shows before the address arrives; the address must win over it.
+  const sibling = { rig: 'rig/outputs', sources: 'sources/live', settings: 'settings/system', perform: 'perform/pads' };
+  await open(page, 'show');
+  for (const place of PLACES) {
+    const [hash, , view] = place;
+    await goHash(page, view === 'show' ? 'sequence' : 'show');
+    await expect(page.locator(`#panel-${view === 'show' ? 'sequence' : 'show'}`)).toBeVisible();
+    await goHash(page, hash);
+    await expectPlace(page, place, 'from another view');
+    if (!sibling[view] || sibling[view] === place[1]) continue;
+    await goHash(page, sibling[view]);
+    await expect(page, `the sibling of #${hash}`).toHaveURL(new RegExp(`#${sibling[view]}$`));
+    await goHash(page, hash);
+    await expectPlace(page, place, 'from a sibling panel of its view');
+  }
+});
+
+test('G7: the digits of the former Stage, Auto Show and Preflight views open their panel, not its remembered sibling', async ({ page }) => {
+  const digits = [['4', ['stage', 'rig/room', 'rig', 'Room', ROOM], 'rig/outputs', '7', 'Outputs'],
+    ['5', ['auto', 'sources/auto', 'sources', 'Auto show', AUTO], 'sources/live', '8', 'Live input'],
+    ['0', ['preflight', 'settings/check', 'settings', 'Check', CHECK], 'settings/system', '9', 'System']];
+  for (const [key, place, sibling, viewKey, siblingName] of digits) {
+    const view = place[2];
+    // The view remembers the sibling; the digit is pressed on another view, then on the view itself.
+    await open(page, sibling);
+    await expect(panelTab(page, view, siblingName)).toHaveAttribute('aria-selected', 'true');
+    await page.locator('body').press('1');
+    await expect(page.locator('#panel-show')).toBeVisible();
+    await page.locator('body').press(key);
+    await expectPlace(page, place, `on ${key} from another view`);
+    await panelTab(page, view, siblingName).click();
+    await expect(page).toHaveURL(new RegExp(`#${sibling}$`));
+    await page.locator('body').press(key);
+    await expectPlace(page, place, `on ${key} from its sibling panel`);
+    // The view's own digit keeps the panel that is open, and from elsewhere opens the one last used.
+    await page.locator('body').press(viewKey);
+    await expectPlace(page, place, `on ${viewKey}, the view's own digit`);
+    await panelTab(page, view, siblingName).click();
+    await page.locator('body').press('1');
+    await page.locator('body').press(viewKey);
+    await expect(panelTab(page, view, siblingName), `${viewKey} opens the panel last used`).toHaveAttribute('aria-selected', 'true');
+    await expect(page).toHaveURL(new RegExp(`#${sibling}$`));
+  }
+  // A digit typed into a field is text.
+  await open(page, 'settings/show');
+  const minutes = page.locator('[id="set-outputs.idleStopMin"]');
+  await minutes.focus();
+  await page.keyboard.press('4');
+  await expect(page.locator('#panel-settings'), 'a digit in a field opens nothing').toBeVisible();
+  await expect(panelTab(page, 'settings', 'Show')).toHaveAttribute('aria-selected', 'true');
+});
+
+// R03's rule on the new path: a digit of a former view writes its panel's address at the press, and nothing writes
+// the address again, so a navigation that arrives before the switch's effects run is not undone.
+for (const [from, then, view, panel, target, wins] of [
+  ['rig/outputs', 'rig/profiles', 'rig', 'Room', 'rig', 'Profiles'],
+  ['show', 'settings/midi', 'rig', 'Room', 'settings', 'MIDI'],
+]) {
+  test(`G7: a hash navigation to #${then} right after 4 opens the Room from #${from} is not undone`, async ({ page }) => {
+    await page.addInitScript(holdHashChanges);
+    await open(page, from);
+    await page.evaluate((hash) => {
+      window.holdHashChanges();
+      document.body.dispatchEvent(new window.KeyboardEvent('keydown', { key: '4', bubbles: true, cancelable: true }));
+      window.location.hash = `#${hash}`;
+    }, then);
+    await expect(panelTab(page, view, panel), 'the digit opened its panel').toHaveAttribute('aria-selected', 'true');
+    await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => setTimeout(resolve, 100)))));
+    await page.evaluate(() => window.releaseHashChanges());
+    await expect(panelTab(page, target, wins), `the navigation to #${then}`).toHaveAttribute('aria-selected', 'true');
+    await expect(page).toHaveURL(new RegExp(`#${then}$`));
+  });
+}
+
+test('G7: a deep link beats a remembered view and a remembered panel', async ({ page }) => {
+  await page.addInitScript(() => {
+    try {
+      localStorage.setItem('lightshow.mode', 'settings');
+      localStorage.setItem('lightshow.rig.tab', 'outputs');
+      localStorage.setItem('lightshow.sources.tab', 'auto');
+      localStorage.setItem('lightshow.settings.tab', 'midi');
+    } catch { /* private mode */ }
+  });
+  // With no address the page opens what it remembers: the view, and its panel.
+  await page.goto('/');
+  await expectPlace(page, ['', 'settings/midi', 'settings', 'MIDI', '#midi-title'], 'the remembered view and panel');
+  for (const place of [
+    ['rig/profiles', 'rig/profiles', 'rig', 'Profiles', null], ['stage', 'rig/room', 'rig', 'Room', ROOM],
+    ['sources/live', 'sources/live', 'sources', 'Live input', null], ['preflight', 'settings/check', 'settings', 'Check', CHECK],
+    ['settings/system', 'settings/system', 'settings', 'System', null],
+  ]) {
+    await page.goto('about:blank');
+    await page.goto(`/#${place[0]}`);
+    await expectPlace(page, place, 'over the remembered one');
+  }
+  // An address that names no panel of its view opens the view on the panel it remembers.
+  await page.goto('about:blank');
+  await page.goto('/#rig/nowhere');
+  await expect(page.locator('#panel-rig')).toBeVisible();
+  await expect(panelTab(page, 'rig', 'Outputs'), '#rig/nowhere').toHaveAttribute('aria-selected', 'true');
+  // A view's bare address opens the panel it remembers.
+  for (const place of [['rig', 'rig/outputs', 'rig', 'Outputs', null], ['sources', 'sources/auto', 'sources', 'Auto show', AUTO], ['settings', 'settings/midi', 'settings', 'MIDI', null]]) {
+    await page.goto('about:blank');
+    await page.goto(`/#${place[0]}`);
+    await expectPlace(page, place, 'bare, with a remembered panel');
+  }
+});
+
+test('G7: a view\'s bare address opens its first panel the first time, and the one last used after that', async ({ page }) => {
+  for (const [view, first, other, otherId] of [['sources', 'Live input', 'Auto show', 'auto'], ['rig', 'Plan & patch', 'Room', 'room'], ['settings', 'Show', 'Check', 'check']]) {
+    await page.goto('about:blank');
+    await page.goto(`/#${view}`);
+    await expect(panelTab(page, view, first), `#${view} the first time`).toHaveAttribute('aria-selected', 'true');
+    await panelTab(page, view, other).click();
+    await expect(page).toHaveURL(new RegExp(`#${view}/${otherId}$`));
+    await goHash(page, 'show');
+    await expect(page.locator('#panel-show')).toBeVisible();
+    await goHash(page, view);
+    await expect(panelTab(page, view, other), `#${view} after ${other} was used`).toHaveAttribute('aria-selected', 'true');
+    await page.goto('about:blank');
+    await page.goto(`/#${view}`);
+    await expect(panelTab(page, view, other), `#${view} on a later load`).toHaveAttribute('aria-selected', 'true');
+  }
+});
+
+test('G7: back, forward and a reload land on the same place', async ({ page }) => {
+  await open(page, 'rig/outputs');
+  await goHash(page, 'stage');
+  const room = ['stage', 'rig/room', 'rig', 'Room', ROOM];
+  await expectPlace(page, room, 'by hash');
+  await goHash(page, 'settings/midi');
+  await expectPlace(page, ['settings/midi', 'settings/midi', 'settings', 'MIDI', '#midi-title'], 'by hash');
+  await goHash(page, 'auto');
+  const auto = ['auto', 'sources/auto', 'sources', 'Auto show', AUTO];
+  await expectPlace(page, auto, 'by hash');
+  await page.goBack();
+  await expectPlace(page, ['settings/midi', 'settings/midi', 'settings', 'MIDI', '#midi-title'], 'on back');
+  await page.goBack();
+  await expectPlace(page, room, 'on back');
+  await page.reload();
+  await expectPlace(page, room, 'after a reload');
+  await page.goBack();
+  await expectPlace(page, ['rig/outputs', 'rig/outputs', 'rig', 'Outputs', '#hardware-title'], 'on back to a sibling panel');
+  await page.goForward();
+  await expectPlace(page, room, 'on forward');
+  await page.goForward();
+  await page.goForward();
+  await expectPlace(page, auto, 'on forward');
+  await page.reload();
+  await expectPlace(page, auto, 'after a reload');
+});
+
+test('G7: the address with ?performance=1#stage still mounts the full stage', async ({ page }) => {
+  await page.goto('/?performance=1#stage');
+  await expect(page.locator(ROOM)).toBeVisible();
+  await expect(page.locator(`${ROOM} .stage3d-canvas`)).toHaveCount(1);
+  await expect(page.locator('#panel-rig .stage-room-panel'), 'with the room panel').toBeVisible();
+  await expect(panelTab(page, 'rig', 'Room')).toHaveAttribute('aria-selected', 'true');
 });
 
 test('the two tabs are one stop, and the arrow keys move between them only', async ({ page }) => {
@@ -205,7 +418,7 @@ test('the two tabs are one stop, and the arrow keys move between them only', asy
   await expect(show).toHaveAttribute('tabindex', '-1');
 });
 
-test('the Setup menu works from the keyboard', async ({ page }) => {
+test('G7: the Setup menu keeps its keys: arrows across the groups, Home and End, Escape, Tab and focus', async ({ page }) => {
   // Frames 200 ms late, as on a busy machine: a key pressed right after opening still reaches the menu.
   await page.addInitScript(() => {
     const frame = window.requestAnimationFrame.bind(window);
@@ -219,33 +432,37 @@ test('the Setup menu works from the keyboard', async ({ page }) => {
     await setup.focus();
     await page.keyboard.press(key);
     await expect(setup).toHaveAttribute('aria-expanded', 'true');
-    await expect(item('Effect settings'), `${key} opens on the first entry`).toBeFocused();
+    await expect(item('Rig'), `${key} opens on the first entry`).toBeFocused();
     await page.keyboard.press('Escape');
     await expect(menu).toBeHidden();
     await expect(setup, 'Escape gives focus back').toBeFocused();
     await expect(setup).toHaveAttribute('aria-expanded', 'false');
   }
+  await page.keyboard.press('ArrowUp');
+  await expect(item('Settings'), 'ArrowUp opens on the last entry').toBeFocused();
+  await page.keyboard.press('Escape');
   await page.keyboard.press('Enter');
-  await page.keyboard.press('ArrowDown');
-  await expect(item('Stage')).toBeFocused();
+  // Down through all five, across the three groups, and round again.
+  for (const name of ['Effect settings', 'Sequence', 'Music', 'Settings', 'Rig']) {
+    await page.keyboard.press('ArrowDown');
+    await expect(item(name), 'ArrowDown').toBeFocused();
+  }
   await page.keyboard.press('ArrowUp');
+  await expect(item('Settings'), 'the arrows wrap').toBeFocused();
   await page.keyboard.press('ArrowUp');
-  await expect(item('Preflight'), 'the arrows wrap').toBeFocused();
-  await page.keyboard.press('ArrowDown');
-  await expect(item('Effect settings')).toBeFocused();
-  await page.keyboard.press('End');
-  await expect(item('Preflight')).toBeFocused();
+  await expect(item('Music')).toBeFocused();
   await page.keyboard.press('Home');
-  await expect(item('Effect settings')).toBeFocused();
-  for (let i = 0; i < 4; i++) await page.keyboard.press('ArrowDown');
   await expect(item('Rig')).toBeFocused();
+  await page.keyboard.press('End');
+  await expect(item('Settings')).toBeFocused();
+  await page.keyboard.press('ArrowUp');
   await page.keyboard.press('Enter');
-  await expect(page.locator('#panel-rig')).toBeVisible();
+  await expect(page.locator('#panel-sources')).toBeVisible();
   await expect(menu).toBeHidden();
   await expect(setup).toBeFocused();
-  await expect(setup).toContainText('Rig');
+  await expect(setup).toContainText('Music');
   await page.keyboard.press('ArrowDown');
-  await expect(item('Rig'), 'the open view is marked in the menu').toHaveAttribute('aria-current', 'page');
+  await expect(item('Music'), 'the open view is marked in the menu').toHaveAttribute('aria-current', 'page');
   await page.keyboard.press('Tab');
   await expect(menu, 'leaving with Tab closes it').toBeHidden();
   await setup.click();
@@ -255,7 +472,7 @@ test('the Setup menu works from the keyboard', async ({ page }) => {
   await expect(menu, 'a press outside closes it').toBeHidden();
 });
 
-test('a playing Auto Show marks the Setup button and its entry', async ({ page, request }) => {
+test('G7: a playing Auto show marks the Setup button and the Music entry, and Music\'s Auto show panel says it', async ({ page, request }) => {
   await listenLive(request);
   await open(page, 'show');
   const setup = page.getByRole('navigation', { name: 'Views' }).getByRole('button', { name: /^Setup/ });
@@ -263,27 +480,24 @@ test('a playing Auto Show marks the Setup button and its entry', async ({ page, 
   await control(request, 'start', 'auto');
   try {
     await expect(setup.locator('.mode-tab-dot'), 'visible with the menu closed').toBeVisible();
-    await expect(setup).toHaveAccessibleDescription('Auto Show: Running');
+    await expect(setup).toHaveAccessibleDescription('Auto show: running');
     await setup.click();
-    const entry = page.getByRole('menu', { name: 'Setup' }).getByRole('menuitem', { name: 'Auto Show', exact: true });
+    const entry = page.getByRole('menu', { name: 'Setup' }).getByRole('menuitem', { name: 'Music', exact: true });
     await expect(entry.locator('.mode-tab-dot')).toBeVisible();
-    await expect(entry).toHaveAccessibleDescription('Running');
+    await expect(entry).toHaveAccessibleDescription('Auto show running');
+    await page.keyboard.press('Escape');
+    await page.locator('body').press('5');
+    const panel = page.locator(AUTO);
+    await expect(panel.locator('.auto-badge')).toHaveText('By ear');
+    await expect(panel.getByRole('status')).toContainText('live input hears');
+    await expect(panel.locator('input, select, textarea'), 'the panel holds the status and no setting').toHaveCount(0);
     await control(request, 'stop');
     await expect(setup.locator('.mode-tab-dot'), 'gone when Auto stops').toHaveCount(0);
+    await expect(panel.locator('.auto-badge')).toHaveText('Idle');
   } finally {
     await control(request, 'stop');
     await stopListening(request);
   }
-});
-
-test('the digit keys jump between views, and not while typing', async ({ page }) => {
-  await open(page, 'effects');
-  await page.locator('body').press('1');
-  await expect(page.locator('#panel-show')).toBeVisible();
-  await page.locator('body').press('5');
-  await expect(page.locator('#panel-auto')).toBeVisible();
-  await page.locator('body').press('0');
-  await expect(page.locator('#panel-preflight')).toBeVisible();
 });
 
 test('the keyboard shortcuts dialog keeps focus inside it and gives it back', async ({ page }) => {
@@ -299,40 +513,4 @@ test('the keyboard shortcuts dialog keeps focus inside it and gives it back', as
   await page.keyboard.press('Escape');
   await expect(dialog).toBeHidden();
   await expect(page.getByRole('button', { name: 'Keyboard shortcuts' })).toBeFocused();
-});
-
-// G8: the Auto Show view has no Timeline tab now; its old place still opens the view.
-test('#auto/timeline and #auto/show open the Auto Show view', async ({ page }) => {
-  for (const hash of ['auto/timeline', 'auto/show']) {
-    await page.goto(`/#${hash}`);
-    await expect(page.locator('#panel-auto'), `#${hash}`).toBeVisible();
-    await expect(page.locator('.auto-layout'), `#${hash}`).toBeVisible();
-  }
-});
-
-for (const [old, canonical, panel] of [['manual', 'effects', 'effects'], ['timeline', 'auto', 'auto'], ['matrix', 'perform/matrix', 'perform']]) {
-  test(`old ${old} bookmarks open ${canonical}`, async ({ page }) => {
-    await open(page, old);
-    await expect(page).toHaveURL(new RegExp(`#${canonical}$`));
-    await expect(page.locator(`#panel-${panel}`)).toBeVisible();
-  });
-}
-
-test('a new browser opens Show and the same global Resume releases Freeze in Perform', async ({ page, request }) => {
-  await control(request, 'freeze');
-  await page.goto('/');
-  await expect(page.locator('#panel-show')).toBeVisible();
-  await page.getByRole('tab', { name: /^Perform/ }).click();
-  await expect(page.locator('#panel-perform')).toBeVisible();
-  const controls = page.getByRole('group', { name: 'Global show controls' });
-  const resume = controls.getByRole('button', { name: 'Resume', exact: true });
-  await expect(resume).toBeVisible();
-  await expect(controls.getByRole('status')).toContainText('Frozen');
-  await expect(page.getByRole('button', { name: 'Play look', exact: true })).toHaveCount(0);
-  await resume.click();
-  // G4: Resume goes with the hold, and no Freeze button takes its place.
-  await expect(resume).toHaveCount(0);
-  await expect(controls.getByRole('button', { name: 'Freeze', exact: true })).toHaveCount(0);
-  await expect(controls.getByRole('status')).toContainText('Playing');
-  await expect(controls.getByRole('status')).not.toContainText('Frozen');
 });

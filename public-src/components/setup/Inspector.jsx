@@ -1,7 +1,8 @@
 import { emissionOf } from '../../../src/shared/emission.ts';
 import { FixtureHardware } from './Hardware.jsx';
+import { FixtureOverride } from './FixtureOverride.jsx';
 import { pick, connectedSig, emitFixture, fixtureAckSig, latestSent } from '../../state.js';
-import { stagePositions } from '../../../src/shared/stage.ts';
+import { FIXTURE_GROUPS, stagePositions } from '../../../src/shared/stage.ts';
 import { buildRig, gridLabel, lineOf } from '../../../src/shared/rig.ts';
 import { clamp, geometryOf, round1 } from '../../stage-geometry.js';
 import { rigSelectionSig, identifyFixtures } from '../../rig-ui.js';
@@ -10,10 +11,13 @@ import { hasNoAddress, isHueLamp, isWled } from '../../../src/shared/placement.t
 import { hueChannels, hueChannelsLabel } from '../../../src/shared/hue-lamp.ts';
 import { hueBridgeLabel } from '../../utils.js';
 
+const GROUP_LABELS = { front: 'Front', back: 'Back', room: 'Room', floor: 'Floor' };
+
 /**
  * The selected fixture, every property of it in one place: what it is, where
- * it is patched, where it stands on the plan and — for a bar — which way it
- * runs. Several selected: what they are, and identifying them together.
+ * it is patched, where it stands on the plan, the group it hangs in and — for
+ * a bar — which way it runs; and holding it on an override or off. Several
+ * selected: what they are, and identifying them together.
  */
 export function Inspector() {
   const s = pick(['fixtures', 'profiles', 'identify', 'hueBridges', 'hardware']);
@@ -133,6 +137,13 @@ export function Inspector() {
             aria-valuetext={`${trimPct} percent`} onChange={(e) => send({ maxBrightness: parseInt(e.target.value, 10) })} />
           <span>{trimPct}%</span>
         </span>
+        <label for="insp-group">Group</label>
+        <select id="insp-group" value={fix.group || ''} disabled={!connected}
+          title="A look that splits the rig holds one group on a wash while the others run the pattern"
+          onChange={(e) => send({ group: e.target.value || null })}>
+          <option value="">None</option>
+          {FIXTURE_GROUPS.map((g) => <option key={g} value={g}>{GROUP_LABELS[g]}</option>)}
+        </select>
       </div>
       {emission.kind === 'beam' && <p class="setting-help">Angles are degrees: pan 0 points toward the audience; tilt 0 is horizontal and +90 points upward. Spread is the full cone angle.</p>}
       <FixtureHardware fixture={fix} profile={profile} settings={s.hardware} send={send} />
@@ -148,6 +159,7 @@ export function Inspector() {
           onClick={() => { const now = lineNow(); send({ geometry: geometryOf(now.length, now.angle + 180) }); }}>Reverse</button>}
         {(fix.position || fix.geometry) && <button type="button" class="btn sm" disabled={!connected}
           onClick={() => send({ position: null, geometry: null })}>Reset place</button>}
+        <FixtureOverride key={fix.id} fix={fix} disabled={!connected} />
       </div>
     </aside>
   );

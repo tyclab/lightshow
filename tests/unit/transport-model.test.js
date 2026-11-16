@@ -3,19 +3,31 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { autoStatus, chooseDriver, driverOf, playlistRowRequests, transportButtons, transportState } from '../../public-src/transport-model.js';
-import { resolveRoute, SETUP_VIEWS, STRIP_VIEWS, VIEWS, viewShortcut } from '../../public-src/views.js';
+import { PANELS, PANEL_KEYS, resolveRoute, SETUP_GROUPS, SETUP_VIEWS, STRIP_VIEWS, viewShortcut } from '../../public-src/views.js';
 
-test('legacy bookmarks retain their instrument', () => {
-  for (const [hash, expected] of [['#manual', 'effects'], ['#timeline', 'auto'], ['#matrix', 'perform/matrix'], ['#rig/outputs', 'rig/outputs']]) {
-    assert.equal(resolveRoute(hash).canonical, expected);
+// G7 (Show v3 fixes): five views behind Setup, the three former views Stage, Auto Show and Preflight as panels.
+// Every address and digit there ever was keeps opening its place.
+test('every former hash, sub-hash and alias opens its place', () => {
+  for (const [hash, expected] of [
+    ['#show', 'show'], ['#effects', 'effects'], ['#manual', 'effects'],
+    ['#perform', 'perform'], ['#perform/pads', 'perform/pads'], ['#perform/matrix', 'perform/matrix'], ['#matrix', 'perform/matrix'],
+    ['#stage', 'rig/room'],
+    ['#auto', 'sources/auto'], ['#auto/show', 'sources/auto'], ['#auto/timeline', 'sources/auto'], ['#timeline', 'sources/auto'],
+    ['#sequence', 'sequence'],
+    ['#rig', 'rig'], ['#rig/plan', 'rig/plan'], ['#rig/room', 'rig/room'], ['#rig/profiles', 'rig/profiles'], ['#rig/outputs', 'rig/outputs'],
+    ['#sources', 'sources'], ['#sources/live', 'sources/live'], ['#sources/auto', 'sources/auto'],
+    ['#settings', 'settings'], ['#settings/show', 'settings/show'], ['#settings/midi', 'settings/midi'],
+    ['#settings/check', 'settings/check'], ['#settings/system', 'settings/system'],
+    ['#preflight', 'settings/check'],
+  ]) {
+    const route = resolveRoute(hash);
+    assert.equal(route?.canonical, expected, hash);
+    const [view, sub] = expected.split('/');
+    assert.deepEqual([route.view, route.sub], [view, sub ?? null], hash);
+    if (sub && PANELS[view]) assert.ok(PANELS[view].some((panel) => panel.id === sub), `${hash}: ${view} has no panel ${sub}`);
   }
   assert.equal(resolveRoute('#unknown'), null);
   assert.equal(resolveRoute(''), null);
-});
-
-// G8: the Auto Show view lost its Timeline tab; every bookmark of it still opens the view.
-test('#auto, #auto/show, #auto/timeline and #timeline all open the Auto Show view', () => {
-  for (const hash of ['#auto', '#auto/show', '#auto/timeline', '#timeline']) assert.equal(resolveRoute(hash)?.view, 'auto', hash);
 });
 
 // G8: the badge shows only what autoStatus says, so no state of the removed planned show keeps a style.
@@ -28,24 +40,29 @@ test('the Auto badge has a style for each state autoStatus gives, and for no oth
   assert.deepEqual([...styled].sort(), [...states].sort());
 });
 
-test('digit shortcuts follow the ten views, the tenth on 0, and leave typing alone', () => {
-  assert.deepEqual(VIEWS.map((v) => v.id), ['show', 'effects', 'perform', 'stage', 'auto', 'sequence', 'rig', 'sources', 'settings', 'preflight']);
-  for (let i = 1; i <= 10; i++) {
-    const key = String(i % 10);
-    assert.equal(viewShortcut({ key }).id, VIEWS[i - 1].id);
+test('each of the ten digits opens what it opened: seven views, and the panels the other three views became', () => {
+  const opens = { 1: ['show', null], 2: ['effects', null], 3: ['perform', null], 4: ['rig', 'room'], 5: ['sources', 'auto'],
+    6: ['sequence', null], 7: ['rig', null], 8: ['sources', null], 9: ['settings', null], 0: ['settings', 'check'] };
+  for (const [key, [id, sub]] of Object.entries(opens)) {
+    assert.deepEqual(viewShortcut({ key }), { id, sub }, key);
     for (const patch of [{ repeat: true }, { ctrlKey: true }, { shiftKey: true }, { defaultPrevented: true }, { target: { tagName: 'INPUT' } }, { target: { isContentEditable: true } }]) {
       assert.equal(viewShortcut({ key, ...patch }), null);
     }
   }
+  for (const { id, sub } of PANEL_KEYS) assert.ok(PANELS[id].some((panel) => panel.id === sub), `${id} has no panel ${sub}`);
 });
 
-test('the strip holds Show and Perform, and the Setup menu lists every other view by its present name', () => {
+test('the strip holds Show and Perform, and the Setup menu five entries in three groups', () => {
   assert.deepEqual(STRIP_VIEWS.map((v) => v.id), ['show', 'perform']);
-  assert.deepEqual(SETUP_VIEWS.map((v) => [v.id, v.label, v.key]), [
-    ['effects', 'Effect settings', '2'], ['stage', 'Stage', '4'], ['auto', 'Auto Show', '5'], ['sequence', 'Sequence', '6'],
-    ['rig', 'Rig', '7'], ['sources', 'Sources', '8'], ['settings', 'Settings', '9'], ['preflight', 'Preflight', '0'],
+  assert.deepEqual(SETUP_GROUPS.map((group) => [group.name, group.views.map((v) => [v.id, v.label, v.key])]), [
+    ['Rig', [['rig', 'Rig', '7']]],
+    ['Content', [['effects', 'Effect settings', '2'], ['sequence', 'Sequence', '6']]],
+    ['System', [['sources', 'Music', '8'], ['settings', 'Settings', '9']]],
   ]);
-  assert.equal(resolveRoute('#effects').view, 'effects');
+  assert.deepEqual(SETUP_VIEWS, SETUP_GROUPS.flatMap((group) => group.views));
+  assert.deepEqual(Object.fromEntries(Object.entries(PANELS).map(([view, panels]) => [view, panels.map((panel) => panel.label)])), {
+    rig: ['Plan & patch', 'Room', 'Profiles', 'Outputs'], sources: ['Live input', 'Auto show'], settings: ['Show', 'MIDI', 'Check', 'System'],
+  });
 });
 
 test('look transport has no secondary global playback controls', () => {

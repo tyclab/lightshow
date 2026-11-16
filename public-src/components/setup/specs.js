@@ -149,18 +149,6 @@ export const SHOW = {
   title: 'Show',
   desc: 'How the generated show behaves across a night.',
   fields: [
-    { path: 'picture.source', label: 'Picture Source', type: 'select',
-      options: () => [
-        { value: 'effects', label: 'The show\'s effects' },
-        { value: 'visualizer', label: 'The visualizer picture, sampled at each lamp' },
-        { value: 'squid', label: 'The squid on the largest LED panel, effects on the rest' },
-      ],
-      help: 'The visualizer picture arrives from the browser helper\'s --room mode: one '
-        + 'colour per lamp cell, read from the picture at the cell\'s place on the plan, so a sweep across the screen '
-        + 'sweeps across the room. Voices, pads, overrides and the matrix\'s own pixel feed stay on top either way, and '
-        + 'two seconds without a frame shows the effects again. Also switchable in Perform, which sets the picture\'s '
-        + 'black point (the level under which a lamp stays dark), an optional sRGB decode for lamps whose output has '
-        + 'no gamma of its own, and an optional colour grade, off by default.' },
     { path: 'outputs.idleStopMin', label: 'Stop an Unattended Show', type: 'number', unit: 'min', min: 0, max: 1440,
       help: 'While the outputs are disarmed, a show with no control action and no input on any page for this long is '
         + 'stopped as Stop does, pads included, and an open page pauses its preview until Resume preview. A sequence '

@@ -42,14 +42,16 @@ test('an idle disarmed page releases its feeds and Resume brings them back', asy
   expect(await playing(request), 'the page pauses only itself').toBe(true);
 
   // Every view that draws a stage says it, with the page still paused.
-  for (const view of ['effects', 'stage', 'auto', 'rig']) {
+  // G7: Stage is Rig's Room; Music's Auto show draws no stage.
+  for (const view of ['effects', 'stage', 'rig/plan']) {
     await page.evaluate((v) => { window.location.hash = `#${v}`; }, view);
     await expect(notice(page), view).toBeVisible();
     await expect(notice(page), view).toHaveCount(1);
   }
-  await page.evaluate(() => { window.location.hash = '#sequence'; });
-  await page.getByRole('button', { name: 'DMX Monitor', exact: true }).click();
-  await expect(notice(page), 'the drawer\'s monitor says it on a view without a stage').toHaveCount(1);
+  // G7: the DMX monitor is under Settings, Check, a place without a stage.
+  await page.evaluate(() => { window.location.hash = '#settings/check'; });
+  await expect(page.locator('#panel-settings .card-title', { hasText: 'DMX Monitor' })).toBeVisible();
+  await expect(notice(page), 'the monitor says it on a view without a stage').toHaveCount(1);
   await page.evaluate(() => { window.location.hash = '#show'; });
   expect(await awake(request)).not.toContain('dmx');
 
