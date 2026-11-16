@@ -2,12 +2,7 @@
 
 import '../src/load-env.ts';
 
-import path from 'node:path';
 import { runPreflight } from '../src/server/preflight.ts';
-import { AnalysisCache } from '../src/analysis-cache.ts';
-import { cacheDir } from '../src/server/config-dir.ts';
-import * as pythonEnv from '../src/python-env.ts';
-import { spawnSync } from 'node:child_process';
 
 const useColor = process.stdout.isTTY && !process.env.NO_COLOR;
 const paint = (code, text) => (useColor ? `\u001b[${code}m${text}\u001b[0m` : text);
@@ -36,20 +31,10 @@ function wrap(text, indent, width) {
 }
 
 async function main() {
-  if (process.argv.includes('--download-models')) {
-    const python = process.env.ARTNET_PYTHON || pythonEnv.pythonExe();
-    console.log('  Downloading pretrained analysis weights from Hugging Face…');
-    const result = spawnSync(python, [path.join(import.meta.dirname, 'download-models.py')], {
-      stdio: 'inherit', env: process.env,
-    });
-    if (result.status !== 0) process.exit(result.status || 1);
-  }
-  const analysisCache = new AnalysisCache(path.join(cacheDir(), 'analysis'));
-
   console.log('\n  Pre-show preflight\n');
 
   // Read stored configuration without live subsystems so preflight can run beside the server.
-  const report = await runPreflight({ analysisCache, standalone: true });
+  const report = await runPreflight({ standalone: true });
 
   const labelWidth = Math.max(...report.checks.map((c) => c.label.length));
   const indent = 2 + 6 + 1 + labelWidth + 2;

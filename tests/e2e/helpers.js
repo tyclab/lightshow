@@ -2,7 +2,6 @@ import { expect } from '@playwright/test';
 // Shared by the end-to-end specs: read and set the server's state over REST,
 // and open the page on a view with a clean look.
 
-import { E2E_TRACK } from './paths.js';
 import { resolveRoute } from '../../public-src/views.js';
 
 export async function state(request) {
@@ -70,18 +69,15 @@ export async function until(request, check, { timeout = 3000 } = {}) {
   throw new Error(`condition never held; last state: ${JSON.stringify(last).slice(0, 400)}`);
 }
 
-/**
- * Load the analysed track the end-to-end server seeds (serve.js): the show's
- * timeline without Python. `unloadTrack` puts the auto show back as it was.
- */
-export async function loadTrack(request) {
-  const res = await request.post('/api/auto/analyze', { data: { source: E2E_TRACK } });
-  if (!res.ok()) throw new Error(`POST /api/auto/analyze ${res.status()}: ${await res.text()}`);
+async function liveInput(request, enabled) {
+  const res = await request.put('/api/settings', { data: { live: { enabled } } });
+  if (!res.ok()) throw new Error(`PUT /api/settings ${res.status()}: ${await res.text()}`);
+  await until(request, (s) => !!s.live?.listening === enabled, { timeout: 10_000 });
 }
 
-export async function unloadTrack(request) {
-  await request.post('/api/auto/reset', { data: {} });
-}
+/** The live input on, through the stand-in Python serve.js names: it listens, so Auto can start. */
+export const listenLive = (request) => liveInput(request, true);
+export const stopListening = (request) => liveInput(request, false);
 
 const PROGRAMME_NAMES = { look: 'selected picture', auto: 'Auto show', sequence: 'sequence' };
 

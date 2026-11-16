@@ -15,7 +15,7 @@ each, and the Node server (src/live-input.ts) reads them:
 
     {"type": "ready", "backend": ..., "device": ..., "sampleRate": ..., "hop": ...}
     {"type": "state", "t": ..., "captured": ..., "beat": ..., "bpm": ..., ...}
-    {"type": "event", "event": {... the offline event vocabulary ...}}
+    {"type": "event", "event": {... the vocabulary of events.py ...}}
     {"type": "error", "message": ..., "fatal": true|false}
     {"type": "end"}                                   (a file ran out)
 

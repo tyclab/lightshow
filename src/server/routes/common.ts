@@ -1,4 +1,3 @@
-import multer from 'multer';
 import type { ErrorRequestHandler, NextFunction, Request, RequestHandler, Response } from 'express';
 import { messageOf, statusOf } from '../../errors.ts';
 import { cues as defaultCues } from '../cues.ts';
@@ -7,14 +6,8 @@ import { openrgbClient } from '../openrgb.ts';
 import { listEntertainmentConfigs, pair } from '../hue.ts';
 import * as output from '../output.ts';
 import type { HueBridgeSettings } from '../settings.ts';
-import type AutoShow from '../../auto-show.ts';
 import type { CueStore } from '../cues.ts';
-import type { AnalysisCache } from '../../analysis-cache.ts';
-import type DeezerSource from '../../deezer-source.ts';
 import type MidiController from '../../midi.ts';
-import type NowPlayingSource from '../../nowplaying-source.ts';
-import type ProLink from '../../prolink.ts';
-import type SpotifyClient from '../../spotify.ts';
 import type { ArmOrigin, createApplier } from '../apply.ts';
 import type { setupIntegrations } from '../integrations.ts';
 import type { WledClient } from '../wled.ts';
@@ -23,12 +16,6 @@ import type { RoomSceneStore } from '../room-scene-store.ts';
 
 export interface RouteDeps {
   midi: MidiController;
-  autoShow: AutoShow;
-  spotify: SpotifyClient;
-  nowPlaying: NowPlayingSource;
-  deezerSource: DeezerSource;
-  prolink: ProLink;
-  analysisCache: AnalysisCache;
   integrations: ReturnType<typeof setupIntegrations>;
   applier: ReturnType<typeof createApplier>;
   wled?: WledClient;
@@ -40,8 +27,6 @@ export interface RouteDeps {
   roomScene?: RoomSceneStore;
   restart?: (reason: string) => boolean;
 }
-
-export const uploadAudio = multer({ storage: multer.memoryStorage(), limits: { fileSize: 50 * 1024 * 1024, files: 1, fields: 8 } });
 
 export type RouteContext = RouteDeps & {
   wled: WledClient; openrgb: OpenRgbClient; hueAreas: typeof listEntertainmentConfigs; huePair: typeof pair; cues: CueStore;
@@ -95,15 +80,7 @@ export function resolveHueBridge(req: Request, res: Response): HueBridgeSettings
 
 export const errorHandler: ErrorRequestHandler = (err: unknown, _req, res, _next) => {
   if (res.headersSent) return;
-  const e = (err ?? {}) as { code?: string; field?: string; status?: number; statusCode?: number; stack?: string; message?: string };
-
-  // Multer signals "too big" with a code rather than a status.
-  if (e.code === 'LIMIT_FILE_SIZE') {
-    return res.status(413).json({ ok: false, error: 'Uploaded file is too large' });
-  }
-  if (e.code === 'LIMIT_UNEXPECTED_FILE') {
-    return res.status(400).json({ ok: false, error: `Unexpected file field "${e.field}"` });
-  }
+  const e = (err ?? {}) as { status?: number; statusCode?: number; stack?: string; message?: string };
 
   const status = statusOf(err) || e.statusCode;
   if (status && status >= 400 && status < 500) {

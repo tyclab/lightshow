@@ -45,7 +45,7 @@ test('a thousand cells stay within the calibrated mean CPU budget', () => {
   registerProfile(BAR);
   const before = { fixtures: state.fixtures, artnet: state.artnet.enabled, playing: control.playing };
   let beat = 0;
-  conductor.setProlinkSource(() => ({ beatPos: beat, bpm: 128 }));
+  conductor.setLiveSource(() => ({ beatPos: beat, bpm: 128 }));
   state.artnet.enabled = false;
   control.playing = true;
   try {
@@ -102,7 +102,7 @@ test('a thousand cells stay within the calibrated mean CPU budget', () => {
       assert.ok(cpu < budget, `${label} takes ${cpu.toFixed(2)} ms of CPU a frame on average, over ${budget.toFixed(1)} ms (machine ${slowdown.toFixed(1)}× slower than quiet)`);
     }
   } finally {
-    conductor.setProlinkSource(null);
+    conductor.setLiveSource(null);
     state.fixtures = before.fixtures;
     state.artnet.enabled = before.artnet;
     control.playing = before.playing;
@@ -142,7 +142,6 @@ test('three thousand lights keep every Spatial preset within the calibrated mean
     const frame = () => {
       const now = frameIndex++ * 1000 / 44, beat = now * DEMO_BPM / 60000;
       input.audio = DEMO_AUDIO_SOURCE.frameAt(now);
-      input.modulation = DEMO_AUDIO_SOURCE.modulationAt(now);
       const start = performance.now();
       renderer.frame(input, { beatPos: beat, bpm: DEMO_BPM, epoch: 0 }, now, store);
       wall.push(performance.now() - start);

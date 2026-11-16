@@ -102,7 +102,7 @@ test('an active Blackout names itself on its button; the action stays Restore', 
   };
   const on = button({ blackout: true });
   assert.equal(on.text, '● Blackout Restore');
-  assert.match(on.tag, /aria-label="Restore"/, 'the name a screen reader and the tests press');
+  assert.match(on.tag, /aria-label="Blackout, Restore"/, 'the name a screen reader and the tests press: the state it shows, then the action');
   assert.match(on.tag, /aria-pressed="true"/);
   const off = button({ blackout: false });
   assert.equal(off.text, 'Blackout');

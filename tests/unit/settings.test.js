@@ -20,12 +20,12 @@ test('a missing file is the first run, not an error', () => {
 
 test('updates persist and reload', () => {
   const s = store().load();
-  const changed = [...s.update({ artnet: { host: '10.0.0.5' } }), ...s.update({ analysis: { downloadTimeoutMs: 90000 } })];
-  assert.deepStrictEqual(changed.sort(), ['analysis.downloadTimeoutMs', 'artnet.host']);
+  const changed = [...s.update({ artnet: { host: '10.0.0.5' } }), ...s.update({ live: { latencyMs: 40 } })];
+  assert.deepStrictEqual(changed.sort(), ['artnet.host', 'live.latencyMs']);
 
   const reloaded = new SettingsStore(s.file).load();
   assert.strictEqual(reloaded.get('artnet.host'), '10.0.0.5');
-  assert.strictEqual(reloaded.get('analysis.downloadTimeoutMs'), 90000);
+  assert.strictEqual(reloaded.get('live.latencyMs'), 40);
   assert.strictEqual(reloaded.get('artnet.port'), DEFAULTS.artnet.port, 'untouched keys keep defaults');
 });
 
@@ -35,39 +35,24 @@ test('a no-op update reports no changes', () => {
 });
 
 // Secrets exist to be used by the server, never displayed. A screenshot of the
-// settings page must not leak the Deezer cookie.
+// settings page must not leak the access token.
 test('secrets are never handed back to the client', () => {
   const s = store().load();
   s.update({
-    deezer: { arl: 'cookie-value' },
-    // The refresh token is a full Spotify session: anyone holding it can mint
-    // access tokens for the connected account until it is revoked. It is
-    // written by the server rather than typed, but it leaks exactly as badly.
-    spotify: { clientSecret: 'shh', refreshToken: 'a-live-session' },
+    server: { token: 'access-token' },
     // Bridge-issued rather than typed, and together they are the DTLS identity
     // and the pre-shared key — enough to drive the whole Hue system. One pair
     // per bridge, inside its entry.
     hue: { bridges: [{ ...BRIDGE, username: 'app-key', clientKey: 'abcdef01' }] },
-    // A GPU worker's token opens only the analysis job routes, but it still is not the client's to read.
-    analysis: { workerToken: 'worker-secret' },
   });
 
   const { settings, secrets } = s.redacted();
-  assert.strictEqual(settings.deezer.arl, '', 'redacted out');
-  assert.strictEqual(settings.spotify.clientSecret, '');
-  assert.strictEqual(settings.spotify.refreshToken, '');
+  assert.strictEqual(settings.server.token, '', 'redacted out');
   assert.deepStrictEqual(settings.hue.bridges, [{ ...BRIDGE, username: '', clientKey: '' }], 'the bridge is there, its keys are not');
-  assert.deepStrictEqual(secrets, {
-    'server.token': false,
-    'spotify.clientSecret': true,
-    'spotify.refreshToken': true,
-    'deezer.arl': true,
-    'analysis.workerToken': true,
-  });
-  assert.strictEqual(settings.analysis.workerToken, '');
+  assert.deepStrictEqual(secrets, { 'server.token': true });
   assert.ok(!JSON.stringify(s.redacted()).includes('abcdef01'), 'nowhere in what a client gets');
-  assert.strictEqual(s.get('deezer.arl'), 'cookie-value', 'still readable server-side');
-  assert.strictEqual(s.get('spotify.refreshToken'), 'a-live-session');
+  assert.ok(!JSON.stringify(s.redacted()).includes('access-token'));
+  assert.strictEqual(s.get('server.token'), 'access-token', 'still readable server-side');
   assert.strictEqual(s.get('hue.bridges')[0].clientKey, 'abcdef01');
 });
 
@@ -93,30 +78,27 @@ test('a single-bridge Hue update is refused without changing settings', () => {
   assert.deepStrictEqual(s.group('hue'), DEFAULTS.hue, 'nothing was saved');
 });
 
-// The settings page has no field for the refresh token, so its saves never
-// mention it. If an omitted secret were treated as "clear it", every visit to
-// the settings page would sign the operator out of Spotify.
-test('saving the settings page leaves the stored Spotify session alone', () => {
+// The settings page gets the access token blanked and leaves it out of its saves. If an omitted secret were
+// treated as "clear it", every save of the server's other settings would open the server to the network.
+test('saving the settings page leaves the stored access token alone', () => {
   const s = store().load();
-  s.update({ spotify: { clientId: 'id', clientSecret: 'shh', refreshToken: 'a-live-session' } });
+  s.update({ server: { token: 'access-token' } });
 
-  s.update({ spotify: { clientId: 'a-different-id' } });
+  s.update({ server: { publicUrl: 'http://lights.example' } });
 
-  assert.strictEqual(s.get('spotify.refreshToken'), 'a-live-session', 'session survived');
-  assert.strictEqual(s.get('spotify.clientSecret'), 'shh', 'so did the client secret');
+  assert.strictEqual(s.get('server.token'), 'access-token', 'the token survived');
 });
 
 test('the settings file is written 0600 — it holds secrets', { skip: process.platform === 'win32' }, () => {
   const s = store().load();
-  s.update({ deezer: { arl: 'cookie-value' } });
+  s.update({ server: { token: 'access-token' } });
   assert.strictEqual(fs.statSync(s.file).mode & 0o777, 0o600);
 });
 
 test('invalid values are rejected and nothing is written', () => {
   const s = store().load();
   assert.throws(() => s.update({ artnet: { port: 99999 } }));
-  assert.throws(() => s.update({ analysis: { analyzerTimeoutMs: 5 } }));
-  assert.throws(() => s.update({ analysis: { analyzerTimeoutMsPerSec: -1 } }));
+  assert.throws(() => s.update({ live: { latencyMs: 5000 } }));
   assert.throws(() => s.update({ nope: { x: 1 } }), (err) => Array.isArray(err.issues));
   assert.strictEqual(s.get('artnet.port'), DEFAULTS.artnet.port);
   assert.ok(!fs.existsSync(s.file), 'a rejected update must not create the file');
@@ -148,7 +130,7 @@ test('a file from an older build gains new keys as defaults', () => {
   fs.writeFileSync(s.file, JSON.stringify({ artnet: { host: '10.0.0.9' } }));
   s.load();
   assert.strictEqual(s.get('artnet.host'), '10.0.0.9');
-  assert.strictEqual(s.get('analysis.downloadTimeoutMs'), DEFAULTS.analysis.downloadTimeoutMs);
+  assert.strictEqual(s.get('outputs.idleStopMin'), DEFAULTS.outputs.idleStopMin);
 });
 
 test('pendingRestart reports only bootstrap keys that drifted', () => {
@@ -183,41 +165,9 @@ test('the Hue pars delay defaults to off and refuses a value in the wrong unit',
   assert.ok(!hue(-1));
 });
 
-test('the separator defaults to Demucs and takes only the two it knows', () => {
-  assert.strictEqual(DEFAULTS.analysis.separator, 'demucs', 'the one that keeps up with a live set');
-  const sep = (separator) => schema.safeParse({ ...DEFAULTS, analysis: { ...DEFAULTS.analysis, separator } }).success;
-  assert.ok(sep('bs-roformer'));
-  assert.ok(!sep('roformer'));
-  assert.ok(!sep(''));
-});
-
-test('SongFormer defaults follow supported hardware', () => {
-  assert.strictEqual(DEFAULTS.analysis.structureModel, 'auto', 'on a GPU, not on a CPU');
-  const mode = (structureModel) => schema.safeParse({ ...DEFAULTS, analysis: { ...DEFAULTS.analysis, structureModel } }).success;
-  for (const ok of ['auto', 'songformer', 'off']) assert.ok(mode(ok), ok);
-  assert.ok(!mode('edmformer'), 'no weights were ever released');
-  assert.ok(!mode(''));
-});
-
-test('model memory policy defaults follow card size', () => {
-  assert.strictEqual(DEFAULTS.analysis.gpuMemory, 'auto');
-  const mode = (gpuMemory) => schema.safeParse({ ...DEFAULTS, analysis: { ...DEFAULTS.analysis, gpuMemory } }).success;
-  for (const ok of ['auto', 'offload', 'resident']) assert.ok(mode(ok), ok);
-  assert.ok(!mode('vram'));
-  assert.ok(!mode(''));
-});
-
-test('the analyser here waits on standby while a GPU worker is ready, unless kept resident', () => {
-  assert.strictEqual(DEFAULTS.analysis.localWorker, 'standby', 'the memory is free while the GPU does the work');
-  const mode = (localWorker) => schema.safeParse({ ...DEFAULTS, analysis: { ...DEFAULTS.analysis, localWorker } }).success;
-  for (const ok of ['resident', 'standby']) assert.ok(mode(ok), ok);
-  assert.ok(!mode('off'));
-  assert.ok(!mode(''));
-});
-
 // Whatever pythonPath names is executed, so it has to be named like a Python.
 test('pythonPath only accepts a Python interpreter', () => {
-  const ok = (v) => patchSchema.safeParse({ analysis: { pythonPath: v } }).success;
+  const ok = (v) => patchSchema.safeParse({ live: { pythonPath: v } }).success;
   for (const v of ['', 'python', 'py', '/usr/bin/python3', '/opt/bin/python3.12',
     'C:\\Users\\me\\miniconda3\\python.exe', 'pythonw.exe']) {
     assert.strictEqual(ok(v), true, v);
@@ -229,7 +179,7 @@ test('pythonPath only accepts a Python interpreter', () => {
 });
 
 test('live input settings: off by default, a source it knows, a latency in range', () => {
-  assert.deepStrictEqual(DEFAULTS.live, { enabled: false, source: 'loopback', device: '', latencyMs: 0, autoSync: true, director: true });
+  assert.deepStrictEqual(DEFAULTS.live, { enabled: false, source: 'loopback', device: '', latencyMs: 0, pythonPath: '' });
   const s = store().load();
   assert.deepStrictEqual(s.update({ live: { enabled: true, source: 'input', device: 'Line In', latencyMs: -40 } }).sort(),
     ['live.device', 'live.enabled', 'live.latencyMs', 'live.source']);

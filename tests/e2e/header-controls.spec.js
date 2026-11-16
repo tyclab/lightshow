@@ -24,7 +24,7 @@ for (const width of [1280, 390]) {
     await until(request, s => !s.control.frozen && s.control.playing);
     await blackout.click();
     await until(request, s => s.masterBlackout === true);
-    await header.getByRole('button', { name: 'Restore', exact: true }).click();
+    await header.getByRole('button', { name: 'Blackout, Restore', exact: true }).click();
     await until(request, s => s.masterBlackout === false);
   });
 }
@@ -68,7 +68,7 @@ for (const width of [1280, 1100, 390]) {
     const before = await boxes();
     await header.getByRole('button', { name: 'Blackout', exact: true }).click();
     await until(request, s => s.masterBlackout === true);
-    const restore = header.getByRole('button', { name: 'Restore', exact: true });
+    const restore = header.getByRole('button', { name: 'Blackout, Restore', exact: true });
     await expect(restore).toHaveAttribute('aria-pressed', 'true');
     await expect(restore.locator('.global-blackout-state')).toBeVisible();
     await expect(restore).toContainText('Blackout');
@@ -108,12 +108,12 @@ test('an active Blackout is filled as the armed Arm button is, hovered or not', 
   try {
     await armFromHeader(page);
     await until(request, s => s.armed === true);
-    const disarm = header.getByRole('button', { name: 'Disarm', exact: true });
+    const disarm = header.getByRole('button', { name: 'Armed, Disarm', exact: true });
     await page.mouse.move(0, 0);
     const armed = await fill(disarm);
     await header.getByRole('button', { name: 'Blackout', exact: true }).click();
     await until(request, s => s.masterBlackout === true);
-    const restore = header.getByRole('button', { name: 'Restore', exact: true });
+    const restore = header.getByRole('button', { name: 'Blackout, Restore', exact: true });
     await page.mouse.move(0, 0);
     await expect.poll(() => fill(restore)).toEqual(armed);
     expect(off.background, 'Blackout off is not filled').not.toBe(armed.background);
@@ -158,7 +158,7 @@ test('Arm asks for the photosensitivity acknowledgement every time; Cancel arms 
     await until(request, s => s.armed === true && s.safety.photosensitivityAcknowledged === true);
     expect(posts, `arm ${round}: the acknowledgement first, then the arm`).toEqual(['acknowledge', 'arm']);
     expect((await (await request.get('/api/settings')).json()).settings.safety.photosensitivityAcknowledged).toBe(true);
-    await header.getByRole('button', { name: 'Disarm', exact: true }).click();
+    await header.getByRole('button', { name: 'Armed, Disarm', exact: true }).click();
     await until(request, s => s.armed === false);
     await expect(page.getByRole('alertdialog')).toHaveCount(0);
     expect((await (await request.get('/api/settings')).json()).settings.safety.photosensitivityAcknowledged, 'the disarm ended it').toBe(false);
@@ -190,7 +190,7 @@ test('header controls work in setup, and preview playback never rearms a disarme
   const header = page.locator('.app-header');
   await armFromHeader(page);
   await until(request, s => s.armed === true);
-  await header.getByRole('button', { name: 'Disarm', exact: true }).click();
+  await header.getByRole('button', { name: 'Armed, Disarm', exact: true }).click();
   await until(request, s => s.armed === false && s.control.playing === true && s.control.frozen === false);
   await playButton(page, 'Stop').click();
   await until(request, s => !s.control.playing);
@@ -200,7 +200,7 @@ test('header controls work in setup, and preview playback never rearms a disarme
   const blackout = header.getByRole('button', { name: 'Blackout', exact: true });
   await blackout.click();
   await until(request, s => s.masterBlackout === true);
-  await header.getByRole('button', { name: 'Restore', exact: true }).click();
+  await header.getByRole('button', { name: 'Blackout, Restore', exact: true }).click();
   await until(request, s => s.masterBlackout === false);
 });
 

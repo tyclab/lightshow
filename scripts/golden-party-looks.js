@@ -53,7 +53,7 @@ export function lookInput(id, fixtures, effectOf = null) {
   };
 }
 
-// `inputAt(ms)` adds live input (audio, modulation, pulse) to each sampled frame; `space` is the rig's room.
+// `inputAt(ms)` adds live input (audio, modulation) to each sampled frame; `space` is the rig's room.
 export function renderLookBytes(id, fixtures, effectOf = null, { profileOf = getProfile, beats = BEATS, space = null, inputAt = null } = {}) {
   const last = Math.max(...fixtures.map((f) => f.address - 1 + profileOf(f).channelCount));
   const input = lookInput(id, fixtures, effectOf);

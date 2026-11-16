@@ -2,7 +2,6 @@ import { performanceReport } from './performance.js';
 import { computed, effect, signal } from '@preact/signals';
 import { io } from 'socket.io-client';
 import { createVoiceHolds } from './hold-control.js';
-import { timelinePosition } from './timeline-state.js';
 import { createStore } from './store.js';
 import { createIdlePause } from './idle-pause.js';
 import { decodeDmxFrame } from '../src/shared/dmx-frame.ts';
@@ -33,17 +32,8 @@ export const dmxShapeSig = computed(() => {
     .map((u) => `${u}:${(snap[u] || []).length}`).join(',');
 });
 
-// Pushed at ~10 Hz, on its own signal so only the timeline re-renders.
-export const autoPositionSig = signal({ positionMs: 0, running: false, updatedAt: 0 });
-
-export const autoTimelineSig = signal({ data: null, key: null, status: 'idle', error: null });
-
 // Shared by the stage preview in both views so they never disagree; a drag stays in the component.
-export const stagePreviewSig = signal({
-  edit: false, rehearsal: false, playing: false, position: 0,
-  // So a remount on a view switch is not taken for a new track.
-  trackId: undefined,
-});
+export const stagePreviewSig = signal({ edit: false });
 
 // A stage previews by itself now (Show v3, G6): the old Preview look choice is dropped and read by nothing.
 try { localStorage.removeItem('lightshow.previewLook'); } catch { /* private mode */ }
@@ -74,7 +64,6 @@ socket.on('connect', () => {
 
 socket.on('disconnect', () => {
   voiceHolds.releaseAll();
-  freezePosition();
   connectedSig.value = false;
   connectionSig.value = { status: 'reconnecting' };
 });
@@ -101,7 +90,6 @@ auth.onToken((token) => {
 socket.on('snapshot', (snapshot) => {
   if (!snapshot || !snapshot.state) return;
   store.applySnapshot(snapshot);
-  if (snapshot.state.autoShow && !snapshot.state.autoShow.running) freezePosition();
 });
 
 // A patch out of sequence means one went missing: resync rather than drift.
@@ -119,7 +107,6 @@ socket.on('patch', (patch) => {
     });
     return;
   }
-  if (result === 'ok' && patch.set && patch.set.autoShow && !patch.set.autoShow.running) freezePosition();
   if (result === 'ok' && patch.d === 'library') loadLibrary();
 });
 
@@ -210,12 +197,6 @@ export function wantAudio() {
   };
 }
 socket.on('connect', () => { if (audioWanted > 0) socket.emit('subscribe', ['audio']); });
-socket.on('auto-position', ({ positionMs, running, advancing, revision }) => {
-  if (!Number.isFinite(positionMs)) return;
-  const currentRevision = stateSig.value.autoShow?.timelineRevision;
-  if (revision != null && currentRevision != null && revision !== currentRevision) return;
-  autoPositionSig.value = { positionMs, running: !!running, advancing, revision, updatedAt: performance.now() };
-});
 
 // From public/toast.js, loaded first; guarded in case it is not.
 const toast = (typeof window !== 'undefined' && window.Toast) || {
@@ -317,9 +298,3 @@ export function emitFixture(payload) {
 export function emitTap() { return emitLive('tap'); }
 export function followMusic() { return api('/api/tempo/auto', { method: 'POST' }); }
 
-function freezePosition() {
-  const ap = autoPositionSig.value;
-  if (!ap.running) return;
-  const now = performance.now();
-  autoPositionSig.value = { ...ap, positionMs: timelinePosition(ap, now), running: false, advancing: false, updatedAt: now };
-}

@@ -6,7 +6,7 @@ import { DEFAULT_MAP, ACTIONS, defaultTypeFor } from './server/midi-map.ts';
 import { createRequire } from 'node:module';
 import { existsSync } from 'node:fs';
 
-import { COLOR_PRESETS, ENERGY_EFFECT_IDS, STROBE_FUNCTION_IDS, SYNC_OFFSET_LIMIT_MS } from './server/presets.ts';
+import { COLOR_PRESETS, ENERGY_EFFECT_IDS, STROBE_FUNCTION_IDS } from './server/presets.ts';
 import { messageOf } from './errors.ts';
 import { browseListOf } from './shared/effects/tags.ts';
 import type { BrowseList } from './shared/effects/tags.ts';
@@ -58,8 +58,6 @@ export type LearnEvent = { status: string; binding: MidiBinding } & Partial<Lear
 type RelMode = 'twos' | 'offset';
 
 const require = createRequire(import.meta.url);
-
-const SYNC_NUDGE_MS = 5;
 
 let easymidi: EasyMidi | undefined;
 try {
@@ -795,10 +793,6 @@ class MidiController {
         this._emitFixMax(fix.id, clamp(cur + delta, 0, 255));
         break;
       }
-      case 'adjustAutoIntensity':
-        // 0-100, not 0-255: the auto show's slider is a percentage.
-        this.apply({ autoIntensity: clamp(Math.round((s.autoIntensity ?? 50) + delta), 0, 100) });
-        break;
       case 'browsePattern':
       case 'browseEffect': {
         const list = this._lookList(binding.action === 'browsePattern' ? 'pattern' : 'effect');
@@ -838,18 +832,6 @@ class MidiController {
         if (busk) busk.setStrobeRate(clamp(Math.round(busk.strobeRate() + delta), 1, busk.strobeMaxRate));
         break;
       }
-      case 'adjustAutoSync':
-        // 5 ms a detent. One encoder click of 1 ms would be unusable — you
-        // cannot hear a millisecond — and a whole beat per click would overshoot
-        // the error every time. Five is small enough to creep up on the right
-        // answer and large enough to get there within a song.
-        this.apply({
-          autoSyncOffsetMs: clamp(
-            Math.round((s.autoSyncOffsetMs ?? 0) + delta * SYNC_NUDGE_MS),
-            -SYNC_OFFSET_LIMIT_MS, SYNC_OFFSET_LIMIT_MS,
-          ),
-        });
-        break;
     }
   }
 
@@ -877,14 +859,6 @@ class MidiController {
       }
       case 'setFixtureMax':
         if (s.fixtures.some((fixture) => fixture.id === binding.fixture)) this._emitFixMax(binding.fixture as number, level);
-        break;
-      case 'setAutoIntensity':
-        this.apply({ autoIntensity: Math.round((raw / 127) * 100) });
-        break;
-      case 'setAutoSync':
-        this.apply({
-          autoSyncOffsetMs: Math.round(((raw - 63.5) / 63.5) * SYNC_OFFSET_LIMIT_MS),
-        });
         break;
     }
   }
@@ -967,13 +941,6 @@ class MidiController {
         if (!fix) return null;
         return to127(Number.isInteger(fix.maxBrightness) ? fix.maxBrightness as number : 255, 255);
       }
-      case 'setAutoIntensity':
-      case 'adjustAutoIntensity':
-        return to127(s.autoIntensity ?? 50, 100);
-      case 'setAutoSync':
-      case 'adjustAutoSync':
-        // Bipolar, so centre the ring rather than parking it at the bottom.
-        return to127((s.autoSyncOffsetMs ?? 0) + SYNC_OFFSET_LIMIT_MS, SYNC_OFFSET_LIMIT_MS * 2);
       case 'browsePattern':
       case 'browseEffect': {
         const list = this._lookList(binding.action === 'browsePattern' ? 'pattern' : 'effect');

@@ -1,5 +1,5 @@
 // These looks sample a fixed 22 Hz phase. Their noise field belongs to the
-// instance, so a cloned rehearsal resumes the same colours and motion; it is
+// instance, so a cloned preview walk resumes the same colours and motion; it is
 // a constant table, which a clone shares rather than copies.
 
 import { z } from 'zod';

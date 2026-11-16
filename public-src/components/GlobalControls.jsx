@@ -79,17 +79,17 @@ export function GlobalControls() {
   );
   return <div class="global-controls" role="group" aria-label="Global show controls">
     <PlayControl c={c} sequence={sequence} ready={ready} pending={pending} />
-    {button(c?.blackout ? <><span class="global-blackout-state" aria-hidden="true"><span class="global-blackout-dot">● </span>Blackout</span><span>Restore</span></> : 'Blackout',
+    {button(c?.blackout ? <><span class="global-blackout-state" aria-hidden="true"><span class="global-blackout-dot">● </span>Blackout</span>{' '}<span>Restore</span></> : 'Blackout',
       c?.blackout ? 'restore' : 'blackout', c?.blackout, !c?.blackout,
       'Blackout darkens every output. Restore reveals the current picture without changing playback or Freeze.',
-      `blackout${c?.blackout ? ' blackout-active' : ''}`, c?.blackout ? 'Restore' : undefined)}
+      `blackout${c?.blackout ? ' blackout-active' : ''}`, c?.blackout ? 'Blackout, Restore' : undefined)}
     <button type="button" class={`btn global-control global-arm${c?.armed ? ' armed active protective' : ''}`}
       disabled={!ready || (!c?.armed && (pending || c?.ready === false))}
-      aria-pressed={!!c?.armed} aria-label={c?.armed ? 'Disarm' : 'Arm'}
+      aria-pressed={!!c?.armed} aria-label={c?.armed ? 'Armed, Disarm' : 'Arm'}
       title={c?.armed ? 'Armed: the picture goes to the rig. Disarm ends output streams without changing playback, Freeze or Blackout.'
         : 'Disarmed: nothing goes to the rig. Arm sends the picture to the rig. Disarm ends output streams without changing playback, Freeze or Blackout.'}
       onClick={() => (c?.armed ? takeControl('disarm') : setArming(true))}>
-      {c?.armed ? <><span class="global-arm-state" aria-hidden="true">● Armed</span><span>Disarm</span></> : 'Arm'}
+      {c?.armed ? <><span class="global-arm-state" aria-hidden="true">● Armed</span>{' '}<span>Disarm</span></> : 'Arm'}
     </button>
     {arming && <Photosensitivity arm onCancel={() => setArming(false)}
       onConfirm={() => { setArming(false); acknowledgeThen(() => takeControl('arm')); }} />}

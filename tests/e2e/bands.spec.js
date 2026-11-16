@@ -122,7 +122,7 @@ test('a band sequence: a palette loads its points, a tap adds, a drag never adds
   // The list: drag the 3rd above the 1st, then Down on a handle, then remove.
   const order = bass.getByRole('list', { name: 'Bass colour order' });
   await drag(page, await centre(order.getByRole('button', { name: 'Move Bass colour 3', exact: true })),
-    { ...(await centre(order.getByRole('button', { name: 'Select Bass colour 1', exact: true }))), y: (await order.boundingBox()).y + 2 });
+    { ...(await centre(order.getByRole('button', { name: 'Select 1st Bass colour', exact: true }))), y: (await order.boundingBox()).y + 2 });
   await until(request, (s) => s.effectColours?.bands?.[0]?.palette?.join(',') === '#00FFFF,#FF0000,#00BFFF');
   await expect(bass.getByRole('button', { name: /^Bass colour 1 of 3, #00FFFF/ })).toHaveAttribute('aria-pressed', 'true');
   await order.getByRole('button', { name: 'Move Bass colour 1', exact: true }).press('ArrowDown');

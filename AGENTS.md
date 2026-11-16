@@ -1,14 +1,14 @@
 # AGENTS.md — Lightshow
 
-Node/TypeScript lighting server, Preact client and optional Python analysis.
+Node/TypeScript lighting server, Preact client and an optional Python live input.
 README owns operator controls, protocols and setup; keep it aligned with code.
 
 - Keep this public repo free of private addresses, deployment identities,
   personal/employer details and source-application names. Secrets never enter
   logs, browser state or tracked files.
 - Every startup remains disarmed. Preserve blackout, flash limits, photosensitivity
-  acknowledgement, output shutdown and preview/output parity. Never fetch model
-  weights during a show. Do not arm physical outputs without authorization.
+  acknowledgement, output shutdown and preview/output parity. Do not arm physical
+  outputs without authorization.
 - Fetch and inspect incoming work before editing; preserve concurrent branches
   and use an isolated worktree when changes overlap.
 - Target this fork explicitly with `gh ... --repo tyclab/lightshow`; verify the
@@ -16,7 +16,7 @@ README owns operator controls, protocols and setup; keep it aligned with code.
   defaults and hooks; use the repo-local identity or GitHub noreply email.
 - Node 24+ runs TypeScript directly: erasable syntax, explicit .ts imports and
   import type. Browser sources are in public-src/; do not commit generated bundles
-  or installation data. Generated schema types are regenerated, never hand-edited.
+  or installation data.
 - Keep the server as the show orchestrator, with displays as separate clients.
   Scope changes preserve the output safety contract.
 
@@ -28,7 +28,7 @@ callers are preserved; keep README commands and diagrams aligned with code.
 
 ## Read before the task
 
-- TypeScript, Python, analysis schema, Hue or output behavior:
+- TypeScript, Python, the live input, Hue or output behavior:
   [implementation contracts](docs/agents/implementation.md).
 - Tests, browser motion, Nix or dependency work:
   [validation and traps](docs/agents/validation.md).

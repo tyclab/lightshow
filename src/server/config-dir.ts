@@ -16,11 +16,6 @@ export function configFile(name: string): string {
   return path.join(configDir(), name);
 }
 
-export function cacheDir(): string {
-  const dir = process.env.LIGHTSHOW_CACHE_DIR;
-  return dir && dir.trim() ? path.resolve(dir) : path.join(dataDir(), 'cache');
-}
-
 export function logDir(): string {
   const dir = process.env.LIGHTSHOW_LOG_DIR;
   return dir && dir.trim() ? path.resolve(dir) : path.join(dataDir(), 'logs');
@@ -32,8 +27,4 @@ export function venvDir(): string {
 
 export function venvPython(venv: string = venvDir(), platform: NodeJS.Platform = process.platform): string {
   return platform === 'win32' ? path.join(venv, 'Scripts', 'python.exe') : path.join(venv, 'bin', 'python');
-}
-
-export function appDir(): string {
-  return APP_ROOT;
 }

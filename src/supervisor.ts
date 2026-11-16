@@ -1,7 +1,5 @@
 import { fork as nodeFork } from 'node:child_process';
-import fs from 'node:fs';
 import type { ChildProcess, ForkOptions } from 'node:child_process';
-import { configFile } from './server/config-dir.ts';
 import { EXIT_CONFIG, EXIT_RESTART } from './server/supervised.ts';
 import type { LastExit } from './server/supervised.ts';
 
@@ -10,7 +8,6 @@ export interface SupervisorOptions {
   args?: string[];
   execArgv?: string[];
   env?: NodeJS.ProcessEnv;
-  legacyProvider?: () => boolean;
   fork?: (script: string, args: string[], options: ForkOptions) => ChildProcess;
   log?: (message: string) => void;
   now?: () => number;
@@ -30,15 +27,6 @@ export interface Supervisor {
   restarts(): number;
 }
 
-export function deezerArlSet(file = configFile('settings.json')): boolean {
-  try {
-    const parsed = JSON.parse(fs.readFileSync(file, 'utf8'));
-    return typeof parsed?.deezer?.arl === 'string' && parsed.deezer.arl.trim() !== '';
-  } catch (_) {
-    return false;
-  }
-}
-
 export function describeExit(code: number | null, signal: string | null,
   { hungMs = 0, requested = null }: { hungMs?: number; requested?: string | null } = {}): string {
   if (requested) return `restarted on request (${requested})`;
@@ -50,7 +38,6 @@ export function describeExit(code: number | null, signal: string | null,
 export function supervise(options: SupervisorOptions): Supervisor {
   const {
     script, args = [], execArgv = [], env = process.env,
-    legacyProvider = () => false,
     fork = nodeFork,
     log = (m: string) => {
       const t = new Date();
@@ -79,8 +66,7 @@ export function supervise(options: SupervisorOptions): Supervisor {
 
   const start = () => {
     if (stopping) return;
-    const flags = [...execArgv.filter((f) => f !== '--openssl-legacy-provider')];
-    if (legacyProvider()) flags.push('--openssl-legacy-provider');
+    const flags = [...execArgv];
     const spawnedAt = now();
     let ready = false;
     let readyAt = 0;
@@ -188,7 +174,6 @@ export async function runSupervisor(script: string): Promise<never> {
     script,
     args: process.argv.slice(2),
     execArgv: process.execArgv,
-    legacyProvider: deezerArlSet,
   });
   for (const signal of ['SIGINT', 'SIGTERM', 'SIGHUP'] as const) {
     process.on(signal, () => supervisor.stop(signal === 'SIGHUP' ? 'SIGTERM' : signal));

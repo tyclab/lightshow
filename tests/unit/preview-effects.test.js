@@ -17,7 +17,6 @@ import { presetById } from '../../src/shared/effects/catalogue.ts';
 import { registerKind, validateSpec } from '../../src/shared/effects/registry.ts';
 import { seedFrom } from '../../src/shared/effects/hash.ts';
 import { createPreviewSampler } from '../../src/shared/preview.ts';
-import { bundleSpec } from '../../src/shared/effects/bundle.ts';
 import { buildRig } from '../../src/shared/rig.ts';
 import { isHueProfile } from '../../src/shared/hue-lamp.ts';
 import { hueSectionColour } from '../../src/shared/hue-colour.ts';
@@ -195,95 +194,6 @@ test("backward samples replay from their keyframe", () => {
   assertSame(rigFrames.slice(-1), [back], [300]);
 });
 
-test('a seek keyframe resets the instance states', () => {
-  // A seek marker at 500 ms: the base starts again at the next frame on its
-  // own id and seed; the voice keeps its launch and takes the scene's beat.
-  const wave = preset('ldj.BigRoomWave');
-  const events = [
-    { timeMs: 0, action: 'patch', data: { pattern: 'ldj.FadeCycle', ...LOOK } },
-    { timeMs: 60, action: 'voice', data: { id: 'pad:w', effect: wave, targets: [PARS[0].id, PARS[3].id], tier: 'voice', launchSeq: 1 } },
-    { timeMs: 500, action: 'seek' },
-  ];
-  const times = frames(0, 1500);
-  const rig = rigRun(RIG, times, (t) => ({
-    pattern: 'ldj.FadeCycle', effect: FADE,
-    voices: t >= 60 ? [voice('pad:w', wave, { targets: [PARS[0].id, PARS[3].id], startedAtMs: 60, anchorBeat: beat(60) })] : [],
-    reading: { beatPos: beat(t), bpm: localBpm(beatGrid, t), epoch: t >= 500 - 1e-6 ? 1 : 0, anchorBeat: 0 },
-  }));
-  const preview = previewRun(createPreviewSampler(events, GRID, { resolveEffect }), RIG, times);
-  assertSame(rig, preview, times);
-  const unseeked = previewRun(createPreviewSampler(events.slice(0, 2), GRID, { resolveEffect }), RIG, times);
-  const after = times.map((t, i) => i).filter((i) => times[i] >= 500);
-  assert.deepStrictEqual(times.map((t, i) => i).filter((i) => times[i] < 500).map((i) => preview[i]),
-    times.map((t, i) => i).filter((i) => times[i] < 500).map((i) => unseeked[i]), 'nothing changes before the seek');
-  assert.ok(after.some((i) => key(preview[i][1]) !== key(unseeked[i][1])), 'the base starts again at the seek');
-});
-
-test("seeked voices retain their scene beat", () => {
-  // Beats from 200 ms, so the scene at 2300 ms is on beat 4.2 and the voice launched on 4.622.
-  const beats = Array.from({ length: 40 }, (_, i) => 0.2 + i * 0.5);
-  const grid = makeGrid(beats);
-  const wave = preset('ldj.BigRoomWave');
-  const targets = [PARS[0].id, PARS[3].id];
-  const events = [
-    { timeMs: 0, action: 'patch', data: { pattern: 'solid', ...LOOK } },
-    { timeMs: 2300, action: 'patch', data: { pattern: 'ldj.FadeCycle', beatDivision: 2 } },
-    { timeMs: 2511, action: 'voice', data: { id: 'pad:w', effect: wave, targets, tier: 'voice', launchSeq: 1 } },
-    { timeMs: 3700, action: 'seek' },
-  ];
-  const sceneBeat = beatPositionAt(grid, 2300);
-  const times = frames(0, 6000);
-  const rig = rigRun(RIG, times, (t) => ({
-    ...(t < 2300 ? { pattern: 'solid', patternAnchor: { step: anchorStep(beatPositionAt(grid, 0)), epoch: 0 } } : {
-      pattern: 'ldj.FadeCycle', effect: FADE, beatDivision: 2, patternAnchor: { step: anchorStep(sceneBeat, 2), epoch: 0 } }),
-    voices: t >= 2511 ? [voice('pad:w', wave, { targets, startedAtMs: 2511, anchorBeat: beatPositionAt(grid, 2511) })] : [],
-    // After the jump the rig counts from the beat the running scene was scheduled on.
-    reading: { beatPos: beatPositionAt(grid, t), bpm: localBpm(grid, t), epoch: t >= 3700 - 1e-6 ? 1 : 0,
-      anchorBeat: t >= 2300 ? sceneBeat : beatPositionAt(grid, 0) },
-  }));
-  const preview = previewRun(createPreviewSampler(events, { beats }, { resolveEffect }), RIG, times);
-  assertSame(rig, preview, times);
-  const unseeked = previewRun(createPreviewSampler(events.slice(0, 3), { beats }, { resolveEffect }), RIG, times);
-  assert.ok(times.some((t, i) => t >= 3700 && key(preview[i][0]) !== key(unseeked[i][0])), 'the voice re-anchors at the seek');
-});
-
-test("bundle voice previews match the rig across seeks", () => {
-  const beats = Array.from({ length: 40 }, (_, i) => 0.2 + i * 0.5);
-  const grid = makeGrid(beats);
-  const lane = (id, kind, fixtureId) => ({ id, kind, ...(fixtureId !== undefined ? { fixtureId } : {}), name: id, mute: false, solo: false });
-  const clip = (id, laneId, spec, startBeat, lengthBeats, fixtureIds = null) => ({ id, laneId, fixtureIds, startBeat, lengthBeats, loopBeats: lengthBeats, spec, seed: seedFrom(id), mute: false });
-  // Shared clips over all three targets and one fixture, a track lane on the fourth par, a gap at beat 3.
-  const table = { revision: 0, lanes: [lane('shared:0', 'shared'), lane('track:0', 'track', PARS[3].id)], clips: [
-    clip('0:0', 'shared:0', FADE, 0, 2), clip('0:1', 'shared:0', preset('ldj.BigRoomWave'), 2, 1, [PARS[1].id]), clip('1:0', 'track:0', FADE, 1, 2.5),
-  ] };
-  const bundle = bundleSpec({ patternId: 'p', lengthBeats: 4, table }, false);
-  const targets = [PARS[0].id, PARS[1].id, PARS[3].id];
-  const events = [
-    { timeMs: 0, action: 'patch', data: { pattern: 'solid', ...LOOK } },
-    { timeMs: 2300, action: 'patch', data: { pattern: 'ldj.FadeCycle', beatDivision: 2 } },
-    { timeMs: 2511, action: 'voice', data: { id: 'pad:b', effect: bundle, targets, tier: 'voice', launchSeq: 1 } },
-    { timeMs: 3700, action: 'seek' },
-  ];
-  const sceneBeat = beatPositionAt(grid, 2300);
-  const times = frames(0, 9000);
-  const rig = rigRun(RIG, times, (t) => ({
-    ...(t < 2300 ? { pattern: 'solid', patternAnchor: { step: anchorStep(beatPositionAt(grid, 0)), epoch: 0 } } : {
-      pattern: 'ldj.FadeCycle', effect: FADE, beatDivision: 2, patternAnchor: { step: anchorStep(sceneBeat, 2), epoch: 0 } }),
-    voices: t >= 2511 ? [voice('pad:b', bundle, { targets, startedAtMs: 2511, anchorBeat: beatPositionAt(grid, 2511) })] : [],
-    reading: { beatPos: beatPositionAt(grid, t), bpm: localBpm(grid, t), epoch: t >= 3700 - 1e-6 ? 1 : 0,
-      anchorBeat: t >= 2300 ? sceneBeat : beatPositionAt(grid, 0) },
-  }));
-  const sample = createPreviewSampler(events, { beats }, { resolveEffect });
-  const preview = previewRun(sample, RIG, times);
-  assertSame(rig, preview, times);
-  const bare = previewRun(createPreviewSampler(events.filter((e) => e.action !== 'voice'), { beats }, { resolveEffect }), RIG, times);
-  for (const k of [0, 1, 3]) assert.ok(times.some((t, i) => t >= 2511 && key(preview[i][k]) !== key(bare[i][k])), `the bundle lights par ${k}`);
-  assert.ok(times.every((t, i) => key(preview[i][2]) === key(bare[i][2])), 'an untargeted par shows the look');
-  // Back over the seek and the bundle's laps: each frame from a kept copy matches the rig's.
-  const r = buildRig(RIG, getProfile);
-  for (let i = times.length - 1; i >= 0; i -= 37) assert.deepStrictEqual(sample(times[i], RIG, COLOR_PRESETS, r), rig[i], `back at ${times[i]}`);
-});
-
 // ── Going back ──────────────────────────────────────────────────────────────
 
 // Free clock at the timeline's 120 BPM: these timelines run longer than GRID.
@@ -292,7 +202,6 @@ const LONG = [
   { timeMs: 0, action: 'voice', data: { id: 'count', effect: OWN.probe, targets: [PARS[3].id], tier: 'voice', launchSeq: 1 } },
   { timeMs: 3000, action: 'voice', data: { id: 'pad:t', effect: OWN.twinkle8, targets: [PARS[0].id, LAMP.id], tier: 'voice', launchSeq: 2, durationMs: 9000 } },
   { timeMs: 6100, action: 'patch', data: { colorA: 3, fadeMs: 2000 } },
-  { timeMs: 9000, action: 'seek' },
   { timeMs: 40000, action: 'patch', data: { pattern: 'ldj.StrobeCycle' } },
 ];
 
@@ -302,7 +211,7 @@ test("recent backward seeks replay at most one second", () => {
   const sample = createPreviewSampler(LONG, null, options);
   const fresh = (t) => createPreviewSampler(LONG, null, options)(t, RIG, COLOR_PRESETS, r);
   sample(16000, RIG, COLOR_PRESETS, r);
-  // A second back at a time, on the grid and between frames, across the fade, the seek and the twinkle's flash limit.
+  // A second back at a time, on the grid and between frames, across the fade and the twinkle's flash limit.
   for (let t = 15500; t >= 500; t -= 1000 + 1 / 3) {
     const before = probeRenders;
     const out = sample(t, RIG, COLOR_PRESETS, r);
@@ -315,6 +224,17 @@ test("recent backward seeks replay at most one second", () => {
   const second = sample(10000, RIG, COLOR_PRESETS, r);
   assert.strictEqual(probeRenders - before, 0);
   assert.deepStrictEqual(second, fresh(10000));
+});
+
+// G8: nothing sends a seek since rehearsal went, and the rig no longer re-anchors on one; the preview has none either.
+test('an event nothing sends, a seek, changes nothing the preview draws', () => {
+  const r = buildRig(RIG, getProfile);
+  const options = { resolveEffect, safety: ACK };
+  const withSeek = [...LONG.slice(0, 4), { timeMs: 9000, action: 'seek' }, ...LONG.slice(4)];
+  for (const t of [9500, 12000, 20000]) {
+    assert.deepStrictEqual(createPreviewSampler(withSeek, null, options)(t, RIG, COLOR_PRESETS, r),
+      createPreviewSampler(LONG, null, options)(t, RIG, COLOR_PRESETS, r), `at ${t}`);
+  }
 });
 
 test("preview retains the sixteen most recently used checkpoints", () => {

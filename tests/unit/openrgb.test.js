@@ -895,11 +895,9 @@ test('Arm answers at once while OpenRGB is slow to describe its devices, and lea
   const app = express();
   app.use(express.json());
   const applier = createApplier({
-    midi: { close() {}, connect() { return true; }, setControlFeedback() {} },
-    spotify: { localCallbackUrl: '', setLoopbackPort() {}, configure() {} },
-    smtc: { start() {}, stop() {} }, deezer: { init: async () => {} }, applyPatch() {}, broadcast() {},
+    midi: { close() {}, connect() { return true; }, setControlFeedback() {} }, applyPatch() {}, broadcast() {},
   });
-  const deps = { applier, autoShow: { analysis: null }, integrations: { broadcast() {}, sequence: { sequencer: new Sequencer({ resolve: () => null }) } } };
+  const deps = { applier, integrations: { broadcast() {}, sequence: { sequencer: new Sequencer({ resolve: () => null }) } } };
   installControlRuntime(t, deps);
   attachRoutes(app, deps);
   const listener = await new Promise((r) => { const l = app.listen(0, '127.0.0.1', () => r(l)); });

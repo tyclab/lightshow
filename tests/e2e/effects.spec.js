@@ -232,7 +232,7 @@ test('the tag chips filter the deck and the list: any chip within an axis, every
   const reactive = await listed();
   expect(reactive).toEqual(all.filter((id) => has(rows.find((row) => row.id === id), REACTIVE)));
   await expect(page.locator('.effects-catalogue .pattern-btn[data-id="v2.neural"] .effect-tag').first()).toHaveText('Bands & drums · live');
-  await expect(page.locator('.effects-catalogue .pattern-btn[data-id="radial-pulse"] .effect-tag').first()).toHaveText('Bands & drums · track');
+  await expect(page.locator('.effects-catalogue .pattern-btn[data-id="v2.stemsSpace"] .effect-tag').first()).toHaveText('Bands & drums · track + live');
   // The search also reads tag names.
   await filters.getByRole('button', { name: 'Clear' }).click();
   await page.getByLabel('Search effects').fill('song sections');

@@ -16,7 +16,6 @@ const fine = {
   rssMb: 300,
   errors: { count: 0, last: null },
   supervisor: { supervised: true, restarts: 0, lastExit: null, recovering: false },
-  auto: { status: 'ready', error: null },
 };
 
 test('a server doing well is ok, with nothing to say', () => {
@@ -214,7 +213,7 @@ test('one existing health timer emits bounded summaries and survives collection 
 
 test('health routes expose liveness and detailed status', async (t) => {
   const app = express();
-  attachRoutes(app, { integrations: { broadcast() {} }, autoShow: { status: 'idle', running: false, error: null } });
+  attachRoutes(app, { integrations: { broadcast() {} } });
   const server = await new Promise((r) => { const s = app.listen(0, '127.0.0.1', () => r(s)); });
   t.after(() => new Promise((r) => server.close(r)));
   const get = (p) => fetch(`http://127.0.0.1:${server.address().port}${p}`).then((res) => res.json());
@@ -228,7 +227,7 @@ test('health routes expose liveness and detailed status', async (t) => {
   for (const key of ['version', 'node', 'pid', 'uptimeS', 'engine', 'memory', 'outputs', 'supervisor', 'log']) assert.ok(key in h, key);
   assert.equal(typeof h.engine.idle, 'boolean');
   assert.ok('awake' in h.engine, 'what keeps the engine from idling, beside idle');
-  assert.deepEqual(h.auto, { status: 'idle', running: false, error: null });
+  assert.ok(!('auto' in h), 'no planned show to report on');
   assert.equal(typeof health().uptimeS, 'number');
   assert.equal(typeof h.counts.effects, 'number');
   assert.ok(h.counts.effects > 0);

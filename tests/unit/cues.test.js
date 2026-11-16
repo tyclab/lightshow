@@ -12,7 +12,6 @@ import { renderInput, setEffectSource, stopEngine } from '../../src/server/engin
 import { settings } from '../../src/server/settings.ts';
 import { EffectLibrary } from '../../src/server/effect-library.ts';
 import { conductor } from '../../src/server/conductor.ts';
-import { makeGrid } from '../../src/shared/beat-clock.ts';
 import { armOutputs } from '../helpers/armed.js';
 
 let dir;
@@ -173,7 +172,7 @@ test('recalling a cue changes content without starting a stopped programme', () 
 });
 
 test('a look with the bars on a picture of their own comes back that way', () => {
-  applyPatch({ pattern: 'hit', pixelPattern: 'impact', anchorMs: 0 });
+  applyPatch({ pattern: 'hit', pixelPattern: 'impact' });
   const saved = captureLook();
   assert.strictEqual(saved.pixelPattern, 'impact');
   applyPatch({ pattern: 'chase' });
@@ -316,20 +315,20 @@ test('a look holds no patch data', () => {
 
 // A cue saved in a quiet moment at 90 BPM must not drag a set that is locked
 // to a 128 BPM song down to 90 — or take the clock off the song at all.
-test('while the clock follows a song, recall keeps the song\'s tempo', () => {
+test('while the clock follows the live input, recall keeps the music\'s tempo', () => {
   applyPatch({ pattern: 'rainbow', bpm: 90 });
   const saved = captureLook();
 
-  let pos = 10000;
-  conductor.setTrack({ key: 'song', grid: makeGrid(Array.from({ length: 512 }, (_, i) => i * (60 / 128))), positionMs: () => (pos += 25) });
+  const started = performance.now();
+  conductor.setLiveSource(() => ({ beatPos: ((performance.now() - started) / 60000) * 128, bpm: 128, key: 'lock' }));
   try {
-    assert.strictEqual(conductor.now().source, 'track');
+    assert.strictEqual(conductor.now().source, 'live');
     applyPatch({ pattern: 'chase' });
     recallLook(saved);
     assert.strictEqual(state.pattern, 'rainbow', 'the look comes back');
-    assert.strictEqual(conductor.now().source, 'track', 'the clock stays on the song');
+    assert.deepStrictEqual([conductor.now().source, conductor.now().bpm], ['live', 128], 'the clock stays on the music');
   } finally {
-    conductor.clearTrack();
+    conductor.setLiveSource(null);
   }
 });
 

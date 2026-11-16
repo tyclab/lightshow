@@ -70,7 +70,7 @@ export function CommandBar({ transport = true } = {}) {
             <span class={`cb-bpm-source ${clock.locked ? 'locked' : ''}`} title={clock.title}>{clock.label}</span>
             {s.clock && s.clock.byHand && (
               <button type="button" class="cb-bpm-follow" onClick={followMusic}
-                title="The tempo is held by hand: follow the deck, the song or the live beat again">Follow</button>
+                title="The tempo is held by hand: follow the live beat again">Follow</button>
             )}
           </span>
         </div>

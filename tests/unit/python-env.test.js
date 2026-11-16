@@ -22,6 +22,12 @@ function realPython() {
 const PY = realPython();
 const noPython = { skip: PY ? false : 'no python interpreter available' };
 
+// G8: the offline analysis went; an interpreter is good for this server when the live input can run in it.
+test('the interpreter is judged by what the live input imports, not by an analyser\'s models', () => {
+  assert.deepStrictEqual(pythonEnv.REQUIRED_MODULES, ['numpy', 'soundcard']);
+  assert.strictEqual(pythonEnv.verify, undefined, 'no model stack to verify');
+});
+
 test('probe reports the real interpreter behind a launcher name', noPython, () => {
   const info = pythonEnv.probe(PY);
   assert.ok(info, 'a working interpreter must probe');
@@ -70,11 +76,11 @@ test('an interpreter that has the dependencies is preferred over one that does n
 });
 
 test('explicit Python paths override detection and report broken interpreters', noPython, () => {
-  const original = settings.get('analysis.pythonPath');
+  const original = settings.get('live.pythonPath');
 
   // Reach past update() deliberately: this is about resolution, and update()
   // would persist to the real config file.
-  settings._values.analysis.pythonPath = 'definitely-not-a-python-abc123';
+  settings._values.live.pythonPath = 'definitely-not-a-python-abc123';
   pythonEnv._reset();
   const broken = pythonEnv.resolve();
   assert.strictEqual(broken.source, 'configured');
@@ -84,7 +90,7 @@ test('explicit Python paths override detection and report broken interpreters', 
   pythonEnv.warnIfUnusable((m) => lines.push(m));
   assert.ok(lines.length > 0);
 
-  settings._values.analysis.pythonPath = original;
+  settings._values.live.pythonPath = original;
   pythonEnv._reset();
 });
 
@@ -150,9 +156,8 @@ test('detection walks past a working-but-empty interpreter to a usable one',
     }
   });
 
-// `uv sync` makes .venv in the repository from the lockfile: nothing else on
-// the machine was built for this project, so it is tried first.
-test('the project environment uv made is tried before anything on PATH',
+// A .venv in the project folder was made for this project, so it is tried first.
+test('the project environment is tried before anything on PATH',
   { skip: process.platform === 'win32' ? 'uses POSIX shell shims' : (PY ? false : 'no python interpreter available') },
   () => {
     const real = execFileSync(PY, ['-c', 'import sys; print(sys.executable)'], { encoding: 'utf8' }).trim();
@@ -177,3 +182,25 @@ test('the project environment uv made is tried before anything on PATH',
       fs.rmSync(dir, { recursive: true, force: true });
     }
   });
+
+// G8: the interpreter is a live-input setting; one save that names it and turns the live input on starts that interpreter.
+test('a save naming the live input\'s Python and turning it on starts the Python it names', async () => {
+  const { createApplier } = await import('../../src/server/apply.ts');
+  const saved = settings.all();
+  settings.save = () => {};
+  settings.useDefaults();
+  const started = [];
+  const live = { start: () => started.push(pythonEnv.pythonExe()), stop() {} };
+  try {
+    pythonEnv._reset();
+    pythonEnv.resolve();
+    const applier = createApplier({ midi: { close() {}, connect() { return true; }, setControlFeedback() {} },
+      live, applyPatch() {}, broadcast() {} });
+    applier.applyChanged(settings.update({ live: { enabled: true, pythonPath: '/nowhere/python3' } }));
+    assert.deepStrictEqual(started, ['/nowhere/python3']);
+  } finally {
+    settings._values = saved;
+    delete settings.save;
+    pythonEnv._reset();
+  }
+});

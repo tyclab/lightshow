@@ -5,11 +5,11 @@ import type { HardwareCaps } from './hardware.ts';
 import type { HardwareClock } from './hardware-clock.ts';
 import type { ResolvedGradient } from './palette-model.ts';
 import { PATTERN_FUNCS, CELL_PATTERNS, LAMP_PATTERNS } from './patterns.ts';
-import { FADE_FLOOR, HIT_FLOOR, fadeBrightness, grooveBrightness, hitBrightness } from './look-math.ts';
+import { FADE_FLOOR, HIT_FLOOR, fadeBrightness, hitBrightness } from './look-math.ts';
 import { fadePhase, hitPhase } from './beat-clock.ts';
 import type { PatternContext } from './patterns.ts';
 import type { LayerPart, Layout, Rig } from './rig.ts';
-import type { Colour, Expression, PulseReading } from '../types/rig.ts';
+import type { Colour, Expression } from '../types/rig.ts';
 
 export interface LayerLook {
   gradient?: ResolvedGradient | null;
@@ -34,7 +34,6 @@ export interface LayerClock {
   phase: number;
   expression: Readonly<Expression>;
   dynamicsOn: boolean;
-  pulse?: Readonly<PulseReading> | null;
   bpm?: number | null;
   hueStrobe?: 'flash' | 'pulse';
   fixtureCount: number;
@@ -94,11 +93,9 @@ function paintCore(rig: Rig, layout: Layout, pattern: string, look: LayerLook, c
   if (!clock) return;
   const { colors } = look;
   if (pattern === 'fade' || pattern === 'hit') {
-    const groove = clock.pulse?.groove;
     const bright = pattern === 'fade'
       ? fadeBrightness(fadePhase(clock.beatPos, clock.anchor, clock.division))
-      : groove === undefined ? hitBrightness(hitPhase(clock.beatPos, clock.division))
-        : grooveBrightness(hitBrightness(hitPhase(clock.beatPos, clock.division)), groove);
+      : hitBrightness(hitPhase(clock.beatPos, clock.division));
     // The floor each curve holds (fade 25, hit 35) is a bed, as wave's is: Off removes it, Fixed replaces it.
     const floor = pattern === 'fade' ? FADE_FLOOR : HIT_FLOOR;
     const coverage = Math.max(0, Math.min(1, (255 - bright) / Math.max(1, 255 - floor)));
@@ -126,7 +123,6 @@ function patternContext(rig: Rig, layout: Layout, pattern: string, colors: reado
     twinkle,
     // Expressive patterns always need a resting expression, even without an active show.
     dynamics: pattern === 'ensemble' || pattern === 'ribbon' || clock.dynamicsOn ? clock.expression : null,
-    pulse: clock.pulse ?? null,
     progress: span && span.beats > 0 ? Math.min(1, span.from + stepPos / division / span.beats) : null,
     stepMs: clock.bpm && clock.bpm > 0 ? 60000 / clock.bpm / division : null,
     hueStrobe: clock.hueStrobe,

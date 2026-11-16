@@ -1,14 +1,31 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { chooseDriver, driverOf, playlistRowRequests, transportButtons, transportState } from '../../public-src/transport-model.js';
+import fs from 'node:fs';
+import path from 'node:path';
+import { autoStatus, chooseDriver, driverOf, playlistRowRequests, transportButtons, transportState } from '../../public-src/transport-model.js';
 import { resolveRoute, SETUP_VIEWS, STRIP_VIEWS, VIEWS, viewShortcut } from '../../public-src/views.js';
 
 test('legacy bookmarks retain their instrument', () => {
-  for (const [hash, expected] of [['#manual', 'effects'], ['#timeline', 'auto/timeline'], ['#matrix', 'perform/matrix'], ['#rig/outputs', 'rig/outputs']]) {
+  for (const [hash, expected] of [['#manual', 'effects'], ['#timeline', 'auto'], ['#matrix', 'perform/matrix'], ['#rig/outputs', 'rig/outputs']]) {
     assert.equal(resolveRoute(hash).canonical, expected);
   }
   assert.equal(resolveRoute('#unknown'), null);
   assert.equal(resolveRoute(''), null);
+});
+
+// G8: the Auto Show view lost its Timeline tab; every bookmark of it still opens the view.
+test('#auto, #auto/show, #auto/timeline and #timeline all open the Auto Show view', () => {
+  for (const hash of ['#auto', '#auto/show', '#auto/timeline', '#timeline']) assert.equal(resolveRoute(hash)?.view, 'auto', hash);
+});
+
+// G8: the badge shows only what autoStatus says, so no state of the removed planned show keeps a style.
+test('the Auto badge has a style for each state autoStatus gives, and for no other', () => {
+  const css = fs.readFileSync(path.join(import.meta.dirname, '..', '..', 'public', 'style.css'), 'utf8');
+  const styled = new Set([...css.matchAll(/\.auto-badge-([a-z]+)/g)].map((m) => m[1]));
+  const live = (director, listening = true) => ({ live: { listening, director } });
+  const states = new Set([{}, live(null, false), live({ active: false }), live({ active: true }), live({ active: true, silent: true }),
+    live({ active: true, holding: true })].map((s) => autoStatus(s).id));
+  assert.deepEqual([...styled].sort(), [...states].sort());
 });
 
 test('digit shortcuts follow the ten views, the tenth on 0, and leave typing alone', () => {
@@ -50,7 +67,7 @@ test('sequence transport offers timeline operations and a Pause that turns into 
   assert.equal(transportButtons('sequence', { sequence: loaded })[0].enabled, false);
 });
 
-test('secondary transport names timeline and analysis state without inferring whole-picture Freeze', () => {
+test('secondary transport names the timeline\'s and the auto show\'s state without inferring whole-picture Freeze', () => {
   for (const running of [true, false]) assert.equal(transportState('look', { running }), null);
   const seq = (flags) => transportState('sequence', { sequence: { loaded: { id: 'set', name: 'Set one' }, ...flags } });
   for (const [flags, word] of [[{ playing: true }, 'playing'], [{ playing: true, paused: true }, 'paused'],
@@ -58,28 +75,19 @@ test('secondary transport names timeline and analysis state without inferring wh
     assert.equal(seq(flags), `Timeline · ${word}`);
   }
   assert.equal(transportState('sequence', { sequence: { loaded: null } }), null);
-  assert.equal(transportState('auto', {}), 'Analysis · idle');
+  assert.equal(transportState('auto', {}), 'Auto · Live input not listening');
+  assert.equal(transportState('auto', { live: { listening: true, director: { active: false } } }), 'Auto · Idle');
+  assert.equal(transportState('auto', { live: { listening: true, director: { active: true } } }), 'Auto · By ear');
+  assert.deepEqual(transportButtons('auto', { live: { listening: true } }), [], 'nothing to cancel: no analysis');
 });
 
 test('loading a sequence does not select or start a programme', () => {
   assert.deepEqual(chooseDriver('set'), [{ path: '/api/sequence', method: 'PUT', body: { id: 'set' } }]);
-  assert.equal(driverOf({ control: { programme: 'auto' }, sequence: { loaded: { id: 'set' } }, showOn: true }), 'auto');
+  assert.equal(driverOf({ control: { programme: 'auto' }, sequence: { loaded: { id: 'set' } } }), 'auto');
 });
 
 test('unloading a sequence only unloads its document', () => {
   assert.deepEqual(chooseDriver(''), [{ path: '/api/sequence', method: 'DELETE' }]);
-});
-
-test('analysis source and readiness never create an implicit Start action', () => {
-  for (const source of ['spotify', 'deezer', 'nowplaying', 'prolink', 'live', 'hybrid']) {
-    assert.deepEqual(transportButtons('auto', { autoSource: source, activeSource: source, autoShow: { status: 'ready' } }), []);
-  }
-});
-
-test('busy shows expose cancellation and cannot start twice', () => {
-  const buttons = transportButtons('auto', { autoShow: { status: 'analyzing', startPending: true } });
-  assert.deepEqual(buttons.map((b) => b.id), ['cancel']);
-  assert.deepEqual(buttons.find((b) => b.id === 'cancel').request, { path: '/api/auto/cancel', method: 'POST' });
 });
 
 test('sequence looping keeps its saved bounds', () => {

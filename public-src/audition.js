@@ -31,7 +31,7 @@ effect(() => {
 
 export function startAudition(id, spec = null, name = null) {
   if (stateSig.peek().armed) return;
-  stagePreviewSig.value = { ...stagePreviewSig.peek(), rehearsal: false, playing: false, edit: false };
+  stagePreviewSig.value = { ...stagePreviewSig.peek(), edit: false };
   setAudition({ id, spec, name, active: true, playing: true, position: 0 });
 }
 

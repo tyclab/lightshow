@@ -246,14 +246,14 @@ const DISCO_ROWS: CataloguePreset[] = DISCO_PRESETS.map(({ id, name, params }) =
 
 const OWN_LOOKS: [id: string, name: string, desc: string, preset?: string][] = [
   ['position-chase', 'Position Chase', 'A domino running across the room by position, turning a quarter every run', 'hd.neonDomino'],
-  ['radial-pulse', 'Radial Pulse', 'A ring from the middle of the room out to its edge once a bar, driven by the bass', 'hd.bassBloom'],
+  ['radial-pulse', 'Radial Pulse', 'A ring from the middle of the room out to its edge once a bar', 'hd.bassBloom'],
   ['spatial-wash', 'Spatial Wash', 'A soft crest of the look\'s colours rolling across the room, turning a quarter every bar', 'hd.auroraDrift'],
   ['bounce-scan', 'Bouncing Scan', 'A bright line sweeping across the room and back every bar', 'hd.prismRicochet'],
   ['streak', 'Streak', 'A comet with a long tail across the room on two events in three, either way', 'hd.meteorShower'],
   ['starlight', 'Starlight', 'A third of the lamps light on every step, each in its own colour, and fade', 'hd.starlightScatter'],
   ['breathe', 'Breathe', 'The whole room swells and falls as one over a bar, the colour drifting round the look', 'hd.velvetBreath'],
-  ['volume-gate', 'Volume Gate', 'A slow wash across the room that opens with how loud the music is', 'hd.afterglowGate'],
-  ['confetti', 'Confetti', 'Three lamps in four pop in their own colours on every step, or on the kick, and die away', 'hd.voltageConfetti'],
+  ['volume-gate', 'Volume Gate', 'A slow wash across the room, opened as far as the show expression\'s level', 'hd.afterglowGate'],
+  ['confetti', 'Confetti', 'Three lamps in four pop in their own colours on every step and die away', 'hd.voltageConfetti'],
   ['anchor-fill', 'Anchor Fill', 'The room filled corner by corner on every step, the next colour over the last'],
   ['halves', 'Halves', 'Front against back, then left against right, in A and B, swapping every other time'],
   ['flip', 'Flip', 'The four corners of the room, one diagonal in A and the other in B, swapping every step'],

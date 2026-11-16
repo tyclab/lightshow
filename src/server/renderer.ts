@@ -22,7 +22,7 @@ import { PATTERN_FUNCS, paletteOf } from '../shared/patterns.ts';
 import { renderLayer } from '../shared/layer.ts';
 import { buildRig, createRigSignature } from '../shared/rig.ts';
 import { cellPlace, channelPlace, stripOf } from '../shared/placement.ts';
-// Shared with the browser's rehearsal preview so the two cannot drift.
+// Shared with the browser's stage preview so the two cannot drift.
 import { EXPRESSION_REST, blendExpression, blendFixture, cellDrive, HOLD_STROBE } from '../shared/look-math.ts';
 import { anchorStep, stepAt, motionAdvance } from '../shared/beat-clock.ts';
 import { strobeCap, FLASHES_PER_SECOND } from './flash-limit.ts';
@@ -46,7 +46,7 @@ import type { VoiceFrame, VoiceRecord } from '../shared/effects/layer.ts';
 import type { EffectInstance } from '../shared/effects/stepper.ts';
 import type { SequenceTable, SequenceTransport } from '../shared/effects/sequence.ts';
 import type { AudioMode, EffectCommand, EffectSlot, EffectSpec, FrameBase, HdMaster, Seed } from '../shared/effects/types.ts';
-import type { ChannelDefault, ChannelMap, Colour, Expression, Override, PixelMap, Profile, PulseReading, ShowDynamics, StageFixture } from '../types/rig.ts';
+import type { ChannelDefault, ChannelMap, Colour, Expression, Override, PixelMap, Profile, ShowDynamics, StageFixture } from '../types/rig.ts';
 import type { PixelInputFrame } from '../types/pixel-input.ts';
 import type { PictureFrame } from '../types/picture.ts';
 import { gradeColour, pictureLift } from '../shared/picture-grade.ts';
@@ -103,7 +103,6 @@ export interface RenderInput {
   flashLimit?: boolean;
   energy: string | null;
   showDynamics: ShowDynamics | null;
-  pulse?: PulseReading | null;
   patternAnchor: PatternAnchor | null;
   fade: FadeRequest | null;
   syncTest: SyncTestRequest | null;
@@ -119,6 +118,10 @@ export interface RenderInput {
   pixelInputs?: PixelInputFrame[];
   /** The room picture, one colour per rig unit, when the show paints from the visualizer. */
   picture?: PictureFrame | null;
+  /**
+   * An audio source's section, progress and stems, as the browser preview takes them from its demo source. The engine
+   * sets none; the preview parity tests hand the renderer the demo source's here to compare like with like.
+   */
   modulation?: FrameBase['modulation'];
   /** The room picture's colour grade; absent paints the picture as sent. */
   pictureGrade?: PictureGrade | null;
@@ -446,8 +449,6 @@ function createRenderer({ profileOf, profilesRevision = () => 0, now = performan
       overrideGradient: input.overridePalette,
       paletteOverride: input.paletteOverride, audio: input.audio, audioMode: input.audioMode, master: input.master,
       modulation: {
-        stems: input.pulse ? { bass: input.pulse.bass, drums: input.pulse.drums,
-          vocals: input.pulse.vocals, hats: input.pulse.hats } : undefined,
         ...input.modulation,
         ...(input.pixelSpan ? { sectionProgress: Math.max(0, Math.min(1, (input.pixelFrom ?? 0)
           + (reading.beatPos - (input.patternAnchor?.step ?? anchor?.step ?? 0) / Math.max(1, input.beatDivision)) / input.pixelSpan)) } : {}),
@@ -490,7 +491,7 @@ function createRenderer({ profileOf, profilesRevision = () => 0, now = performan
     const source = legacy ? (synthesized ? [synthesized] : []) : input.voices;
     const seen = new Set<string>();
     const voices: VoiceFrame[] = [];
-    const beatNow = reading.anchorBeat !== undefined && Number.isFinite(reading.anchorBeat) ? reading.anchorBeat : reading.beatPos;
+    const beatNow = reading.beatPos;
     for (const v of source) {
       if (!v || typeof v.id !== 'string' || !v.spec || typeof v.spec.kind !== 'string') continue;
       if (!(Number.isFinite(v.startedAtMs) && now >= v.startedAtMs)) continue;
@@ -643,12 +644,7 @@ function createRenderer({ profileOf, profilesRevision = () => 0, now = performan
       anchor = { step: given.step, epoch: given.epoch };
     }
     givenAnchor = given ? { step: given.step, epoch: given.epoch } : null;
-    if (!anchor || anchor.epoch !== reading.epoch) {
-      // Use the scene’s scheduled beat after seeking so phase matches uninterrupted playback.
-      const from = reading.anchorBeat !== undefined && Number.isFinite(reading.anchorBeat)
-        ? reading.anchorBeat : reading.beatPos;
-      anchor = { step: anchorStep(from, division), epoch: reading.epoch };
-    }
+    if (!anchor || anchor.epoch !== reading.epoch) anchor = { step: anchorStep(reading.beatPos, division), epoch: reading.epoch };
     return { step: stepAt(reading.beatPos, anchor.step, division), anchor: anchor.step, division };
   }
 
@@ -711,7 +707,6 @@ function createRenderer({ profileOf, profilesRevision = () => 0, now = performan
       phase: expressionPhase,
       expression,
       dynamicsOn: !!input.showDynamics,
-      pulse: input.pulse ?? null,
       bpm: reading.bpm,
       hueStrobe: input.hueStrobe,
       hardware: capabilities, hardwareClock,

@@ -51,7 +51,7 @@ test('Hue discovery lists one gradient lamp and refreshes existing profiles', as
     const bridge = page.locator('.hue-bridge[data-bridge="b1"]');
     await expect(bridge.getByText('In the patch as "Gradient strip"')).toBeVisible();
     await expect(bridge.getByText('#3 #4 #5', { exact: true })).toBeVisible();
-    await expect(bridge.getByRole('button', { name: 'Add Gradient strip', exact: false })).toHaveCount(0);
+    await expect(bridge.getByRole('button', { name: 'Add to patch: Gradient strip', exact: false })).toHaveCount(0);
     await bridge.getByRole('button', { name: 'Refresh lamp profiles' }).click();
     await expect(page.getByText('Refreshed 1 fixtures.')).toBeVisible();
   });

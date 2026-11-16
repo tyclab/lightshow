@@ -17,8 +17,9 @@ test('a whole tempo reads whole, anything else to a tenth', () => {
 });
 
 test('the clock badge names every source, and anything else as the free clock', () => {
-  assert.deepEqual(['auto', 'cdj', 'track', 'tap'].map((id) => utils.clockSource(id).label), ['Auto', 'CDJ', 'Track', 'Tap']);
-  assert.equal(utils.clockSource('track').locked, true);
+  assert.deepEqual(['live', 'tap'].map((id) => utils.clockSource(id).label), ['LIVE', 'Tap']);
+  assert.equal(utils.clockSource('live').locked, true);
+  for (const gone of ['auto', 'track', 'cdj']) assert.equal(utils.clockSource(gone).id, 'tap', `${gone}, a source that is gone, reads as the free clock`);
   assert.equal(utils.clockSource('tap').locked, false);
   assert.equal(utils.clockSource(undefined).id, 'tap');
   assert.equal(utils.clockSource('toString').id, 'tap', 'not a prototype key');
@@ -69,7 +70,7 @@ test('a par reads exactly as it always did', () => {
 
 // The operator, 2026-11-14: "so to preview i need to klick look an preview? why? also preview runs local in browser right?"
 // What a stage draws, in the order of the Show v3 table (G6): nothing is dark for want of a click.
-const STOPPED = { rehearsing: false, connected: true, armed: false, blackout: false, playing: false, layers: false, frozen: false, paused: false };
+const STOPPED = { connected: true, armed: false, blackout: false, playing: false, layers: false, frozen: false, paused: false };
 const modeOf = (patch) => {
   const { tag, lit, demo, note } = utils.stageMode({ ...STOPPED, ...patch });
   return { tag, lit, demo, ...(note ? { note } : {}) };
@@ -100,7 +101,7 @@ test('Blackout outranks the outputs and playback: the feed, dark, says why', () 
   for (const patch of [{}, { playing: true }, { armed: true }]) assert.equal(modeOf(patch).note, undefined, 'a lit stage has nothing to explain');
 });
 
-test('an idle page draws nothing, the demo beat included, until Resume preview; rehearsal and offline are as before', () => {
+test('an idle page draws nothing, the demo beat included, until Resume preview; offline is as before', () => {
   for (const patch of [{}, { playing: true }, { blackout: true }, { frozen: true }]) {
     assert.deepEqual(modeOf({ paused: true, ...patch }), { tag: 'Preview paused', lit: false, demo: false, note: 'Preview paused.' }, JSON.stringify(patch));
   }
@@ -108,9 +109,6 @@ test('an idle page draws nothing, the demo beat included, until Resume preview; 
   assert.equal(modeOf({ paused: { cause: 'button' } }).note, 'Preview paused.');
   assert.equal(modeOf({ paused: { cause: 'idle', minutes: 60 } }).note, 'Preview paused after 60 minutes without input.');
   assert.equal(modeOf({ paused: { cause: 'idle', minutes: 1 } }).note, 'Preview paused after 1 minute without input.');
-  for (const patch of [{}, { blackout: true }, { armed: true }, { paused: true }]) {
-    assert.deepEqual(modeOf({ rehearsing: true, ...patch }), { tag: 'Rehearsal', lit: true, demo: false }, 'a rehearsal draws the planned show');
-  }
   assert.deepEqual(modeOf({ connected: false }), { tag: 'Offline', lit: true, demo: false });
 });
 
@@ -119,7 +117,7 @@ test('only the two disarmed preview rows offer Pause preview', () => {
   for (const patch of [{}, { playing: true }, { layers: true }, { frozen: true }]) {
     assert.equal(utils.stageMode({ ...STOPPED, ...patch }).pausable, true, JSON.stringify(patch));
   }
-  for (const patch of [{ armed: true }, { blackout: true }, { paused: true }, { connected: false }, { rehearsing: true }, { armed: true, playing: true }]) {
+  for (const patch of [{ armed: true }, { blackout: true }, { paused: true }, { connected: false }, { armed: true, playing: true }]) {
     assert.ok(!utils.stageMode({ ...STOPPED, ...patch }).pausable, JSON.stringify(patch));
   }
 });

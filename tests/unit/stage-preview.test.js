@@ -1,7 +1,7 @@
 // What the stage preview's sampler is handed for a live state, and its "now playing" line.
 import test from 'node:test';
 import assert from 'node:assert';
-import { previewOptions, liveVoiceEvents, matrixAsks, resolverOf, positionText } from '../../public-src/preview-inputs.js';
+import { previewOptions, matrixAsks, resolverOf, positionText } from '../../public-src/preview-inputs.js';
 import { createPreviewSampler } from '../../src/shared/preview.ts';
 import { buildRig } from '../../src/shared/rig.ts';
 import { presetById } from '../../src/shared/effects/catalogue.ts';
@@ -42,15 +42,6 @@ test("the rig's Hue default is flash, and a stopped sequence or none is not play
   assert.strictEqual(previewOptions({}).paletteOverride, null);
 });
 
-test('the live voices play from the start of the rehearsal, hidden ones left out', () => {
-  const events = liveVoiceEvents(STATE.voices);
-  assert.deepStrictEqual(events, [
-    { timeMs: 0, action: 'voice', data: { id: 'live:v1', effect: WASH, targets: 'shared', tier: 'voice', launchSeq: 2 } },
-    { timeMs: 0, action: 'voice', data: { id: 'live:v2', effect: STROBE, targets: [1, 2], tier: 'strobe', launchSeq: 3 } },
-  ]);
-  assert.deepStrictEqual(liveVoiceEvents([{ id: 'x', hidden: false }]), [], 'a voice without its effect is not guessed');
-});
-
 test('saved presets resolve before the catalogue', () => {
   const builtin = presetById('hd.auroraDrift') ? 'hd.auroraDrift' : null;
   const resolve = resolverOf([{ id: 'mine', spec: WASH }]);
@@ -77,14 +68,14 @@ test('sequence position uses its bar length', () => {
   assert.strictEqual(positionText(seq, 4), '2.2');
 });
 
-test('a held pad plays over the rehearsed timeline', () => {
+test('a voice event plays over the look', () => {
   const fixtures = [{ id: 1, position: { x: 50, y: 50 }, maxBrightness: 255 }];
   const rig = buildRig(fixtures, () => null);
   const presets = Array.from({ length: 12 }, (_, i) => ({ r: (i * 97) % 256, g: (i * 53) % 256, b: (i * 151) % 256 }));
   const timeline = [{ timeMs: 0, action: 'patch', data: { pattern: 'solid', bpm: 120, colorA: 1, colorB: 2, colorC: 3, colorD: 4 } }];
-  const voice = { id: 'v', label: 'Aurora Drift', tier: 'voice', targets: 'shared', launchSeq: 1, hidden: false, spec: presetById('hd.auroraDrift').spec };
+  const voice = { timeMs: 0, action: 'voice', data: { id: 'v', effect: presetById('hd.auroraDrift').spec, targets: 'shared', tier: 'voice', launchSeq: 1 } };
   const alone = createPreviewSampler(timeline)(1000, fixtures, presets, rig);
-  const withPad = createPreviewSampler([...timeline, ...liveVoiceEvents([voice])], null, previewOptions({}))(1000, fixtures, presets, rig);
+  const withPad = createPreviewSampler([...timeline, voice], null, previewOptions({}))(1000, fixtures, presets, rig);
   assert.notDeepStrictEqual(withPad, alone);
 });
 

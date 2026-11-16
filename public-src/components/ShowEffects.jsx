@@ -69,7 +69,7 @@ const columnsOf = (list) => getComputedStyle(list).gridTemplateColumns.split(' '
 
 export function ShowEffects() {
   const s = pick(['pattern', 'patterns', 'effects', 'families', 'safety', 'running', 'control', 'live', 'armed', 'masterBlackout']);
-  const previewing = stageMode({ rehearsing: false, connected: connectedSig.value, armed: s.armed !== false, blackout: !!s.masterBlackout, paused: idlePause.paused.value !== null,
+  const previewing = stageMode({ connected: connectedSig.value, armed: s.armed !== false, blackout: !!s.masterBlackout, paused: idlePause.paused.value !== null,
     playing: !!s.control?.playing, layers: !!s.control?.layers, frozen: !!s.control?.frozen }).demo;
   const box = effectsBox({ running: !!s.running, frozen: !!s.control?.frozen, source: pictureSourceSig.value, receiving: pictureReceivingSig.value, previewing });
   const lib = librarySig.value;

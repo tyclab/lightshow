@@ -366,7 +366,7 @@ button.cb-bpm-num:focus-visible { outline: .125rem solid var(--accent); outline-
 .cb-bpm.pulse .cb-bpm-num {
   animation: bpm-pulse var(--bpm-period, 500ms) cubic-bezier(.2, .7, .2, 1) infinite;
 }
-/* What the pattern clock keeps time by: Auto / CDJ / Track / Tap. */
+/* What the pattern clock keeps time by: Live / Tap. */
 .cb-bpm-source {
   margin-top: 4px;
   padding: 1px 6px;
@@ -442,7 +442,6 @@ button.cb-bpm-num:focus-visible { outline: .125rem solid var(--accent); outline-
   border-color: var(--accent);
   color: var(--text-blue);
 }
-
 
 /* — Energy strip — */
 .cb-energy { gap: 10px; }
@@ -635,9 +634,6 @@ button.cb-bpm-num:focus-visible { outline: .125rem solid var(--accent); outline-
 .perform-view { display: grid; gap: 12px; }
 
 .perform-now {
-  display: grid;
-  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
-  gap: 16px;
   padding: 14px 16px;
   background: var(--card);
   border: 1px solid var(--border);
@@ -651,23 +647,7 @@ button.cb-bpm-num:focus-visible { outline: .125rem solid var(--accent); outline-
   text-transform: uppercase;
   color: var(--muted);
 }
-.perform-track { display: block; font-size: 24px; font-weight: 750; line-height: 1.2; overflow-wrap: anywhere; }
-.perform-artist { display: block; font-size: 16px; color: var(--text-2); }
-.perform-next-name { display: block; font-size: 17px; font-weight: 650; overflow-wrap: anywhere; }
-.perform-next-state { font-size: 13px; color: var(--muted); }
-.perform-next-state.state-ready { color: var(--green); }
 .perform-view .muted { color: var(--muted); font-weight: 500; }
-.perform-progress {
-  position: relative;
-  height: 24px;
-  margin-top: 10px;
-  background: var(--surface-2);
-  border-radius: var(--radius-sm);
-  overflow: hidden;
-}
-.perform-progress-fill { position: absolute; inset: 0 auto 0 0; background: var(--accent-fill); opacity: .4; }
-.perform-progress-time { position: relative; padding: 0 8px; font: 600 13px/24px var(--mono); }
-
 
 .perform-gate { display: flex; }
 .perform-gate-button {
@@ -763,33 +743,10 @@ button.cb-bpm-num:focus-visible { outline: .125rem solid var(--accent); outline-
 .perform-latch { grid-column: 1 / -1; display: inline-flex; align-items: center; gap: 10px; min-height: 44px; font-size: 15px; cursor: pointer; }
 .perform-latch input { width: 24px; height: 24px; accent-color: var(--accent); }
 
-.perform-faders {
-  display: flex;
-  gap: 18px;
-  padding: 14px;
-  background: var(--card);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-}
-.perform-fader { display: flex; flex-direction: column; align-items: center; gap: 10px; }
-.perform-fader-label { font-size: 11px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
-.perform-fader-value { font: 650 17px var(--mono); }
-/* A fader that stands up, with a thumb a thumb can find. */
-.perform-fader input[type=range] {
-  writing-mode: vertical-lr;
-  direction: rtl;
-  width: 14px;
-  height: 340px;
-  cursor: pointer;
-}
-.perform-fader input[type=range]::-webkit-slider-thumb { width: 44px; height: 30px; border-radius: var(--radius-sm); }
-.perform-fader input[type=range]::-moz-range-thumb { width: 44px; height: 30px; border-radius: var(--radius-sm); }
-
 /* Clear of the floating shortcuts button. */
 .perform-view { padding-bottom: 48px; }
 
 @media (max-width: 900px) {
-  .perform-now { grid-template-columns: 1fr; }
   /* Keep the pads before the meters and colour libraries. */
   .perform-body { display: flex; flex-direction: column; align-items: stretch; }
   .perform-controls { display: contents; }
@@ -797,16 +754,10 @@ button.cb-bpm-num:focus-visible { outline: .125rem solid var(--accent); outline-
   .perform-live-row { order: 2; }
   .perform-side { order: 3; }
   .perform-override { order: 4; }
-  .perform-faders { justify-content: center; }
-  .perform-fader input[type=range] { height: 240px; }
 }
 @media (max-width: 560px) {
   .perform-pads { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .perform-pad { min-height: 88px; }
-  .perform-faders { flex-direction: column; align-items: stretch; }
-  .perform-fader { flex-direction: row; }
-  .perform-fader input[type=range] { writing-mode: horizontal-tb; direction: ltr; flex: 1; width: auto; height: 14px; }
-  .perform-fader input[type=range]::-webkit-slider-thumb { width: 30px; height: 44px; }
 }
 
 /* =============================================================
@@ -959,7 +910,7 @@ html:has(.show-fold-toggle[aria-expanded="true"]) { scrollbar-gutter: stable; }
 .manual-col { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
 
 /* =============================================================
-   AUTO VIEW — controls + full-width timeline
+   AUTO VIEW — the Auto show's status over the stage
    ============================================================= */
 .auto-view {
   display: flex;
@@ -1282,8 +1233,6 @@ input[type=range]::-moz-range-thumb {
   text-transform: uppercase;
 }
 .palette-btn.active .palette-name { color: var(--text); }
-
-
 
 /* =============================================================
    ENERGY OVERRIDES
@@ -1928,25 +1877,8 @@ input[type=range]::-moz-range-thumb {
   background: currentColor;
 }
 .auto-badge-idle        { background: var(--surface); color: var(--muted); }
-.auto-badge-downloading { background: var(--wash-blue); color: var(--text-blue); }
-.auto-badge-analyzing   { background: var(--wash-amber); color: var(--text-amber); }
-.auto-badge-ready       { background: var(--wash-blue); color: var(--green); }
 .auto-badge-playing     { background: var(--wash-blue); color: var(--accent); }
 
-.auto-controls {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 12px;
-  flex-wrap: wrap;
-}
-.auto-controls label {
-  font-size: 10px;
-  color: var(--muted);
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
 .auto-select {
   background: var(--surface);
   border: 1px solid var(--border);
@@ -1959,164 +1891,17 @@ input[type=range]::-moz-range-thumb {
 }
 .auto-select:focus { outline: none; border-color: var(--accent); }
 
-.auto-analysis { margin: 8px 0; }
-.auto-analysis-stats {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  font-size: 11px;
-  color: var(--dim);
-}
-.auto-analysis-row { display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: center; }
-.auto-analysis-row.tier-row { margin-bottom: 2px; }
-.auto-analysis-row.dim { font-size: 10px; opacity: 0.75; }
-.auto-analysis-stats strong { color: var(--text); font-weight: 700; }
-.auto-analysis-stats .dim { color: var(--muted); font-weight: normal; }
-
-.analysis-models { border-top: 1px solid var(--border); margin-top: 6px; padding-top: 12px; }
-.analysis-models h3 { margin: 0 0 10px; font-size: 11px; color: var(--muted); font-weight: 600; }
-.analysis-model-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 10px 16px; margin: 0; }
-.analysis-model dt { font-size: 10px; color: var(--muted); margin-bottom: 3px; }
-.analysis-model dd { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px; margin: 0; }
-
-.auto-analysis-stats .tier-badge {
-  display: inline-block;
-  padding: 4px 12px;
-  border-radius: 999px;
-  border: 1px solid;
-  /* The genre's colour is its border and tint; the words stay readable on
-     every theme, and a neon genre colour on a light page is not. */
-  color: var(--text);
-  font-size: 11px;
-  font-weight: 800;
-  letter-spacing: 0.08em;
-}
-
-.auto-analysis-row.palette-row { margin: 2px 0 4px; gap: 8px; }
-.auto-analysis-stats .palette-label {
-  font-size: 10px;
-  text-transform: uppercase;
-  letter-spacing: 0.1em;
-  color: var(--muted);
-  font-weight: 800;
-}
-.auto-analysis-stats .palette-swatches { display: inline-flex; gap: 4px; align-items: center; }
-.auto-analysis-stats .palette-swatch {
-  display: inline-block;
-  width: 22px;
-  height: 22px;
-  border-radius: 5px;
-  border: 1px solid var(--border);
-}
-
 /* =============================================================
-   AUTO TIMELINE
+   DRAWER INFO — the drawer's facts, small and quiet
    ============================================================= */
-.auto-timeline {
-  margin: 12px 0;
-  padding: 12px;
-  background: var(--panel);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-}
-.auto-timeline.auto-timeline-bare {
-  margin: 0;
-  padding: 0;
-  background: transparent;
-  border: none;
-}
-
-.auto-timeline-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: baseline;
-  gap: 8px;
-  flex-wrap: wrap;
-  margin-bottom: 8px;
-  font-size: 11px;
-}
-.auto-timeline-title {
-  font-weight: 800;
-  color: var(--dim);
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-}
-.auto-timeline-status { color: var(--muted); font-size: 10px; }
-.auto-timeline-status.error {
-  border: 0; padding: 0; background: transparent; color: var(--text-red);
-  cursor: pointer; font: inherit;
-}
-.auto-timeline-time { font-family: var(--mono); color: var(--muted); font-size: 11px; }
-.auto-timeline-time span { color: var(--text); }
-
-#auto-timeline-canvas {
-  display: block;
-  width: 100%;
-  height: 200px;
-  background: var(--ground);
-  border-radius: var(--radius);
-  cursor: default;
-  border: 1px solid var(--border);
-}
-.auto-timeline-canvas-wrap { position: relative; }
-.auto-timeline-tooltip {
-  position: absolute;
-  top: 8px;
-  transform: translateX(-50%);
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-  max-width: min(220px, 70%);
-  padding: 7px 9px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  background: var(--surface);
-  color: var(--text);
-  font-size: 10px;
-  line-height: 1.2;
-  pointer-events: none;
-  z-index: 2;
-}
-.auto-timeline-tooltip strong { color: var(--accent); font-family: var(--mono); }
-.auto-timeline-tooltip span { color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-
-.auto-timeline-legend {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px 12px;
-  margin-top: 10px;
-  font-size: 10px;
-  color: var(--muted);
-}
-.auto-timeline-legend span { display: inline-flex; align-items: center; gap: 4px; }
-.auto-timeline-legend .swatch { display: inline-block; width: 10px; height: 10px; border-radius: 2px; background: var(--border); }
-.auto-timeline-legend .swatch.seg-low    { background: #1e3a5f; }
-.auto-timeline-legend .swatch.seg-mid    { background: #3a7099; }
-.auto-timeline-legend .swatch.seg-high   { background: #ff6584; }
-.auto-timeline-legend .swatch.curve-energy { background: #5aa2ff; }
-.auto-timeline-legend .swatch.curve-bass   { background: #ff6584; }
-.auto-timeline-legend .swatch.curve-kick   { background: #ffaa44; }
-.auto-timeline-legend .swatch.curve-high   { background: #66ddff; }
-.auto-timeline-legend .swatch.tempo        { background: #99ff99; }
-.auto-timeline-legend .swatch.downbeat     { background: #ffffff; }
-.auto-timeline-legend .swatch.buildup    { background: linear-gradient(90deg, #444 0%, #ffaa44 100%); }
-.auto-timeline-legend .swatch.drop       { background: #ff4444; }
-.auto-timeline-legend .swatch.event-pattern { background: #8b6cf0; }
-.auto-timeline-legend .swatch.event-patch  { background: #5aa2ff; }
-.auto-timeline-legend .swatch.event-express { background: rgba(90, 162, 255, .28); }
-.auto-timeline-legend .swatch.event-energy { background: #ffee44; }
-
-/* =============================================================
-   PROLINK
-   ============================================================= */
-.prolink-info {
+.drawer-info {
   display: flex;
   flex-direction: column;
   gap: 4px;
   font-size: 11px;
   color: var(--muted);
 }
-.prolink-info strong { color: var(--text); font-weight: 600; }
+.drawer-info strong { color: var(--text); font-weight: 600; }
 
 /* =============================================================
    RESPONSIVE
@@ -2220,124 +2005,6 @@ input[type=range]::-moz-range-thumb {
   border: 1px solid var(--border);
 }
 
-/* =============================================================
-   SET-LIST WARMING
-   ============================================================= */
-.warm-card .card-title { display: flex; align-items: center; }
-.warm-toggle { margin-left: auto; }
-
-.warm-help {
-  font-size: 11px;
-  color: var(--muted);
-  line-height: 1.55;
-  margin: 8px 0;
-}
-.warm-help code {
-  font-family: var(--mono);
-  font-size: 10px;
-  background: var(--surface);
-  padding: 1px 4px;
-  border-radius: 3px;
-}
-
-.warm-progress { margin-top: 8px; }
-.warm-bar {
-  height: 4px;
-  border-radius: 2px;
-  background: var(--surface);
-  overflow: hidden;
-}
-.warm-bar-fill {
-  height: 100%;
-  background: var(--accent-fill);
-  transition: width .3s ease;
-}
-.warm-counts {
-  margin-top: 5px;
-  font-size: 10px;
-  color: var(--muted);
-  font-family: var(--mono);
-}
-.warm-failed { color: var(--text-red); }
-.warm-current { color: var(--dim); }
-
-/* Spotify playlist source: pick one of the account's own, or paste a link. */
-.warm-playlist { margin-bottom: 10px; }
-.warm-playlist-row { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
-.warm-playlist-select,
-.warm-playlist-link {
-  flex: 1 1 160px;
-  min-width: 0;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  color: var(--text);
-  border-radius: var(--radius-sm);
-  padding: 6px 8px;
-  font-size: 11px;
-}
-.warm-playlist-select:focus,
-.warm-playlist-link:focus { outline: none; border-color: var(--accent); }
-.warm-playlist-select:disabled,
-.warm-playlist-link:disabled { opacity: .5; }
-.warm-note {
-  font-size: 10px;
-  color: var(--muted);
-  line-height: 1.5;
-  margin: 6px 0 0;
-}
-
-.warm-input {
-  width: 100%;
-  box-sizing: border-box;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  color: var(--text);
-  border-radius: var(--radius-sm);
-  padding: 8px;
-  font-size: 12px;
-  font-family: var(--mono);
-  line-height: 1.5;
-  resize: vertical;
-}
-.warm-input:focus { outline: none; border-color: var(--accent); }
-.warm-input:disabled { opacity: .5; }
-
-.warm-actions { display: flex; gap: 6px; margin-top: 8px; flex-wrap: wrap; }
-
-.warm-list {
-  margin-top: 10px;
-  max-height: 260px;
-  overflow-y: auto;
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
-}
-.warm-row {
-  display: flex;
-  gap: 10px;
-  align-items: baseline;
-  font-size: 11px;
-  padding: 3px 0;
-}
-.warm-row + .warm-row { border-top: 1px solid var(--border); }
-.warm-row-name {
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.warm-row-status {
-  font-family: var(--mono);
-  font-size: 10px;
-  color: var(--muted);
-  white-space: nowrap;
-}
-.warm-row.ready .warm-row-status,
-.warm-row.cached .warm-row-status { color: var(--text-green); }
-.warm-row.warming .warm-row-status { color: var(--accent); }
-.warm-row.error .warm-row-status { color: var(--text-red); }
-
 /* The `hidden` attribute must win over any display rule a component sets on
    itself. Without this, `.midi-learn-banner { display: flex }` beat the UA's
    `[hidden] { display: none }` and the banner was permanently on screen. */
@@ -2406,7 +2073,7 @@ input[type=range]::-moz-range-thumb {
 .toast-close:hover { color: var(--text); }
 
 /* =============================================================
-   AUTO SHOW — transport, look, queue, analysis
+   AUTO SHOW — its layout, the transport bar and the shared panel shell
    ============================================================= */
 .auto-layout { display: flex; flex-direction: column; gap: 10px; }
 
@@ -2439,37 +2106,6 @@ input[type=range]::-moz-range-thumb {
 .transport-btn:hover:not(:disabled) { filter: brightness(1.1); }
 .transport-btn:disabled { opacity: .55; cursor: default; }
 .transport-glyph { font-size: 12px; line-height: 1; }
-.transport-cancel { min-height: 36px; }
-
-/* Why the last analysis failed: said once, where the transport is. */
-.auto-error {
-  padding: 10px 12px;
-  border: 1px solid var(--red);
-  border-radius: var(--radius);
-  background: var(--wash-red);
-  color: var(--text);
-  font-size: 13px;
-}
-.auto-error strong { color: var(--text-red); margin-right: 4px; }
-
-.transport-spacer { flex: 1; }
-.transport-source { display: inline-flex; align-items: center; gap: 8px; }
-.transport-source-label {
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--muted);
-}
-
-/* — two-column body — */
-.auto-columns {
-  display: grid;
-  grid-template-columns: minmax(0, 400px) 1fr;
-  gap: 10px;
-  align-items: start;
-}
-.auto-col { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
 
 /* — the shared panel shell every block in this view uses — */
 .panel {
@@ -2517,78 +2153,6 @@ input[type=range]::-moz-range-thumb {
 .segmented-btn:hover { background: var(--card-hi); color: var(--text); }
 .segmented-btn.active { background: var(--accent-fill); color: var(--text-on-accent); }
 
-/* — now playing — */
-.now-panel { display: flex; gap: 10px; align-items: center; }
-.now-art { width: 52px; height: 52px; border-radius: var(--radius-sm); object-fit: cover; flex-shrink: 0; }
-.now-body { min-width: 0; flex: 1; }
-.now-name {
-  font-size: 13px;
-  font-weight: 700;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.now-artist {
-  font-size: 11px;
-  color: var(--muted);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.now-progress { display: flex; align-items: center; gap: 8px; margin-top: 6px; }
-.now-bar { flex: 1; height: 3px; border-radius: 2px; background: var(--surface); overflow: hidden; }
-.now-bar-fill { height: 100%; background: var(--accent-fill); }
-.now-time { font-size: 10px; font-family: var(--mono); color: var(--dim); white-space: nowrap; }
-
-/* — look (palette + intensity) — */
-.look-row { display: flex; align-items: center; gap: 10px; }
-.look-row + .look-row { margin-top: 8px; }
-.look-label {
-  font-size: 11px;
-  font-weight: 600;
-  color: var(--text);
-  min-width: 62px;
-}
-.look-slider { flex: 1; min-width: 0; }
-.look-value {
-  font-size: 11px;
-  font-family: var(--mono);
-  color: var(--dim);
-  min-width: 24px;
-  text-align: right;
-}
-.look-hint { font-size: 10px; color: var(--muted); }
-/* Fine adjustment: a ±2 s slider cannot be dragged to 5 ms, so the buttons are
-   how the offset actually gets dialled in and the slider is for coarse jumps. */
-.sync-nudge {
-  flex: none;
-  width: 22px; height: 22px;
-  padding: 0;
-  font-size: 13px; line-height: 1;
-  color: var(--text-2);
-  background: var(--card-hi);
-  border: 1px solid var(--border-hi);
-  border-radius: 5px;
-  cursor: pointer;
-}
-.sync-nudge:hover { background: var(--surface-2); color: var(--text); }
-.sync-nudge:active { transform: translateY(1px); }
-/* The readout doubles as the reset, so it has to look pressable without
-   becoming another button competing with the two nudges. */
-.sync-value {
-  background: none;
-  border: 1px solid transparent;
-  border-radius: 5px;
-  cursor: pointer;
-  /* Restated rather than `font: inherit`: this rule comes after .look-value, so
-     the shorthand would win and drop the 11px mono the read-out is paired on. */
-  font-size: 11px;
-  font-family: var(--mono);
-  color: var(--dim);
-  /* Wide enough for "-2000 ms" so the row does not shift as digits come and go. */
-  min-width: 58px;
-}
-.sync-value:hover { border-color: var(--border-hi); }
 .look-note { margin: 8px 0 0; font-size: 10px; line-height: 1.5; color: var(--muted); }
 
 /* — stage preview —
@@ -2781,111 +2345,8 @@ input[type=range]::-moz-range-thumb {
 .stage-panel .panel-head { flex-wrap: wrap; }
 .stage-panel .panel-head .stage-head-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: inherit; margin-left: auto; }
 
-.stage-rehearsal {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin-top: 8px;
-  padding-top: 8px;
-  border-top: 1px solid var(--border);
-}
-.stage-rehearsal input[type=range] { flex: 1 1 120px; min-width: 90px; }
-.stage-rehearsal > span {
-  font: 600 10px/1 var(--mono);
-  color: var(--muted);
-  white-space: nowrap;
-}
-.stage-rehearsal .look-note { flex-basis: 100%; margin: 0; }
-
 @media (prefers-reduced-motion: reduce) {
   .stage-glow { transition: none; }
-}
-
-/* — up next — */
-.queue-depth { display: flex; align-items: center; gap: 6px; margin-left: auto; }
-.queue-depth-label {
-  font-size: 9px;
-  font-weight: 700;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--muted);
-}
-.queue-list { display: flex; flex-direction: column; }
-.queue-row {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 6px 0;
-  font-size: 11px;
-}
-.queue-row + .queue-row { border-top: 1px solid var(--border); }
-.queue-pos {
-  font-family: var(--mono);
-  font-size: 10px;
-  color: var(--muted);
-  width: 14px;
-  flex-shrink: 0;
-  text-align: right;
-}
-.queue-track { min-width: 0; flex: 1; display: flex; flex-direction: column; }
-.queue-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
-.queue-artist { font-size: 10px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.queue-status {
-  font-size: 9px;
-  font-weight: 700;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  color: var(--muted);
-  padding: 2px 7px;
-  border: 1px solid var(--border);
-  border-radius: 999px;
-  white-space: nowrap;
-  flex-shrink: 0;
-}
-.queue-ready .queue-status { color: var(--text-green); border-color: var(--accent); }
-.queue-prefetching .queue-status { color: var(--accent); border-color: var(--accent); }
-.queue-error .queue-status { color: var(--text-red); border-color: var(--red); }
-
-/* — source strip — */
-.source-strip {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
-  padding: 8px 12px;
-  background: var(--card);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  font-size: 10px;
-}
-.source-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  color: var(--muted);
-  font-weight: 600;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-}
-.source-chip.live { color: var(--text); }
-.source-dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: var(--border);
-}
-.source-chip.live .source-dot { background: var(--accent); box-shadow: var(--glow-blue); }
-.source-action { margin-left: auto; }
-
-.timeline-panel #auto-timeline-canvas { height: 220px; width: 100%; }
-
-@media (max-width: 1100px) {
-  .auto-columns { grid-template-columns: 1fr; }
-}
-@media (max-width: 640px) {
-  .transport-source { margin-left: 0; width: 100%; }
-  .transport-source .auto-select { flex: 1; }
 }
 
 /* =============================================================
@@ -3091,17 +2552,6 @@ input[type=range]::-moz-range-thumb {
     animation: none;
   }
 }
-
-/* Track edits (TrackEdits.jsx): the operator's changes to one track's show. */
-.track-edits .panel-head { display: flex; justify-content: space-between; align-items: center; }
-/* The accent row: a picker and two buttons, which wrap on a phone rather than run off it. */
-.track-edits .look-row { flex-wrap: wrap; row-gap: 6px; }
-.track-edits .edit-list { list-style: none; margin: 4px 0 8px; padding: 0; font-size: 12px; color: var(--muted); }
-.track-edits .edit-list li { display: flex; align-items: center; gap: 6px; padding: 2px 0; }
-.track-edits .edit-sections { width: 100%; border-collapse: collapse; font-size: 12px; margin-top: 6px; }
-.track-edits .edit-sections th { text-align: left; font-weight: 600; color: var(--muted); padding: 2px 4px; }
-.track-edits .edit-sections td { padding: 2px 4px; }
-.track-edits .edit-sections select { width: 100%; }
 
 /* =============================================================
    SETUP VIEWS — Rig, Sources, Settings, Preflight
@@ -3410,37 +2860,8 @@ input[type=range]::-moz-range-thumb {
 .preflight-fix::before { content: '\2192  '; }
 .preflight-view { max-width: 900px; }
 
-/* Analysis models. */
-.models-list { list-style: none; margin: 10px 0 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
-.models-row { border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 8px 10px; }
-.models-head { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
-.models-size { margin-left: auto; font-size: 12px; color: var(--muted); }
-.models-tier.required { color: var(--text-blue); }
-.models-status { margin-top: 6px; display: flex; flex-direction: column; align-items: flex-start; gap: 4px; }
-.models-status .warm-bar { align-self: stretch; }
-.models-here { color: var(--text-green); }
-
-/* The analysis environment: set up by uv, from the page. */
+/* A setting's note on what the server resolved, when it is right. */
 .setting-note.ok { color: var(--text-green); }
-.python-progress { display: flex; flex-direction: column; gap: 4px; margin-top: 10px; }
-.python-where { margin-top: 10px; }
-.python-log-details { margin-top: 10px; }
-.python-log-details summary { cursor: pointer; font-size: 11px; color: var(--muted); }
-.python-log {
-  margin: 6px 0 0;
-  max-height: 220px;
-  overflow: auto;
-  padding: 8px;
-  font-family: var(--mono);
-  font-size: 10px;
-  line-height: 1.5;
-  white-space: pre-wrap;
-  word-break: break-all;
-  color: var(--text-2);
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-}
 
 @media (max-width: 640px) {
   .mode-field { flex-direction: column; align-items: stretch; }
@@ -3486,13 +2907,11 @@ input[type=range]::-moz-range-thumb {
 }
 .stage3d-haze { display: inline-flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 700; color: var(--muted); }
 .stage3d-haze input { width: 110px; accent-color: var(--accent); }
-.stage3d-sep { width: 1px; align-self: stretch; background: var(--border); }
 .stage3d-unlit { font-size: .75rem; color: var(--text-amber); }
-.stage3d-scrub { flex: 1 1 160px; min-width: 120px; accent-color: var(--accent); }
-.stage3d-time { font-family: var(--mono); font-size: 11px; color: var(--text-2); white-space: nowrap; }
-/* The canvases paint this ground themselves (timeline-renderer.js, stage3d):
+
+/* The 3D stage paints this ground itself (stage3d):
    a dark instrument in every theme, like the site's plate under its diagrams. */
-.stage3d-wrap, .timeline-scroll, #auto-timeline-canvas { --ground: #07070e; --ink: #eceef6; --edge-strong: rgba(160, 175, 215, .75); }
+.stage3d-wrap { --ground: #07070e; --ink: #eceef6; --edge-strong: rgba(160, 175, 215, .75); }
 .stage3d-wrap {
   position: relative;
   height: clamp(240px, calc(100dvh - var(--header-height, 47px) - var(--commands-height, 0px) - var(--views-height, 0px) - 200px), 900px);
@@ -3517,9 +2936,7 @@ input[type=range]::-moz-range-thumb {
   border: 1px solid var(--edge-strong);
   border-radius: var(--radius-sm);
 }
-@media (max-width: 560px) {
-  .stage3d-sep { display: none; }
-}
+
 /* An idle page holds no feed until Resume (idle-pause.js): said above every stage drawing. */
 .preview-paused {
   display: flex; flex-wrap: wrap; align-items: center; gap: .5rem 1rem;
@@ -3535,76 +2952,6 @@ input[type=range]::-moz-range-thumb {
 .stage-tag::before, .stage-tag::after { height: 0; overflow: hidden; visibility: hidden; }
 .stage-tag::before { content: attr(data-alt-a); }
 .stage-tag::after { content: attr(data-alt-b); }
-
-/* =============================================================
-   TIMELINE — the show, to read and rehearse
-   ============================================================= */
-.timeline-view { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
-.timeline-main { min-width: 0; }
-.timeline-track {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-size: 12px;
-  font-weight: 700;
-  color: var(--text);
-}
-.timeline-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 8px; }
-.timeline-time { font-family: var(--mono); font-size: 11px; color: var(--text-2); }
-.timeline-gap { flex: 1; }
-.timeline-scroll {
-  overflow-x: auto;
-  scrollbar-width: thin;
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  background: var(--ground);
-}
-.timeline-canvas-wrap { position: relative; min-width: 100%; }
-.timeline-canvas { display: block; width: 100%; height: 180px; cursor: crosshair; touch-action: pan-y; }
-.timeline-canvas:focus-visible { outline: .125rem solid var(--accent); outline-offset: -.125rem; }
-/* Where the rehearsal is: the live playhead is drawn white on the canvas. */
-.timeline-mark {
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  width: 2px;
-  margin-left: -1px;
-  background: var(--accent-3);
-  box-shadow: var(--glow-amber);
-  pointer-events: none;
-}
-.timeline-sections { display: flex; gap: 2px; margin-top: 6px; min-width: 0; }
-.timeline-section {
-  --role: var(--faint);
-  appearance: none;
-  flex: 1 1 0;
-  min-width: 0;
-  padding: 4px 4px 3px;
-  border: 1px solid var(--border);
-  border-top: 3px solid var(--role);
-  border-radius: var(--radius-sm);
-  background: var(--surface);
-  color: var(--text-2);
-  font: inherit;
-  font-size: 10px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: .04em;
-  cursor: pointer;
-}
-.timeline-section span { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.timeline-section:hover { background: var(--card-hi); color: var(--text); }
-.timeline-section.current { background: var(--card-hi); color: var(--text); border-color: var(--role); }
-.timeline-section:focus-visible { outline: .125rem solid var(--accent); outline-offset: .1875rem; }
-/* The renderer's colours for each role, so a button matches its band. */
-.timeline-section.role-intro     { --role: #3d5a80; }
-.timeline-section.role-verse     { --role: #4f7cac; }
-.timeline-section.role-chorus    { --role: #e07a5f; }
-.timeline-section.role-drop      { --role: #d62839; }
-.timeline-section.role-bridge    { --role: #8367c7; }
-.timeline-section.role-breakdown { --role: #2a9d8f; }
-.timeline-section.role-outro     { --role: #5c677d; }
 
 /* =============================================================
    LOG — the server's log and health, in the drawer
@@ -3675,23 +3022,22 @@ input[type=range]::-moz-range-thumb {
 .restart-what { margin: 0 0 8px; font-size: 12px; color: var(--text-2); }
 .restart-confirm { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-size: 12px; color: var(--text-2); }
 
-
 /* =============================================================
    TOUCH — a finger, not a cursor: every target at least 44 px
    ============================================================= */
 @media (pointer: coarse) {
   .btn, .btn.sm, .btn.icon, .segmented-btn, .bd-tab, .bd-toggle, .mode-tab, .mode-setup-item, .nav-link,
   .header-tool, .header-theme, .stat-pill.gate, .stat-pill.control, .cb-energy-btn, .cb-tap, .cb-play, .cb-bpm-follow,
-  .palette-btn, .pattern-btn, .cue-recall, .cue-capture, .sync-nudge,
-  .transport-btn, .warm-toggle, .auto-select, .warm-playlist-select, .shortcuts-tab,
-  .sub-tab, .remove-btn, .file-upload-btn, .timeline-section,
+  .palette-btn, .pattern-btn, .cue-recall, .cue-capture,
+  .transport-btn, .auto-select, .shortcuts-tab,
+  .sub-tab, .remove-btn, .file-upload-btn,
   .effects-chip, .effect-star, .effect-edit, .palette-random, .insp-check,
   select, input[type=number], input[type=text], input[type=search], input[type=password], input[type=color], textarea {
     min-height: 44px;
   }
   .effect-star, .effect-edit { min-width: 44px; }
   .effect-pad-tap { min-height: 88px; }
-  .btn.icon, .sync-nudge, .shortcuts-tab, .bd-toggle { min-width: 44px; }
+  .btn.icon, .shortcuts-tab, .bd-toggle { min-width: 44px; }
   /* Above the drawer's toggle, which sits in the same corner. */
   .shortcuts-tab { width: 44px; height: 44px; bottom: 76px; }
   .cb-divs .btn, .cb-bpm-nudge .btn { min-width: 44px; }

@@ -1,14 +1,10 @@
 import { HardwareFit } from './HardwareFit.jsx';
 import { Fragment } from 'preact';
-import { useEffect, useState } from 'preact/hooks';
-import { api, autoPositionSig, connectedSig, emitTap, followMusic, pick, send } from '../state.js';
-import { clockSource, fmtTime, formatBpm } from '../utils.js';
-import { timelinePosition } from '../timeline-state.js';
-import { useDraft } from '../draft.js';
+import { api, connectedSig, emitTap, followMusic, pick } from '../state.js';
+import { clockSource, formatBpm } from '../utils.js';
 import { NowPlaying, PlayingVoices } from './NowPlaying.jsx';
 import { Pads } from './Pads.jsx';
 import { StrobePad } from './StrobePad.jsx';
-import { activeQueue } from './Queue.jsx';
 import { PaletteStrip } from './PaletteStrip.jsx';
 import { SequenceShelf, Transport } from './Transport.jsx';
 import { Matrix } from './Matrix.jsx';
@@ -25,114 +21,27 @@ import { LiveAutomation } from './LiveAutomation.jsx';
  * big as the screen allows, and nothing that needs reading twice.
  *
  *   strobes      off until the photosensitivity acknowledgement, one tap from it
- *   now / next   the track playing, how far in, and what comes after it
- *   sync         what the lights are keeping time by, and whether it is well
+ *   now playing  what the rig is showing
+ *   sync         what the lights are keeping time by, and whether the live input hears
  *   pads         two banks of eight, each played as its launch mode says,
  *                the strobe held, tap tempo and stop all voices
  *   palettes     one tap writes the whole look's colours
- *   fader        how hard the generated show pushes
  *
  * Everything here is also on the other views; this is the same controls laid
  * out for a thumb rather than a mouse. Arming, the picture source and its
  * effect, blackout and the master are in the header above every view.
  */
 
-const SOURCE_LABELS = {
-  prolink: 'PRO DJ LINK', hybrid: 'Spotify + OS clock', spotify: 'Spotify', deezer: 'Deezer',
-  nowplaying: 'OS media', live: 'Live input', timer: 'Timer',
-};
-
-const SHOW_TEXT = {
-  idle: 'Idle', downloading: 'Downloading', analyzing: 'Analysing', ready: 'Ready', playing: 'Running',
-};
-
-/** How the source the show follows is doing: 'ok', 'warn', 'off' or 'none'. */
-export function sourceHealth(s) {
-  const id = s.activeSource;
-  const pl = s.prolink || {};
-  switch (id) {
-    case 'prolink': return pl.connected ? (pl.stale ? 'warn' : 'ok') : 'off';
-    case 'spotify': return s.spotify && s.spotify.authenticated ? 'ok' : 'off';
-    case 'hybrid': return s.hybrid && s.hybrid.driver === 'nowplaying' ? 'ok' : 'warn';
-    case 'deezer': return s.deezer && s.deezer.authenticated ? 'ok' : 'off';
-    case 'nowplaying': return s.nowPlaying && s.nowPlaying.authenticated ? 'ok' : 'off';
-    case 'live': return s.live && s.live.listening ? 'ok' : 'off';
-    default: return 'none';
-  }
-}
-
-function Progress({ duration }) {
-  const pos = autoPositionSig.value;
-  const [now, setNow] = useState(() => performance.now());
-  useEffect(() => {
-    if (!pos.running) return undefined;
-    const timer = setInterval(() => setNow(performance.now()), 250);
-    return () => clearInterval(timer);
-  }, [pos.running]);
-  const at = timelinePosition(pos, now, duration);
-  const pct = duration > 0 ? Math.min(100, (at / duration) * 100) : 0;
-  return (
-    <div class="perform-progress" role="progressbar" aria-label="Track position"
-      aria-valuemin={0} aria-valuemax={Math.round(duration / 1000)} aria-valuenow={Math.round(at / 1000)}
-      aria-valuetext={`${fmtTime(at)} of ${fmtTime(duration)}`}>
-      <div class="perform-progress-fill" style={{ width: `${pct}%` }} />
-      <span class="perform-progress-time">{fmtTime(at)} / {fmtTime(duration)}</span>
-    </div>
-  );
-}
-
-function NowNext() {
-  const s = pick(['autoShow', 'spotify', 'deezer', 'spotifyPrefetch', 'deezerPrefetch']);
-  const as = s.autoShow || {};
-  const track = as.track;
-  const duration = (track && track.durationMs) || (as.analysis && as.analysis.duration * 1000) || 0;
-  const queue = activeQueue(s);
-  const next = queue && queue.slots.find((slot) => slot.track);
-  return (
-    <section class="perform-now" aria-label="Now and next">
-      <div class="perform-now-main">
-        <div class="perform-playing"><NowPlaying /></div>
-        <span class="perform-kicker">Now</span>
-        {track ? (
-          <>
-            <span class="perform-track">{track.name}</span>
-            {track.artist && <span class="perform-artist">{track.artist}</span>}
-          </>
-        ) : <span class="perform-track muted">Nothing loaded</span>}
-        {track && duration > 0 && <Progress duration={duration} />}
-      </div>
-      <div class="perform-now-next">
-        <span class="perform-kicker">Next</span>
-        {next ? (
-          <>
-            <span class="perform-next-name">{next.track.name}</span>
-            <span class={`perform-next-state state-${next.status}`}>
-              {next.status === 'ready' ? 'show ready' : next.status === 'prefetching' ? 'analysing…' : next.status}
-            </span>
-          </>
-        ) : <span class="perform-next-name muted">—</span>}
-      </div>
-    </section>
-  );
-}
-
 function SyncHealth() {
-  const s = pick(['bpm', 'clock', 'activeSource', 'autoShow', 'autoSyncOffsetMs', 'prolink', 'spotify',
-    'deezer', 'nowPlaying', 'live', 'hybrid']);
+  const s = pick(['bpm', 'clock', 'live']);
   const connected = connectedSig.value;
   const clock = clockSource(s.clock && s.clock.source);
   const byHand = !!(s.clock && s.clock.byHand);
-  const health = sourceHealth(s);
-  const as = s.autoShow || {};
-  const status = as.status || 'idle';
-  const offset = s.autoSyncOffsetMs || 0;
-  const measured = as.running ? as.autoSyncMs || 0 : 0;
+  const listening = !!(s.live && s.live.listening);
   const chips = [
     { id: 'server', label: 'Server', value: connected ? 'online' : 'offline', state: connected ? 'ok' : 'off' },
     { id: 'clock', label: 'Clock', value: `${clock.label} · ${formatBpm(s.bpm)} BPM`, state: clock.locked ? 'ok' : 'none', title: clock.title },
-    { id: 'source', label: 'Following', value: SOURCE_LABELS[s.activeSource] || '—', state: health },
-    { id: 'show', label: 'Show', value: as.startPending ? 'Analysing, then starting' : SHOW_TEXT[status] || status, state: status === 'playing' ? 'ok' : as.error ? 'warn' : 'none', title: as.error ? as.error.message : undefined },
-    { id: 'offset', label: 'Offset', value: `${offset > 0 ? '+' : ''}${offset} ms${measured ? ` · heard ${measured > 0 ? '+' : ''}${measured} ms` : ''}`, state: 'none' },
+    { id: 'live', label: 'Live input', value: listening ? 'listening' : s.live ? 'not listening' : 'off', state: listening ? 'ok' : 'off' },
   ];
   return (
     <section class="perform-sync" aria-label="Sync health">
@@ -147,7 +56,7 @@ function SyncHealth() {
           </span>
           {c.id === 'clock' && byHand && (
             <button type="button" class="perform-follow" onClick={followMusic}
-              title="The tempo is held by hand: follow the deck, the song or the live beat again">Follow the music</button>
+              title="The tempo is held by hand: follow the live beat again">Follow the music</button>
           )}
           {c.id === 'clock' && <>
             <TempoScale bpm={s.bpm} direction="half" />
@@ -178,21 +87,6 @@ function Utility() {
   );
 }
 
-function Faders() {
-  const s = pick(['autoShow']);
-  const [intensity, onIntensity, commitIntensity] = useDraft(s.autoShow ? s.autoShow.intensity ?? 50 : 50, (v) => send({ autoIntensity: v }));
-  return (
-    <section class="perform-faders" aria-label="Faders">
-      <label class="perform-fader">
-        <span class="perform-fader-label">Intensity</span>
-        <input type="range" min="0" max="100" value={intensity} aria-valuetext={`${intensity} percent`}
-          onInput={(e) => onIntensity(parseInt(e.target.value, 10))} onChange={(e) => commitIntensity(parseInt(e.target.value, 10))} />
-        <span class="perform-fader-value">{intensity}</span>
-      </label>
-    </section>
-  );
-}
-
 const INSTRUMENTS = [{ id: 'pads', label: 'Pads' }, { id: 'matrix', label: 'Matrix' }];
 
 export function Perform() {
@@ -216,14 +110,13 @@ export function Perform() {
           <HardwareFit />
         </div>
         <div class="perform-side">
-          <Faders />
           <AudioMeters />
           <BpmCapture destination="global tempo" onApply={(bpm) => api('/api/set', { method: 'POST', body: JSON.stringify({ bpm }) })} />
           <LiveAutomation />
         </div>
       </div>
       <section class="perform-music" aria-label="Music and sync">
-        <NowNext />
+        <div class="perform-now"><div class="perform-playing"><NowPlaying /></div></div>
         <SyncHealth />
       </section>
     </div>

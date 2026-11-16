@@ -1,19 +1,16 @@
-// The Timeline view and the 3D Stage view: a track's show read, scrubbed and
-// rehearsed, and the rig drawn in 3D — live from the DMX feed, or rehearsing.
+// The 3D Stage view: the rig drawn in 3D, previewing by itself or showing the live output.
 
 import { test, expect } from '@playwright/test';
-import { control, open, reset, set, state, loadTrack, unloadTrack } from './helpers.js';
+import { control, open, reset, set, state } from './helpers.js';
 import { stageImage } from './stage-image.js';
 
 test.beforeEach(async ({ request }) => {
   await control(request, 'disarm');
   await reset(request);
-  await loadTrack(request);
 });
 
 test.afterEach(async ({ request }) => {
   await control(request, 'restore');
-  await unloadTrack(request);
 });
 
 async function litShare(page) {
@@ -56,34 +53,6 @@ test('the viewpoints, and the keys on the stage', async ({ page }) => {
   await expect(stage).toBeFocused();
 });
 
-test('rehearsing on the Stage view: the planned show at any moment, whatever the rig is doing', async ({ page, request }) => {
-  // Fixed planned content tests isolation independently of spatial coverage, dark rests and track expression.
-  await page.route('**/api/auto/timeline', async (route) => {
-    const response = await route.fetch(), body = await response.json();
-    body.data.timeline = [{ timeMs: 0, action: 'patch', data: {
-      pattern: 'v2.wash', bpm: body.data.bpm, beatDivision: 1, basePalette: { colours: ['#FFFFFF'] },
-      showDynamics: { level: 1, bass: 1, vocal: 1, air: 1, width: 1, motion: 1, decay: 1 },
-    } }];
-    await route.fulfill({ response, json: body });
-  });
-  await control(request, 'blackout');
-  await open(page, 'stage');
-  await page.getByRole('button', { name: 'Rehearse track' }).click();
-  await expect(page.locator('.stage3d-tools .panel-tag')).toHaveText('Rehearsal');
-  await page.getByRole('slider', { name: 'Rehearsal position' }).fill('8000');
-  await expect(page.locator('.stage3d-time')).toHaveText('0:08 / 4:07');
-  await expect(page.getByRole('img', { name: /The rig in 3D/ })).toHaveAttribute('aria-label', /rehearsing the track at 0:08/);
-  await expect.poll(() => litShare(page), { message: 'the planned wash shows under the live blackout' }).toBeGreaterThan(0.01);
-  const pausedAt = await page.locator('.stage3d-time').textContent();
-
-  await page.getByRole('button', { name: 'Play', exact: true }).click();
-  await expect(page.locator('.stage3d-time')).not.toHaveText(pausedAt);
-  await page.getByRole('button', { name: 'Pause' }).click();
-  await page.getByRole('button', { name: 'Back to live' }).click();
-  await expect(page.locator('.stage3d-tools .panel-tag')).toHaveText('Blackout');
-  await expect.poll(() => litShare(page), { message: 'live, the blackout holds' }).toBeLessThan(0.001);
-});
-
 // The operator, 2026-11-13: the Show stage stayed black, and only a header button read "Restore".
 // Show v3 (G6): stopped and disarmed it is no longer dark, so only Blackout needs a note.
 test('on Show, a stopped stage previews with nothing to explain, and Blackout names itself and Restore', async ({ page, request }) => {
@@ -102,7 +71,7 @@ test('on Show, a stopped stage previews with nothing to explain, and Blackout na
   const under = await note.evaluate((n) => { const r = n.getBoundingClientRect(); return document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2).className; });
   expect(under, 'a drag on the note turns the stage').toContain('stage3d-canvas');
 
-  await header.getByRole('button', { name: 'Restore', exact: true }).click();
+  await header.getByRole('button', { name: 'Blackout, Restore', exact: true }).click();
   await expect(tag).toHaveText('Preview · demo beat');
   await expect(note).toHaveCount(0);
 });
@@ -118,71 +87,10 @@ test('without WebGL the Stage view says so', async ({ page }) => {
   await expect(page.getByRole('alert')).toContainText('needs WebGL');
 });
 
-test('the Timeline view scrubs: press, keys, sections, zoom, and on to the 3D stage', async ({ page }) => {
-  await open(page, 'timeline');
-  await expect(page.locator('.timeline-track')).toContainText('track.wav');
-  const scrubber = page.getByRole('slider', { name: /Rehearsal position on the track/ });
-  await expect(scrubber).toHaveAttribute('aria-valuemax', '248');
-
-  const box = await scrubber.boundingBox();
-  await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
-  await expect(page.getByRole('button', { name: 'Back to live' })).toBeVisible();
-  await expect(scrubber).toHaveAttribute('aria-valuetext', '2:03');
-  await expect(page.locator('.timeline-time')).toContainText('Rehearsal 2:03 / 4:07 · drop');
-  await expect(page.locator('.timeline-mark')).toBeVisible();
-
-  await scrubber.press('ArrowRight');
-  await expect(scrubber).toHaveAttribute('aria-valuetext', '2:04');
-  await scrubber.press('Shift+ArrowLeft');
-  await expect(scrubber).toHaveAttribute('aria-valuetext', '1:54');
-  await scrubber.press('Home');
-  await expect(scrubber).toHaveAttribute('aria-valuetext', '0:00');
-
-  await page.getByRole('button', { name: 'verse', exact: true }).first().click();
-  await expect(scrubber).toHaveAttribute('aria-valuetext', '1:16');
-  await expect(page.locator('.timeline-section.current')).toHaveText('verse');
-
-  // Zoomed in, the timeline scrolls, and keeps the rehearsal mark in view.
-  await page.getByRole('button', { name: '4×' }).click();
-  const scroll = await page.locator('.timeline-scroll').boundingBox();
-  const wide = await page.locator('.timeline-canvas-wrap').boundingBox();
-  expect(wide.width).toBeGreaterThan(scroll.width * 3.5);
-  await page.getByRole('button', { name: 'outro', exact: true }).click();
-  const mark = await page.locator('.timeline-mark').boundingBox();
-  expect(mark.x).toBeGreaterThanOrEqual(scroll.x);
-  expect(mark.x).toBeLessThanOrEqual(scroll.x + scroll.width);
-
-  // The rehearsal is one position, wherever it is shown.
-  const preview = page.locator('section').filter({ has: page.getByRole('heading', { name: 'Stage preview' }) });
-  await expect(preview.locator('.panel-tag')).toHaveText('Rehearsal');
-  await page.getByRole('link', { name: 'Watch in 3D' }).click();
-  await expect(page.locator('#panel-stage')).toBeVisible();
-  await expect(page.locator('.stage3d-time')).toHaveText('3:52 / 4:07');
-});
-
-test('an accent added on the Timeline view goes in at the rehearsal mark', async ({ page, request }) => {
-  await open(page, 'timeline');
-  await page.getByRole('button', { name: 'drop', exact: true }).first().click();
-  await expect(page.getByRole('slider', { name: /Rehearsal position on the track/ })).toHaveAttribute('aria-valuetext', '0:13');
-  await page.getByRole('button', { name: 'Add at rehearsal mark' }).click();
-  await expect.poll(async () => {
-    const overlay = (await (await request.get('/api/auto/overlay')).json()).overlay || {};
-    return ((overlay.accents && overlay.accents.add) || []).map((a) => Math.round(a.atMs / 1000));
-  }).toEqual([14]);
-  await request.put('/api/auto/overlay', { data: {} });
-});
-
-test('with nothing analysed, the Timeline view says how to get a track', async ({ page, request }) => {
-  await unloadTrack(request);
-  await open(page, 'timeline');
-  await expect(page.getByText('No track is analysed yet')).toBeVisible();
-});
-
-test('5 opens Auto Show with Timeline and 4 opens Stage', async ({ page }) => {
+test('5 opens Auto Show and 4 opens Stage', async ({ page }) => {
   await open(page, 'effects');
   await page.locator('body').press('5');
-  await page.getByRole('tab', { name: 'Timeline', exact: true }).click();
-  await expect(page.locator('.timeline-view')).toBeVisible();
+  await expect(page.locator('#panel-auto .auto-layout')).toBeVisible();
   await page.locator('body').press('4');
   await expect(page.locator('#panel-stage')).toBeVisible();
 });

@@ -6,7 +6,7 @@ import { isHueProfile } from '../shared/hue-lamp.ts';
 import { BUILTIN_PROFILE_ID, BUILTIN_PROFILE_IDS, getProfile, listProfiles, profilesRevision } from './profiles.ts';
 import { settings } from './settings.ts';
 import * as universes from './universes.ts';
-import { COLOR_PRESETS, DEFAULT_PATTERN, PATTERNS, PRESET_ROWS, STROBE_FUNCTIONS, ENERGY_EFFECTS, SYNC_OFFSET_LIMIT_MS } from './presets.ts';
+import { COLOR_PRESETS, DEFAULT_PATTERN, PATTERNS, PRESET_ROWS, STROBE_FUNCTIONS, ENERGY_EFFECTS } from './presets.ts';
 import { ALL_PALETTES } from './palette-catalogue.ts';
 import type { PaletteBody } from '../shared/palette-model.ts';
 import { PALETTES } from './palettes.ts';
@@ -65,11 +65,6 @@ export interface ShowState {
   effectColours: EffectColours | null;
   basePalette: PaletteBody | null;
   overridePalette: PaletteBody | null;
-  autoIntensity: number;
-  autoSyncOffsetMs: number;
-  prolinkEnabled: boolean;
-  autoSource: string;
-  autoPrefetchDepth: number;
   fixtures: Fixture[];
   nextFixtureId: number;
   showDynamics: ShowDynamics | null;
@@ -116,12 +111,6 @@ const state: ShowState = {
   effectColours: null,
   basePalette: null,
   overridePalette: null,
-  autoIntensity: 50,
-  // A rig calibration, not a look, so it lives in settings (patch.ts persists it).
-  autoSyncOffsetMs: settings.group('auto').syncOffsetMs,
-  prolinkEnabled: false,
-  autoSource: 'auto',
-  autoPrefetchDepth: 1,
   fixtures: [],
   // Hue, MIDI and cues refer to fixtures by id, so ids survive deletes and reorders.
   nextFixtureId: 4,
@@ -321,7 +310,7 @@ function clockState(): { source: ClockSource; bpm: number; byHand: boolean; beat
   return { ...conductor.status(), byHand: conductor.byHand(), beatPos, epoch, at };
 }
 
-// The heavyweight fields (autoShow, prolink, spotify), from the integrations.
+// The heavyweight fields (the live input, pads, sequences, cues), from the integrations.
 let extrasProvider: () => Record<string, unknown> = () => ({});
 
 function setExtrasProvider(fn: () => Record<string, unknown>): void { extrasProvider = fn; }
@@ -353,8 +342,6 @@ function getCatalogs() {
     builtinProfileIds: [...BUILTIN_PROFILE_IDS],
     // A fixture on a Hue profile has no DMX address by default, so the patch does not ask for one.
     hueProfileIds: Object.values(listProfiles()).filter(isHueProfile).map((profile) => profile.id),
-    // The sync control sizes itself from this rather than a copy that drifts.
-    syncOffsetLimitMs: SYNC_OFFSET_LIMIT_MS,
   };
 }
 
@@ -466,10 +453,6 @@ function getLiveState() {
     safety: safety.status(),
     strobe: strobe.status(),
     matrix: matrix.status(),
-    autoIntensity: state.autoIntensity,
-    autoSyncOffsetMs: state.autoSyncOffsetMs,
-    autoSource: state.autoSource,
-    autoPrefetchDepth: state.autoPrefetchDepth,
     universes: wireUniverses(),
     // A remote lights its arm button by this.
     armed: isArmed(),

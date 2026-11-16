@@ -10,14 +10,10 @@ import { syntheticRig, syntheticSpace } from './golden-frames.js';
 export const DIFF_BEATS = Array.from({ length: DEMO_BEATS * 2 + 1 }, (_, k) => k / 2);
 const demoMs = (ms) => ms * BPM / DEMO_BPM;
 
-// Classic patterns read the analysed stems as a pulse; the v2 engines read the same demo bands as audio.
+// The v2 engines read the demo bands as audio, and its section and stems as modulation, as the preview does.
 export function demoInput(ms) {
   const audio = { ...DEMO_AUDIO_SOURCE.frameAt(demoMs(ms)), t: ms };
-  const { full, bass, mid, high } = audio.party;
-  return {
-    audio, audioMode: 'reactive', modulation: DEMO_AUDIO_SOURCE.modulationAt(demoMs(ms)),
-    pulse: { mix: full, drums: bass, bass, vocals: mid, other: mid, kick: bass, snare: mid, hats: high },
-  };
+  return { audio, audioMode: 'reactive', modulation: DEMO_AUDIO_SOURCE.modulationAt(demoMs(ms)) };
 }
 
 function seeded(value) {

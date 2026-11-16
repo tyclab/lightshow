@@ -4,7 +4,7 @@ import assert from 'node:assert';
 import { state } from '../../src/server/state.ts';
 import * as output from '../../src/server/output.ts';
 import {
-  checkPatch, checkSacn, checkHue, checkPanns, checkAccess, checkMidi, checkArtnet, checkLiveInput, probeCommand, STATUSES,
+  checkPatch, checkSacn, checkHue, checkAccess, checkMidi, checkArtnet, checkLiveInput, STATUSES,
 } from '../../src/server/preflight.ts';
 import { buildArtPoll, parseArtPollReply } from '../../src/server/artnet.ts';
 import { settings } from '../../src/server/settings.ts';
@@ -185,7 +185,7 @@ test('a node answering the poll passes the Art-Net check', async () => {
 function withLive(t, live) {
   const group = settings.group.bind(settings);
   t.mock.method(settings, 'group', (name) => (name === 'live'
-    ? { enabled: true, source: 'loopback', device: '', latencyMs: 0, autoSync: true, director: true, ...live }
+    ? { enabled: true, source: 'loopback', device: '', latencyMs: 0, ...live }
     : group(name)));
 }
 
@@ -250,14 +250,6 @@ test('a universe that maps outside the sACN range is a failure', () => {
 
 // ── Other checks ────────────────────────────────────────────────────────────
 
-test('the PANNs check reports a status and a way out', () => {
-  const result = checkPanns();
-
-  assert.ok([STATUSES.OK, STATUSES.WARN].includes(result.status),
-    'a missing model is a warning, never a failure — the analyser degrades to a mood palette');
-  if (result.status === STATUSES.WARN) assert.ok(result.fix, 'and says how to fix it');
-});
-
 test('a loopback bind with no token is reported as safe rather than open', () => {
   const result = checkAccess();
   assert.ok([STATUSES.INFO, STATUSES.OK].includes(result.status));
@@ -273,20 +265,6 @@ test('no MIDI controller configured is information, not a warning', (t) => {
 test('a connected controller passes', () => {
   const result = checkMidi({ enabled: true, listPorts: () => ({ inputs: ['X-TOUCH'], outputs: [] }) });
   assert.strictEqual(result.status, STATUSES.OK);
-});
-
-test('a missing binary is reported by name rather than as a stack trace', async () => {
-  const result = await probeCommand('definitely-not-a-real-binary-xyz', ['--version']);
-
-  assert.strictEqual(result.ok, false);
-  assert.ok(result.error);
-});
-
-test('a working binary reports its first line of output', async () => {
-  const result = await probeCommand(process.execPath, ['--version']);
-
-  assert.strictEqual(result.ok, true);
-  assert.match(result.version, /^v\d+\./);
 });
 
 // ── Philips Hue ─────────────────────────────────────────────────────────────
@@ -419,9 +397,6 @@ test('a Hue bridge another app is streaming to warns and names the area', async 
   assert.match(check.detail, /"TV Couch" on "Lounge" is streaming from another app/);
   assert.match(check.fix, /Sync Box/);
 });
-
-// Model weights run to gigabytes: the check fetches what is missing in the
-// background through the model manager, once — see model-manager.test.js.
 
 // ── Engine ──────────────────────────────────────────────────────────────────
 

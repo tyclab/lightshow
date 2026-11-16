@@ -10,7 +10,7 @@ const LABELS = Object.fromEntries(Object.values(SPECS)
 
 /**
  * Settings saved that only apply when the server starts — the address, the
- * port, the token, the engine's thread, a first Deezer ARL — and a button to
+ * port, the token, the engine's thread — and a button to
  * restart it now, rather than leaving the operator to find a terminal. The
  * supervisor starts it again (and puts the look back); a server without one
  * says so.
