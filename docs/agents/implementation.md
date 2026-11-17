@@ -11,6 +11,14 @@ Read for this topic; paths below are relative to the repository root unless stat
 - A Hue section streams to the area channel whose members equal the ones it
   recorded (`src/server/hue-sections.ts`), never to a stored number the bridge may
   have given other members; a section without exactly one such channel stays dark.
+  Whatever reasons about which fixture lights which lamp (routes, preflight,
+  identify, add, refresh) resolves a bridge's lamps as one patch with `followArea`.
+- An arm, a session that ended while armed and a change of the bridge make its
+  area unread: its lamps have no route until the area is read again. Do not add a
+  path that opens a session on numbers read before the one before it ended.
+- In `show.json` the recorded members sit beside `show` (`hueMembers`), never in a
+  Hue output: the build before them refuses an output key it does not know and
+  would start on the default patch after a rollback.
 - Releasing a Hue Entertainment session leaves each lamp in its last streamed
   colour. Whatever disarms outside the party flow must restore or switch the
   lamps off afterwards.

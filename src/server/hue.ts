@@ -415,10 +415,9 @@ class HueSession {
   private readonly areaSink: () => AreaSink | null;
   // The selected area as last read, with its lamps' names once those were read, and whether it was handed on
   // since the last arm, ended session or change of the bridge. Armed, the lamps wait for that: a read that
-  // fails is the bridge's failure and is retried. `served`: a session opened on what was handed on.
+  // fails is the bridge's failure and is retried.
   private area: { grouping: string; value: EntertainmentArea; named: boolean } | null = null;
   private fresh = false;
-  private served = false;
   private again = false;
   private namesError: string | null = null;
   private areaEpoch = 0;
@@ -599,7 +598,6 @@ class HueSession {
   private unread(): void {
     this.areaEpoch++;
     this.fresh = false;
-    this.served = false;
     this.areaError = null;
     this.areaRetryAt = 0;
     this.areaDelay = RETRY_BASE_MS;
@@ -700,20 +698,14 @@ class HueSession {
   /** The streaming thread's report: its status stands; its occupant only if it saw it after the area watch did. */
   applyStream(report: HueStreamStatus): void {
     const was = this.stream.status;
-    const reopened = was === 'streaming' && report.status === 'connecting';
-    const ended = live(was) && (!live(report.status) || reopened);
-    const opened = live(report.status) && (!live(was) || reopened);
+    const ended = live(was) && (!live(report.status) || (was === 'streaming' && report.status === 'connecting'));
     this.stream = { status: report.status, error: report.error };
-    // The bridge may number an area's channels again between two sessions, and closes a stream when its area
-    // changes: a session that ended leaves the lamps waiting for a read, and so does a second open on one read.
     if (ended) this.sessionEnded();
-    if (opened && this.fresh) {
-      if (this.served && this.armed) this.unread();
-      else this.served = true;
-    }
     if (report.at > this.occupantAt) this.noteOccupant(report.occupiedBy, report.at);
   }
 
+  // The bridge may number an area's channels again between two sessions, and closes a stream when its area
+  // changes: a session that ended leaves the lamps waiting for a read, so the next one opens on what is read then.
   private sessionEnded(): void {
     if (this.armed && this.fresh) this.unread();
   }

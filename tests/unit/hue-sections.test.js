@@ -25,9 +25,9 @@ showStore.scheduleSave = () => {};   // never the real show file
 
 // ── The bridge ───────────────────────────────────────────────────────────────
 // Groupings a Pro bridge holds for one area of four gradient strips of seven segments and six single lamps:
-// [channel, [lamp, segment], ...]. MUSIC is the area as it was patched; MOVED is the same area after its strips
+// [channel, [lamp, segment], ...]. PATCHED is the area as it was patched; MOVED is the same area after its strips
 // were moved in the Hue app (the TV strip's segments 1, 2, 4 and 6 kept their members under other numbers, the
-// strips' other channels took other segments); COUCH is the bridge's other area over almost the same lamps.
+// strips' other channels took other segments); SECOND is the bridge's other area over almost the same lamps.
 
 const LAMPS = {
   tube: ['Tube', 7], tv: ['TV strip', 7], shelf: ['Shelf strip', 7], window: ['Window strip', 7],
@@ -36,7 +36,7 @@ const LAMPS = {
 };
 const seg = (lamp, ...indexes) => indexes.map((index) => [lamp, index]);
 const SINGLES = [[10, ['sofa', 0]], [11, ['counter', 0]], [12, ['cupboard', 0]], [13, ['printed', 0]], [14, ['ceilingA', 0]], [15, ['ceilingB', 0]]];
-const MUSIC = [
+const PATCHED = [
   [0, ...seg('tube', 0, 1, 2)], [1, ...seg('tube', 3, 4, 5, 6), ['tv', 6]],
   [2, ['tv', 0]], [3, ['tv', 1]], [4, ['tv', 2], ...seg('shelf', 0, 1, 2)], [5, ['tv', 3]],
   [6, ['tv', 4], ...seg('window', 0, 1, 2, 3, 4)], [7, ['tv', 5]],
@@ -47,14 +47,14 @@ const MOVED = [
   [4, ['tv', 3]], [5, ['tv', 4], ...seg('window', 0, 1, 2, 3)], [6, ['tv', 5]], [7, ['tv', 6]],
   [8, ...seg('shelf', 4, 5, 6)], [9, ...seg('window', 4, 5, 6)], ...SINGLES,
 ];
-const COUCH = [
+const SECOND = [
   [0, ['deskLeft', 0]], [1, ['deskRight', 0]], [2, ...seg('tube', 0, 1), ['tv', 6]], [3, ...seg('tube', 2, 3)],
   [4, ...seg('tube', 4, 5, 6), ['tv', 0]], [5, ['printed', 0]], [6, ...seg('window', 0, 1, 2, 3), ['tv', 4]],
   [7, ...seg('window', 4, 5, 6)], [8, ['sofa', 0]], [9, ['cupboard', 0]], [10, ['tv', 1]],
   [11, ['tv', 2], ...seg('shelf', 0, 1, 2, 3, 4)], [12, ['tv', 3]], [13, ['tv', 5]], [14, ['counter', 0]], [15, ...seg('shelf', 5, 6)],
 ];
 /** The same members under other numbers, as the bridge gives them when lamps ahead of them change. */
-const RENUMBERED = MUSIC.map(([id, ...members]) => [(id + 6) % 16, ...members]).sort((a, b) => a[0] - b[0]);
+const RENUMBERED = PATCHED.map(([id, ...members]) => [(id + 6) % 16, ...members]).sort((a, b) => a[0] - b[0]);
 
 const AREA = '5c1f0e2a-7b3d-4c8e-9f10-2a3b4c5d6e7f';
 const BRIDGE = { id: 'b1', label: 'Lounge', enabled: true, host: '10.0.0.2', username: 'user', clientKey: 'aabb', applicationId: 'app-id', entertainmentId: AREA };
@@ -152,10 +152,10 @@ function fakeBridge(t, grouping) {
 const setKey = (members) => members.map(([lamp, index]) => `${lamp}#${index}`).sort().join('|');
 const membersOn = (grouping, id) => grouping.find(([channel]) => channel === id).slice(1);
 
-/** The channels a lamp patched on `patchedOn` channels of MUSIC must light in `grouping`: none unless each section's members are one channel. */
+/** The channels a lamp patched on `patchedOn` channels of PATCHED must light in `grouping`: none unless each section's members are one channel. */
 function expectedLit(patchedOn, grouping) {
   const byMembers = new Map(grouping.map(([id, ...members]) => [setKey(members), id]));
-  const ids = patchedOn.map((id) => byMembers.get(setKey(membersOn(MUSIC, id))));
+  const ids = patchedOn.map((id) => byMembers.get(setKey(membersOn(PATCHED, id))));
   return ids.includes(undefined) ? [] : ids.sort((a, b) => a - b);
 }
 
@@ -222,7 +222,7 @@ async function withRig(t, grouping, fn) {
     for (const lamp of hueLamps()) {
       const lit = await show(lamp.id);
       const want = expectedLit(patchedOn.get(lamp.id), grouping);
-      assert.deepEqual(lit, want, `"${lamp.label}" lights ${describe(grouping, lit)}; it was patched for ${describe(MUSIC, patchedOn.get(lamp.id))}`);
+      assert.deepEqual(lit, want, `"${lamp.label}" lights ${describe(grouping, lit)}; it was patched for ${describe(PATCHED, patchedOn.get(lamp.id))}`);
     }
   }
   try {
@@ -241,7 +241,7 @@ async function withRig(t, grouping, fn) {
   }
 }
 
-/** Patch every lamp of the area through the route, and keep the MUSIC channels each was patched on. */
+/** Patch every lamp of the area through the route, and keep the PATCHED channels each was patched on. */
 async function patchAll(call) {
   const added = await call('POST', `/api/hue/${BRIDGE.id}/add`, {});
   assert.equal(added.body.ok, true, added.body.error);
@@ -257,17 +257,17 @@ const sansIds = (fixtures) => fixtures.map(({ id, label, address, universe, prof
 // ── Connects ─────────────────────────────────────────────────────────────────
 
 test('added lamps record what each section lights, and stream to it', async (t) => {
-  await withRig(t, MUSIC, async ({ call, connect, assertLit }) => {
+  await withRig(t, PATCHED, async ({ call, connect, assertLit }) => {
     const patchedOn = await patchAll(call);
     const tv = hueLamps().find((lamp) => lamp.output.channels.length === 6);
-    assert.deepEqual(tv.output.members, [2, 3, 4, 5, 6, 7].map((id) => membersOn(MUSIC, id).map(([lamp, index]) => ({ serviceId: `ent-${lamp}`, segmentIndex: index }))));
+    assert.deepEqual(tv.output.members, [2, 3, 4, 5, 6, 7].map((id) => membersOn(PATCHED, id).map(([lamp, index]) => ({ serviceId: `ent-${lamp}`, segmentIndex: index }))));
     await connect();
-    await assertLit(MUSIC, patchedOn);
+    await assertLit(PATCHED, patchedOn);
   });
 });
 
 test('renumbered between two connects: each lamp streams to its lamps\' new numbers and the patch says so', async (t) => {
-  await withRig(t, MUSIC, async ({ bridge, call, connect, assertLit, lines, patched }) => {
+  await withRig(t, PATCHED, async ({ bridge, call, connect, assertLit, lines, patched }) => {
     const patchedOn = await patchAll(call);
     await connect();
     const before = state.fixtures;
@@ -285,7 +285,7 @@ test('renumbered between two connects: each lamp streams to its lamps\' new numb
 });
 
 test('regrouped between two connects: a lamp whose segments are grouped otherwise is dark and named, the others light', async (t) => {
-  await withRig(t, MUSIC, async ({ bridge, call, connect, assertLit, lines, patched }) => {
+  await withRig(t, PATCHED, async ({ bridge, call, connect, assertLit, lines, patched }) => {
     const patchedOn = await patchAll(call);
     await connect();
     const before = new Map(hueLamps().map((lamp) => [lamp.id, lamp.output]));
@@ -309,19 +309,19 @@ test('regrouped between two connects: a lamp whose segments are grouped otherwis
 });
 
 test('another area over almost the same lamps: the single lamps follow, lamps that left it are named', async (t) => {
-  await withRig(t, MUSIC, async ({ bridge, call, connect, assertLit }) => {
+  await withRig(t, PATCHED, async ({ bridge, call, connect, assertLit }) => {
     const patchedOn = await patchAll(call);
     await connect();
-    bridge.grouping = COUCH;
+    bridge.grouping = SECOND;
     await connect();
-    await assertLit(COUCH, patchedOn);
+    await assertLit(SECOND, patchedOn);
     const check = (await checkHue()).find((c) => c.id === `hue:${BRIDGE.id}`);
     assert.match(check.detail, /"Ceiling light A" was patched for a lamp no longer in the area, which "Lounge area" has on no channel now, so it stays dark\./);
   });
 });
 
 test('armed, nothing streams until the area is read: no frame goes to the numbers the lamps had', async (t) => {
-  await withRig(t, MUSIC, async ({ bridge, call, show, connect }) => {
+  await withRig(t, PATCHED, async ({ bridge, call, show, connect }) => {
     const patchedOn = await patchAll(call);
     await connect();
     output.setArmed(false);
@@ -341,7 +341,7 @@ test('armed, nothing streams until the area is read: no frame goes to the number
 });
 
 test('the area watch follows a renumbering while the stream runs', async (t) => {
-  await withRig(t, MUSIC, async ({ bridge, call, connect, assertLit }) => {
+  await withRig(t, PATCHED, async ({ bridge, call, connect, assertLit }) => {
     const patchedOn = await patchAll(call);
     await connect();
     bridge.grouping = RENUMBERED;
@@ -354,11 +354,11 @@ test('the area watch follows a renumbering while the stream runs', async (t) => 
 
 // The list answer that shows the other grouping says which number lights what; the lamps' names take three more reads.
 test('a renumbering seen while the stream runs: the lamps follow before their names are read, on the same session', async (t) => {
-  await withRig(t, MUSIC, async ({ bridge, call, show, connect, sockets, patched }) => {
+  await withRig(t, PATCHED, async ({ bridge, call, show, connect, sockets, patched }) => {
     const patchedOn = await patchAll(call);
     await connect();
     const sofa = hueLamps().find((lamp) => lamp.label === 'Sofa light');
-    const [old, now] = [expectedLit(patchedOn.get(sofa.id), MUSIC).join(), expectedLit(patchedOn.get(sofa.id), RENUMBERED).join()];
+    const [old, now] = [expectedLit(patchedOn.get(sofa.id), PATCHED).join(), expectedLit(patchedOn.get(sofa.id), RENUMBERED).join()];
     const [opened, puts, saves] = [sockets.length, bridge.puts.length, patched.length];
     bridge.grouping = RENUMBERED;
     bridge.slow = 300;
@@ -381,7 +381,7 @@ test('a renumbering seen while the stream runs: the lamps follow before their na
 // The bridge derives an area again when its lamps change, and closes a stream on it. The sender opens a session
 // again by itself, two seconds later.
 async function reopened(t, read) {
-  await withRig(t, MUSIC, async ({ bridge, call, show, connect, sockets, lines }) => {
+  await withRig(t, PATCHED, async ({ bridge, call, show, connect, sockets, lines }) => {
     const patchedOn = await patchAll(call);
     await connect();
     const sofa = hueLamps().find((lamp) => lamp.label === 'Sofa light');
@@ -406,9 +406,9 @@ test('a session that opens again waits for a late area read: no frame goes to th
 test('a session that opens again after a failed area read waits for the next: it is logged and retried', (t) => reopened(t, 'failing'));
 
 test('another area picked in the settings while the stream runs: nothing goes to it by the numbers of the one before', async (t) => {
-  await withRig(t, MUSIC, async ({ bridge, call, show, connect, sockets }) => {
+  await withRig(t, PATCHED, async ({ bridge, call, show, connect, sockets }) => {
     const patchedOn = await patchAll(call);
-    bridge.second = COUCH;
+    bridge.second = SECOND;
     await connect();
     const sofa = hueLamps().find((lamp) => lamp.label === 'Sofa light');
     const before = sockets.length;
@@ -418,14 +418,14 @@ test('another area picked in the settings while the stream runs: nothing goes to
     const end = Date.now() + 6000;
     while (Date.now() < end && toNew().length < 20) await show(sofa.id);
     assert.ok(toNew().length >= 20, `the new area is streamed (${status().status}: ${status().error})`);
-    assert.deepEqual([...new Set(toNew().map((message) => litOf(message).join()))], [expectedLit(patchedOn.get(sofa.id), COUCH).join()]);
+    assert.deepEqual([...new Set(toNew().map((message) => litOf(message).join()))], [expectedLit(patchedOn.get(sofa.id), SECOND).join()]);
   });
 });
 
 test('an area picked while a read of the one before is under way is read right after it', async (t) => {
-  await withRig(t, MUSIC, async ({ bridge, call }) => {
+  await withRig(t, PATCHED, async ({ bridge, call }) => {
     const patchedOn = await patchAll(call);
-    bridge.second = COUCH;
+    bridge.second = SECOND;
     await hue.checkAreas();
     const sofa = hueLamps().find((lamp) => lamp.label === 'Sofa light');
     const route = () => output.transmitConfig().hue.lamps.find((entry) => entry.address === sofa.address && entry.universe === universeOf(sofa));
@@ -436,12 +436,12 @@ test('an area picked while a read of the one before is under way is read right a
     await watch;
     assert.equal(route(), undefined, 'the answer about the area before is not used');
     await until(() => route(), 'the new area is read without waiting for the next watch');
-    assert.deepEqual(route().channels, expectedLit(patchedOn.get(sofa.id), COUCH));
+    assert.deepEqual(route().channels, expectedLit(patchedOn.get(sofa.id), SECOND));
   });
 });
 
 test('an arm asks the bridge for its areas once before the session opens', async (t) => {
-  await withRig(t, MUSIC, async ({ bridge, call, show, connect }) => {
+  await withRig(t, PATCHED, async ({ bridge, call, show, connect }) => {
     await patchAll(call);
     await connect();
     output.setArmed(false);
@@ -459,9 +459,9 @@ test('an arm asks the bridge for its areas once before the session opens', async
 });
 
 test('a bridge that is switched off is not asked for its area, however often the routes are built', async (t) => {
-  await withRig(t, MUSIC, async ({ bridge, call, connect }) => {
+  await withRig(t, PATCHED, async ({ bridge, call, connect }) => {
     await patchAll(call);
-    const off = bridge.peer('10.0.0.3', MUSIC);
+    const off = bridge.peer('10.0.0.3', PATCHED);
     output.configureHue({ bridges: [BRIDGE, { ...BRIDGE, id: 'b2', label: 'Off', host: '10.0.0.3', enabled: false }], latencyMs: 0 });
     await connect();
     const session = hue.getSession('b2');
@@ -475,8 +475,8 @@ test('a bridge that is switched off is not asked for its area, however often the
 
 // Two bridges number their channels each for itself, and their lamps' services are their own.
 test('two bridges: each bridge\'s lamps follow that bridge\'s area alone', async (t) => {
-  await withRig(t, MUSIC, async ({ bridge, call, show, sockets }) => {
-    const den = bridge.peer('10.0.0.3', MUSIC, { area: AREA2, name: 'Den area', prefix: 'den-' });
+  await withRig(t, PATCHED, async ({ bridge, call, show, sockets }) => {
+    const den = bridge.peer('10.0.0.3', PATCHED, { area: AREA2, name: 'Den area', prefix: 'den-' });
     const second = { ...BRIDGE, id: 'b2', label: 'Den', host: '10.0.0.3', entertainmentId: AREA2 };
     output.configureHue({ bridges: [BRIDGE, second], latencyMs: 0 });
     for (const id of [BRIDGE.id, second.id]) {
@@ -510,13 +510,13 @@ test('two bridges: each bridge\'s lamps follow that bridge\'s area alone', async
 });
 
 test('an untouched area changes nothing, at a connect or at the watch', async (t) => {
-  await withRig(t, MUSIC, async ({ call, connect, assertLit, lines, patched }) => {
+  await withRig(t, PATCHED, async ({ call, connect, assertLit, lines, patched }) => {
     const patchedOn = await patchAll(call);
     await connect();
     const before = [...state.fixtures];
     await connect();
     await hue.checkAreas();
-    await assertLit(MUSIC, patchedOn);
+    await assertLit(PATCHED, patchedOn);
     assert.ok(state.fixtures.every((f, k) => f === before[k]), 'the very same fixtures');
     assert.equal(patched.length, 0);
     assert.equal(lines.filter((l) => /follows|records|stays dark/.test(l)).length, 0);
@@ -524,7 +524,7 @@ test('an untouched area changes nothing, at a connect or at the watch', async (t
 });
 
 test('an older patch without members adopts them once from its numbers, then follows', async (t) => {
-  await withRig(t, MUSIC, async ({ bridge, call, connect, assertLit, lines, patched }) => {
+  await withRig(t, PATCHED, async ({ bridge, call, connect, assertLit, lines, patched }) => {
     const patchedOn = await patchAll(call);
     const recorded = new Map(hueLamps().map((lamp) => [lamp.id, lamp.output.members]));
     state.fixtures = state.fixtures.map((f) => (f.output?.protocol === 'hue' ? { ...f, output: { protocol: 'hue', bridge: f.output.bridge, channels: f.output.channels } } : f));
@@ -541,7 +541,7 @@ test('an older patch without members adopts them once from its numbers, then fol
 });
 
 test('an older lamp whose number the area lacks is reported, not guessed', async (t) => {
-  await withRig(t, MUSIC, async ({ call, show, connect }) => {
+  await withRig(t, PATCHED, async ({ call, show, connect }) => {
     await patchAll(call);
     const ghost = { id: 99, label: 'Ghost', address: 1, universe: 0, profileId: HUE_COLOR_PROFILE_ID, maxBrightness: 255, override: null,
       output: { protocol: 'hue', bridge: BRIDGE.id, channels: [17] } };
@@ -556,7 +556,7 @@ test('an older lamp whose number the area lacks is reported, not guessed', async
 });
 
 test('an unreachable bridge resolves nothing and changes nothing; reachable again, the lamps follow', async (t) => {
-  await withRig(t, MUSIC, async ({ bridge, call, show, connect, assertLit, patched }) => {
+  await withRig(t, PATCHED, async ({ bridge, call, show, connect, assertLit, patched }) => {
     const patchedOn = await patchAll(call);
     await connect();
     const before = [...state.fixtures];
@@ -586,7 +586,7 @@ test('an unreachable bridge resolves nothing and changes nothing; reachable agai
 });
 
 test('an area the bridge no longer has: armed, the bridge reads failed and nothing streams', async (t) => {
-  await withRig(t, MUSIC, async ({ bridge, call, show, connect, assertLit }) => {
+  await withRig(t, PATCHED, async ({ bridge, call, show, connect, assertLit }) => {
     const patchedOn = await patchAll(call);
     await connect();
     output.setArmed(false);
@@ -600,7 +600,7 @@ test('an area the bridge no longer has: armed, the bridge reads failed and nothi
     for (const lamp of hueLamps()) assert.deepEqual(await show(lamp.id), []);
     bridge.gone = false;
     await connect();
-    await assertLit(MUSIC, patchedOn);
+    await assertLit(PATCHED, patchedOn);
     // Gone while the stream runs: the watch stops the lamps rather than leave them on numbers of an area it cannot read.
     bridge.gone = true;
     await hue.checkAreas();
@@ -611,7 +611,7 @@ test('an area the bridge no longer has: armed, the bridge reads failed and nothi
 });
 
 test('a bridge added while armed waits for its area as the others did', async (t) => {
-  await withRig(t, MUSIC, async ({ call, connect }) => {
+  await withRig(t, PATCHED, async ({ call, connect }) => {
     await patchAll(call);
     await connect();
     const second = { ...BRIDGE, id: 'b2', label: 'Party', host: '10.0.0.3' };
@@ -627,7 +627,7 @@ test('a bridge added while armed waits for its area as the others did', async (t
 });
 
 test('an arm reads the area list; the lamps are read again only when the grouping differs', async (t) => {
-  await withRig(t, MUSIC, async ({ bridge, call, connect, assertLit }) => {
+  await withRig(t, PATCHED, async ({ bridge, call, connect, assertLit }) => {
     const patchedOn = await patchAll(call);
     await connect();
     const lamps = () => bridge.reads.filter((resource) => resource !== 'entertainment_configuration').length;
@@ -645,7 +645,7 @@ test('an arm reads the area list; the lamps are read again only when the groupin
 
 // While a lost engine thread's sessions are released no sender is given a bridge, and nothing asks for one.
 test('disarmed and armed again while Hue is held off: the area is still read before the lamps stream', async (t) => {
-  await withRig(t, MUSIC, async ({ bridge, call, show, connect }) => {
+  await withRig(t, PATCHED, async ({ bridge, call, show, connect }) => {
     const patchedOn = await patchAll(call);
     await connect();
     let release;
@@ -669,7 +669,7 @@ test('disarmed and armed again while Hue is held off: the area is still read bef
 });
 
 test('a lamp is patched once: by the members a fixture recorded, and no channel number is saved twice', async (t) => {
-  await withRig(t, MUSIC, async ({ call }) => {
+  await withRig(t, PATCHED, async ({ call }) => {
     // On another profile and a number its lamp has left: only its recorded members say it is the sofa light.
     state.fixtures = [...state.fixtures, { id: 40, label: 'Sofa', address: 1, universe: 0, profileId: HUE_COLOR_PROFILE_ID, maxBrightness: 255, override: null,
       output: { protocol: 'hue', bridge: BRIDGE.id, channels: [3], members: [[{ serviceId: 'ent-sofa', segmentIndex: 0 }]] } }];
@@ -688,7 +688,7 @@ test('a lamp is patched once: by the members a fixture recorded, and no channel 
 });
 
 test('refresh follows the area first, records members, and names a regrouped lamp', async (t) => {
-  await withRig(t, MUSIC, async ({ bridge, call }) => {
+  await withRig(t, PATCHED, async ({ bridge, call }) => {
     const patchedOn = await patchAll(call);
     const recorded = new Map(hueLamps().map((lamp) => [lamp.id, lamp.output.members]));
     state.fixtures = state.fixtures.map((f) => (f.output?.protocol === 'hue' ? { ...f, output: { protocol: 'hue', bridge: f.output.bridge, channels: f.output.channels } } : f));
@@ -699,7 +699,7 @@ test('refresh follows the area first, records members, and names a regrouped lam
     const again = await call('POST', `/api/hue/${BRIDGE.id}/refresh`, {});
     assert.equal(again.body.ok, true);
     for (const lamp of hueLamps()) assert.deepEqual(lamp.output.channels, patchedOn.get(lamp.id).map((id) => (id + 6) % 16));
-    bridge.grouping = COUCH;
+    bridge.grouping = SECOND;
     const third = await call('POST', `/api/hue/${BRIDGE.id}/refresh`, {});
     assert.match(third.body.skipped.find((s) => s.label === 'Ceiling light A').reason, /on no channel now, so it stays dark/);
   });
@@ -707,7 +707,7 @@ test('refresh follows the area first, records members, and names a regrouped lam
 
 // The pre-show check resolves a bridge's lamps as one patch, as the stream does.
 test('the pre-show check names a lamp the stream keeps dark because its number is another lamp\'s', async (t) => {
-  await withRig(t, MUSIC, async ({ show, connect }) => {
+  await withRig(t, PATCHED, async ({ show, connect }) => {
     const older = (id, label, channels, members) => ({ id, label, address: 1, universe: 0, profileId: HUE_COLOR_PROFILE_ID, maxBrightness: 255, override: null,
       output: { protocol: 'hue', bridge: BRIDGE.id, channels, ...(members ? { members } : {}) } });
     // "Sofa" recorded the sofa light and was saved on #3 before a renumbering; "Older" has no members and is
@@ -723,7 +723,7 @@ test('the pre-show check names a lamp the stream keeps dark because its number i
 });
 
 test('identify lights the fixture that lights the lamp now, not one that only still holds its number', async (t) => {
-  await withRig(t, MUSIC, async ({ call }) => {
+  await withRig(t, PATCHED, async ({ call }) => {
     // Saved on #3 before a renumbering, recorded for the sofa light, which is on #10: #3 is a TV strip segment.
     state.fixtures = [...state.fixtures, { id: 40, label: 'Sofa', address: 1, universe: 0, profileId: HUE_COLOR_PROFILE_ID, maxBrightness: 255, override: null,
       output: { protocol: 'hue', bridge: BRIDGE.id, channels: [3], members: [[{ serviceId: 'ent-sofa', segmentIndex: 0 }]] } }];
@@ -737,10 +737,10 @@ test('identify lights the fixture that lights the lamp now, not one that only st
 
 // "Remove those lamps and add them again": what the log and the pre-show check tell the operator to do.
 test('after a regroup, removing the dark lamps frees their numbers at once and every lamp of the area can be added', async (t) => {
-  await withRig(t, MUSIC, async ({ bridge, call, connect }) => {
+  await withRig(t, PATCHED, async ({ bridge, call, connect }) => {
     await patchAll(call);
     await connect();
-    bridge.grouping = COUCH;
+    bridge.grouping = SECOND;
     await connect();
     const routed = () => output.transmitConfig().hue.lamps;
     const dark = hueLamps().filter((lamp) => !routed().some((route) => route.address === lamp.address && route.universe === universeOf(lamp)));
@@ -764,7 +764,7 @@ test('after a regroup, removing the dark lamps frees their numbers at once and e
     const added = await call('POST', `/api/hue/${BRIDGE.id}/add`, {});
     assert.equal(added.body.ok, true, added.body.error);
     assert.equal(added.body.skipped, undefined, 'no lamp is passed over');
-    assert.deepEqual(hueLamps().flatMap((lamp) => lamp.output.channels).sort((a, b) => a - b), COUCH.map(([channel]) => channel), 'every channel of the area, once');
+    assert.deepEqual(hueLamps().flatMap((lamp) => lamp.output.channels).sort((a, b) => a - b), SECOND.map(([channel]) => channel), 'every channel of the area, once');
     for (const lamp of hueLamps()) {
       const route = routed().find((entry) => entry.address === lamp.address && entry.universe === universeOf(lamp));
       assert.deepEqual(route?.channels, lamp.output.channels, `"${lamp.label}" streams to the numbers its patch names`);
@@ -774,7 +774,7 @@ test('after a regroup, removing the dark lamps frees their numbers at once and e
 });
 
 test('a lamp that arrives without members after the area was read records them at once, and follows', async (t) => {
-  await withRig(t, MUSIC, async ({ bridge, call, show, connect, lines, patched }) => {
+  await withRig(t, PATCHED, async ({ bridge, call, show, connect, lines, patched }) => {
     await patchAll(call);
     await connect();
     const sofa = hueLamps().find((lamp) => lamp.label === 'Sofa light');

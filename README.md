@@ -1459,26 +1459,34 @@ changed section counts are retained and listed in the response for review.
 
 Each section of a Hue lamp records what it lights: the members (entertainment service
 and segment) its channel had when the lamp was added, as `output.members` in
-`output.channels` order. The bridge numbers an area's channels itself and numbers them
+`output.channels` order. In the saved file they sit beside the show (`hueMembers`, by
+fixture id, with the channels they belong to), so a build from before them still loads
+the patch by its stored numbers; members that no longer fit their lamp are left out and
+recorded again. The bridge numbers an area's channels itself and numbers them
 again whenever the area's lamps or positions change in the Hue app, so the numbers are
-read from the bridge: on each arm, when a session opens again, when a bridge or its
-area changes in the settings, and whenever the area watch sees the area's grouping
-differ. An arm reads the area list; the lamps are read again only when the grouping
-differs from the one last read. Each section streams to
+read from the bridge: on each arm, after each session that ended while armed, when a
+bridge or its area changes in the settings, and whenever the area watch sees the area's
+grouping differ. An arm asks the bridge for its areas once; the lamps' names are read
+again only when the grouping differs from the one last read. A grouping that differs is
+followed from that answer at once and a running stream goes on; the patch and the log
+follow when the names are read. Each section streams to
 the one channel whose members equal its recorded ones; a changed number is written
 back to `output.channels`, so the saved show, the Rig and room exporters keep the
 current one. A lamp with a section whose members are no longer exactly one channel
 (the area grouped its segments otherwise, or the lamp left the area) stays dark, and
 the log and preflight name it, what it was patched for and where the area has those
-lamps and segments now: remove it and add it again. After an arm a bridge's lamps
-stream once its area was read; a read that fails meanwhile, or an area the bridge no
-longer has, is the bridge's failure, retried from 2 s to 60 s while armed, and nothing
-is rewritten. A lamp saved without members adopts them once from its stored numbers
-(logged); one whose number the area lacks, or is another lamp's by that lamp's members,
-is reported instead. A renumbered lamp whose new number a dark lamp still holds streams
-to it but keeps its saved number until that lamp is removed, so the patch never names a
-channel twice; adding a lamp is refused while a fixture records one of its members or
-still holds one of its numbers. A lamp that stops resolving while its stream runs gets
+lamps and segments now: remove it and add it again. After an arm or a session that
+ended, a bridge's lamps stream once its area was read; a read that fails meanwhile, or
+an area the bridge no longer has, is the bridge's failure, retried from 2 s to 60 s
+while armed, and nothing is rewritten. A lamp saved without members adopts them once
+from its stored numbers (logged), also when it arrives later (an older show imported, a
+removal undone); one whose number the area lacks, names no lamp for, or is another
+lamp's by that lamp's members, is reported instead. A renumbered lamp whose new number
+a dark lamp still holds streams to it but keeps its saved number, so the patch never
+names a channel twice; the number is taken up as soon as that lamp is removed. Adding a
+lamp is refused while a fixture records one of its members or still holds one of its
+numbers, and the answer says which. Preflight and identify resolve a bridge's lamps as
+the stream does. A lamp that stops resolving while its stream runs gets
 no further frames and keeps its last streamed colour until the session is released.
 
 ```mermaid
@@ -1490,7 +1498,7 @@ flowchart LR
   Add --> Allocate[Allocate internal rendering space]
   Refresh --> Allocate
   Allocate --> Render[Renderer / hardware limits / blackout]
-  Area[Area read on arm, settings change and a changed grouping] --> Resolve[Each section to the channel with its recorded members]
+  Area[Area read on arm, after a session, on a settings change and a changed grouping] --> Resolve[Each section to the channel with its recorded members]
   Resolve --> Transport
   Render --> Transport[Each device reads its own cells]
 ```
@@ -2273,7 +2281,7 @@ it is doing (see [Live input](#live-input)).
 | POST | `/api/hue/pair` | Pair with `{ host, label? }` — the bridge link button must have been pressed in the last 30 seconds. Answers `409` with `pressLink: true` if it has not. A new address is added to `hue.bridges` (as `bridge-1`, `bridge-2`…, on, with no area yet); one already there gets fresh keys. Answers the bridge and its areas |
 | GET | `/api/hue/:bridge/areas` | Entertainment areas on that bridge, with their channel ids and lamp names |
 | GET | `/api/hue/:bridge/lamps` | Its chosen area's physical `lamps` (id, name, product, archetype, `lights` with each member light's product, archetype and `contentOrder`, devices, ordered `channels`, capabilities and `shows`) plus authoritative `channels` with product, archetype and device/segment membership (each member's lamp `name`) and each member's `contentOrder` for room exporters. `contentOrder` is the light's `content_configuration.order` as the Hue app set it (`forward` or `reversed`: which end shows segment 1), null when the light has none or the bridge is still changing it |
-| POST | `/api/hue/:bridge/add` | `{ lamps? }`: patch those lamp ids, or every unpatched lamp, with a bridge-derived profile and `output: { protocol: 'hue', bridge, channels, members }` (`members[k]`: the `{ serviceId, segmentIndex }` list of channel `channels[k]`). Legacy `{ channels? }` selects the lamps containing those channels |
+| POST | `/api/hue/:bridge/add` | `{ lamps? }`: patch those lamp ids, or every unpatched lamp, with a bridge-derived profile and `output: { protocol: 'hue', bridge, channels, members }` (`members[k]`: the `{ serviceId, segmentIndex }` list of channel `channels[k]`). Legacy `{ channels? }` selects the lamps containing those channels. A lamp whose channel number a fixture still holds from before the area changed is refused by name (409), and listed as `skipped` when every unpatched lamp was asked for |
 | POST | `/api/hue/:bridge/refresh` | Refresh existing lamp capabilities without replacing fixture IDs or channel order. Sections first follow their recorded members in the area (changed numbers are written back; a lamp saved without members records them by its numbers); returns `refreshed` fixture IDs and `skipped` entries with reasons, a lamp that no longer resolves among them |
 | POST | `/api/hue/:bridge/disconnect` | Forget that bridge, keys and all. `409` while its lamps are in the patch unless `{ removeFixtures: true }` takes them along |
 | POST | `/api/hue/sync-test` | Flash every fixture white once a second for 10 s, to tune `hue.latencyMs` |
