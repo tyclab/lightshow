@@ -25,6 +25,7 @@ import { showStore } from '../../src/server/show-store.ts';
 import { checkOutputsArmed } from '../../src/server/preflight.ts';
 import { domainOf } from '../../src/server/protocol.ts';
 import { HUE_COLOR_PROFILE_ID, getProfile } from '../../src/server/profiles.ts';
+import { AREA as FAKE_AREA, fakeBridge } from '../helpers/hue-fakes.js';
 import { buffer } from '../../src/server/log.ts';
 import { Sequencer } from '../../src/server/sequencer.ts';
 import { CueStore } from '../../src/server/cues.ts';
@@ -139,14 +140,14 @@ test('transmit: a config that says nothing about arming is armed, as before', ()
 });
 
 // ── Hue ─────────────────────────────────────────────────────────────────────
-// A stream is opened by the first frame the sender hands it, so "reopens on
-// arm" is the first frame after arming opening it at all. The sender is this
-// thread's, as the main-thread engine drives it; the bridge does not exist:
-// what is watched is whether the stream was asked to connect.
+// A stream is opened by the first frame the sender hands its lamps, so "reopens
+// on arm" is the first frame after arming that has them: each arm reads the
+// area first. The sender is this thread's, as the main-thread engine drives it;
+// the bridge answers its REST calls but has no stream socket: what is watched is
+// whether the stream was asked to connect.
 
-const AREA = 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee';
-
-test('Hue streams close on disarm and reopen on arm', async () => {
+test('Hue streams close on disarm and reopen on arm, each arm reading the area first', async (t) => {
+  fakeBridge(t);
   const saved = { fixtures: state.fixtures, next: state.nextFixtureId, hue: output.getHueConfig(), artnet: { ...state.artnet } };
   state.fixtures = [{
     id: 500, label: 'Lamp', address: 1, universe: 0, profileId: HUE_COLOR_PROFILE_ID, maxBrightness: 255, override: null,
@@ -156,7 +157,7 @@ test('Hue streams close on disarm and reopen on arm', async () => {
   state.artnet.enabled = false;
   output.configureHue({
     latencyMs: 0,
-    bridges: [{ id: 'b1', label: 'Lounge', enabled: true, host: 'bridge.invalid', username: 'user', clientKey: 'aabb', applicationId: 'app-id', entertainmentId: AREA }],
+    bridges: [{ id: 'b1', label: 'Lounge', enabled: true, host: 'bridge.invalid', username: 'user', clientKey: 'aabb', applicationId: 'app-id', entertainmentId: FAKE_AREA }],
   });
   const lampUniverse = universeOf(state.fixtures[0]);
   const frame = async () => {
@@ -172,6 +173,10 @@ test('Hue streams close on disarm and reopen on arm', async () => {
     const deadline = Date.now() + 8000;
     while (status() === 'connecting' && Date.now() < deadline) await new Promise((r) => setTimeout(r, 50));
   };
+  const read = async () => {
+    const deadline = Date.now() + 2000;
+    while (!output.transmitConfig().hue.lamps.length && Date.now() < deadline) await new Promise((r) => setTimeout(r, 5));
+  };
   try {
     output.setArmed(false);
     await frame();
@@ -179,7 +184,10 @@ test('Hue streams close on disarm and reopen on arm', async () => {
 
     output.setArmed(true);
     await frame();
-    assert.equal(status(), 'connecting', 'armed: the first frame opens the stream');
+    assert.equal(status(), 'idle', 'armed: the area is read before the lamp streams');
+    await read();
+    await frame();
+    assert.equal(status(), 'connecting', 'read: the next frame opens the stream');
     await settled();
     assert.equal(status(), 'failed', 'no such bridge');
 
@@ -191,7 +199,10 @@ test('Hue streams close on disarm and reopen on arm', async () => {
 
     output.setArmed(true);
     await frame();
-    assert.equal(status(), 'connecting', 'armed again: reopened from the first frame');
+    assert.equal(status(), 'idle', 'armed again: the area is read again first');
+    await read();
+    await frame();
+    assert.equal(status(), 'connecting', 'and the stream reopens');
     await settled();
   } finally {
     output.setArmed(false);

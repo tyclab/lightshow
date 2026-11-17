@@ -6,6 +6,7 @@ import { INTERNAL_UNIVERSE, footprintOf, hasNoAddress, isHueLamp, isWled, univer
 import { isHueProfile, hueSections, hueChannels } from '../../shared/hue-lamp.ts';
 import { geometryUnitIssue, unitCount } from '../../shared/rig.ts';
 import { refreshHueFixtures } from '../hue-migration.ts';
+import { describeDark, followArea, indexArea } from '../hue-sections.ts';
 import { hueProfile, hueProfileId } from '../hue-profile.ts';
 import type { AreaLamp, EntertainmentArea } from '../hue.ts';
 import type { HueBridgeSettings } from '../settings.ts';
@@ -24,7 +25,7 @@ import * as output from '../output.ts';
 import { defaultHueBridgeId } from '../settings.ts';
 import { messageOf, statusOf } from '../../errors.ts';
 import type { Express, Response } from 'express';
-import type { Fixture, Profile } from '../../types/rig.ts';
+import type { Fixture, HueMember, HueOutput, Profile } from '../../types/rig.ts';
 import { asyncHandler, resolveHueBridge } from './common.ts';
 import type { RouteContext } from './common.ts';
 
@@ -497,11 +498,20 @@ export function attachFixtureRoutes(app: Express, ctx: RouteContext): void {
     }
 
     const profiles = [...new Map(built.map(({ profile }) => [(profile as Profile).id, profile as Profile])).values()];
-    const draft: Fixture[] = built.map(({ lamp, profile }, k) => ({
-      id: -1 - k, label: (lamp.name || `Hue ${lamp.channels[0]}`).slice(0, 64), address: 1, universe: INTERNAL_UNIVERSE,
-      profileId: (profile as Profile).id, maxBrightness: 255, override: null,
-      output: { protocol: 'hue', bridge: bridge.id, channels: [...lamp.channels] },
-    }));
+    // Each section records what its channel lights, so a later renumbering of the area is followed.
+    const membersOf = (channels: readonly number[]): HueMember[][] | undefined => {
+      const sets = channels.map((id) => (area.channels.find((entry) => entry.id === id)?.members || [])
+        .map(({ serviceId, segmentIndex }) => ({ serviceId, segmentIndex })));
+      return sets.every((set) => set.length) ? sets : undefined;
+    };
+    const draft: Fixture[] = built.map(({ lamp, profile }, k) => {
+      const members = membersOf(lamp.channels);
+      return {
+        id: -1 - k, label: (lamp.name || `Hue ${lamp.channels[0]}`).slice(0, 64), address: 1, universe: INTERNAL_UNIVERSE,
+        profileId: (profile as Profile).id, maxBrightness: 255, override: null,
+        output: { protocol: 'hue', bridge: bridge.id, channels: [...lamp.channels], ...(members ? { members } : {}) },
+      };
+    });
     const added = addFixtures(draft, profiles, `These lamps would put the patch on more than the ${MAX_UNIVERSES} universes this server renders`,
       () => integrations.broadcast());
     if ('error' in added) return res.status(400).json({ ok: false, error: added.error });
@@ -513,10 +523,21 @@ export function attachFixtureRoutes(app: Express, ctx: RouteContext): void {
     if (!bridge) return;
     const area = await hueArea(bridge, res);
     if (!area) return;
-    const { updates, skipped } = refreshHueFixtures(state.fixtures, listProfiles(), bridge.id, area.lamps);
-    if (!updates.length) return res.json({ ok: true, refreshed: [], skipped });
+    // Sections follow their recorded members first, so a renumbered lamp is refreshed as the lamp it is.
+    const followed = followArea(state.fixtures, bridge.id, indexArea(area.channels), defaultHueBridgeId(output.getHueConfig().bridges));
+    const dark = new Set([...followed.results].filter(([, result]) => !result.ok).map(([id]) => id));
+    const current = followed.fixtures.filter((fixture) => !dark.has(fixture.id)).map((fixture) => {
+      const result = followed.results.get(fixture.id);
+      return result?.ok ? { ...fixture, output: { ...fixture.output as HueOutput, channels: result.channels } } : fixture;
+    });
+    const { updates, skipped } = refreshHueFixtures(current, listProfiles(), bridge.id, area.lamps);
+    for (const fixture of state.fixtures) {
+      const result = followed.results.get(fixture.id);
+      if (result && !result.ok) skipped.push({ id: fixture.id, label: fixture.label, reason: describeDark(fixture.label, fixture.output as HueOutput, result, area) });
+    }
+    if (!updates.length && !followed.changed) return res.json({ ok: true, refreshed: [], skipped });
     const byId = new Map(updates.map((update) => [update.id, update.profile]));
-    const draft = state.fixtures.map((fixture) => ({ ...fixture, profileId: byId.get(fixture.id)?.id || fixture.profileId }));
+    const draft = followed.fixtures.map((fixture) => ({ ...fixture, profileId: byId.get(fixture.id)?.id || fixture.profileId }));
     const refreshedProfiles = new Map(updates.map(({ profile }) => [profile.id, profile]));
     const profileOf = (fixture: Pick<Fixture, 'profileId'>) => refreshedProfiles.get(fixture.profileId) || getProfile(fixture);
     placeAddresslessFixtures(draft, profileOf);

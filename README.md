@@ -1447,15 +1447,36 @@ fixture and section identities. It keeps old strip sections as separate fixtures
 sequence, MIDI and room bindings remain valid. Unreadable or ambiguous lamps and
 changed section counts are retained and listed in the response for review.
 
+Each section of a Hue lamp records what it lights: the members (entertainment service
+and segment) its channel had when the lamp was added, as `output.members` in
+`output.channels` order. The bridge numbers an area's channels itself and numbers them
+again whenever the area's lamps or positions change in the Hue app, so the numbers are
+read from the bridge: on each arm, when a bridge or its area changes in the settings,
+and whenever the area watch sees the area's grouping differ. Each section streams to
+the one channel whose members equal its recorded ones; a changed number is written
+back to `output.channels`, so the saved show, the Rig and room exporters keep the
+current one. A lamp with a section whose members are no longer exactly one channel
+(the area grouped its segments otherwise, or the lamp left the area) stays dark, and
+the log and preflight name it, what it was patched for and where the area has those
+lamps and segments now: remove it and add it again. After an arm a bridge's lamps
+stream once its area was read; a read that fails meanwhile is the bridge's failure
+until one succeeds, and nothing is rewritten. A lamp saved without members adopts them
+once from its stored numbers (logged); one whose number the area lacks is reported
+instead. A renumbered lamp whose new number a dark lamp still holds streams to it but
+keeps its saved number until that lamp is removed, so the patch never names a channel
+twice.
+
 ```mermaid
 flowchart LR
   Saved[Saved fixtures and stable IDs] --> Load[Load and validate channel bindings]
-  Bridge[Bridge lamp capabilities and ordered sections] --> Add[Add one fixture per physical lamp]
+  Bridge[Bridge lamp capabilities and ordered sections] --> Add[Add one fixture per physical lamp, recording each section's members]
   Load --> Refresh[Optional profile refresh / retain existing sections]
   Bridge --> Refresh
   Add --> Allocate[Allocate internal rendering space]
   Refresh --> Allocate
   Allocate --> Render[Renderer / hardware limits / blackout]
+  Area[Area read on arm, settings change and a changed grouping] --> Resolve[Each section to the channel with its recorded members]
+  Resolve --> Transport
   Render --> Transport[Each device reads its own cells]
 ```
 
@@ -2236,9 +2257,9 @@ it is doing (see [Live input](#live-input)).
 | GET | `/api/hue/discover` | Bridges Philips' cloud service has seen on this network |
 | POST | `/api/hue/pair` | Pair with `{ host, label? }` — the bridge link button must have been pressed in the last 30 seconds. Answers `409` with `pressLink: true` if it has not. A new address is added to `hue.bridges` (as `bridge-1`, `bridge-2`…, on, with no area yet); one already there gets fresh keys. Answers the bridge and its areas |
 | GET | `/api/hue/:bridge/areas` | Entertainment areas on that bridge, with their channel ids and lamp names |
-| GET | `/api/hue/:bridge/lamps` | Its chosen area's physical `lamps` (id, name, product, archetype, `lights` with each member light's product, archetype and `contentOrder`, devices, ordered `channels`, capabilities and `shows`) plus authoritative `channels` with product, archetype and device/segment membership and each member's `contentOrder` for room exporters. `contentOrder` is the light's `content_configuration.order` as the Hue app set it (`forward` or `reversed`: which end shows segment 1), null when the light has none or the bridge is still changing it |
-| POST | `/api/hue/:bridge/add` | `{ lamps? }`: patch those lamp ids, or every unpatched lamp, with a bridge-derived profile and `output: { protocol: 'hue', bridge, channels }`. Legacy `{ channels? }` selects the lamps containing those channels |
-| POST | `/api/hue/:bridge/refresh` | Refresh existing lamp capabilities without replacing fixture IDs or channel order; returns `refreshed` fixture IDs and `skipped` entries with reasons |
+| GET | `/api/hue/:bridge/lamps` | Its chosen area's physical `lamps` (id, name, product, archetype, `lights` with each member light's product, archetype and `contentOrder`, devices, ordered `channels`, capabilities and `shows`) plus authoritative `channels` with product, archetype and device/segment membership (each member's lamp `name`) and each member's `contentOrder` for room exporters. `contentOrder` is the light's `content_configuration.order` as the Hue app set it (`forward` or `reversed`: which end shows segment 1), null when the light has none or the bridge is still changing it |
+| POST | `/api/hue/:bridge/add` | `{ lamps? }`: patch those lamp ids, or every unpatched lamp, with a bridge-derived profile and `output: { protocol: 'hue', bridge, channels, members }` (`members[k]`: the `{ serviceId, segmentIndex }` list of channel `channels[k]`). Legacy `{ channels? }` selects the lamps containing those channels |
+| POST | `/api/hue/:bridge/refresh` | Refresh existing lamp capabilities without replacing fixture IDs or channel order. Sections first follow their recorded members in the area (changed numbers are written back; a lamp saved without members records them by its numbers); returns `refreshed` fixture IDs and `skipped` entries with reasons, a lamp that no longer resolves among them |
 | POST | `/api/hue/:bridge/disconnect` | Forget that bridge, keys and all. `409` while its lamps are in the patch unless `{ removeFixtures: true }` takes them along |
 | POST | `/api/hue/sync-test` | Flash every fixture white once a second for 10 s, to tune `hue.latencyMs` |
 

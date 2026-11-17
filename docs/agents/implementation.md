@@ -8,6 +8,9 @@ Read for this topic; paths below are relative to the repository root unless stat
   and chunks. Do not commit generated assets or installation data.
 - Every startup must remain disarmed. Preserve blackout, flash limits,
   photosensitivity acknowledgement, output shutdown and preview/output parity.
+- A Hue section streams to the area channel whose members equal the ones it
+  recorded (`src/server/hue-sections.ts`), never to a stored number the bridge may
+  have given other members; a section without exactly one such channel stays dark.
 - Releasing a Hue Entertainment session leaves each lamp in its last streamed
   colour. Whatever disarms outside the party flow must restore or switch the
   lamps off afterwards.

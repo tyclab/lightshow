@@ -93,7 +93,8 @@ function prepareShow(rawShow: unknown): PreparedRig {
       geometry: f.geometry ? { ...f.geometry } : null,
       emission: f.emission ? { ...f.emission } : null,
       output: !f.output ? null
-        : f.output.protocol === 'hue' ? { protocol: 'hue', channels: [...hueChannels(f.output)], bridge: f.output.bridge || fallback } : { ...f.output },
+        : f.output.protocol === 'hue' ? { protocol: 'hue', channels: [...hueChannels(f.output)], bridge: f.output.bridge || fallback,
+          ...(f.output.members ? { members: f.output.members.map((set) => set.map((m) => ({ ...m }))) } : {}) } : { ...f.output },
       productId: f.productId, hardware: f.hardware, admission: f.admission,
       override: explicitFixtures ? null : state.fixtures[i]?.override ?? null,
     }));

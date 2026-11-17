@@ -266,7 +266,7 @@ test('channel metadata retains physical devices and segment lengths', () => {
 
 test('missing segment metadata remains explicitly unknown', () => {
   assert.deepStrictEqual(hue.channelMembers({ members: [{ service: { rid: 'missing' }, index: 4 }] }, new Map()),
-    [{ serviceId: 'missing', deviceId: null, segmentIndex: 4, segmentLength: null, segmentCount: null, contentOrder: null }]);
+    [{ serviceId: 'missing', deviceId: null, name: '', segmentIndex: 4, segmentLength: null, segmentCount: null, contentOrder: null }]);
 });
 
 // Two members of one channel are two halves of one fitting; "Strip + Strip"
