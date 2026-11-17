@@ -1,6 +1,7 @@
 // The Hue colours of one frame, derived from the rendered DMX alone: the engine thread's transmitter
 // computes them from the routes it is sent, so they must equal what the main thread read from its own
-// patch before Hue moved there. The oracle below is that main-thread derivation, verbatim.
+// patch before Hue moved there. The oracle below is that main-thread derivation, with the colour mix left
+// unrounded as the stream now carries it.
 
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -9,6 +10,7 @@ import { hueChannelColours } from '../../src/shared/hue-frame.ts';
 import { hueRoutes } from '../../src/server/hue-routes.ts';
 import { channelReader } from '../../src/shared/placement.ts';
 import { hueSectionColour } from '../../src/shared/hue-colour.ts';
+import { exact } from '../../src/shared/look-math.ts';
 import { hueChannels, isHueProfile } from '../../src/shared/hue-lamp.ts';
 import { getProfile, BUILTIN_PROFILE_ID, HUE_COLOR_PROFILE_ID, HUE_WHITE_PROFILE_ID, HUE_WHITE_AMBIANCE_PROFILE_ID } from '../../src/server/profiles.ts';
 import { HUE_COLOR, HUE_AMBIANCE, HUE_WHITE, HUE_GRADIENT } from './hue-test-lamps.js';
@@ -35,7 +37,7 @@ function oracle(fixtures, bufferOf, fallback) {
     sections.forEach((ch, c) => {
       const id = hueChannels(lamp)[c];
       if (id === undefined || channels.some((sent) => sent.id === id)) return;
-      channels.push({ id, ...hueSectionColour(ch, at, traits) });
+      channels.push({ id, ...hueSectionColour(ch, at, traits, exact) });
     });
   }
   return out;

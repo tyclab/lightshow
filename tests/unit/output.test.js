@@ -149,7 +149,7 @@ test('a UV wash shows as deep violet rather than black', () => {
 test('an over-full mix is scaled as a whole, keeping its hue', () => {
   withLamps([{ channel: 0 }], (set) => {
     set(0, 'red', 255); set(0, 'warmWhite', 255);
-    assert.deepStrictEqual(colors(), [{ id: 0, r: 255, g: 84, b: 43 }], 'still a warm red');
+    assert.deepStrictEqual(colors(), [{ id: 0, r: 255, g: 255 * 0.66 * 0.5, b: 255 * 0.34 * 0.5 }], 'still a warm red, halved as a whole');
   });
 });
 

@@ -1243,8 +1243,8 @@ in the byte: sRGB 75 is 7 % light and drives 18 of 255, not 75; 128 drives 55;
 (200, 120, 60) drives (147, 48, 12). Leave it off for a WLED board, which
 applies its own gamma to its realtime input: the decode on top of that made
 the room and the LED curtain far too dim. Hue lamps get the colour in the
-stream's RGB colour space (each byte times 257); the server applies no further
-curve. The Stage's screens show the picture as sent either way.
+stream's RGB colour space (each level times 257, below a byte included); the server
+applies no further curve. The Stage's screens show the picture as sent either way.
 
 An optional colour grade then works on the lifted colour, before the masters
 and trims; it is off by default. **White limit** takes that share of the white
@@ -1439,6 +1439,16 @@ Hue, WLED and OpenRGB fixtures have no DMX address. Internal rendering space sta
 at universe 60000; small devices can share it, and each transport reads only its
 fixture's pixels. It is never transmitted over Art-Net or sACN. `hue.latencyMs`
 delays the other outputs relative to Hue; use `/api/hue/sync-test` to compare them.
+
+A Hue lamp is streamed the levels the renderer computed before it rounded them into
+the lamp's internal channels: the stream carries 16 bits per primary, and the lamps
+resolve 11-bit brightness and 12-bit x/y. A slow fade near dark keeps its steps and
+a dim colour its proportions (5 % of 255/128/0 is 12.75/6.4/0, not 13/6/0). The
+rendered frame stays the authority: a channel streams its level only while the level
+rounds to the byte the frame holds, and a blackout or retirement frame streams its
+bytes, so whatever changes a byte after rendering holds on the lamp. Art-Net, sACN,
+DDP, OpenRGB and the previews keep the bytes; the Stage draws a Hue lamp at byte
+precision.
 
 Existing Hue fixtures retain their IDs, positions, geometry, hardware limits and
 channel bindings when loaded. Their compatibility profiles retain the original
