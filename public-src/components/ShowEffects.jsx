@@ -1,6 +1,6 @@
 import { signal } from '@preact/signals';
 import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'preact/hooks';
-import { connectedSig, idlePause, librarySig, pick, send } from '../state.js';
+import { connectedSig, idlePause, librarySig, pick, previewHalted, send } from '../state.js';
 import { pictureSourceSig, pictureUnmetSig } from '../picture-source.js';
 import { EffectIcon, byName, catalogueOf, matchesSearch, quickDeck, readFavourites, tapRow, utilityEffect } from './Effects.jsx';
 import { Photosensitivity, acknowledgeThen } from './Photosensitivity.jsx';
@@ -70,7 +70,7 @@ const columnsOf = (list) => getComputedStyle(list).gridTemplateColumns.split(' '
 export function ShowEffects() {
   const s = pick(['pattern', 'patterns', 'effects', 'families', 'safety', 'running', 'control', 'live', 'armed', 'masterBlackout']);
   const previewing = stageMode({ connected: connectedSig.value, armed: s.armed !== false, blackout: !!s.masterBlackout, paused: idlePause.paused.value !== null,
-    playing: !!s.control?.playing, layers: !!s.control?.layers, frozen: !!s.control?.frozen }).demo;
+    playing: !!s.control?.playing, layers: !!s.control?.layers, frozen: !!s.control?.frozen, halted: previewHalted() }).demo;
   const box = effectsBox({ running: !!s.running, frozen: !!s.control?.frozen, source: pictureSourceSig.value, previewing });
   const unmet = pictureUnmetSig.value;
   const lib = librarySig.value;

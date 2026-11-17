@@ -84,6 +84,19 @@ test('stopped and disarmed, a stage draws the selected look on the demo beat; an
   assert.notEqual(modeOf({}).tag, modeOf({ playing: true }).tag, 'the demo beat is never tagged as the feed');
 });
 
+// The operator, 2026-11-17, asked "should the header's Stop also halt the preview animation?": "1".
+test('after Stop on this page the stopped stage draws the feed with a note, not the demo beat; nothing else is held', () => {
+  const note = 'Stopped: the stage shows the show as it stands. Choose an effect to preview it, or Play.';
+  assert.deepEqual(modeOf({ halted: true }), { tag: 'Preview (disarmed)', lit: true, demo: false, note });
+  assert.equal(utils.stageMode({ ...STOPPED, halted: true }).pausable, true, 'Pause preview stays');
+  for (const patch of [{ playing: true }, { layers: true }, { frozen: true }]) {
+    assert.deepEqual(modeOf({ halted: true, ...patch }), modeOf(patch), `${JSON.stringify(patch)}: what plays is shown as ever`);
+  }
+  for (const patch of [{ armed: true }, { blackout: true }, { connected: false }, { paused: { cause: 'button' } }]) {
+    assert.deepEqual(modeOf({ halted: true, ...patch }), modeOf(patch), `${JSON.stringify(patch)} outranks it`);
+  }
+});
+
 test('armed, a stage shows only the feed, whatever plays: the demo beat never draws', () => {
   for (const patch of [{}, { playing: true }, { layers: true }, { frozen: true }]) {
     assert.deepEqual(modeOf({ armed: true, ...patch }), { tag: 'Live output', lit: true, demo: false }, JSON.stringify(patch));

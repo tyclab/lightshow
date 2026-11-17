@@ -181,7 +181,8 @@ colours, the palette and its override, the band colours, the master and Backgrou
 beat, sampled in this browser with the look's own flash limit, and say **Preview · demo beat**. It sends
 nothing to the server, so it starts nothing, and never gives the photosensitivity acknowledgement.
 Disarmed while something plays, they draw the server's feed, what arming would send, under **Preview
-(disarmed)**. Armed they say **Live output** and draw only the feed: arming drops the demo-beat preview at
+(disarmed)**. **Stop** pressed on this page halts its preview as well: the stopped stage
+draws that feed, with a note saying so, until another effect is chosen or **Play**; another page, or a reload, previews as ever. Armed they say **Live output** and draw only the feed: arming drops the demo-beat preview at
 once. **Blackout** outranks the rest, armed or not, with a note over the 3D stage and under the plot that
 points to **Restore** in the header.
 A disarmed page nobody touches for `outputs.idleStopMin` minutes (60; Settings → Show, **Stop an
