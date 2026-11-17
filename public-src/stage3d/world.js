@@ -219,14 +219,23 @@ const boxDistance = (box, point) => {
 };
 
 /**
- * Where a pool may show (the pool shader clips to it): on the surface it lies on, in the room whose polygon
- * holds its centre, and not past a wall from its centre, so nothing spills under or around a wall.
+ * Where a pool may show (the pool shader clips to it): on the surface it lies on, in `area`, the room whose
+ * polygon holds its centre, and not past a wall from its centre, so nothing spills under or around a wall.
+ * A pool cut to a room shows no point outside that room's polygon. So of the walls it reaches it carries only
+ * those that reach into the box around the polygon and its own centre: no other can stand between the centre
+ * and a point it shows.
  */
-function poolClip(pool, hit, room) {
-  const area = room.rooms.find((candidate) => insidePolygon(candidate.polygon, pool.at.x, pool.at.z));
+function poolClip(pool, hit, room, area = room.rooms.find((candidate) => insidePolygon(candidate.polygon, pool.at.x, pool.at.z))) {
+  const xs = area && [pool.at.x, ...area.polygon.map(([x]) => x)], zs = area && [pool.at.z, ...area.polygon.map(([, z]) => z)];
+  const box = area && { x0: Math.min(...xs), x1: Math.max(...xs), z0: Math.min(...zs), z1: Math.max(...zs) };
+  // A wall's own box, seen from above, against that box.
+  const reaches = ({ centre, axes, half }) => {
+    const x = axes.reduce((sum, axis, i) => sum + Math.abs(axis.x) * half[i], 0), z = axes.reduce((sum, axis, i) => sum + Math.abs(axis.z) * half[i], 0);
+    return centre.x + x >= box.x0 && centre.x - x <= box.x1 && centre.z + z >= box.z0 && centre.z - z <= box.z1;
+  };
   const walls = room.blockers.filter((blocker) => {
     const distance = blocker.wall && blocker.id !== hit.id ? boxDistance(blocker, pool.at) : 0;
-    return distance > 0 && distance < pool.major;
+    return distance > 0 && distance < pool.major && (!box || reaches(blocker));
   }).map(({ centre, axes, half }) => ({ centre, axes, half }));
   return { surface: hit.surface, room: area?.polygon ?? null, walls };
 }
@@ -273,7 +282,7 @@ function poolUnder({ position, lumen }, room, run = null) {
   if (band) Object.assign(pool, { along: run.along, across: cross(run.along, hit.normal) });
   Object.assign(pool, { major: reach + (band ? run.half : 0), minor: reach + (band ? run.across : 0) });
   pool.level = Math.min(1, lumen / (Math.PI * pool.major * pool.minor) / POOL_FULL);
-  pool.clip = { ...poolClip(pool, hit, room), room: roomOf(room.rooms, position)?.polygon ?? null };
+  pool.clip = poolClip(pool, hit, room, roomOf(room.rooms, position));
   return pool;
 }
 
