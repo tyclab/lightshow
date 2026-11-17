@@ -76,7 +76,27 @@ for (const frameInterval of [0, 100]) test(`Stage idles between visible changes 
   }
 });
 
-test('a room of many walls is built again, and draws steady frames, within the main-thread budget', async ({ page, request }, testInfo) => {
+// The rooms measured, each from the id of the fixture its lamps are. The house of many walls with a lamp in 16 of its
+// rooms. The same house with each lamp 0.7 m above the floor and aimed at it, so each throws a cone of haze 1.7 m
+// wide in a room 1.2 m wide. And one open room under eight lamps at the ceiling, aimed down: cones 5.5 m wide.
+const ROOMS = [
+  ['a room of many walls is built again, and draws steady frames, within the main-thread budget', 'many walls', walledRoom, 142],
+  ['a room of many walls whose lamps are aimed is built again, and draws steady frames, within the main-thread budget', 'many walls, aimed', (fixtureId) => {
+    const model = walledRoom(fixtureId);
+    return { ...model, bindings: model.bindings.map((entry) => ({ ...entry, position: { ...entry.position, y: 0.7 },
+      lightTarget: { x: entry.position.x + 0.05, y: 0, z: entry.position.z + 0.05 } })) };
+  }, 142],
+  ['an open room under wide cones is built again, and draws steady frames, within the main-thread budget', 'wide cones', (fixtureId) => ({
+    version: 1, name: 'Wide cones', bounds: { width: 6, depth: 4, height: 2.5 },
+    rooms: [{ id: 'room', label: 'Room', polygon: [[-3, -2], [3, -2], [3, 2], [-3, 2]] }], objects: [],
+    bindings: Array.from({ length: 8 }, (_, k) => {
+      const x = -2.25 + (k % 4) * 1.5, z = k < 4 ? -1 : 1;
+      return { id: `lamp-${k}`, fixtureId, unit: 0, position: { x, y: 2.3, z }, lightTarget: { x: x + 0.1, y: 0, z }, confidence: 'estimated' };
+    }),
+  }), 0],
+];
+
+for (const [title, label, roomFor, walls] of ROOMS) test(title, async ({ page, request }, testInfo) => {
   test.setTimeout(60_000);
   const attach = async (name, value) => {
     const path = testInfo.outputPath(name);
@@ -97,8 +117,8 @@ test('a room of many walls is built again, and draws steady frames, within the m
   const capture = () => page.evaluate(() => ({ ...window.__lightshowPerformance.snapshot(), frames: window.__stageFrames.list() }));
   const startWindow = () => page.evaluate(() => { window.__lightshowPerformance.reset(); window.__stageFrames.reset(); });
   try {
-    const model = walledRoom(before.fixtures[0].id);
-    expect(model.objects.length).toBe(142);
+    const model = roomFor(before.fixtures[0].id);
+    expect(model.objects.length).toBe(walls);
     await replace(model);
     await set(request, { pattern: 'ensemble' });
     // Measurement only: every animation frame that issues a WebGL draw, as [start, callback ms], from the last
@@ -145,12 +165,12 @@ test('a room of many walls is built again, and draws steady frames, within the m
     const longest = (report) => ({ task: report.timings['longtask.duration']?.max ?? 0, tasks: report.timings['longtask.duration']?.count ?? 0,
       perFrame: Math.round(longTaskMsPerFrame(report) * 10) / 10,
       submit: Math.round(report.timings['scene.renderSubmit']?.max ?? 0), draws: report.counts['scene.draws'], ms: Math.round(report.elapsedMs) });
-    console.log(`stage budget ${JSON.stringify({ rebuild: longest(rebuild), steady: longest(steady) })}`);
+    console.log(`stage budget ${JSON.stringify({ room: label, rebuild: longest(rebuild), steady: longest(steady) })}`);
     // One line a window, and its frames: every CI attempt leaves them in its log, pass or fail.
     const cores = await page.evaluate(() => navigator.hardwareConcurrency ?? null);
     for (const [name, report] of Object.entries({ rebuild, steady })) {
-      console.log(`stage window ${JSON.stringify({ window: name, cores, ...longest(report), ...frameStats(report.frames) })}`);
-      console.log(`stage frames ${JSON.stringify({ window: name, frames: report.frames.map(([start, ms]) => [Math.round(start), Math.round(ms * 10) / 10]) })}`);
+      console.log(`stage window ${JSON.stringify({ room: label, window: name, cores, ...longest(report), ...frameStats(report.frames) })}`);
+      console.log(`stage frames ${JSON.stringify({ room: label, window: name, frames: report.frames.map(([start, ms]) => [Math.round(start), Math.round(ms * 10) / 10]) })}`);
     }
     expect(frameBudget(rebuild), 'the rebuild').toEqual({ ok: true, failures: [] });
     expect(frameBudget(steady), 'steady frames').toEqual({ ok: true, failures: [] });

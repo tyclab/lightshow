@@ -1,5 +1,6 @@
-// A wall stops a pool in the 3D stage, drawn or hidden, an aimed lamp's and the one under a lamp without an aim:
-// rendered by the stage's own scene (public-src/stage3d/scene.js) on the two-room test room, read back by pixel.
+// A wall stops a pool in the 3D stage, drawn or hidden, an aimed lamp's and the one under a lamp without an aim,
+// and light on a wall's face shows from that face's side only: rendered by the stage's own scene
+// (public-src/stage3d/scene.js) on the two-room test room, read back by pixel.
 
 import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
@@ -21,12 +22,14 @@ const script = buildSync({
     const scene = createStageScene(canvas, { haze: 0, lightRGB, room: { width: STAGE_W, depth: STAGE_D, trussHeight: TRUSS_H } });
     scene.resize();
     const LAMP = { id: 'rgb-lamp', channelMap: { red: 0, green: 1, blue: 2 } };
-    let model = null, view = 'above', units = 0;
+    let model = null, view = 'above', turned = false, units = 0;
     const copy = document.createElement('canvas');
     window.stage = {
-      room(next, { cutaway = true, name = 'above' } = {}) {
-        model = next; view = name;
+      // turned: the named view from the opposite side of the room, half a turn round its centre.
+      room(next, { cutaway = true, name = 'above', turned: half = false } = {}) {
+        model = next; view = name; turned = half;
         scene.setRoom(next); scene.setCutaway(cutaway); scene.view(name);
+        if (half) scene.nudge({ turn: Math.PI });
       },
       rig(bindings) {
         const fixtures = bindings.map((binding, i) => ({ id: binding.fixtureId, label: 'Lamp', universe: 0, address: 1 + 3 * i, profileId: LAMP.id }));
@@ -46,7 +49,8 @@ const script = buildSync({
         const lum = (at) => 0.2126 * pixels[at] + 0.7152 * pixels[at + 1] + 0.0722 * pixels[at + 2];
         const aspect = copy.width / copy.height, v = roomViews(model.bounds, aspect, model.listeners?.[0])[view];
         const camera = new PerspectiveCamera(STAGE_FOV, aspect, 0.1, 200);
-        camera.position.set(...v.position); camera.lookAt(...v.target); camera.updateMatrixWorld();
+        const [x, y, z] = v.position, [tx, , tz] = v.target;
+        camera.position.set(turned ? 2 * tx - x : x, y, turned ? 2 * tz - z : z); camera.lookAt(...v.target); camera.updateMatrixWorld();
         const out = {};
         for (const [name, { from, u, w }] of Object.entries(regions)) {
           out[name] = [];
@@ -64,6 +68,8 @@ const script = buildSync({
 }).outputFiles[0].text;
 
 const floor = (x0, x1, z0, z1) => ({ from: { x: x0, y: 0.003, z: z0 }, u: { x: x1 - x0, y: 0, z: 0 }, w: { x: 0, y: 0, z: z1 - z0 } });
+// An upright patch in the plane of a wall's face that looks along x.
+const face = (x, y0, y1, z0, z1) => ({ from: { x, y: y0, z: z0 }, u: { x: 0, y: 0, z: z1 - z0 }, w: { x: 0, y: y1 - y0, z: 0 } });
 // Behind the box wall, out of line with the doorway; and the near room's own floor.
 const REGIONS = { far: floor(0.4, 2.6, -1.8, -0.4), near: floor(-2.6, -0.4, -1.8, -0.4) };
 const changed = (a, b) => a.filter((value, i) => Math.abs(value - b[i]) > 1).length;
@@ -114,4 +120,25 @@ test('the pool under a lamp without an aim lights its own room\'s floor and stop
   }
   const { off, on } = await lampFrames(page, { ...withoutWall, rooms: [] }, lamp, { cutaway: false });
   expect(changed(off.far, on.far), 'with no wall and no rooms, the same pool reaches on').toBeGreaterThan(20);
+});
+
+test('light on a wall\'s face shows from the side its lamp is on and not from behind the wall, at full height, cut away or hidden', async ({ page }) => {
+  // The box wall stands in the plane x 0, 0.1 m thick. A lamp 0.55 m from either face, aimed square at it, throws a
+  // pool 1.8 m across at full strength; each is read on its own face, above the height a cut-away wall keeps and
+  // clear of where the lamp itself stands in the picture.
+  // The audience view stands east of the wall, and turned, west of it: each camera has one lamp on its side, whose
+  // light it must show, and one behind the wall, whose light it must not show in that same place.
+  const lamps = [
+    ['west', { x: -0.6, y: 1.7, z: -1 }, { x: -0.05, y: 1.7, z: -1 }, { wall: face(-0.05, 1.1, 1.9, -1.6, -0.8) }, true],
+    ['east', { x: 0.6, y: 1.7, z: -1 }, { x: 0.05, y: 1.7, z: -1 }, { wall: face(0.05, 1.1, 1.9, -1.6, -0.8) }, false],
+  ];
+  for (const [name, model, cutaway] of [['full height', TWO_ROOMS, false], ['cut away', TWO_ROOMS, true], ['hidden', withWall({ opacity: 0 }), false]]) {
+    for (const [side, position, lightTarget, regions, turned] of lamps) {
+      const view = { regions, cutaway, name: 'audience', binding: { lightTarget } };
+      const near = await lampFrames(page, model, position, { ...view, turned });
+      expect(changed(near.off.wall, near.on.wall), `${name}, the ${side} lamp from its own side: its light shows on the wall's face`).toBeGreaterThan(60);
+      const behind = await lampFrames(page, model, position, { ...view, turned: !turned });
+      expect(changed(behind.off.wall, behind.on.wall), `${name}, the ${side} lamp from behind the wall: nothing of it shows there`).toBe(0);
+    }
+  }
 });

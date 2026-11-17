@@ -12,12 +12,13 @@ const built = await esbuild.build({
   stdin: { contents: `export { createStageScene } from './public-src/stage3d/scene.js';
     export { keptRig } from './public-src/stage3d/kept-rig.js';
     export { lightRGB } from './public-src/stage3d/world.js';
+    export { FrontSide, Matrix4, Vector3 } from 'three';
     export { built } from 'scene-counts';`, resolveDir: root },
   bundle: true, format: 'esm', platform: 'node', write: false, logLevel: 'silent',
   plugins: [{ name: 'stub-renderer', setup(build) {
     build.onResolve({ filter: /^three$/ }, () => ({ path: 'three', namespace: 'stub' }));
     build.onResolve({ filter: /^scene-counts$/ }, () => ({ path: 'counts', namespace: 'stub' }));
-    build.onLoad({ filter: /^counts$/, namespace: 'stub' }, () => ({ contents: 'export const built = { instanced: 0, groups: 0, lights: [] };' }));
+    build.onLoad({ filter: /^counts$/, namespace: 'stub' }, () => ({ contents: 'export const built = { instanced: 0, groups: 0, lights: [], meshes: [] };' }));
     // Real three.js, but no WebGL: InstancedMesh is built per rig, a Group per rig and per room.
     build.onLoad({ filter: /^three$/, namespace: 'stub' }, () => ({ resolveDir: root, contents: `
       import * as THREE from ${three};
@@ -31,7 +32,7 @@ const built = await esbuild.build({
           scene.traverseVisible((object) => { if (object.isLight) built.lights.push(object.type); });
         }
       }
-      export class InstancedMesh extends THREE.InstancedMesh { constructor(...args) { super(...args); built.instanced++; } }
+      export class InstancedMesh extends THREE.InstancedMesh { constructor(...args) { super(...args); built.instanced++; built.meshes.push(this); } }
       export class Group extends THREE.Group { constructor() { super(); built.groups++; } }` }));
   } }],
 });
@@ -121,4 +122,48 @@ test('every light\'s pool is drawn: an aimed lamp\'s own, and the one under a la
   const venue = ui.keptRig(lamps, { [LAMP.id]: LAMP }, null);
   stage.setRig(venue.placed, venue.rig.units.length);
   assert.deepEqual([stage.info().pars, stage.info().pools], [3, 3]);
+});
+
+// The pool quad a rig's scene draws for `pool`: the mesh that holds it, and the way its front faces in the room.
+// three.js draws a triangle's front where its corners run counter-clockwise, and a one-sided material nothing else.
+function quadOf(meshes, pool) {
+  const matrix = new ui.Matrix4(), at = new ui.Vector3();
+  for (const mesh of meshes.filter((candidate) => candidate.material.uniforms?.uClip)) for (let k = 0; k < mesh.count; k++) {
+    mesh.getMatrixAt(k, matrix);
+    // Instance matrices are kept in single precision.
+    if (at.setFromMatrixPosition(matrix).distanceTo(pool.at) > 1e-5) continue;
+    const { index, attributes: { position } } = mesh.geometry;
+    const [a, b, c] = [0, 1, 2].map((corner) => new ui.Vector3().fromBufferAttribute(position, index.getX(corner)).applyMatrix4(matrix));
+    return { mesh, front: b.sub(a).cross(c.sub(a)).normalize() };
+  }
+  return null;
+}
+
+test('a pool on a wall or on the floor is drawn on the side its light comes from, and from that side only', () => {
+  const stage = scene();
+  const LAMP = { id: 'scene-lamp', name: 'Lamp', channelMap: { red: 0, green: 1, blue: 2 } };
+  const lamps = [1, 2, 3].map((id) => ({ id, label: `Lamp ${id}`, universe: 1, address: id * 3, profileId: LAMP.id }));
+  // The room's wall stands across x at z 0: one lamp aims at its face, one at the floor, one has no aim.
+  const model = { ...room('Sides'), bindings: [
+    { id: 'wall', fixtureId: 1, position: { x: 0, y: 1.5, z: 1 }, lightTarget: { x: 0, y: 1.2, z: 0.05 } },
+    { id: 'floor', fixtureId: 2, position: { x: 1.5, y: 2, z: 1 }, lightTarget: { x: 1.5, y: 0, z: 1.4 } },
+    { id: 'under', fixtureId: 3, position: { x: -1.5, y: 2, z: 1 } }] };
+  const shown = ui.keptRig(lamps, { [LAMP.id]: LAMP }, model);
+  const from = ui.built.meshes.length;
+  stage.setRoom(model);
+  stage.setRig(shown.placed, shown.rig.units.length);
+  const meshes = ui.built.meshes.slice(from);
+  const [onWall, onFloor] = shown.placed.lamps, [under] = shown.placed.pools;
+  assert.deepEqual([onWall.pool.normal, onFloor.pool.normal, under.pool.normal], [{ x: 0, y: 0, z: 1 }, { x: 0, y: 1, z: 0 }, { x: 0, y: 1, z: 0 }]);
+  for (const [name, pool, towardLight] of [
+    ['the pool on the wall', onWall.pool, { x: -onWall.aim.x, y: -onWall.aim.y, z: -onWall.aim.z }],
+    ['the aimed pool on the floor', onFloor.pool, { x: -onFloor.aim.x, y: -onFloor.aim.y, z: -onFloor.aim.z }],
+    ['the pool under a lamp', under.pool, { x: 0, y: 1, z: 0 }],
+  ]) {
+    const quad = quadOf(meshes, pool);
+    assert.ok(quad, `${name} is drawn`);
+    assert.equal(quad.mesh.material.side, ui.FrontSide, `${name} shows one side`);
+    assert.ok(quad.front.dot(pool.normal) > 0.999, `${name} shows the side its surface faces: ${JSON.stringify(quad.front)}`);
+    assert.ok(quad.front.dot(towardLight) > 0, `${name}: that is the side its light comes from`);
+  }
 });
