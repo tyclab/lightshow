@@ -1,4 +1,4 @@
-import { useColourTarget } from '../colour-target.js';
+import { mainPalettePatch, storedPaletteSize, useColourTarget } from '../colour-target.js';
 import { useState } from 'preact/hooks';
 import { api, librarySig, pick, send } from '../state.js';
 import { parseHex, toHex } from '../../src/shared/palette-model.ts';
@@ -36,9 +36,7 @@ export function PaletteStrip({ initialTarget = 'override', target: selectedTarge
   const [invalid, setInvalid] = useState(false);
   const [error, setError] = useState('');
   const [managing, setManaging] = useState(false);
-  const [size, setSize] = useState(() => {
-    try { const n = Number(localStorage.getItem('lightshow.paletteSize')); return [2, 3, 4].includes(n) ? n : 4; } catch { return 4; }
-  });
+  const [size, setSize] = useState(storedPaletteSize);
   const lib = librarySig.value;
   const builtin = s.builtinPalettes || lib.palettes?.builtin || [];
   const user = s.userPalettes || lib.palettes?.user || [];
@@ -50,10 +48,7 @@ export function PaletteStrip({ initialTarget = 'override', target: selectedTarge
   const current = colour.current;
   const choose = async (p) => {
     if (override) await api('/api/palette-override', { method: 'PUT', body: JSON.stringify(overrideBody(p)) });
-    else if (colour.spec) {
-      const { id: _id, name: _name, app: _app, ...body } = p;
-      send(colour.patch(body));
-    } else send({ palette: p.id, paletteSize: size });
+    else send(mainPalettePatch(colour, p, size));
   };
   const apply = async () => {
     if (draftTarget !== editKey) return;

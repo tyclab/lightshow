@@ -844,6 +844,7 @@ test('one button on Show folds the wheel and the colour order: folded first, rem
     assert.strictEqual(toggle.exec(fresh)?.[1], 'false', 'the old key changes nothing');
     assert.doesNotMatch(fresh, /colour-wheel-disc|Palette colour order/);
     assert.match(fresh, /aria-label="Search Effect palettes"/, 'the palettes stay');
+    assert.doesNotMatch(fresh, /Save as palette…/, 'folded, nothing to save');
     assert.strictEqual(count(fresh, 'show-fold-toggle'), 1, 'one button for both');
     assert.ok(!stored.has('lightshow.show.colourWheel'), 'the old key is removed');
     stored.set('lightshow.show.colourEditor', 'open');
@@ -852,6 +853,7 @@ test('one button on Show folds the wheel and the colour order: folded first, rem
     assert.match(open, /aria-label="Effect palette"/);
     assert.match(open, /class="colour-wheel-disc adds"/, 'its palette sits on the wheel, and a tap there adds a colour');
     assert.match(open, /aria-label="Palette colour order"/);
+    assert.match(open, /aria-label="Palette colour order".*<button type="button" class="btn sm">Save as palette…<\/button>/s, 'the colours on the wheel can be saved as a palette');
     globalThis.localStorage.getItem = () => { throw new Error('storage unavailable'); };
     assert.strictEqual(toggle.exec(ui.html(ui.h(ui.Bands)))?.[1], 'false');
   } finally {

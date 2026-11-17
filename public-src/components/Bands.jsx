@@ -1,11 +1,11 @@
 import { useId, useLayoutEffect, useMemo, useRef, useState } from 'preact/hooks';
 import { audioFeedSig, librarySig, pick, send } from '../state.js';
 import { chooseSource, pictureColours, pictureReceivingSig, pictureSourceSig } from '../picture-source.js';
-import { useColourTarget } from '../colour-target.js';
+import { mainPalettePatch, useColourTarget } from '../colour-target.js';
 import { useAudioFeed } from './AudioMeters.jsx';
 import { activeOverride } from './PaletteStrip.jsx';
 import { PaletteLibrary } from './PaletteLibrary.jsx';
-import { paletteName } from './PaletteEditor.jsx';
+import { paletteName, useSavePaletteAs } from './PaletteEditor.jsx';
 import { ColourWheel, StopOrder } from './ColourWheel.jsx';
 import { bandEffect } from '../../src/shared/effect-colours.ts';
 import { BAND_LIVE_KEYS, MAX_BAND_STOPS, bandBarCss, bandColourAt, hdColour, hueDegrees, huesOnly, playsPalette, toDegrees }
@@ -266,16 +266,9 @@ function EffectPalette({ colour, palettes, masked, classic, frozen }) {
   const fixed = !!body.gradients?.length;
   const s = colour.s;
   const active = colour.spec ? activeOverride(strings, palettes, null, body) : classic;
-  const choose = (p) => {
-    if (colour.spec) {
-      const { id: _id, name: _name, app: _app, ...rest } = p;
-      send(colour.patch(rest));
-      return;
-    }
-    let size = 4;
-    try { const n = Number(localStorage.getItem('lightshow.paletteSize')); if ([2, 3, 4].includes(n)) size = n; } catch { /* private mode */ }
-    send({ palette: p.id, paletteSize: size });
-  };
+  const choose = (p) => send(mainPalettePatch(colour, p));
+  // The colours on the wheel, saved under a name: the list above takes the new palette and marks it, since it holds these colours.
+  const saveAs = useSavePaletteAs({ ...body, colours: entries }, !entries.length);
   const mode = colour.spec?.params?.[colour.spec.kind === 'strobe' ? 'colourMode' : 'colour'];
   const white = mode === 'white';
   const full = fixed || entries.length >= MAX_BAND_STOPS;
@@ -296,6 +289,8 @@ function EffectPalette({ colour, palettes, masked, classic, frozen }) {
       const p = placed[at] ?? { hue: 0, saturation: 1 };
       add((p.hue + 30) % 360, p.saturation || 1);
     }}>Add colour</button>}
+    {saveAs.button}
+    {saveAs.row}
   </div>;
   const paletteList = <PaletteList label="Effect" palettes={palettes} active={active} range={false} onChoose={choose} />;
   const reset = s.effectColours && <button type="button" class="btn sm band-reset" onClick={() => send({ effectColours: null })}>Reset</button>;

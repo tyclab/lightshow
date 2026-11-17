@@ -15,3 +15,15 @@ export function useColourTarget(target) {
     : spec ? { effectColours: { pattern: s.pattern, palette } } : { basePalette: palette };
   return { s, spec, current, patch, modes: colourModes(spec), name: ['energy.whiteStrobe', 'energy.colorStrobe'].includes(preset?.id) ? 'Strobe' : preset?.name || s.pattern };
 }
+
+/** The classic size chosen on this browser: a look's duo, triad or tetrad. */
+export function storedPaletteSize() {
+  try { const n = Number(localStorage.getItem('lightshow.paletteSize')); return [2, 3, 4].includes(n) ? n : 4; } catch { return 4; }
+}
+
+/** What a palette picked for the main effect sends: an effect with colours of its own takes the palette's body, a classic pattern its id and size. */
+export function mainPalettePatch(colour, palette, size = storedPaletteSize()) {
+  if (!colour.spec) return { palette: palette.id, paletteSize: size };
+  const { id: _id, name: _name, app: _app, ...body } = palette;
+  return colour.patch(body);
+}
