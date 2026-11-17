@@ -389,7 +389,8 @@ function resizeFixtureBuffers(): void {
 function transmitFrame(): boolean {
   const protective = state.masterBlackout || !output.isArmed();
   for (const universe of universes.list()) {
-    output.sendUniverse(universe, universes.getBuffer(universe), protective ? { immediate: true, terminate: true } : undefined);
+    output.sendUniverse(universe, universes.getBuffer(universe), protective ? { immediate: true, terminate: true } : undefined,
+      universes.findFine(universe));
   }
   // Send retired universes one zero frame so receivers cannot latch the previous look.
   for (const [universe, frame] of universes.drainRetired()) {

@@ -35,8 +35,11 @@ function withLamp(profile, fn) {
   }
 }
 
+// The previews draw a Hue lamp at byte precision: each channel sent to the bridge, rounded.
+const byteColours = () => hueChannelColors().get('preview').map(({ id, r, g, b }) => ({ id, r: Math.round(r), g: Math.round(g), b: Math.round(b) }));
+
 function assertParity(fix, ui) {
-  const sent = hueChannelColors().get('preview');
+  const sent = byteColours();
   const expected = sent.map(({ r, g, b }) => ({ r, g, b, w: 0, a: 0, uv: 0 }));
   const lights = fixtureCellLights(fix, ui) || [fixtureLight(fix, ui)];
   assert.deepEqual(lights, expected, 'stage lights match each ordered channel sent to the bridge');
@@ -136,7 +139,7 @@ for (const hardware of [undefined, { technologies: {}, products: {} }]) {
           split: null, pixelMap: 'stage', strobeSpeed: 0, strobeFunction: 'standard', masterDimmer: 255,
           masterBlackout: false, energy: null, showDynamics: null, patternAnchor: null, fade: null, syncTest: null,
         }, { beatPos: ms / 500, bpm: 120, epoch: 0 }, ms, universes);
-        const actual = hueChannelColors().get('preview').map(({ r, g, b }) => ({ r, g, b, w: 0, a: 0, uv: 0 }));
+        const actual = byteColours().map(({ r, g, b }) => ({ r, g, b, w: 0, a: 0, uv: 0 }));
         assert.deepEqual(sample(ms, fixtures, COLOR_PRESETS, rig), actual, `rendered Hue frame at ${ms} ms`);
         if (actual.some(({ r, g, b }) => r + g + b > 0)) lit = true;
       }
