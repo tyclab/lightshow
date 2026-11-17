@@ -18,7 +18,7 @@ const lamp = (lights, extra = {}) => {
   return { profile, fixture: { id: 1, label: 'Lamp', profileId: profile.id, output: { protocol: 'hue', bridge: 'b1', channels: profile.cells ? [0, 1, 2] : [0] } } };
 };
 const shape = (lights, fields = {}) => { const { profile, fixture } = lamp(lights); return emissionOf({ ...fixture, ...fields }, profile); };
-const SPOT = { kind: 'beam', beamAngle: 36, tilt: -90 };
+const SPOT = { kind: 'beam', beamAngle: 43, tilt: -90 };
 
 test('room targets override generic downlight aim and hit cabinet surfaces before the wall', () => {
   const { profile, fixture } = lamp([light('spot_bulb')]);
@@ -71,7 +71,7 @@ test('a modeled fixture keeps its lit lens and directed spill without a second l
   assert.deepEqual(placed.lamps[0].position, binding.position);
 });
 
-test('spot fittings and spot bulbs throw a 36 degree beam straight down', () => {
+test('spot fittings and spot bulbs throw the 43 degree beam of Hue\'s GU10 straight down', () => {
   for (const archetype of ['spot_bulb', 'single_spot', 'double_spot', 'triple_spot', 'recessed_ceiling', 'pendant_spot']) {
     assert.deepEqual(shape([light(archetype)]), SPOT, archetype);
   }
@@ -123,7 +123,7 @@ test('shades, candles, Go, Iris, Play, strips and lamps imported before archetyp
 
 test('a spot in the floor group keeps the floor aim and takes only its spread', () => {
   const emission = shape([light('spot_bulb')], { group: 'floor' });
-  assert.deepEqual(emission, { kind: 'beam', beamAngle: 36 });
+  assert.deepEqual(emission, { kind: 'beam', beamAngle: 43 });
   assert.ok(beamDirection(emission, true).y > 0.9, 'up from the floor');
   assert.deepEqual(shape([light('spot_bulb')], { group: 'room' }), SPOT, 'the room group is no exception');
 });
@@ -143,11 +143,11 @@ test('a chosen shape always wins, and a par that is not Hue is unchanged', () =>
 test('a Hue lamp gives the lumen of the product its bridge names, a strip per metre, lights on one channel together', () => {
   const of = (...products) => hueLumen(lamp(products.map((product) => light(null, product))).profile);
   for (const [product, lumen] of [['Hue color lamp', 806], ['Hue color spot', 350], ['Hue Centris spot', 350], ['Hue color candle', 470],
-    ['Hue Play', 530], ['Hue go', 300], ['Go table lamp', 370], ['Hue Centris ceiling', 1900]]) assert.deepEqual(of(product), { lumen }, product);
+    ['Hue Play', 500], ['Hue go', 300], ['Go table lamp', 530], ['Hue Centris ceiling', 2500]]) assert.deepEqual(of(product), { lumen }, product);
   assert.deepEqual(of('Hue lightstrip plus'), { lumen: 1600, perMetre: 800 });
   assert.deepEqual(of('Hue gradient lightstrip'), { lumen: 1800, perMetre: 900 });
-  assert.deepEqual(of('Hue play gradient lightstrip'), { lumen: 1100, perMetre: 700 });
-  assert.deepEqual(of('Play gradient tube'), { lumen: 1840, perMetre: 1470 });
+  assert.deepEqual(of('Hue play gradient lightstrip'), { lumen: 1100, perMetre: 430 });
+  assert.deepEqual(of('Play gradient tube'), { lumen: 1800, perMetre: 1300 });
   assert.deepEqual(of('Hue color spot', 'Hue color spot', 'Hue color spot'), { lumen: 1050 });
   assert.equal(hueLumen({ id: 'par', channelMap: { red: 0 } }), null, 'a fixture that is not Hue states none');
 });
@@ -158,7 +158,8 @@ test('a room lamp\'s pool is drawn by the lumen it spreads over each square metr
     const room = { bounds: { width: 6, depth: 6, height: 2.6 }, objects: [], bindings: [{ id: 'lamp', fixtureId: 1, ...binding }] };
     return roomRig([fixture], buildRig([fixture], () => profile), room, { [profile.id]: profile });
   };
-  const spot = placed('Hue color spot', { position: { x: 0, y: 2.45, z: 0 } }, 'spot_bulb').lamps[0];
+  // The cone POOL_FULL was set by: 36 degrees, stated as the lamp's light shape (a Hue spot's own is 43).
+  const reference = lamp([light('spot_bulb', 'Hue color spot')]), spot = roomRig([{ ...reference.fixture, emission: { kind: 'beam', beamAngle: 36, tilt: -90 } }], buildRig([reference.fixture], () => reference.profile), { bounds: { width: 6, depth: 6, height: 2.6 }, objects: [], bindings: [{ id: 'lamp', fixtureId: 1, position: { x: 0, y: 2.45, z: 0 } }] }, { [reference.profile.id]: reference.profile }).lamps[0];
   assert.ok(Math.abs(spot.lumen / (Math.PI * spot.pool.major * spot.pool.minor) - POOL_FULL) < 1, 'the reference: a 350 lm spot 2.45 m above the floor');
   assert.ok(spot.pool.level > 0.98 && spot.pool.level <= 1);
   const wash = placed('Hue color lamp', { position: { x: 0, y: 1, z: 0 }, lightTarget: { x: 0, y: 1, z: 3 } }).lamps[0];

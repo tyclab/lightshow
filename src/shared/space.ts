@@ -94,6 +94,10 @@ export function plotPosition(rig: Rig, u: number, bounds: UnitSpace['bounds']): 
   return { x: (p.x / 100 - 0.5) * bounds.width, y: (height / 100) * bounds.height, z: (p.y / 100 - 0.5) * bounds.depth };
 }
 
+/** The length of a surveyed path, in metres. */
+export const runLength = (path: readonly Vec3[]): number =>
+  path.slice(1).reduce((sum, to, k) => sum + Math.hypot(to.x - path[k].x, to.y - path[k].y, to.z - path[k].z), 0);
+
 // A strip path places a run of cells: from its own unit up to the next cell another binding names.
 export function pathPoints(path: readonly Vec3[], count: number): Vec3[] {
   const lengths = path.slice(1).map((to, k) => Math.hypot(to.x - path[k].x, to.y - path[k].y, to.z - path[k].z));
