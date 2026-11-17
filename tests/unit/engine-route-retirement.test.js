@@ -376,7 +376,9 @@ test('a thread that dies before its first acknowledgement hands the retirement t
 
 const AREA = '0123abcd-1234-5678-9abc-def012345678';
 const BRIDGE = { id: 'b1', label: 'Lounge', enabled: true, host: '192.0.2.2', username: 'user', clientKey: 'aabb', applicationId: 'app-id', entertainmentId: AREA };
-const OURS = { data: [{ id: AREA, status: 'active', active_streamer: { rid: 'app-id', rtype: 'auth_v1' } }] };
+// Channel 0 lights the lamp's service, as the area an arm reads before the lamp streams.
+const OURS = { data: [{ id: AREA, status: 'active', active_streamer: { rid: 'app-id', rtype: 'auth_v1' },
+  channels: [{ channel_id: 0, members: [{ service: { rid: 'lamp-service' }, index: 0 }] }] }] };
 
 function fakeBridge(t) {
   t.mock.method(https, 'request', (options, onResponse) => {

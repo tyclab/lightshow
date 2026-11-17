@@ -6,6 +6,7 @@ import { INTERNAL_UNIVERSE, footprintOf, hasNoAddress, isHueLamp, isWled, univer
 import { isHueProfile, hueSections, hueChannels } from '../../shared/hue-lamp.ts';
 import { geometryUnitIssue, unitCount } from '../../shared/rig.ts';
 import { refreshHueFixtures } from '../hue-migration.ts';
+import { describeDark, followArea, followHuePatch, indexArea } from '../hue-sections.ts';
 import { hueProfile, hueProfileId } from '../hue-profile.ts';
 import type { AreaLamp, EntertainmentArea } from '../hue.ts';
 import type { HueBridgeSettings } from '../settings.ts';
@@ -24,7 +25,7 @@ import * as output from '../output.ts';
 import { defaultHueBridgeId } from '../settings.ts';
 import { messageOf, statusOf } from '../../errors.ts';
 import type { Express, Response } from 'express';
-import type { Fixture, Profile } from '../../types/rig.ts';
+import type { Fixture, HueMember, HueOutput, Profile } from '../../types/rig.ts';
 import { asyncHandler, resolveHueBridge } from './common.ts';
 import type { RouteContext } from './common.ts';
 
@@ -436,12 +437,25 @@ export function attachFixtureRoutes(app: Express, ctx: RouteContext): void {
     return area || null;
   }
 
-  /** The fixture a lamp of a bridge's area is patched as already: on its profile, or on one of its channels. */
-  function patchedAs(bridgeId: string, lamp: AreaLamp): Fixture | null {
+  /**
+   * The fixture a lamp of a bridge's area is patched as already: on its profile or lighting one of its members by
+   * the members it recorded. `stale`: one that only still holds one of the lamp's channel numbers in the patch,
+   * from before the area changed, while it lights other lamps or none (no number is saved twice).
+   */
+  function patchedAs(bridgeId: string, lamp: AreaLamp, area: EntertainmentArea): { fixture: Fixture; stale: boolean } | null {
     const profileId = hueProfileId(lamp.id, bridgeId);
-    return state.fixtures.find((f) => f.output?.protocol === 'hue' && f.output.bridge === bridgeId
-      && (f.profileId === profileId || hueChannels(f.output).some((ch) => lamp.channels.includes(ch)))) || null;
+    const key = (m: HueMember) => `${m.serviceId}#${m.segmentIndex ?? ''}`;
+    const lit = new Set(area.channels.filter((ch) => lamp.channels.includes(ch.id)).flatMap((ch) => (ch.members || []).map(key)));
+    const mine = state.fixtures.filter((f) => f.output?.protocol === 'hue' && f.output.bridge === bridgeId);
+    const fixture = mine.find((f) => f.profileId === profileId
+      || !!(f.output as HueOutput).members?.some((set) => set.some((m) => lit.has(key(m)))));
+    if (fixture) return { fixture, stale: false };
+    const holder = mine.find((f) => hueChannels(f.output as HueOutput).some((ch) => lamp.channels.includes(ch)));
+    return holder ? { fixture: holder, stale: !!(holder.output as HueOutput).members } : null;
   }
+  const heldBy = (lamp: AreaLamp, holder: Fixture) => `${lamp.name ? `"${lamp.name}"` : 'That lamp'} is on channel `
+    + `${lamp.channels.filter((ch) => hueChannels(holder.output as HueOutput).includes(ch)).map((ch) => `#${ch}`).join(', ')}, which "${holder.label}" `
+    + 'still holds in the patch from before the area changed. Remove the lamps that stay dark first, then add it again.';
 
   /** The lamps of the area a bridge streams, their sections, and what each can show. */
   app.get('/api/hue/:bridge/lamps', asyncHandler(async (req, res) => {
@@ -470,6 +484,8 @@ export function attachFixtureRoutes(app: Express, ctx: RouteContext): void {
     if (!bridge) return;
     const area = await hueArea(bridge, res);
     if (!area) return;
+    // A number a removed lamp held is taken up before the patch is compared with the area.
+    followHuePatch();
 
     const wanted = body.lamps ? new Set(body.lamps) : body.channels
       ? new Set(area.lamps.filter((lamp) => lamp.channels.some((channel) => body.channels!.includes(channel))).map((lamp) => lamp.id)) : null;
@@ -479,11 +495,19 @@ export function attachFixtureRoutes(app: Express, ctx: RouteContext): void {
     for (const id of wanted || []) {
       const lamp = area.lamps.find((l) => l.id === id);
       if (!lamp) return res.status(404).json({ ok: false, error: `"${area.name}" has no lamp ${id}` });
-      const already = patchedAs(bridge.id, lamp);
-      if (already) return res.status(409).json({ ok: false, error: `${lamp.name || 'That lamp'} is patched already, as "${already.label}"` });
+      const already = patchedAs(bridge.id, lamp, area);
+      if (already?.stale) return res.status(409).json({ ok: false, error: heldBy(lamp, already.fixture) });
+      if (already) return res.status(409).json({ ok: false, error: `${lamp.name || 'That lamp'} is patched already, as "${already.fixture.label}"` });
     }
-    const fresh = area.lamps.filter((lamp) => (wanted ? wanted.has(lamp.id) : !patchedAs(bridge.id, lamp)));
-    if (!fresh.length) return res.status(409).json({ ok: false, error: `Every lamp of "${area.name}" is patched already` });
+    const fresh = area.lamps.filter((lamp) => (wanted ? wanted.has(lamp.id) : !patchedAs(bridge.id, lamp, area)));
+    // Left out of "every lamp not patched yet" although nothing lights them: named, not passed over.
+    const held = wanted ? [] : area.lamps.flatMap((lamp) => {
+      const already = patchedAs(bridge.id, lamp, area);
+      return already?.stale ? [{ id: lamp.id, name: lamp.name, reason: heldBy(lamp, already.fixture) }] : [];
+    });
+    if (!fresh.length) {
+      return res.status(409).json({ ok: false, error: held.length ? held.map((h) => h.reason).join(' ') : `Every lamp of "${area.name}" is patched already` });
+    }
     const built = fresh.map((lamp) => ({ lamp, profile: hueProfile(lamp, bridge.id) }));
     const unread = built.find((b) => !b.profile);
     if (unread) {
@@ -497,15 +521,25 @@ export function attachFixtureRoutes(app: Express, ctx: RouteContext): void {
     }
 
     const profiles = [...new Map(built.map(({ profile }) => [(profile as Profile).id, profile as Profile])).values()];
-    const draft: Fixture[] = built.map(({ lamp, profile }, k) => ({
-      id: -1 - k, label: (lamp.name || `Hue ${lamp.channels[0]}`).slice(0, 64), address: 1, universe: INTERNAL_UNIVERSE,
-      profileId: (profile as Profile).id, maxBrightness: 255, override: null,
-      output: { protocol: 'hue', bridge: bridge.id, channels: [...lamp.channels] },
-    }));
+    // Each section records what its channel lights, so a later renumbering of the area is followed.
+    const membersOf = (channels: readonly number[]): HueMember[][] | undefined => {
+      const sets = channels.map((id) => (area.channels.find((entry) => entry.id === id)?.members || [])
+        .map(({ serviceId, segmentIndex }) => ({ serviceId, segmentIndex })));
+      return sets.every((set) => set.length) ? sets : undefined;
+    };
+    const draft: Fixture[] = built.map(({ lamp, profile }, k) => {
+      const members = membersOf(lamp.channels);
+      return {
+        id: -1 - k, label: (lamp.name || `Hue ${lamp.channels[0]}`).slice(0, 64), address: 1, universe: INTERNAL_UNIVERSE,
+        profileId: (profile as Profile).id, maxBrightness: 255, override: null,
+        output: { protocol: 'hue', bridge: bridge.id, channels: [...lamp.channels], ...(members ? { members } : {}) },
+      };
+    });
     const added = addFixtures(draft, profiles, `These lamps would put the patch on more than the ${MAX_UNIVERSES} universes this server renders`,
       () => integrations.broadcast());
     if ('error' in added) return res.status(400).json({ ok: false, error: added.error });
-    res.json({ ok: true, fixtures: added.fixtures, profiles, bridge: { id: bridge.id, label: bridge.label }, area: { id: area.id, name: area.name } });
+    res.json({ ok: true, fixtures: added.fixtures, profiles, bridge: { id: bridge.id, label: bridge.label }, area: { id: area.id, name: area.name },
+      ...(held.length ? { skipped: held } : {}) });
   }));
 
   app.post('/api/hue/:bridge/refresh', asyncHandler(async (req, res) => {
@@ -513,10 +547,21 @@ export function attachFixtureRoutes(app: Express, ctx: RouteContext): void {
     if (!bridge) return;
     const area = await hueArea(bridge, res);
     if (!area) return;
-    const { updates, skipped } = refreshHueFixtures(state.fixtures, listProfiles(), bridge.id, area.lamps);
-    if (!updates.length) return res.json({ ok: true, refreshed: [], skipped });
+    // Sections follow their recorded members first, so a renumbered lamp is refreshed as the lamp it is.
+    const followed = followArea(state.fixtures, bridge.id, indexArea(area.channels), defaultHueBridgeId(output.getHueConfig().bridges));
+    const dark = new Set([...followed.results].filter(([, result]) => !result.ok).map(([id]) => id));
+    const current = followed.fixtures.filter((fixture) => !dark.has(fixture.id)).map((fixture) => {
+      const result = followed.results.get(fixture.id);
+      return result?.ok ? { ...fixture, output: { ...fixture.output as HueOutput, channels: result.channels } } : fixture;
+    });
+    const { updates, skipped } = refreshHueFixtures(current, listProfiles(), bridge.id, area.lamps);
+    for (const fixture of state.fixtures) {
+      const result = followed.results.get(fixture.id);
+      if (result && !result.ok) skipped.push({ id: fixture.id, label: fixture.label, reason: describeDark(fixture.label, fixture.output as HueOutput, result, area) });
+    }
+    if (!updates.length && !followed.changed) return res.json({ ok: true, refreshed: [], skipped });
     const byId = new Map(updates.map((update) => [update.id, update.profile]));
-    const draft = state.fixtures.map((fixture) => ({ ...fixture, profileId: byId.get(fixture.id)?.id || fixture.profileId }));
+    const draft = followed.fixtures.map((fixture) => ({ ...fixture, profileId: byId.get(fixture.id)?.id || fixture.profileId }));
     const refreshedProfiles = new Map(updates.map(({ profile }) => [profile.id, profile]));
     const profileOf = (fixture: Pick<Fixture, 'profileId'>) => refreshedProfiles.get(fixture.profileId) || getProfile(fixture);
     placeAddresslessFixtures(draft, profileOf);

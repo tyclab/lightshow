@@ -120,8 +120,10 @@ async function withRoutes(fn, { fixtures = [], hue = null } = {}) {
     sendPixels: (target, data) => calls.pixels.push({ ...target, bytes: data.length }),
     locate: async (opts) => { calls.locate.push(opts); return { ok: true, error: null }; },
     hueIdentify: async (_host, _key, devices) => { calls.hue.push(devices); return devices.length; },
+    // As a bridge lists an area: every channel names the entertainment services it lights.
     hueAreas: async () => [{ id: 'a1', name: 'Room', status: 'inactive',
-      channels: [{ id: 0, name: 'Lamp', position: null, devices: ['d1'] }, { id: 1, name: 'Strip', position: null, devices: ['d2', 'd3'] }],
+      channels: [{ id: 0, name: 'Lamp', position: null, devices: ['d1'], members: [{ serviceId: 'ent-1', segmentIndex: 0 }] },
+        { id: 1, name: 'Strip', position: null, devices: ['d2', 'd3'], members: [{ serviceId: 'ent-2', segmentIndex: 0 }, { serviceId: 'ent-3', segmentIndex: 0 }] }],
       lamps: [{ id: 'lamp', channels: [0], devices: ['d1'] }, { id: 'strip', channels: [1], devices: ['d2', 'd3'] }] }],
   });
   const server = await new Promise((r) => { const s = app.listen(0, '127.0.0.1', () => r(s)); });

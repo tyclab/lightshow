@@ -371,7 +371,7 @@ test('a Hue bridge another app is streaming to warns and names the area', async 
   const { EventEmitter } = await import('node:events');
   const hue = await import('../../src/server/hue.ts');
   const areas = { data: [
-    { id: PAIRED.entertainmentId, metadata: { name: 'Music area' }, status: 'inactive', channels: [{ channel_id: 0, members: [] }] },
+    { id: PAIRED.entertainmentId, metadata: { name: 'Lounge area' }, status: 'inactive', channels: [{ channel_id: 0, members: [{ service: { rid: 'bulb' }, index: 0 }] }] },
     { id: 'tv', metadata: { name: 'TV Couch' }, status: 'active', active_streamer: { rid: 'sync-box' }, channels: [] },
   ] };
   t.mock.method(console, 'warn', () => {});
