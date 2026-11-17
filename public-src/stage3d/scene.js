@@ -97,6 +97,8 @@ const POOL_VERTEX = /* glsl */`
 
 // Each pool's clip (world.js poolClip) as texels of uClip from the pool's own header: its surface box
 // (centre, then three axes with their half sizes), then where its room's edges and its walls' boxes are.
+// No loop leaves early (return, continue, discard): Direct3D's compiler fails on one that does with an
+// internal error, and the browser then takes the whole context away at the pool's first draw.
 const POOL_FRAGMENT = /* glsl */`
   uniform float uStrength;
   uniform sampler2D uClip;
@@ -109,25 +111,29 @@ const POOL_FRAGMENT = /* glsl */`
   vec4 clipAt(int i) { return texelFetch(uClip, ivec2(i % uClipWidth, i / uClipWidth), 0); }
   bool inBox(vec3 p, int at) {
     vec3 d = p - clipAt(at).xyz;
-    for (int i = 1; i <= 3; i++) { vec4 axis = clipAt(at + i); if (abs(dot(d, axis.xyz)) > axis.w) return false; }
-    return true;
+    bool inside = true;
+    for (int i = 1; i <= 3; i++) { vec4 axis = clipAt(at + i); inside = inside && abs(dot(d, axis.xyz)) <= axis.w; }
+    return inside;
   }
   bool crosses(vec3 from, vec3 to, int at) {
     vec3 o = from - clipAt(at).xyz, d = to - from;
     float enter = 0.0, leave = 1.0;
+    bool reaches = true;
     for (int i = 1; i <= 3; i++) {
       vec4 axis = clipAt(at + i);
       float p = dot(o, axis.xyz), along = dot(d, axis.xyz);
-      if (abs(along) < 1e-9) { if (abs(p) > axis.w) return false; continue; }
-      float a = (-axis.w - p) / along, b = (axis.w - p) / along;
-      enter = max(enter, min(a, b)); leave = min(leave, max(a, b));
+      if (abs(along) < 1e-9) reaches = reaches && abs(p) <= axis.w;
+      else {
+        float a = (-axis.w - p) / along, b = (axis.w - p) / along;
+        enter = max(enter, min(a, b)); leave = min(leave, max(a, b));
+      }
     }
-    return enter <= leave;
+    return reaches && enter <= leave;
   }
   void main() {
     int head = vPool * 5;
     vec4 where = clipAt(head + 4);
-    if (clipAt(head).w > 0.5 && !inBox(vWorld, head)) discard;
+    bool lit = clipAt(head).w <= 0.5 || inBox(vWorld, head);
     int edges = int(where.y + 0.5);
     if (edges > 0) {
       bool inside = false;
@@ -135,10 +141,11 @@ const POOL_FRAGMENT = /* glsl */`
         vec4 e = clipAt(int(where.x + 0.5) + i);
         if ((e.y > vWorld.z) != (e.w > vWorld.z) && vWorld.x < (e.z - e.x) * (vWorld.z - e.y) / (e.w - e.y) + e.x) inside = !inside;
       }
-      if (!inside) discard;
+      lit = lit && inside;
     }
     int walls = int(where.w + 0.5);
-    for (int i = 0; i < walls; i++) if (crosses(vCentre, vWorld, int(where.z + 0.5) + i * 4)) discard;
+    for (int i = 0; i < walls; i++) lit = lit && !crosses(vCentre, vWorld, int(where.z + 0.5) + i * 4);
+    if (!lit) discard;
     float d = length(vUv - 0.5) * 2.0;
     float fall = pow(clamp(1.0 - d, 0.0, 1.0), 1.8);
     gl_FragColor = vec4(vColor * fall * uStrength, 1.0);
@@ -868,6 +875,8 @@ export function createStageScene(canvas, { haze = 0.6, room, lightRGB }) {
 
   return {
     setRig, setLights, setHaze, setRoom, setCutaway, setRoomLight, setPicture, view, nudge, focusAt, resize, render, dispose,
+    /** The browser took the context away: this scene draws nothing more. */
+    lost: () => renderer.getContext().isContextLost(),
     /** What is drawn, for tests and the page's description. */
     info: () => ({ units, pars: parts ? parts.pars.length : 0, bulbs: parts ? parts.bulbs.length : 0, cells: parts ? parts.cells.length : 0,
       roomLights: roomLights.filter((light) => light.visible).map((light) => ({ intensity: light.intensity, color: light.color.getHex(), at: light.position.toArray() })) }),

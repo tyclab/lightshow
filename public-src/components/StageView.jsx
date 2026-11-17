@@ -62,7 +62,7 @@ export function StageView({ compact = false, draft = null } = {}) {
   const dark = auditioning || drafting ? null : mode.note;
   const tag = drafting ? (frozen ? 'Draft · held by Freeze' : 'Draft · demo beat') : auditioning ? 'Audition · browser only' : mode.tag;
   const tagClass = `panel-tag${tag === 'Blackout' ? ' blackout' : ''}`;
-  const [status, setStatus] = useState('loading');   // loading | ready | nowebgl | error
+  const [status, setStatus] = useState('loading');   // loading | ready | nowebgl | error | lost
   const [view, setView] = useState('audience');
   const [haze, setHaze] = useState(readHaze);
   const [roomState, setRoomState] = useState(() => knownRoom() || { room: null, revision: null });
@@ -105,6 +105,10 @@ export function StageView({ compact = false, draft = null } = {}) {
     }
     element.onkeydown = (event) => keys.current(event);
     element.ondblclick = (event) => { if (scene.current) scene.current.focusAt(event.clientX, event.clientY); };
+    // The browser took the context away (a graphics fault, a driver reset): the room draws nothing more, so the
+    // plot takes its place and the view says why. The pool drops this scene; the next view to mount makes a new one.
+    const onLost = () => { setStatus('lost'); setFormat('plot'); };
+    element.addEventListener('webglcontextlost', onLost);
     host.current.appendChild(element);
     canvas.current = element;
     const adopt = (entry) => {
@@ -132,6 +136,7 @@ export function StageView({ compact = false, draft = null } = {}) {
       cancelled = true;
       element.onkeydown = null;
       element.ondblclick = null;
+      element.removeEventListener('webglcontextlost', onLost);
       if (held) scenePool.give(held);
       else element.remove();
       scene.current = null;
@@ -286,9 +291,10 @@ export function StageView({ compact = false, draft = null } = {}) {
       <div class="stage3d-tools" role="toolbar" aria-label="Stage view">
         <StageTag class={tagClass} tag={tag} />
         {!auditioning && !drafting && mode.unmet && <span class="stage-unmet" role="status">{mode.unmet}</span>}
+        {status === 'lost' && <span class="stage-unmet" role="alert">The 3D room lost its graphics in this browser, so the 2D plot shows the rig. Reload the page for the 3D room.</span>}
         <PreviewToggle pausable={drafting || (mode.pausable && !auditioning)} />
         <div class="segmented" role="group" aria-label="Stage format">
-          <button type="button" class="btn sm" aria-pressed={format === '3d'} onClick={() => setFormat('3d')}>3D room</button>
+          <button type="button" class="btn sm" aria-pressed={format === '3d'} disabled={status === 'lost'} onClick={() => setFormat('3d')}>3D room</button>
           <button type="button" class="btn sm" aria-pressed={format === 'plot'} onClick={() => setFormat('plot')}>2D plot</button>
         </div>
         <div class="segmented" role="group" aria-label="Viewpoint">
