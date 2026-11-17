@@ -53,7 +53,7 @@ export function PaletteLibrary({ builtin, user, onClose }) {
       </select></label>
       <button type="button" class="btn sm" disabled={busy} onClick={() => { if (discard()) onClose(); }}>Close library</button>
     </div>
-    {!user.length && <p class="muted">Use Edit palette → Save as palette to create your first saved palette. Built-ins stay unchanged.</p>}
+    {!user.length && <p class="muted">Save as palette, under Edit colours on Show or under Edit palette on Perform, creates your first saved palette. Built-ins stay unchanged.</p>}
     {draft && <fieldset disabled={busy} style={{ border: 0, padding: 0, margin: 0, minWidth: 0 }}>
       <label>Palette name <input aria-label="Saved palette name" value={draft.name} maxLength={80} disabled={busy}
         onInput={(e) => setDraft({ ...draft, name: e.currentTarget.value })} /></label>

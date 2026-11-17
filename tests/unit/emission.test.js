@@ -4,10 +4,10 @@
 
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { emissionOf, hueEmission, hueLumen, beamDirection, BULB_LUMEN } from '../../src/shared/emission.ts';
+import { emissionOf, hueEmission, hueLumen, beamDirection } from '../../src/shared/emission.ts';
 import { hueProfile } from '../../src/server/hue-profile.ts';
 import { buildRig } from '../../src/shared/rig.ts';
-import { roomRig, emitterWeight, POOL_FULL } from '../../public-src/stage3d/world.js';
+import { roomRig, POOL_FULL } from '../../public-src/stage3d/world.js';
 import { areaLamp } from './hue-test-lamps.js';
 
 const light = (archetype, product = 'Hue color lamp') => ({ archetype, product });
@@ -48,7 +48,6 @@ test('a directed strip keeps its run and output sources while aiming from the ru
   assert.deepEqual([cells[0].from, cells[0].to], binding.path);
   assert.deepEqual(lamps[0].aim, { x: 0, y: 1, z: 0 });
   assert.equal(lamps[0].unit, cells[0].unit);
-  assert.equal(lamps[0].weight, 0, 'spill does not double room-light energy');
   assert.equal(lamps[0].body, 0, 'the physical strip already exists');
 });
 
@@ -66,7 +65,6 @@ test('a modeled fixture keeps its lit lens and directed spill without a second l
   assert.equal(placed.objectLights[0].objectId, 'lens');
   assert.equal(placed.lamps.length, 1);
   assert.equal(placed.lamps[0].body, 0);
-  assert.equal(placed.lamps[0].weight, 0, 'the luminous surface already contributes ambient energy');
   assert.ok(placed.lamps[0].aim.y > 0);
   assert.equal(placed.lamps[0].pool.normal.y, -1);
   assert.deepEqual(placed.lamps[0].position, binding.position);
@@ -153,7 +151,7 @@ test('a Hue lamp gives the lumen of the product its bridge names, a strip per me
   assert.equal(hueLumen({ id: 'par', channelMap: { red: 0 } }), null, 'a fixture that is not Hue states none');
 });
 
-test('a room lamp lights by its lumen: its share of the room light, and its pool by the area it spreads over', () => {
+test('a room lamp\'s pool is drawn by the lumen it spreads over each square metre', () => {
   const placed = (product, binding, archetype = null) => {
     const { profile, fixture } = lamp([light(archetype, product)]);
     const room = { bounds: { width: 6, depth: 6, height: 2.6 }, objects: [], bindings: [{ id: 'lamp', fixtureId: 1, ...binding }] };
@@ -163,58 +161,13 @@ test('a room lamp lights by its lumen: its share of the room light, and its pool
   const reference = lamp([light('spot_bulb', 'Hue color spot')]), spot = roomRig([{ ...reference.fixture, emission: { kind: 'beam', beamAngle: 36, tilt: -90 } }], buildRig([reference.fixture], () => reference.profile), { bounds: { width: 6, depth: 6, height: 2.6 }, objects: [], bindings: [{ id: 'lamp', fixtureId: 1, position: { x: 0, y: 2.45, z: 0 } }] }, { [reference.profile.id]: reference.profile }).lamps[0];
   assert.ok(Math.abs(spot.lumen / (Math.PI * spot.pool.major * spot.pool.minor) - POOL_FULL) < 1, 'the reference: a 350 lm spot 2.45 m above the floor');
   assert.ok(spot.pool.level > 0.98 && spot.pool.level <= 1);
-  assert.ok(Math.abs(emitterWeight(spot) - 350 / BULB_LUMEN) < 1e-9, 'and 0.43 of a bulb in the room light');
   const wash = placed('Hue color lamp', { position: { x: 0, y: 1, z: 0 }, lightTarget: { x: 0, y: 1, z: 3 } }).lamps[0];
   assert.ok(wash.pool.level > 0.05 && wash.pool.level < 0.2, `a bulb's 100 degree wash on a wall 3 m away is faint: ${wash.pool.level}`);
-  const candle = placed('Hue color candle', { position: { x: 0, y: 1, z: 0 } }).lamps[0];
-  assert.deepEqual([candle.kind, emitterWeight(candle)], ['bulb', 470 / BULB_LUMEN]);
-  const strip = placed('Hue lightstrip plus', { position: { x: -1, y: 2, z: 0 }, path: [{ x: -1, y: 2, z: 0 }, { x: 1, y: 2, z: 0 }] }).cells[0];
-  assert.ok(Math.abs(emitterWeight(strip) - 1600 / BULB_LUMEN) < 1e-9, 'two metres of an 800 lm/m strip');
 });
 
-test('a par of unknown lumen keeps a bulb\'s share and a full pool; a dense panel\'s pixels give less by their area', () => {
+test('a par of unknown lumen keeps a full pool', () => {
   const par = { id: 2, label: 'Par', profileId: 'par', emission: { kind: 'beam', tilt: -90, beamAngle: 120 } }, parProfile = { id: 'par', channelMap: { red: 0 } };
   const room = { bounds: { width: 6, depth: 6, height: 2.6 }, objects: [], bindings: [{ id: 'par', fixtureId: 2, position: { x: 0, y: 2.5, z: 0 } }] };
   const lit = roomRig([par], buildRig([par], () => parProfile), room, { par: parProfile }).lamps[0];
-  assert.deepEqual([lit.pool.level, emitterWeight(lit)], [undefined, 1]);
-  const panel = { id: 3, label: 'Panel', profileId: 'panel' };
-  const cells = Array.from({ length: 16 }, (_, c) => ({ at: { x: c % 4, y: Math.floor(c / 4) } }));
-  const panelProfile = { id: 'panel', channelMap: { red: 0, green: 1, blue: 2 }, cells, grid: { columns: 4, rows: 4 } };
-  const rig = buildRig([panel], () => panelProfile);
-  const bindings = cells.map((cell, unit) => ({ id: `p${unit}`, fixtureId: 3, unit, position: { x: cell.at.x * 0.005, y: 1 + cell.at.y * 0.005, z: 0 } }));
-  const pixels = roomRig([panel], rig, { ...room, bindings }, { panel: panelProfile }).cells;
-  assert.equal(pixels.length, 16);
-  assert.ok(Math.abs(emitterWeight(pixels[0]) - 0.01 * 0.09) < 1e-9, `a 5 mm pitch is 0.3 of a strip's, so 0.09 of its pixel: ${emitterWeight(pixels[0])}`);
-});
-
-test('a light drawn as a room object gives the room light what it gives undrawn: its lumen, never the size of the object', () => {
-  const bounds = { width: 6, depth: 6, height: 2.6 };
-  const weightOf = (placed) => placed.objectClusters.reduce((sum, emitter) => sum + emitter.weight, 0);
-  const box = (id, edge, lightBindingId, x = 0) => ({ id, kind: 'box', role: 'furniture', position: { x, y: 1, z: 0 }, size: { x: edge, y: edge, z: edge }, lightBindingId });
-  // A 470 lm candle in a 5 cm shade and in a 1 m one.
-  for (const edge of [0.05, 1]) {
-    const { profile, fixture } = lamp([light(null, 'Hue color candle')]);
-    const room = { bounds, objects: [box('shade', edge, 'lamp')], bindings: [{ id: 'lamp', fixtureId: 1, position: { x: 0, y: 1, z: 0 } }] };
-    const placed = roomRig([fixture], buildRig([fixture], () => profile), room, { [profile.id]: profile });
-    assert.ok(Math.abs(weightOf(placed) - 470 / BULB_LUMEN) < 1e-9, `a ${edge} m shade: ${weightOf(placed)}`);
-  }
-  // A lamp of unknown lumen over three parts: a bulb's share in all, each part by its area.
-  const par = { id: 2, label: 'Par', profileId: 'par' }, parProfile = { id: 'par', channelMap: { red: 0 } };
-  const parts = { bounds, objects: [box('a', 0.1, 'par'), box('b', 0.2, 'par', 1), box('c', 0.2, 'par', 2)], bindings: [{ id: 'par', fixtureId: 2, position: { x: 0, y: 1, z: 0 } }] };
-  const shared = roomRig([par], buildRig([par], () => parProfile), parts, { par: parProfile }).objectClusters.map((emitter) => emitter.weight);
-  assert.ok(Math.abs(shared.reduce((sum, weight) => sum + weight, 0) - 1) < 1e-9, `three parts of one lamp: ${shared}`);
-  assert.ok(Math.abs(shared[0] - 1 / 9) < 1e-9 && Math.abs(shared[1] - 4 / 9) < 1e-9, `by area: ${shared}`);
-  // A panel whose 16 pixels are each a part of the room: what its pixels give with nothing drawn for them.
-  const panel = { id: 3, label: 'Panel', profileId: 'panel' };
-  const cells = Array.from({ length: 16 }, (_, c) => ({ at: { x: c % 4, y: Math.floor(c / 4) } }));
-  const panelProfile = { id: 'panel', channelMap: { red: 0, green: 1, blue: 2 }, cells, grid: { columns: 4, rows: 4 } };
-  const rig = buildRig([panel], () => panelProfile);
-  const at = (cell) => ({ x: cell.at.x * 0.005, y: 1 + cell.at.y * 0.005, z: 0 });
-  const bindings = cells.map((cell, unit) => ({ id: `p${unit}`, fixtureId: 3, unit, position: at(cell) }));
-  const undrawn = roomRig([panel], rig, { bounds, objects: [], bindings }, { panel: panelProfile });
-  const drawn = roomRig([panel], rig, { bounds, bindings,
-    objects: cells.map((cell, unit) => ({ id: `led${unit}`, kind: 'box', role: 'furniture', position: at(cell), size: { x: 0.3, y: 0.3, z: 0.3 }, lightBindingId: `p${unit}` })) }, { panel: panelProfile });
-  const pixels = undrawn.cells.reduce((sum, cell) => sum + emitterWeight(cell), 0);
-  assert.equal(drawn.cells.length, 0, 'the parts are drawn, not pixels');
-  assert.ok(Math.abs(weightOf(drawn) - pixels) < 1e-9, `16 pixels as 16 parts of 0.3 m: ${weightOf(drawn)} against ${pixels}`);
+  assert.equal(lit.pool.level, undefined);
 });

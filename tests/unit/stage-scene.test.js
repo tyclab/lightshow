@@ -11,30 +11,24 @@ const three = JSON.stringify(path.join(root, 'node_modules/three/build/three.mod
 const built = await esbuild.build({
   stdin: { contents: `export { createStageScene } from './public-src/stage3d/scene.js';
     export { keptRig } from './public-src/stage3d/kept-rig.js';
-    export { lightRGB, ROOM_LIGHTS } from './public-src/stage3d/world.js';
+    export { lightRGB } from './public-src/stage3d/world.js';
     export { built } from 'scene-counts';`, resolveDir: root },
   bundle: true, format: 'esm', platform: 'node', write: false, logLevel: 'silent',
   plugins: [{ name: 'stub-renderer', setup(build) {
     build.onResolve({ filter: /^three$/ }, () => ({ path: 'three', namespace: 'stub' }));
     build.onResolve({ filter: /^scene-counts$/ }, () => ({ path: 'counts', namespace: 'stub' }));
-    build.onLoad({ filter: /^counts$/, namespace: 'stub' }, () => ({ contents: 'export const built = { instanced: 0, groups: 0, shadowMaps: 0, shining: 0 };' }));
+    build.onLoad({ filter: /^counts$/, namespace: 'stub' }, () => ({ contents: 'export const built = { instanced: 0, groups: 0, lights: [] };' }));
     // Real three.js, but no WebGL: InstancedMesh is built per rig, a Group per rig and per room.
     build.onLoad({ filter: /^three$/, namespace: 'stub' }, () => ({ resolveDir: root, contents: `
       import * as THREE from ${three};
       import { built } from 'scene-counts';
       export * from ${three};
       export class WebGLRenderer {
-        shadowMap = { enabled: false, autoUpdate: true, needsUpdate: false };
         setPixelRatio() {} setClearColor() {} setSize() {} dispose() {} forceContextLoss() {}
-        // As three does: with the renderer asked, each visible light that casts and is asked renders its map.
-        // It also keeps how many of those lights the frame draws lit.
+        // Keeps the lights the frame is drawn under, as three collects them: the visible ones.
         render(scene) {
-          const lights = [];
-          scene.traverseVisible((object) => { if (object.isLight && object.castShadow) lights.push(object); });
-          built.shining = lights.filter((light) => light.intensity > 0).length;
-          if (!this.shadowMap.enabled || !this.shadowMap.autoUpdate && !this.shadowMap.needsUpdate || !lights.length) return;
-          for (const light of lights) if (light.shadow.autoUpdate || light.shadow.needsUpdate) { light.shadow.needsUpdate = false; built.shadowMaps++; }
-          this.shadowMap.needsUpdate = false;
+          built.lights = [];
+          scene.traverseVisible((object) => { if (object.isLight) built.lights.push(object.type); });
         }
       }
       export class InstancedMesh extends THREE.InstancedMesh { constructor(...args) { super(...args); built.instanced++; } }
@@ -90,7 +84,7 @@ test('a room the scene shows already is not built again; another room is', () =>
   assert.equal(groups() - start, 3, 'after the generic venue, the room is built again');
 });
 
-test('a room is lit by a fixed number of lights coloured by the emitters near them', () => {
+test('a room is shaded by its fill alone, whatever its lamps show; the generic venue has no light', () => {
   const stage = ui.createStageScene(canvas, { room: { width: 12, depth: 8, trussHeight: 4.6 }, lightRGB: ui.lightRGB });
   const LAMP = { id: 'scene-lamp', name: 'Lamp', channelMap: { red: 0, green: 1, blue: 2 } };
   const lamps = [1, 2].map((id) => ({ id, label: `Lamp ${id}`, universe: 1, address: id * 3, profileId: LAMP.id }));
@@ -99,58 +93,12 @@ test('a room is lit by a fixed number of lights coloured by the emitters near th
   const shown = ui.keptRig(lamps, { [LAMP.id]: LAMP }, lit);
   stage.setRoom(lit);
   stage.setRig(shown.placed, shown.rig.units.length);
-  assert.equal(stage.info().roomLights.length, ui.ROOM_LIGHTS, 'every light is on in a room, so a patch never changes the programs');
-  stage.setLights([{ r: 255 }, { b: 255 }]);
-  const on = stage.info().roomLights.filter((light) => light.intensity > 0);
-  assert.deepEqual(on.map((light) => light.color).sort((a, b) => a - b), [0x0000ff, 0xff0000]);
-  assert.ok(on.find((light) => light.color === 0xff0000).at[0] < 0, 'the red light stands on the red lamp\'s side');
-  stage.setLights([null, null]);
-  assert.ok(stage.info().roomLights.every((light) => light.intensity === 0), 'dark lamps light nothing');
-  stage.setRoomLight(false);
-  assert.equal(stage.info().roomLights.length, 0);
+  for (const frame of [[null, null], [{ r: 255 }, { b: 255 }]]) {
+    stage.setLights(frame);
+    assert.equal(stage.render(), true);
+    assert.deepEqual(ui.built.lights, ['HemisphereLight', 'DirectionalLight']);
+  }
   stage.setRoom(null);
-  stage.setRoomLight(true);
-  assert.equal(stage.info().roomLights.length, 0, 'the generic venue has no room to light');
-});
-
-test('a light\'s shadow map renders again when it moves or the room changes, one light a frame, never for a colour frame, an orbit or the cutaway', () => {
-  const stage = ui.createStageScene(canvas, { room: { width: 12, depth: 8, trussHeight: 4.6 }, lightRGB: ui.lightRGB });
-  const LAMP = { id: 'scene-lamp', name: 'Lamp', channelMap: { red: 0, green: 1, blue: 2 } };
-  const lit = (xs) => ({ ...room('Shadowed'), rooms: [{ id: 'all', label: 'All', polygon: [[-2, -2], [2, -2], [2, 2], [-2, 2]] }],
-    bindings: xs.map((x, k) => ({ id: `lamp-${k}`, fixtureId: k + 1, position: { x, y: 2, z: k - 1 } })) });
-  const patch = [1, 2].map((id) => ({ id, label: `Lamp ${id}`, universe: 1, address: id * 3, profileId: LAMP.id }));
-  const show = (model) => { const shown = ui.keptRig(patch, { [LAMP.id]: LAMP }, model); stage.setRig(shown.placed, shown.rig.units.length); };
-  const start = ui.built.shadowMaps;
-  const maps = () => ui.built.shadowMaps - start;
-  const shining = () => ui.built.shining;
-  const first = lit([-1.5, 1.5]);
-  stage.setRoom(first);
-  show(first);
-  stage.setLights([{ r: 255 }, { b: 255 }]);
   stage.render();
-  assert.deepEqual([maps(), shining()], [1, 1], 'the first frame renders one light\'s map and draws that light only');
-  assert.equal(stage.render(), true, 'the next frame comes by itself');
-  assert.deepEqual([maps(), shining()], [2, 2], 'it renders the other\'s map and draws both');
-  assert.equal(stage.render(), false, 'then nothing is left to render');
-  stage.setLights([{ g: 255 }, { r: 128 }]);
-  stage.render();
-  stage.nudge({ turn: 0.3 });
-  stage.render();
-  stage.setCutaway(false);
-  stage.render();
-  assert.equal(maps(), 2, 'a colour frame, an orbit and the cutaway, which leaves the blockers at full height, render none');
-  stage.setRoomLight(false);
-  stage.setRoomLight(true);
-  stage.setLights([{ g: 255 }, { r: 128 }]);
-  while (stage.render());
-  assert.deepEqual([maps(), shining()], [2, 2], 'Room light switched back with nothing moved renders none');
-  const moved = lit([-1.5, 1]);
-  show(moved);
-  stage.setLights([{ g: 255 }, { r: 128 }]);
-  while (stage.render());
-  assert.equal(maps(), 3, 'a lamp moved renders its own light\'s map only');
-  stage.setRoom(moved);
-  stage.setLights([{ g: 255 }, { r: 128 }]);
-  while (stage.render());
-  assert.deepEqual([maps(), shining()], [5, 2], 'a room edit renders both again');
+  assert.deepEqual(ui.built.lights, []);
 });
