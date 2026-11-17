@@ -266,7 +266,7 @@ test('channel metadata retains physical devices and segment lengths', () => {
 
 test('missing segment metadata remains explicitly unknown', () => {
   assert.deepStrictEqual(hue.channelMembers({ members: [{ service: { rid: 'missing' }, index: 4 }] }, new Map()),
-    [{ serviceId: 'missing', deviceId: null, segmentIndex: 4, segmentLength: null, segmentCount: null }]);
+    [{ serviceId: 'missing', deviceId: null, segmentIndex: 4, segmentLength: null, segmentCount: null, contentOrder: null }]);
 });
 
 // Two members of one channel are two halves of one fitting; "Strip + Strip"
@@ -297,6 +297,16 @@ test('Hue colour conversion follows lamp capabilities', () => {
   assert.strictEqual(hue.kindOf({ color: { gamut_type: 'C' }, color_temperature: { mirek: 300 } }), 'color');
   assert.strictEqual(hue.kindOf({ color_temperature: { mirek: 300 } }), 'ambiance');
   assert.strictEqual(hue.kindOf({}), 'white');
+});
+
+test('a light\'s content order counts once the bridge has set it', () => {
+  const order = (status, value) => ({ content_configuration: { order: { status, configurable: true, order: value } } });
+  assert.strictEqual(hue.contentOrderOf(order('set', 'reversed')), 'reversed');
+  assert.strictEqual(hue.contentOrderOf(order('set', 'forward')), 'forward');
+  assert.strictEqual(hue.contentOrderOf(order('changing', 'forward')), null, 'still being written to the light');
+  assert.strictEqual(hue.contentOrderOf(order('set', 'sideways')), null, 'an order it does not name');
+  assert.strictEqual(hue.contentOrderOf({ content_configuration: { orientation: { status: 'set', orientation: 'horizontal' } } }), null);
+  assert.strictEqual(hue.contentOrderOf({}), null, 'a light without content configuration');
 });
 
 test('Hue channels inherit their strongest lamp capability', () => {
