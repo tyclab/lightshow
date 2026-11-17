@@ -168,7 +168,8 @@ stage takes one part and the effects list two, and the palette list what the rig
 The floors: the stage at least 15rem and a third of its own width, each list four rows of tiles;
 when they do not fit, the page scrolls. On a phone, in one column, the order is Stage, Effects,
 Palettes, Edit colours, Background, the stage and the effects list each two fifths of the
-window. The stage opens in **3D room**, with **2D plot** available beside it. Stop controls remain
+window. The stage opens in **3D room**, with **2D plot** available beside it. If the browser takes
+the 3D room's graphics away, the stage shows the 2D plot and says so; a reload brings the room back. Stop controls remain
 under the stage when pads are playing.
 Effect settings holds the full catalogue and mapping controls, the effect editor with a stage of its own
 that draws the open draft, and the saved cues to rename, overwrite or delete; Perform is the tablet surface for

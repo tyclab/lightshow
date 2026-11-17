@@ -21,3 +21,12 @@ test('one stage scene is kept for the next view; a second is released with its W
   assert.equal(pool.take(), first);
   assert.equal(pool.take(), null);
 });
+
+test('a stage whose context the browser took away is not kept: the next view makes a new one', () => {
+  const pool = createScenePool();
+  const lost = { disposed: 0, canvas: { remove() {} } };
+  lost.scene = { lost: () => true, dispose: () => { lost.disposed++; } };
+  pool.give(lost);
+  assert.equal(lost.disposed, 1);
+  assert.equal(pool.take(), null);
+});

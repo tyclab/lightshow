@@ -191,6 +191,32 @@ test('a lost WebGL context that comes back draws again; one that does not gives 
   }
 });
 
+// Found on a Windows browser, 2026-11-17: a shader Direct3D could not compile lost the room's context at its first
+// draw. The view kept the dead canvas, switched views with it and said nothing.
+test('a 3D room whose WebGL context is taken away gives way to the plot and says so; the next view builds a new room', async ({ page }) => {
+  await open(page, 'show');
+  const room = page.locator('.show-room canvas.stage3d-canvas');
+  const alive = () => room.evaluate((canvas) => !canvas.getContext('webgl2').isContextLost());
+  await expect(page.getByRole('img', { name: /The rig in 3D/ })).toBeVisible();
+  await expect.poll(alive).toBe(true);
+  const tools = page.locator('.show-room .stage3d-tools');
+  await expect(tools.getByRole('alert')).toHaveCount(0);
+  await room.evaluate((canvas) => { canvas.dataset.first = 'yes'; canvas.getContext('webgl2').getExtension('WEBGL_lose_context').loseContext(); });
+  await expect(tools.getByRole('alert')).toContainText('lost its graphics');
+  await expect(tools.getByRole('button', { name: '2D plot', exact: true })).toHaveAttribute('aria-pressed', 'true');
+  await expect(tools.getByRole('button', { name: '3D room', exact: true })).toBeDisabled();
+  await expect(page.getByRole('group', { name: 'Stage layout, viewed from the audience' })).toBeVisible();
+  // Another view and back: the lost room was not kept, so this one is new, alive and in 3D.
+  await page.locator('#tab-perform').click();
+  await expect(page.locator('#panel-perform')).toBeVisible();
+  await page.locator('#tab-show').click();
+  await expect(page.getByRole('img', { name: /The rig in 3D/ })).toBeVisible();
+  await expect.poll(alive).toBe(true);
+  expect(await room.evaluate((canvas) => canvas.dataset.first ?? null), 'a new canvas').toBeNull();
+  await expect(tools.getByRole('alert')).toHaveCount(0);
+  await expect(tools.getByRole('button', { name: '3D room', exact: true })).toHaveAttribute('aria-pressed', 'true');
+});
+
 test('the 2D layer, where there is no WebGL 2, lights the cells and every lamp under its element', async ({ page, request }) => {
   await page.addInitScript(() => localStorage.setItem('lightshow.lightLayer', '2d'));
   const before = await state(request);
