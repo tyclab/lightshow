@@ -167,6 +167,15 @@ test('a lamp\'s haze stops at the wall beside it: none of it shows in the room b
   }
 });
 
+test('a lamp\'s haze stops at the room\'s bounds, where no wall is drawn', async ({ page }) => {
+  // The lamp hangs 13 cm inside the room's east bound, 0.7 m up, aimed at the floor: its cone, 1.7 m wide there, would
+  // stand 0.7 m outside the bounds. Its room's outline holds all the bounds leave of the cone and no wall is near, so
+  // the bounds alone cut it. Read outside them, inside the cone, where the line of sight ends on nothing drawn.
+  const regions = { beyond: across(-1, 3.1, 3.35, 0.02, 0.22) };
+  const { off, on } = await lampFrames(page, TWO_ROOMS, { x: 2.87, y: 0.7, z: -1 }, { regions, cutaway: false, name: 'audience', haze: 1, binding: { lightTarget: { x: 2.87, y: 0, z: -1 } } });
+  expect(changed(off.beyond, on.beyond), 'no haze past the bounds').toBe(0);
+});
+
 test('a beam that lands in the next room shows its haze there too, also where the two rooms\' outlines overlap', async ({ page }) => {
   // Without the box wall the two rooms stand open to each other. The lamp hangs in the near room, 0.5 m from the far
   // one and 1.2 m up, aimed at the far room's floor. Read on a strip of the near room's floor beside the far room,
