@@ -37,12 +37,11 @@ const DAMPING = 0.08;
 const GLOW = { lamp: 1.1, cell: 0.5 };
 const ROOM_GLOW = { lamp: 0.45, cell: 0.09 };
 
-// A beam's clip rides with its place and colour (aLeast, aMost, aWhere: see BEAM_FRAGMENT), so haze that no room
-// edge and no wall can cut reads no texel. What is the same over a whole beam is handed on flat: its lamp's place and
-// its clip are not interpolated for each fragment.
+// A beam's clip rides with its place and colour (aLevel, aWhere: see BEAM_FRAGMENT), so haze that no room edge and
+// no wall can cut reads no texel. What is the same over a whole beam is handed on flat: its lamp's place and its
+// clip are not interpolated for each fragment.
 const BEAM_VERTEX = /* glsl */`
-  attribute vec3 aLeast;
-  attribute vec3 aMost;
+  attribute vec2 aLevel;
   attribute vec4 aWhere;
   varying vec3 vColor;
   varying float vT;
@@ -50,8 +49,7 @@ const BEAM_VERTEX = /* glsl */`
   varying vec3 vView;
   varying vec3 vWorld;
   flat varying vec3 vApex;
-  flat varying vec3 vLeast;
-  flat varying vec3 vMost;
+  flat varying vec2 vLevel;
   flat varying vec4 vWhere;
   void main() {
     vec4 world = instanceMatrix * vec4(position, 1.0);
@@ -62,29 +60,29 @@ const BEAM_VERTEX = /* glsl */`
     vT = -position.y;
     vWorld = (modelMatrix * world).xyz;
     vApex = (modelMatrix * instanceMatrix * vec4(0.0, 0.0, 0.0, 1.0)).xyz;
-    vLeast = aLeast;
-    vMost = aMost;
+    vLevel = aLevel;
     vWhere = aWhere;
     gl_Position = projectionMatrix * view;
   }
 `;
 
-// Each beam's clip (world.js coneClip): the least and the greatest corner of the box its haze stays in, and where
-// in uClip's texels its rooms' edges and its walls' boxes are: the first edge, how many edges the room of its lamp
-// has, how many the room it lands in, and how many walls follow them. clipAt and crosses are POOL_FRAGMENT's, word
-// for word, and the loops are built as its loops are: none leaves early (see there).
+// Each beam's clip (world.js coneClip). The box its haze stays in: the room's bounds, every beam's the same (uBounds:
+// least x, least z, greatest x, greatest z), and the beam's own side of the floor and of the ceiling (vLevel: least
+// and greatest height). And where in uClip's texels its rooms' edges and its walls' boxes are: the first edge, how
+// many edges the room of its lamp has, how many the room it lands in, and how many walls follow them. clipAt and
+// crosses are POOL_FRAGMENT's, word for word, and the loops are built as its loops are: none leaves early (see there).
 const BEAM_FRAGMENT = /* glsl */`
   uniform float uHaze;
   uniform sampler2D uClip;
   uniform int uClipWidth;
+  uniform vec4 uBounds;
   varying vec3 vColor;
   varying float vT;
   varying vec3 vNormal;
   varying vec3 vView;
   varying vec3 vWorld;
   flat varying vec3 vApex;
-  flat varying vec3 vLeast;
-  flat varying vec3 vMost;
+  flat varying vec2 vLevel;
   flat varying vec4 vWhere;
   vec4 clipAt(int i) { return texelFetch(uClip, ivec2(i % uClipWidth, i / uClipWidth), 0); }
   bool crosses(vec3 from, vec3 to, int at) {
@@ -105,7 +103,7 @@ const BEAM_FRAGMENT = /* glsl */`
   void main() {
     // Haze shows where its lamp's light is: in the room box, in one of the lamp's rooms, and not past a wall from
     // the lamp. What the box cuts reads no edge, and what the rooms' edges cut reads no wall: the counts drop to nought.
-    bool lit = vWorld.x >= vLeast.x && vWorld.y >= vLeast.y && vWorld.z >= vLeast.z && vWorld.x <= vMost.x && vWorld.y <= vMost.y && vWorld.z <= vMost.z;
+    bool lit = vWorld.x >= uBounds.x && vWorld.z >= uBounds.y && vWorld.x <= uBounds.z && vWorld.z <= uBounds.w && vWorld.y >= vLevel.x && vWorld.y <= vLevel.y;
     int first = int(vWhere.x + 0.5);
     int own = int(vWhere.y + 0.5);
     int landing = int(vWhere.z + 0.5);
@@ -240,17 +238,20 @@ function poolClipTexture(lights) {
 // Past any room, as world.js writes it: a beam with no clip of its own (the generic venue) shows everywhere.
 const OUT = 1e6;
 /**
- * These beams' clips for the beam shader: each beam's box and where its edges and walls are, to ride with the beam
- * (aLeast, aMost, aWhere), and uClip's texels they point to: the edges of its lamp's room, those of the room it
- * lands in, then its walls' boxes.
+ * These beams' clips for the beam shader. The room's bounds, which every beam of a rig is cut to (uBounds: least x,
+ * least z, greatest x, greatest z; a beam's own where the beams of a rig should ever differ, so none is cut short).
+ * What rides with each beam (aLevel, aWhere): its own side of the floor and of the ceiling, and where its edges and
+ * walls are. And uClip's texels they point to: the edges of its lamp's room, those of the room it lands in, then
+ * its walls' boxes.
  */
 function beamClips(pars) {
-  const beams = Math.max(1, pars.length), least = new Float32Array(beams * 3), most = new Float32Array(beams * 3), where = new Float32Array(beams * 4);
-  const texels = [];
+  const beams = Math.max(1, pars.length), level = new Float32Array(beams * 2), where = new Float32Array(beams * 4);
+  // The least x and z and the greatest, the greatest kept with their sign turned so one minimum takes all four.
+  const texels = [], bounds = [OUT, OUT, OUT, OUT];
   pars.forEach(({ clip }, k) => {
     const lo = clip?.lo ?? { x: -OUT, y: -OUT, z: -OUT }, hi = clip?.hi ?? { x: OUT, y: OUT, z: OUT };
-    least.set([lo.x, lo.y, lo.z], k * 3);
-    most.set([hi.x, hi.y, hi.z], k * 3);
+    level.set([lo.y, hi.y], k * 2);
+    [lo.x, lo.z, -hi.x, -hi.z].forEach((value, i) => { bounds[i] = Math.min(bounds[i], value); });
     const first = texels.length, [own = [], landing = []] = clip?.rooms || [];
     for (const polygon of [own, landing]) for (const [i, [x, z]] of polygon.entries()) { const [x1, z1] = polygon[(i + 1) % polygon.length]; texels.push([x, z, x1, z1]); }
     for (const { centre, axes, half } of clip?.walls || []) {
@@ -264,7 +265,8 @@ function beamClips(pars) {
   texels.forEach((texel, i) => data.set(texel, i * 4));
   const texture = new THREE.DataTexture(data, CLIP_WIDTH, height, THREE.RGBAFormat, THREE.FloatType);
   texture.needsUpdate = true;
-  return { texture, least, most, where };
+  // No beam: nothing to cut. Else the least and the greatest of the beams' bounds, which are one room's.
+  return { texture, level, where, bounds: pars.length ? [bounds[0], bounds[1], -bounds[2], -bounds[3]] : [-OUT, -OUT, OUT, OUT] };
 }
 
 /** A soft round dot, for the glow around lenses, bulbs and cells. */
@@ -458,7 +460,7 @@ export function createStageScene(canvas, { haze = 0.6, room, lightRGB }) {
   const cellMaterial = keep(new THREE.MeshBasicMaterial({ color: 0xffffff }));
   let beamClip = beamClips([]).texture;
   const beamMaterial = keep(new THREE.ShaderMaterial({
-    uniforms: { uHaze: { value: haze }, uClip: { value: beamClip }, uClipWidth: { value: CLIP_WIDTH } },
+    uniforms: { uHaze: { value: haze }, uClip: { value: beamClip }, uClipWidth: { value: CLIP_WIDTH }, uBounds: { value: new THREE.Vector4(-OUT, -OUT, OUT, OUT) } },
     vertexShader: BEAM_VERTEX,
     fragmentShader: BEAM_FRAGMENT,
     transparent: true,
@@ -566,7 +568,7 @@ export function createStageScene(canvas, { haze = 0.6, room, lightRGB }) {
     // The cone, with each beam's clip beside its place and colour.
     const clips = beamClips(pars), cones = beamGeometry.clone();
     rigDisposables.push(cones);
-    for (const [name, values, size] of [['aLeast', clips.least, 3], ['aMost', clips.most, 3], ['aWhere', clips.where, 4]]) {
+    for (const [name, values, size] of [['aLevel', clips.level, 2], ['aWhere', clips.where, 4]]) {
       cones.setAttribute(name, new THREE.InstancedBufferAttribute(values, size));
     }
     const beams = instanced(cones, beamMaterial, pars.length);
@@ -636,6 +638,7 @@ export function createStageScene(canvas, { haze = 0.6, room, lightRGB }) {
     });
     beamClip.dispose();
     beamClip = beamMaterial.uniforms.uClip.value = clips.texture;
+    beamMaterial.uniforms.uBounds.value.set(...clips.bounds);
     for (const mesh of [bodies, lenses, beams, ...pools, bulbMesh, cellMesh]) mesh.instanceMatrix.needsUpdate = true;
     lampGlow.geometry.attributes.position.needsUpdate = true;
     cellGlow.geometry.attributes.position.needsUpdate = true;
