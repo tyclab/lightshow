@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { open, reset, set, until } from './helpers.js';
+import { dropSavedPalettes, open, reset, savePalette, set, until } from './helpers.js';
 
 test.beforeEach(async ({ request }) => {
   await reset(request);
@@ -7,6 +7,7 @@ test.beforeEach(async ({ request }) => {
   await set(request, { effectColours: null, paletteOverride: null, basePalette: null });
 });
 test.afterEach(async ({ request }) => {
+  await dropSavedPalettes(request);
   await reset(request);
   await set(request, { effectColours: null, paletteOverride: null, basePalette: null });
   await request.put('/api/settings', { data: { safety: { photosensitivityAcknowledged: false } } });
@@ -14,18 +15,19 @@ test.afterEach(async ({ request }) => {
 
 test('the palette strip in Perform keeps one destination for palettes and distribution', async ({ page, request }) => {
   await set(request, { pattern: 'v2.scatterStrobe' });
+  const redCyan = await savePalette(request, 'Red Cyan', ['#FF0000', '#00BFFF']), greenPink = await savePalette(request, 'Green Pink', ['#00FF00', '#FF0095']);
   await open(page, 'perform');
   const strip = page.locator('.palette-strip');
   await strip.getByRole('button', { name: 'Main effect', exact: true }).click();
-  await strip.locator('[data-palette="redCyan"]').click();
+  await strip.locator(`[data-palette="${redCyan}"]`).click();
   await until(request, (s) => s.effectColours?.palette?.colours.join(',') === '#FF0000,#00BFFF');
   await expect(strip.getByLabel('Colour distribution')).toHaveValue('solid');
   await strip.getByLabel('Colour distribution').selectOption('along');
   await until(request, (s) => s.effectColours?.mode === 'along');
   const before = await (await request.get('/api/state')).json();
   await strip.getByRole('button', { name: 'Global override', exact: true }).click();
-  await strip.locator('[data-override="greenPink"]').click();
-  const override = await until(request, (s) => s.paletteOverrideId === 'greenPink');
+  await strip.locator(`[data-override="${greenPink}"]`).click();
+  const override = await until(request, (s) => s.paletteOverrideId === greenPink);
   expect(override.effectColours).toEqual(before.effectColours);
   await strip.getByRole('button', { name: 'Main effect', exact: true }).click();
   await expect(strip.getByRole('status')).toContainText('masking');

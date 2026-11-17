@@ -2,7 +2,7 @@ import { checkLegacyControlPatch, control } from '../control.ts';
 import { asyncHandler } from './common.ts';
 import { state, getClientState, getLiveState, getFixture, maxBrightnessOf, clockState, strobe } from '../state.ts';
 import { applyPatch, applyOverride, setFixtureMaxBrightness, processTap } from '../patch.ts';
-import { ALL_PALETTES } from '../palette-catalogue.ts';
+import { OFFERED_PALETTES } from '../palette-catalogue.ts';
 import { PALETTES } from '../palettes.ts';
 import { messageOf, statusOf } from '../../errors.ts';
 import { showStore } from '../show-store.ts';
@@ -75,7 +75,7 @@ export function attachLookRoutes(app: Express, ctx: RouteContext): void {
 
   // The named looks manual mode picks from, and the one on stage.
   app.get('/api/palettes', (_req, res) => {
-    res.json({ ok: true, palettes: PALETTES, builtin: ALL_PALETTES, user: ctx.integrations.library.palettes.list(), palette: state.palette });
+    res.json({ ok: true, palettes: PALETTES, builtin: OFFERED_PALETTES, user: ctx.integrations.library.palettes.list(), palette: state.palette });
   });
 
   // Writes all four colour slots from one look. `size` picks the bank (2, 3 or

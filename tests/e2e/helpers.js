@@ -100,3 +100,14 @@ export async function selectSequence(page, view) {
   await expect(shelf.getByRole('button', { name: 'Sequence selected ✓', exact: true })).toBeVisible();
   if (view) await page.evaluate((v) => { window.location.hash = `#${v}`; }, view);
 }
+
+// A palette a test saves for itself: the lists offer the looks and the mark's, not the two-colour tables the effects came with.
+const savedPalettes = [];
+export async function savePalette(request, name, colours) {
+  const { palette } = await (await request.post('/api/palettes', { data: { name, colours } })).json();
+  savedPalettes.push(palette.id);
+  return palette.id;
+}
+export async function dropSavedPalettes(request) {
+  for (const id of savedPalettes.splice(0)) await request.delete(`/api/palettes/${id}`);
+}

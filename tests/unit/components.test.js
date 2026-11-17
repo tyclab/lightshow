@@ -659,7 +659,7 @@ test("palette editor marks invalid colours and offers saved palettes", () => {
   assert.doesNotMatch(html, /aria-label="Colour 1"[^>]*aria-invalid/);
   assert.match(html, /aria-label="Colour 2"[^>]*aria-invalid="true"/);
   assert.match(html, /class="palette-random"[^>]*>Random</);
-  assert.match(html, /<optgroup label="Entertainment">(?:(?!<\/optgroup>).)*>Red Cyan</s);
+  assert.match(html, /<optgroup label="Palettes">(?:(?!<\/optgroup>).)*>Red Cyan</s);
   assert.match(html, /<optgroup label="Your palettes">(?:(?!<\/optgroup>).)*>Mine</s);
   assert.match(html, /Save as palette…/);
 });

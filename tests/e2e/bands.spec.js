@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { open, reset, set, until } from './helpers.js';
+import { dropSavedPalettes, open, reset, savePalette, set, until } from './helpers.js';
 
 // The Bands card edits the main effect's colours on Show and Effects.
 const DISCO = 'hd.disco.ambient';
@@ -9,6 +9,7 @@ test.beforeEach(async ({ request }) => {
   await set(request, { pattern: DISCO, effectColours: null, paletteOverride: null });
 });
 test.afterEach(async ({ request }) => {
+  await dropSavedPalettes(request);
   await set(request, { effectColours: null, paletteOverride: null });
   await reset(request);
 });
@@ -96,12 +97,13 @@ test('a hue range is two points on the rim: drag one past red and the path wraps
 });
 
 test('a band sequence: a palette loads its points, a tap adds, a drag never adds, points drag, the list reorders and removes', async ({ page, request }) => {
+  const redCyan = await savePalette(request, 'Red Cyan', ['#FF0000', '#00BFFF']);
   await open(page, 'show');
   const bass = page.getByRole('group', { name: 'Bass band', exact: true });
   const colours = async () => (await (await request.get('/api/state')).json()).effectColours?.bands?.[0]?.palette;
   await bass.getByRole('button', { name: 'Bass colours', exact: true }).click();
   await bass.getByLabel('Search Bass palettes').fill('red cyan');
-  await bass.locator('[data-palette="redCyan"]').click();
+  await bass.locator(`[data-palette="${redCyan}"]`).click();
   await until(request, (s) => s.effectColours?.bands?.[0]?.palette?.join(',') === '#FF0000,#00BFFF' && s.effectColours.bands[0].mix === 'blend');
   await expect(bass.locator('.colour-wheel-point')).toHaveCount(2);
   const disc = bass.locator('.colour-wheel-disc');
@@ -145,6 +147,7 @@ test('another effect keeps its own palette, chosen from the same list and the sa
   await request.put('/api/settings', { data: { safety: { photosensitivityAcknowledged: true } } });
   try {
     await set(request, { pattern: 'v2.scatterStrobe', effectColours: null });
+    const redCyan = await savePalette(request, 'Red Cyan', ['#FF0000', '#00BFFF']);
     await open(page, 'show');
     // Show splits the card (the operator, 2026-11-14): Palettes, then the wheel and the order under one fold.
     const card = page.getByRole('region', { name: 'Palettes', exact: true });
@@ -153,7 +156,7 @@ test('another effect keeps its own palette, chosen from the same list and the sa
     await expect(editor.getByRole('button', { name: /^Edit colours/ })).toHaveAttribute('aria-expanded', 'false');
     await expect(card.getByLabel('Search Effect palettes')).toBeVisible();
     await card.getByLabel('Search Effect palettes').fill('red');
-    await card.locator('[data-palette="redCyan"]').click();
+    await card.locator(`[data-palette="${redCyan}"]`).click();
     await until(request, (s) => s.effectColours?.palette?.colours.join(',') === '#FF0000,#00BFFF');
     await expect(card.getByText('Selected palette', { exact: true })).toBeVisible();
     await expect(card.locator('.show-palette-name')).toHaveText('Red Cyan');

@@ -7,7 +7,7 @@ import { BUILTIN_PROFILE_ID, BUILTIN_PROFILE_IDS, getProfile, listProfiles, prof
 import { settings } from './settings.ts';
 import * as universes from './universes.ts';
 import { COLOR_PRESETS, DEFAULT_PATTERN, PATTERNS, PRESET_ROWS, STROBE_FUNCTIONS, ENERGY_EFFECTS } from './presets.ts';
-import { ALL_PALETTES } from './palette-catalogue.ts';
+import { OFFERED_PALETTES } from './palette-catalogue.ts';
 import type { PaletteBody } from '../shared/palette-model.ts';
 import { PALETTES } from './palettes.ts';
 import { conductor } from './conductor.ts';
@@ -337,7 +337,7 @@ function getCatalogs() {
     strobeFunctions: STROBE_FUNCTIONS,
     palettes: PALETTES,
     families: FAMILIES,
-    builtinPalettes: ALL_PALETTES,
+    builtinPalettes: OFFERED_PALETTES,
     // So the UI offers no Remove for a profile the server refuses to delete.
     builtinProfileIds: [...BUILTIN_PROFILE_IDS],
     // A fixture on a Hue profile has no DMX address by default, so the patch does not ask for one.
