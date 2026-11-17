@@ -36,7 +36,9 @@ import { settings } from '../../src/server/settings.ts';
 import * as output from '../../src/server/output.ts';
 import * as universes from '../../src/server/universes.ts';
 import { showStore } from '../../src/server/show-store.ts';
-import { getProfile } from '../../src/server/profiles.ts';
+import { getProfile, profilesRevision } from '../../src/server/profiles.ts';
+import { createRenderer } from '../../src/server/renderer.ts';
+import { conductor } from '../../src/server/conductor.ts';
 
 showStore.scheduleSave = () => {};   // never the real show file
 
@@ -542,20 +544,39 @@ async function serve(t) {
 
 const ids = () => voices.list().map((v) => v.id);
 const playing = () => renderInput().voices.map((v) => v.id);
-/** A fixture's colour channels and dimmer on the rig, the first one's by default. */
-const lamp = (i = 0) => {
+/** A fixture's colour channels and dimmer in `store`. */
+const lampIn = (store, i) => {
   const fixture = state.fixtures[i];
-  const dmx = universes.getBuffer(fixture.universe ?? state.artnet.universe);
+  const dmx = store.getBuffer(fixture.universe ?? state.artnet.universe);
   const { channelMap: ch } = getProfile(fixture);
   const base = fixture.address - 1;
   return { r: dmx[base + ch.red], g: dmx[base + ch.green], b: dmx[base + ch.blue], dim: dmx[base + ch.dimmer] };
 };
-/** Render frames for up to `ms`, until the rig shows what `found` asks for. */
-async function flashes(found, what, ms = 2000) {
+/** A fixture's colour channels and dimmer on the rig, the first one's by default. */
+const lamp = (i = 0) => lampIn(universes, i);
+const ENGINE = { renderFrame, lamp };
+/**
+ * A renderer and universes of the test's own, drawing the engine's live input. The engine's renderer keeps each lamp's
+ * last rise and last frame for its flash and transition limits, and the tests before that started the engine leave
+ * theirs in it: a look set within those limits of them is held back. Here no lamp has a history.
+ */
+function ownRig() {
+  const renderer = createRenderer({ profileOf: getProfile, profilesRevision, now: performance.now() });
+  const store = universes.createUniverseStore(universes.allocateShared());
+  return {
+    renderFrame() {
+      const now = performance.now(), reading = conductor.now();
+      renderer.frame(renderInput(), reading, now, store);
+    },
+    lamp: (i = 0) => lampIn(store, i),
+  };
+}
+/** Render frames on `rig`, the engine's unless the test brings its own, for up to `ms`, until it shows what `found` asks for. */
+async function flashes(found, what, rig = ENGINE, ms = 2000) {
   const deadline = Date.now() + ms;
   for (;;) {
-    renderFrame();
-    if (found(lamp())) return;
+    rig.renderFrame();
+    if (found(rig.lamp())) return;
     if (Date.now() > deadline) assert.fail(`no ${what}`);
     await wait(10);
   }
@@ -905,20 +926,21 @@ test('a latched palette strobe replaces a latch kept under a strobe hold', async
 
 test('the strobe pad plays on its own fixtures and leaves the rest to the look', async (t) => {
   const s = await acknowledged(t);
+  const rig = ownRig();
   const [first] = state.fixtures.map((f) => f.id);
   applyPatch({ pattern: 'solid', colorA: 0, running: true, masterDimmer: 255, masterBlackout: false, paletteOverride: null });
   await s.call('PUT', '/api/strobe', { palette: ['#0000FF'], flashesPerSecond: 5 });
-  renderFrame();
-  assert.deepEqual([lamp(0).r, lamp(1).r], [255, 255], 'the look: red');
+  rig.renderFrame();
+  assert.deepEqual([rig.lamp(0).r, rig.lamp(1).r], [255, 255], 'the look: red');
   const entry = { label: 'Strobe', accent: '#E2E8F0', content: { kind: 'strobe', id: 'strobe' }, launch: 'hold', quantise: 0, targets: [first] };
   assert.equal((await s.call('PUT', '/api/pads/0/6', entry)).status, 200);
   s.integrations.pads.press(0, 6, ...DECK);
   assert.deepEqual(renderInput().voices.map((v) => [v.id, v.targets]), [[STROBE_VOICE_ID, [first]]]);
   let elsewhere = false;
   await flashes((l) => {
-    if (lamp(1).b !== 0) elsewhere = true;
+    if (rig.lamp(1).b !== 0) elsewhere = true;
     return l.r === 0 && l.b === 255;
-  }, 'a blue flash on the pad\'s fixture');
+  }, 'a blue flash on the pad\'s fixture', rig);
   assert.equal(elsewhere, false, 'the other fixtures keep the look');
   letGo(s);
 });

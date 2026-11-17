@@ -45,25 +45,34 @@ test('Show filters the complete effects list and keeps the live selection visibl
 
 // Show v3 fixes, PR 9 (operator 2026-11-15, "fix all bugs"): the header's picker listed the quick deck first; Show's list
 // does now, so a starred look is one tap away again. Starring stays in Effect settings.
-test('a look starred in Effect settings leads Show\'s list, the deck stands over every effect A to Z, and a search hides it', async ({ page }) => {
+// One list since 2026-11-17 (the operator, asked about the empty spot the deck's last row left: "One list"): the deck
+// leads the same list, each effect is in it once, and no row but the last ends early.
+test('a look starred in Effect settings leads Show\'s one list, every effect is in it once with no gap, and a search lists its matches', async ({ page }) => {
   await open(page, 'effects');
   const star = page.locator('#panel-effects').getByRole('button', { name: 'Favourite Aurora', exact: true });
   await star.first().click();
   await expect(star.first()).toHaveAttribute('aria-pressed', 'true');
   await page.goto('/#show');
-  const effects = box(page), deck = effects.getByRole('list', { name: 'Quick effects' }), list = effects.getByRole('list', { name: 'Effects', exact: true });
-  await expect(deck.locator('button').first()).toHaveAttribute('data-effect', 'v2.aurora');
-  const [deckBox, listBox] = await Promise.all([deck.boundingBox(), list.boundingBox()]);
-  expect(deckBox.y + deckBox.height, 'the deck over the full list').toBeLessThanOrEqual(listBox.y + 0.5);
-  expect(await deck.locator('button').count()).toBeGreaterThan(1);
+  const effects = box(page), list = effects.getByRole('list', { name: 'Effects', exact: true });
+  await expect(effects.getByRole('list')).toHaveCount(1);
+  await expect(list.locator('button').first()).toHaveAttribute('data-effect', 'v2.aurora');
   await expect(list.locator('button')).toHaveCount(LISTED);
-  await deck.locator('button').first().click();
+  const ids = await list.locator('button').evaluateAll((buttons) => buttons.map((button) => button.dataset.effect));
+  expect(new Set(ids).size, 'each effect once').toBe(LISTED);
+  // Every row but the last is full: no tile starts a new row while the one before it has room.
+  const tiles = await list.locator('li').evaluateAll((items) => items.map((item) => { const r = item.getBoundingClientRect(); return [Math.round(r.left), Math.round(r.top)]; }));
+  const columns = await list.evaluate((el) => getComputedStyle(el).gridTemplateColumns.split(' ').length);
+  const perRow = new Map();
+  for (const [, top] of tiles) perRow.set(top, (perRow.get(top) || 0) + 1);
+  const counts = [...perRow.values()];
+  expect(counts.slice(0, -1).every((count) => count === columns), `rows of ${columns}: ${counts.join(' ')}`).toBe(true);
+  await list.locator('button').first().click();
   await until(page.request, (s) => s.pattern === 'v2.aurora');
   await effects.getByRole('searchbox', { name: 'Search effects' }).fill('aurora');
-  await expect(deck).toHaveCount(0);
   await expect(list.locator('button')).toHaveCount(1);
   await effects.getByRole('button', { name: 'Clear', exact: true }).click();
-  await expect(deck.locator('button').first()).toHaveAttribute('data-effect', 'v2.aurora');
+  await expect(list.locator('button').first()).toHaveAttribute('data-effect', 'v2.aurora');
+  await expect(list.locator('button')).toHaveCount(LISTED);
 });
 
 test('keyboard browsing reaches both ends and selecting keeps the global controls unchanged', async ({ page, request }) => {
