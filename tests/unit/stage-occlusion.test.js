@@ -8,6 +8,7 @@ import { DoubleSide, Mesh, MeshBasicMaterial, Raycaster, Vector3 } from 'three';
 import * as world from '../../public-src/stage3d/world.js';
 import { roomObjectGeometry } from '../../public-src/stage3d/room-geometry.js';
 import { buildRig } from '../../src/shared/rig.ts';
+import { walledRoom } from '../helpers/many-walls.js';
 
 const fixtureFile = (name) => JSON.parse(fs.readFileSync(new URL(`../fixtures/rigs/${name}.json`, import.meta.url), 'utf8'));
 const LAMP = { id: 'rgb-lamp', channelMap: { red: 0, green: 1, blue: 2 } };
@@ -141,4 +142,86 @@ test('a pool beside a wall has no part behind it, on the floor or on a wall', ()
     assert.deepEqual(leaks, [], `${name}: nothing of it shows behind the wall`);
     assert.ok(points.filter((point) => !behind(point) && lit(pool, point)).length > points.length / 8, `${name}: in front of the wall it shows`);
   }
+});
+
+// A pool's distance to a wall's box, and every wall a pool reaches, as a pool carried them before it
+// kept only those that reach into its room's box: nearer than its longer half axis, and not holding its centre.
+const boxDistance = (box, point) => Math.hypot(...box.axes.map((axis, i) => Math.max(0, Math.abs(dot(sub(point, box.centre), axis)) - box.half[i])));
+const wallsNear = (objects, pool) => world.blockersOf(objects).filter((blocker) => {
+  const distance = blocker.wall ? boxDistance(blocker, pool.at) : 0;
+  return distance > 0 && distance < pool.major;
+});
+// Every point of a pool's quad on a 2 cm grid, its corners outside the ellipse included.
+const quad = (pool, step = 0.02) => {
+  const points = [];
+  for (let a = -pool.major; a <= pool.major; a += step) for (let b = -pool.minor; b <= pool.minor; b += step) {
+    points.push({ x: pool.at.x + pool.along.x * a + pool.across.x * b, y: pool.at.y + pool.along.y * a + pool.across.y * b,
+      z: pool.at.z + pool.along.z * a + pool.across.z * b });
+  }
+  return points;
+};
+// The points a pool shows with the walls it carries, against the same pool carrying every wall it reaches.
+const sameShown = (objects, pool, name) => {
+  const every = { ...pool, clip: { ...pool.clip, walls: wallsNear(objects, pool) } };
+  let shown = 0, cut = 0;
+  for (const point of quad(pool)) {
+    const now = lit(pool, point);
+    assert.equal(now, lit(every, point), `${name}: the point ${JSON.stringify(point)} shows as it does with every wall`);
+    if (now) shown++;
+    else if (inBox(pool.clip.surface, point) && (!pool.clip.room || inside(pool.clip.room, point))) cut++;
+  }
+  return { carried: pool.clip.walls.length, reached: every.clip.walls.length, shown, cut };
+};
+
+test('a pool carries only the walls that reach into its room\'s box, and shows the same points as with every wall it reaches', () => {
+  const model = walledRoom(1);
+  const placed = placedIn(model, lamps(1));
+  assert.equal(placed.pools.length, 16);
+  const total = { carried: 0, reached: 0, shown: 0, cut: 0 };
+  for (const [k, { pool }] of placed.pools.entries()) {
+    const counts = sameShown(model.objects, pool, `pool ${k}`);
+    for (const key of Object.keys(total)) total[key] += counts[key];
+    // The walls on its own room's four edges, and those of its neighbours that touch a corner of it.
+    assert.ok(counts.carried <= 8 && counts.carried <= counts.reached, `pool ${k} carries ${counts.carried} of ${counts.reached}`);
+  }
+  assert.ok(total.carried < 0.6 * total.reached, `fewer walls: ${total.carried} of the ${total.reached} reached`);
+  assert.ok(total.shown > 16 * 3000 && total.cut > 16 * 50, `the walls it keeps do cut it: ${total.shown} points shown, ${total.cut} cut inside the rooms`);
+  // An aimed lamp's pool is cut to the room it lands in by the same rule.
+  const aimed = placedIn({ ...model, bindings: [lamp(1, { x: -5.4, y: 2.2, z: -4.2 }, { lightTarget: { x: -5.1, y: 0, z: -4.5 } })] }, lamps(1)).lamps[0].pool;
+  const counts = sameShown(model.objects, aimed, 'the aimed pool');
+  assert.ok(counts.carried < counts.reached && counts.cut > 0, `aimed: ${counts.carried} of ${counts.reached}, ${counts.cut} cut`);
+});
+
+test('a wall outside a room\'s polygon but inside its box still cuts the pool: an L-shaped room with a wall in its notch', () => {
+  // The room runs down the west side and along the south; a wall stands in the notch between its two arms.
+  const ell = { id: 'ell', label: 'Ell', polygon: [[-3, -3], [-1, -3], [-1, 1], [3, 1], [3, 3], [-3, 3]] };
+  const notch = { id: 'notch', kind: 'box', role: 'wall', position: { x: -0.8, y: 1.25, z: 0.85 }, size: { x: 0.1, y: 2.5, z: 0.2 } };
+  const beyond = { id: 'beyond', kind: 'box', role: 'wall', position: { x: -3.4, y: 1.25, z: -2.6 }, size: { x: 0.1, y: 2.5, z: 1 } };
+  const model = { version: 1, name: 'Ell', bounds: { width: 8, depth: 8, height: 2.5 }, rooms: [ell], objects: [notch, beyond],
+    bindings: [lamp(1, { x: -1.5, y: 2.4, z: 0.2 }), lamp(2, { x: -2.6, y: 2.4, z: -2.6 })] };
+  const [corner, west] = placedIn(model, lamps(2)).pools.map((light) => light.pool);
+  assert.ok(!inside(ell.polygon, notch.position), 'the wall stands outside the polygon');
+  const counts = sameShown(model.objects, corner, 'the pool at the inner corner');
+  assert.deepEqual([counts.carried, counts.reached], [1, 1], 'the wall in the notch is carried');
+  // In the south arm, behind the notch wall as seen from the lamp: inside the polygon and in reach, and cut.
+  const behind = { x: -0.3, y: corner.at.y, z: 1.3 };
+  assert.ok(inside(ell.polygon, behind) && Math.hypot(behind.x - corner.at.x, behind.z - corner.at.z) < corner.major);
+  assert.ok(!lit(corner, behind), 'a point of the other arm behind the notch wall is cut');
+  assert.ok(lit(corner, { x: -0.3, y: corner.at.y, z: 1.8 }), 'a point of that arm beside the wall\'s shadow shows');
+  // A wall west of the room's box is in reach of the second pool and not carried: nothing of that pool shows there.
+  assert.deepEqual(Object.values(sameShown(model.objects, west, 'the pool by the west wall')).slice(0, 2), [0, 1]);
+});
+
+test('a light outside its room\'s polygon carries the wall between itself and the room: the box takes in the pool\'s centre', () => {
+  // The only room lies east of x 0; the lamp hangs half a metre west of it, and a wall stands between the two.
+  const east = { id: 'east', label: 'East', polygon: [[0, -2], [3, -2], [3, 2], [0, 2]] };
+  const between = { id: 'between', kind: 'box', role: 'wall', position: { x: -0.2, y: 1.25, z: 0 }, size: { x: 0.1, y: 2.5, z: 0.6 } };
+  const model = { version: 1, name: 'Recess', bounds: { width: 8, depth: 8, height: 2.5 }, rooms: [east], objects: [between],
+    bindings: [lamp(1, { x: -0.5, y: 2.4, z: 0 })] };
+  const { pool } = placedIn(model, lamps(1)).pools[0];
+  assert.equal(pool.clip.room, east.polygon, 'the nearest room is its room');
+  const counts = sameShown(model.objects, pool, 'the pool west of the room');
+  assert.deepEqual([counts.carried, counts.reached], [1, 1]);
+  assert.ok(!lit(pool, { x: 0.5, y: pool.at.y, z: 0 }), 'the room\'s floor behind the wall is cut');
+  assert.ok(lit(pool, { x: 0.3, y: pool.at.y, z: 1.4 }), 'past the wall\'s end it shows');
 });

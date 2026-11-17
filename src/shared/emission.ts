@@ -49,6 +49,7 @@ export function hueEmission(fixture: StageFixture, profile?: Profile | null): Em
 // counts as the E27 bulb, 806 lm all round (EPREL 1522885). One name covers several models: the row says which.
 export const BULB_LUMEN = 806;
 export const STRIP_LUMEN_PER_METRE = 0.6 * BULB_LUMEN;
+export const PIXEL_LUMEN = 0.01 * BULB_LUMEN;
 const HUE_LUMEN: [RegExp, number, number?][] = [
   // The large tube: 1,800 lm over 1.377 m (the compact one 1,540 lm over 0.877 m).
   [/gradient tube/i, 1800, 1300],

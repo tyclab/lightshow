@@ -135,8 +135,8 @@ run the night from Show: the room in 3D as the rig paints it, the effects under
 it, and the switches that matter along the top — armed or not, what paints the
 room (the effects or the visualizer picture), the auto show on or off,
 blackout and the master. Choose the main effect from the searchable, scrolling grid
-under the stage. With the search empty it starts with the quick deck (the favourites starred in
-Effect settings, the presets saved here, then the party looks), then lists every effect: tiles with the effect's symbol beside its name, one to five side by side as the card's width and the text
+under the stage. It is one list: with the search empty the quick deck leads it (the favourites starred in
+Effect settings, the presets saved here, then the party looks), then the rest A to Z, each effect once: tiles with the effect's symbol beside its name, one to five side by side as the card's width and the text
 size allow, each with its description as a tooltip and ⚡ on a rapid-flashing effect. Tiles that
 share a name add a second line that tells them apart: the family (Spatial, Party Looks, …),
 **Classic** for a classic pattern or **Saved preset**. The count stands in the card's title row,
@@ -299,8 +299,9 @@ where the effects sample it, its plot position scaled into the room, and stays l
 room position; with an explicit cell map it stands in a dark, see-through body spanning its
 pixels, since the room has no object for it. A fixture with no position anywhere is not drawn. The room's
 surfaces shade under a dim fill, the same whatever the outputs do. What a light gives the room
-is drawn where the light is: its own glow, the room objects that are the light, and the pool
-its beam leaves. **Eye level** stands 1.5 m behind the room's first listener (or at its front
+is drawn where the light is: its own glow, the room objects that are the light, and one pool,
+where its beam lands or, for a light without an aim or a beam, on the floor under it
+([the rule](docs/stage-room.md)). **Eye level** stands 1.5 m behind the room's first listener (or at its front
 edge) at 1.6 m; a double-click turns the view around the point under the pointer, and a
 right-drag or two fingers pan within the room.
 
