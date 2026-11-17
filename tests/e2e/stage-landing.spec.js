@@ -64,7 +64,8 @@ test.beforeEach(async ({ page }) => {
 
 test('a beam\'s pool is at half its centre\'s light where the beam throws half as much, and ends where the pool does', async ({ page }) => {
   // Hue's GU10 by its figures, 350 lm in 43 degrees, straight down from 2.45 m: half its light 0.83 m out, none past 1.54 m.
-  const spot = { model: ROOM, emission: { kind: 'beam', tilt: -90, beamAngle: 43, lumen: 350 }, binding: { position: { x: 0, y: 2.45, z: 0 } }, colour: GREY };
+  // Read from the audience view: seen from straight above, the lamp itself stands before the middle of its pool.
+  const spot = { model: ROOM, view: 'audience', emission: { kind: 'beam', tilt: -90, beamAngle: 43, lumen: 350 }, binding: { position: { x: 0, y: 2.45, z: 0 } }, colour: GREY };
   const result = await page.evaluate((input) => window.landing(input), { ...spot, points: floorAt(0, 0.4, 0.833, 1.3, 1.7, 2.5) });
   expect(result.level).toBeGreaterThan(0.95);
   expect(Math.abs(result.half * 0.5412 - 0.833)).toBeLessThan(0.005);
@@ -88,7 +89,7 @@ test('a beam\'s pool is at half its centre\'s light where the beam throws half a
 
 test('a bulb lights the floor under it wide and faintly; the same lumen in a beam lands narrow and strong', async ({ page }) => {
   const at = { position: { x: 0, y: 2.45, z: 0 } };
-  const bulb = await page.evaluate((input) => window.landing(input), { model: ROOM, binding: at, colour: { r: 255, g: 255, b: 255 }, points: floorAt(0, 1.88, 3.0) });
+  const bulb = await page.evaluate((input) => window.landing(input), { model: ROOM, view: 'audience', binding: at, colour: { r: 255, g: 255, b: 255 }, points: floorAt(0, 1.88, 3.0) });
   expect([bulb.pars, bulb.pools]).toEqual([0, 1]);
   expect(Math.abs(bulb.level - 806 / (4 * Math.PI * 2.45 ** 2) / 97)).toBeLessThan(1e-6);
   const [centre, half, wide] = added(bulb);
@@ -97,7 +98,7 @@ test('a bulb lights the floor under it wide and faintly; the same lumen in a bea
   expect(half / centre).toBeGreaterThan(0.4);
   expect(half / centre).toBeLessThan(0.6);
   expect(wide).toBeGreaterThan(0);
-  const beam = added(await page.evaluate((input) => window.landing(input), { model: ROOM, emission: { kind: 'beam', tilt: -90, beamAngle: 43, lumen: 806 }, binding: at,
+  const beam = added(await page.evaluate((input) => window.landing(input), { model: ROOM, view: 'audience', emission: { kind: 'beam', tilt: -90, beamAngle: 43, lumen: 806 }, binding: at,
     colour: { r: 255, g: 255, b: 255 }, points: floorAt(0, 3.0) }));
   expect(beam[0]).toBeGreaterThan(5 * centre);
   expect(beam[1]).toBe(0);
