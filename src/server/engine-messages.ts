@@ -48,7 +48,8 @@ export type ToWorker =
 export type FromWorker =
   | { type: 'ready' }
   | { type: 'frame'; barrierRevision?: number; outputSeq?: number }
-  | { type: 'stats'; stats: FrameSummary; heap?: EngineHeap }
+  // `roomChanges`: the renderer's own count under the flash limit (Renderer.roomChanges).
+  | { type: 'stats'; stats: FrameSummary; heap?: EngineHeap; roomChanges?: number }
   // `hue`: every Hue stream got its dark frame and its session was released.
   | { type: 'stopped'; applied?: boolean; hue?: boolean }
   | { type: 'hue'; status: HueStreamStatus[] }

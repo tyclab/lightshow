@@ -224,6 +224,8 @@ export interface Renderer {
   takeCommandResults(): CommandResult[];
   rejectCommands(status: CommandStatus): void;
   commandStatus(): { processed: number; applied: number };
+  /** The most changes of the room's light in any one second since the flash limit was switched on, on the frames' own time; 0 while it is off. */
+  roomChanges(): number;
   setSequence(table: SequenceTable | null): void;
   // Room metres per unit for this rig, built on the main thread; null is plan-only.
   setSpace(space: UnitSpace | null): void;
@@ -1174,7 +1176,7 @@ function createRenderer({ profileOf, profilesRevision = () => 0, now = performan
       for (const unit of emittedUnits) {
         outputGuard.measuredLight(unit.id, COLOR_PRESETS[14], 0, now, capabilities[unit.fixture], 'blackout', true, unit.measure);
       }
-      if (input.flashLimit) outputGuard.commitRoom(0, now);
+      outputGuard.commitRoom(0, now, !!input.flashLimit);
       return rigNow;
     }
     if (capabilities.length) {
@@ -1197,8 +1199,9 @@ function createRenderer({ profileOf, profilesRevision = () => 0, now = performan
         light.dim = outputGuard.effectLevel(guardUnitIds[u], light.dim, scale, ownership[u].kind, now);
       }
     }
+    // With the limit off the room's light is still followed: switched on, the limit holds a light already changing.
     if (input.flashLimit) limitFlashes(input, all, now);
-    else outputGuard.resetRoom();
+    else outputGuard.commitRoom(rigLuminance(input, all), now, false);
     for (const unit of emittedUnits) {
       const { owner, cut } = ownership[rigNow.ranges[unit.fixture].start + unit.cell];
       unit.owner = owner; unit.cut = cut;
@@ -1246,6 +1249,7 @@ function createRenderer({ profileOf, profilesRevision = () => 0, now = performan
       }
     },
     commandStatus() { return { processed: processedSeq, applied: appliedSeq }; },
+    roomChanges() { return outputGuard.roomChanges; },
     setSpace(next) { space = next ?? null; },
     setSequence(table) {
       const ok = !!table && typeof table === 'object' && Number.isFinite(table.revision) && Array.isArray(table.lanes) && Array.isArray(table.clips);

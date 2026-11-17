@@ -47,5 +47,5 @@ export function limitRoomFlashes(guard: OutputGuard, measure: (gain?: number) =>
     }
     apply(gain);
   }
-  guard.commitRoom(measure(), now);
+  guard.commitRoom(measure(), now, true);
 }

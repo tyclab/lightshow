@@ -9,49 +9,58 @@ const HOLD = SWING * 0.9;
 
 export interface FlashLimiter {
   target(luminance: number, now: number): number;
-  commit(luminance: number, now: number): void;
-  reset(): void;
+  /** The room's light as it went out at `now`, on every frame; `limited` while the limit is on. Its changes are counted
+   * with the limit off too, so a limit switched on while the light is changing holds it from its first frame. */
+  commit(luminance: number, now: number, limited: boolean): void;
+  /** The most changes it has counted in any one second since the limit was switched on, on the clock it is given; 0 while it is off. */
+  most(): number;
   clone(): FlashLimiter;
 }
 
-function createFlashLimiter(saved?: { extreme: number | null; rising: boolean; changes: number[] }): FlashLimiter {
-  let extreme: number | null = saved?.extreme ?? null;
-  let rising = saved?.rising ?? true;
+interface LimiterState { low: number | null; high: number; rising: boolean | null; changes: number[]; since: number | null; most: number }
+
+function createFlashLimiter(saved?: LimiterState): FlashLimiter {
+  // The light's last turning points. Until its first swing the direction is open (`rising` null) and both are kept, so
+  // that swing counts whichever way it goes; after it, the one the light is moving away from.
+  let low = saved?.low ?? null;
+  let high = saved?.high ?? 0;
+  let rising = saved?.rising ?? null;
+  let since = saved?.since ?? null;     // the first frame with the limit on; null while it is off
+  let most = saved?.most ?? 0;
   const changes: number[] = [...(saved?.changes ?? [])];
 
   const engaged = (now: number) => {
     while (changes.length && now - changes[0] >= WINDOW_MS) changes.shift();
     return changes.length >= MAX_CHANGES;
   };
+  /** Follows the light to `luminance`: whether that is a change. */
+  const moved = (luminance: number): boolean => {
+    if (low === null) { low = high = luminance; return false; }
+    if (rising !== true && luminance - low >= SWING && low < DARKER) { rising = true; high = luminance; return true; }
+    if (rising !== false && high - luminance >= SWING && luminance < DARKER) { rising = false; low = luminance; return true; }
+    if (rising !== false && luminance > high) high = luminance;
+    else if (rising !== true && luminance < low) low = luminance;
+    return false;
+  };
 
   return {
     target(luminance, now) {
-      if (extreme === null || !engaged(now)) return luminance;
+      if (rising === null || !engaged(now)) return luminance;
+      const extreme = rising ? high : low!;
       return Math.min(extreme + HOLD, Math.max(extreme - HOLD, luminance));
     },
-    commit(luminance, now) {
-      if (extreme === null) { extreme = luminance; return; }
-      if (rising) {
-        if (luminance >= extreme) extreme = luminance;
-        else if (extreme - luminance >= SWING && luminance < DARKER) {
-          changes.push(now);
-          rising = false;
-          extreme = luminance;
-        }
-      } else if (luminance <= extreme) {
-        extreme = luminance;
-      } else if (luminance - extreme >= SWING && extreme < DARKER) {
-        changes.push(now);
-        rising = true;
-        extreme = luminance;
-      }
+    commit(luminance, now, limited) {
+      if (!limited) { since = null; most = 0; } else since ??= now;
+      if (!moved(luminance)) return;
+      engaged(now);
+      changes.push(now);
+      if (since === null) return;
+      let first = 0;
+      while (changes[first] < since) first++;
+      most = Math.max(most, changes.length - first);
     },
-    clone() { return createFlashLimiter({ extreme, rising, changes }); },
-    reset() {
-      extreme = null;
-      rising = true;
-      changes.length = 0;
-    },
+    most: () => most,
+    clone() { return createFlashLimiter({ low, high, rising, changes, since, most }); },
   };
 }
 

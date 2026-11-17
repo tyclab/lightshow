@@ -91,13 +91,28 @@ async function steppedFrames(page, ms, where = page) {
   return out;
 }
 
-/** The plot on every animation frame for `ms`, timed by the page: the engine's feed keeps the server's time. */
+/** The plot on every animation frame for `ms`, timed by the page: when it drew a frame of the engine's feed, not when the
+ * engine sent it. Good for "it changes" and "more often than"; an upper bound to the second is the engine's to count. */
 const timedFrames = (page, ms) => page.evaluate((ms) => new Promise((resolve) => {
   const lamps = [...document.querySelectorAll('.stage-surface .stage-fixture')];
   const out = [], end = performance.now() + ms;
   const step = (t) => { out.push({ t, lights: lamps.map((lamp) => lamp.dataset.light || '') }); if (t < end) requestAnimationFrame(step); else resolve(out); };
   requestAnimationFrame(step);
 }), ms);
+
+/** The engine's own count under the flash limit (/api/health engine.roomChanges): the most changes of the room's light in any
+ * one second from the frame the limit was switched on, by the limiter's rule on the time the engine gave each frame. The
+ * engine thread reports once a second: the second report from now has counted every frame up to now. */
+async function engineRoomChanges(request) {
+  const engine = async () => (await (await request.get('/api/health')).json()).engine;
+  let report = (await engine()).sampledAtMs, later = 0;
+  await expect.poll(async () => {
+    const next = (await engine()).sampledAtMs;
+    if (next !== report) { report = next; later++; }
+    return later;
+  }, { message: 'two engine reports after the frames', timeout: 10_000 }).toBeGreaterThanOrEqual(2);
+  return (await engine()).roomChanges;
+}
 
 async function plotFormat(page) {
   await page.getByRole('button', { name: '2D plot', exact: true }).click();
@@ -217,10 +232,13 @@ test('a rapid effect is limited on the disarmed feed as on the rig, and armed af
     .toBeGreaterThan(LIMIT);
   await safetySet(request, { flashLimit: true });
   await until(request, (s) => s.flashLimit === true);
-  await page.waitForTimeout(500);
-  const engine = mostChangesInASecond(await timedFrames(page, 3000));
+  const drawn = mostChangesInASecond(await timedFrames(page, 3000));
+  // Eight changes of the limited strobe span a second and one frame on the engine's clock, and the page's stamp of a
+  // drawn frame wanders by that much against it: the second is counted where the frames are made, from the switch-on.
+  const engine = await engineRoomChanges(request);
   expect(engine, 'the engine, under the same limit').toBeLessThanOrEqual(LIMIT);
   expect(engine, 'and still changing the room\'s light: the strobe is limited, not gone').toBeGreaterThanOrEqual(1);
+  expect(drawn, 'which the plot draws').toBeGreaterThanOrEqual(1);
 
   await control(request, 'arm');
   expect((await state(request)).safety.photosensitivityAcknowledged, 'armed after the preview, the acknowledgement is still the operator\'s to give').toBe(false);
