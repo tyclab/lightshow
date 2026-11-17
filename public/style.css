@@ -647,7 +647,7 @@ html:has(.show-fold-toggle[aria-expanded="true"]) { scrollbar-gutter: stable; }
 :is(.contained-row, .contained-quick):hover { background: var(--wash-blue); }
 :is(.contained-row, .contained-quick):focus-visible { outline: .15rem solid var(--accent); outline-offset: -.22rem; background: rgba(90,162,255,.13); }
 :is(.contained-row, .contained-quick)[aria-current="true"] { border-color: var(--accent); background: rgba(90,162,255,.14); }
-/* An effect's symbol: beside the name on a tile, over it on a pad. */
+/* An effect's symbol, beside its name. */
 .effect-icon { flex: none; width: 1.5rem; height: 1.5rem; fill: currentColor; color: var(--text-blue); }
 .contained-row-text { flex: 1; min-width: 0; display: grid; gap: .07rem; }
 .contained-row-title { overflow-wrap: anywhere; font-size: .93rem; font-weight: 650; line-height: 1.25; }
@@ -1085,7 +1085,7 @@ input[type=range]::-moz-range-thumb {
   flex-shrink: 0;
 }
 .pattern-btn .icon .effect-icon { width: 16px; height: 16px; color: inherit; }
-.effect-pad-tap .effect-icon { width: 28px; height: 28px; margin-bottom: auto; }
+.effect-pad-name .effect-icon { width: 1em; height: 1em; margin-right: .35em; vertical-align: -.125em; }
 .pattern-btn.active .icon {
   background: var(--accent-fill);
   border-color: var(--accent);

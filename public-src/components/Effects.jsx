@@ -267,8 +267,7 @@ function Pad({ row, active, favourite, onTap, onEdit, onToggleFavourite }) {
   return (
     <div class={`effect-pad ${active ? 'active' : ''}`} data-id={row.id} data-layer={active ? 'base' : undefined}>
       <button type="button" class="effect-pad-tap" aria-pressed={active} title={row.desc || row.name} {...press}>
-        <EffectIcon row={row} />
-        <span class="effect-pad-name">{row.name}</span>
+        <span class="effect-pad-name"><EffectIcon row={row} />{row.name}</span>
         <Mapping row={row} />
         <TagBadges row={row} />
         {active && <span class="effect-pad-now">Main effect</span>}
