@@ -136,7 +136,7 @@ it, and the switches that matter along the top — armed or not, what paints the
 room (the effects or the visualizer picture), the auto show on or off,
 blackout and the master. Choose the main effect from the searchable, scrolling grid
 under the stage. With the search empty it starts with the quick deck (the favourites starred in
-Effect settings, the presets saved here, then the party looks), then lists every effect: tiles with the effect's symbol and its name (a quick tile draws the symbol over the name), one to five side by side as the card's width and the text
+Effect settings, the presets saved here, then the party looks), then lists every effect: tiles with the effect's symbol beside its name, one to five side by side as the card's width and the text
 size allow, each with its description as a tooltip and ⚡ on a rapid-flashing effect. Tiles that
 share a name add a second line that tells them apart: the family (Spatial, Party Looks, …),
 **Classic** for a classic pattern or **Saved preset**. The count stands in the card's title row,
@@ -165,7 +165,7 @@ Background moves down and the effects list takes the added height), and Backgrou
 there. Show scales with the window: once the view is 68.75em wide (962.5 CSS px in the
 app's 14px font) it has two columns as tall as the window; of the height the floors leave, the
 stage takes one part and the effects list two, and the palette list what the right column leaves.
-The floors: the stage at least 15rem and a third of its own width, each list four rows of tiles (the effects list four rows of its quick tiles);
+The floors: the stage at least 15rem and a third of its own width, each list four rows of tiles;
 when they do not fit, the page scrolls. On a phone, in one column, the order is Stage, Effects,
 Palettes, Edit colours, Background, the stage and the effects list each two fifths of the
 window. The stage opens in **3D room**, with **2D plot** available beside it. If the browser takes
@@ -719,7 +719,7 @@ The version-2 saved-effect library keeps authored legacy parameters through
 compatibility adapters; those engines remain for exact legacy playback. Selected
 old preset ids intentionally map to modern 2D looks. The alias frame-diff script
 (`node scripts/effects-v2-alias-diff.js [id=preset …]`) records those changes, and
-those of classic ids moved onto v2 presets, without rewriting the golden fixtures. The colour strip offers TycStation, the saved palettes and a hue-pair
+those of classic ids moved onto v2 presets, without rewriting the golden fixtures. The colour strip offers the stage palettes, TycStation and a hue-pair
 generator; every historical palette id still resolves.
 Visualizer Flow and Visualizer Drift left with the Colour + motion picture source
 (2026-11-15). Saved data naming them or their kind is migrated as its file loads, one
@@ -1513,9 +1513,10 @@ the effect's normal parameter-change behaviour. A global override still takes pr
 `paletteOverride` and `paletteOverrideId` remain compatible with existing
 clients. Old indexed palettes retain their curated 2/3/4-colour variants;
 old palette files, presets and cues load without losing colours or Random.
-The lists offer **TycStation** and the palettes saved here. The tables the
-effects came with and the indexed looks are what the engine draws from and are
-not offered; their ids still work through REST and Home Assistant. The **TycStation** palette (`tycStation`) holds the
+The lists offer the stage palettes and **TycStation**, with the palettes saved
+here. The two- and three-colour tables the party effects came with are what
+those effects draw from and are not offered; their ids still work through REST
+and Home Assistant. The **TycStation** palette (`tycStation`) holds the
 product mark's colours: blue `#5AA2FF`, violet `#8B6CF0`, red `#FF4A3D` and
 violet again, so an effect that runs round the palette comes back to blue
 without a seam. As the global override (`PUT /api/palette-override` with
