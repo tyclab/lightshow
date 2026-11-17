@@ -302,6 +302,17 @@ test('the pool shader\'s falloff is a half where a pool is said to be at half it
   assert.match(glsl, /float fall = 1\.0 - min\(dot\(past, past\), 1\.0\);\s*gl_FragColor = vec4\(vColor \* fall \* fall \* uStrength, 1\.0\);/, 'the falloff the shader draws');
 });
 
+test('the pool shader draws a pool\'s window of its quad and no more: the quad\'s corners are laid on the window\'s', () => {
+  // scene.js POOL_VERTEX: a corner of the quad (±1 along, ±1 across) goes to the window's centre and half size
+  // (world.poolWindow), and the pool's place in the room is built from that. Drawn whole, a pool shows the same
+  // picture, since its clip cuts the rest, but costs its whole quad; laid across the other axis, it draws the wrong part.
+  const corner = ([cu, cv, hu, hv], [x, z]) => [cu + hu * x, cv + hv * z];
+  const window = [0.25, -0.1, 0.5, 0.2];
+  assert.deepEqual([[-1, -1], [1, 1]].map((at) => corner(window, at)), [[-0.25, -0.30000000000000004], [0.75, 0.1]]);
+  const glsl = fs.readFileSync(new URL('../../public-src/stage3d/scene.js', import.meta.url), 'utf8');
+  assert.match(glsl, /vAt = poolWindow\.xy \+ poolWindow\.zw \* position\.xz;\s*vRun = poolRun;\s*vec4 world = modelMatrix \* instanceMatrix \* vec4\(vAt\.x, 0\.0, vAt\.y, 1\.0\);/, 'the window the shader draws');
+});
+
 test('a pool lies on its surface facing the lamp, an ellipse stretched along the slant and capped when grazing', () => {
   const plane = new PlaneGeometry(2, 2).rotateX(-Math.PI / 2);   // the pool as scene.js builds it
   const drawn = (pool) => new Matrix4().makeBasis(

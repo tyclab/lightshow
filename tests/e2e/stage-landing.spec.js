@@ -102,6 +102,14 @@ test('a bulb lights the floor under it wide and faintly; the same lumen in a bea
     colour: { r: 255, g: 255, b: 255 }, points: floorAt(0, 3.0) }));
   expect(beam[0]).toBeGreaterThan(5 * centre);
   expect(beam[1]).toBe(0);
+  // Aimed at the floor under it, a lamp without a beam draws what it draws without an aim: the same pool, and no cone
+  // in the haze. Read from the side with the haze full: on the lamp's axis, beside it, and on the floor.
+  const hazy = (binding) => page.evaluate((input) => window.landing(input), { model: ROOM, view: 'side', haze: 1, binding, colour: { r: 255, g: 255, b: 255 },
+    points: [[0, 1.2, 0], [0.3, 0.6, 0], [0, 0.003, 0], [1.5, 0.003, 0], [0, 0.003, 1.5]] });
+  const free = await hazy(at), aimed = await hazy({ ...at, lightTarget: { x: 0, y: 0, z: 0 } });
+  expect([aimed.pars, aimed.pools, aimed.level]).toEqual([0, 1, free.level]);
+  expect(aimed.on).toEqual(free.on);
+  expect(added(free)[2]).toBeGreaterThan(0.05);
 });
 
 test('a beam\'s cone in the haze is as strong as its pool: faint for a faint lamp, full for one of unknown lumen', async ({ page }) => {
