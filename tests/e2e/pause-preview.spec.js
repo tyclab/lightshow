@@ -1,14 +1,14 @@
 // A preview can be paused (Show v3 fixes, G1). The operator, 2026-11-15: "explain to me why the button top stop
-// preview is removed." Disarmed, a stage drawing the demo beat or the server's feed offers one Pause preview: the
+// preview is removed." Disarmed, a stage drawing the server's feed, stopped or playing, offers one Pause preview: the
 // page lets its own feeds go as the idle pause does, until Resume preview or Arm. Nothing reaches the server.
 
 import { test, expect } from '@playwright/test';
-import { control, open, playButton, reset, set } from './helpers.js';
+import { control, open, reset, set } from './helpers.js';
 import { stageImage, stageMotion } from './stage-image.js';
 import { watchControlWrites } from './audition-isolation.js';
 
-const DEMO = 'Preview · demo beat';
 const FEED = 'Preview (disarmed)';
+const STOPPED_NOTE = 'Stopped: the stage shows the show as it stands. Play, in the header, starts it.';
 const BACKGROUND_OFF = { version: 1, mode: 'off', level: 1, colour: { r: 0, g: 0, b: 0, w: 0, a: 0, uv: 0 } };
 const FORMATS = ['3D', '2D'];
 
@@ -92,49 +92,18 @@ async function rests(page, format) {
   return new Set(await lampFrames(page, 1500)).size === 1;
 }
 
-// The operator, 2026-11-17, asked "should the header's Stop also halt the preview animation?": "1".
 for (const format of FORMATS) {
-  test(`${format}: Stop on this page halts its preview until another effect is chosen or Play; a reload is not held`, async ({ page, request }) => {
-    const stopped = page.getByRole('status').filter({ hasText: /^Stopped: the stage shows the show as it stands\./ });
-    await open(page, 'show');
-    await useFormat(page, format);
-    await expect(tag(page)).toHaveText(FEED);
-    await expect(stopped).toHaveCount(0);
-
-    await playButton(page, 'Stop').click();
-    await expect.poll(async () => (await controlOf(request)).playing).toBe(false);
-    await expect(stopped).toBeVisible();
-    await expect(tag(page), 'the feed, not the demo beat').toHaveText(FEED);
-    await expect.poll(() => rests(page, format), { message: 'the stage comes to rest', timeout: 15_000 }).toBe(true);
-    await expect(pauseButton(page), 'Pause preview stays').toBeVisible();
-
-    await page.locator('.contained-effects [data-effect="ping-pong"]').first().click();
-    await expect(tag(page), 'another effect is previewed').toHaveText(DEMO);
-    await expect(stopped).toHaveCount(0);
-    expect(await moves(page, format, 'chosen'), 'the demo beat moves').toBe(true);
-
-    await playButton(page, 'Play').click();
-    await expect(tag(page)).toHaveText(FEED);
-    await playButton(page, 'Stop').click();
-    await expect(stopped).toBeVisible();
-    await page.reload();
-    await useFormat(page, format);
-    await expect(tag(page), 'a fresh page previews as ever').toHaveText(DEMO);
-    await expect(stopped).toHaveCount(0);
-  });
-}
-
-for (const format of FORMATS) {
-  test(`${format}: Pause preview stops the demo beat and lets this page's feeds go; Resume preview brings both back`, async ({ page, request }) => {
+  test(`${format}: stopped, Pause preview lets this page's feeds go; Resume preview brings them back and starts nothing`, async ({ page, request }) => {
     await control(request, 'stop');
     const socket = feeds(page);
     const writes = watchControlWrites(page);
+    const stopped = page.getByRole('status').filter({ hasText: STOPPED_NOTE });
     await open(page, 'show');
     await useFormat(page, format);
-    await expect(tag(page)).toHaveText(DEMO);
+    await expect(tag(page)).toHaveText(FEED);
+    await expect(stopped).toBeVisible();
     await expect.poll(() => socket.topics).toEqual({ dmx: 'subscribe', picture: 'subscribe' });
     await expect.poll(() => awake(request)).toContain('dmx');
-    expect(await moves(page, format, 'demo'), 'the demo beat moves').toBe(true);
 
     await pauseButton(page).click();
     await expect(notice(page)).toHaveText('Preview paused.');
@@ -146,10 +115,11 @@ for (const format of FORMATS) {
 
     await resumeButton(page).click();
     await expect(notice(page)).toHaveCount(0);
-    await expect(tag(page)).toHaveText(DEMO);
+    await expect(tag(page)).toHaveText(FEED);
+    await expect(stopped).toBeVisible();
     await expect.poll(() => socket.topics).toEqual({ dmx: 'subscribe', picture: 'subscribe' });
     await expect.poll(() => awake(request)).toContain('dmx');
-    expect(await moves(page, format, 'resumed'), 'the demo beat moves again').toBe(true);
+    await expect.poll(() => rests(page, format), { message: 'the stopped show stays still', timeout: 15_000 }).toBe(true);
     expect(writes, 'neither button sends anything').toEqual([]);
     expect((await controlOf(request)).playing).toBe(false);
   });
@@ -195,8 +165,8 @@ for (const format of FORMATS) {
     await expect(tag(page)).toHaveText(FEED);
     await expect(pauseButton(page), 'the feed').toHaveCount(1);
     await control(request, 'stop');
-    await expect(tag(page)).toHaveText(DEMO);
-    await expect(pauseButton(page), 'the demo beat').toHaveCount(1);
+    await expect(tag(page)).toHaveText(FEED);
+    await expect(pauseButton(page), 'the stopped feed').toHaveCount(1);
     await control(request, 'blackout');
     await expect(tag(page)).toHaveText('Blackout');
     await expect(pauseButton(page), 'Blackout').toHaveCount(0);
@@ -231,7 +201,7 @@ for (const format of FORMATS) {
     const socket = feeds(page);
     await open(page, 'show');
     await useFormat(page, format);
-    await expect(tag(page)).toHaveText(DEMO);
+    await expect(tag(page)).toHaveText(FEED);
     await pauseButton(page).click();
     await expect(notice(page)).toHaveText('Preview paused.');
     await expect.poll(() => socket.topics).toEqual({ dmx: 'unsubscribe', picture: 'unsubscribe' });
@@ -240,10 +210,10 @@ for (const format of FORMATS) {
     await page.reload();
     await page.locator('.offline-veil').waitFor({ state: 'detached' });
     await useFormat(page, format);
-    await expect(tag(page), 'the pause is not stored').toHaveText(DEMO);
+    await expect(tag(page), 'the pause is not stored').toHaveText(FEED);
     await expect(notice(page)).toHaveCount(0);
     await expect(pauseButton(page)).toHaveCount(1);
-    expect(await moves(page, format, 'reloaded')).toBe(true);
+    await expect.poll(() => socket.topics, 'the reloaded page holds its feeds').toEqual({ dmx: 'subscribe', picture: 'subscribe' });
   });
 }
 

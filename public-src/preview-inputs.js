@@ -58,11 +58,11 @@ export function unmetOwned(s) {
 }
 
 /**
- * The selected look as a stopped, disarmed stage draws it (Show v3, G6): the live state's effect with its
- * colours, the palette and its override, Background and the look's own flash limit, on the built-in demo
- * beat, each light as it emits. The master scales each fixture's trim, as the engine multiplies them. The
- * acknowledgement is the state's answer, given while disarmed as in the engine's own disarmed picture; the
- * sampler never writes one, and the look's flash limit applies. The units an unmet source owns are dark, as on the rig (G5).
+ * The selected look on the built-in demo beat, as the effect editor's stage plays a draft in it (G7): the live state's
+ * effect with its colours, the palette and its override, Background and the look's own flash limit, each light as it
+ * emits. The master scales each fixture's trim, as the engine multiplies them. The acknowledgement is the state's
+ * answer, given while disarmed as in the engine's own disarmed picture; the sampler never writes one, and the look's
+ * flash limit applies. Without a draft, the units an unmet source owns are dark, as on the rig (G5).
  */
 export function demoLookSampler(s, { library = null, space = null, draft = null } = {}) {
   const base = previewOptions(s, { library });

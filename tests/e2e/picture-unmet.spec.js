@@ -9,7 +9,7 @@ import { stageImage, stageMotion } from './stage-image.js';
 
 const BLACK = { r: 0, g: 0, b: 0, w: 0, a: 0, uv: 0 };
 const BACKGROUND_OFF = { version: 1, mode: 'off', level: 1, colour: BLACK };
-const DEMO = 'Preview · demo beat';
+const FEED = 'Preview (disarmed)';
 
 const segment = (page, id) => page.getByRole('group', { name: 'Picture source' }).locator(`[data-source="${id}"]`);
 const stageLine = (page) => page.locator('.stage3d-tools .stage-unmet');
@@ -42,18 +42,17 @@ test.afterEach(async ({ request }) => {
 // A steady look, not a moving one: a wave lights one lamp at a time with the room dark between its laps, so a frame of it
 // taken at one moment can be as dark as the unmet stage (CI, 2026-11-16: 34 pixels lit against 17). The thresholds are
 // the stage tests' own (show.spec.js): lit above 1 % of the canvas, dark below 0.1 %.
-test('under Visualizer the stopped, disarmed stage draws the room dark on the demo beat and says why, in 3D and 2D', async ({ page, request }) => {
+test('under Visualizer the disarmed stage draws the room dark while the show plays and says why, in 3D and 2D', async ({ page, request }) => {
   await set(request, { pattern: 'solid', basePalette: { colours: ['#FF0000000000'] }, background: BACKGROUND_OFF });
-  await control(request, 'stop');
   await open(page, 'show');
-  // Effects first: the demo beat lights the look.
-  await expect(tag(page)).toHaveText(DEMO);
+  // Effects first: the playing look lights the room.
+  await expect(tag(page)).toHaveText(FEED);
   await expect(stageLine(page)).toHaveCount(0);
   await expect.poll(async () => (await stageImage(page)).litShare, 'the look lights the haze').toBeGreaterThan(0.01);
 
   await request.post('/api/picture/source', { data: { source: 'visualizer' } });
   await expect(stageLine(page)).toHaveText('Visualizer: outputs disarmed');
-  await expect(tag(page)).toHaveText(DEMO);
+  await expect(tag(page)).toHaveText(FEED);
   await expect(segment(page, 'visualizer')).toHaveAccessibleDescription('Visualizer: outputs disarmed');
   await expect(cardLine(page)).toHaveText('Visualizer: outputs disarmed');
   await expect.poll(async () => (await stageImage(page, { remember: 'dark' })).litShare, 'the lamps go dark').toBeLessThan(0.001);

@@ -17,9 +17,10 @@ Do not update golden outputs merely to make a failing check pass.
   Chromium builds give no WebGL with those SwiftShader flags; `--use-gl=angle
   --use-angle=vulkan --enable-features=Vulkan` does. Check that the configured
   browser creates a `webgl2` context before trusting a motion test.
-- Stage motion is `stageMotion` in `tests/e2e/stage-image.js`. A stopped show is
-  not dark: disarmed, the stage draws the selected look on the demo beat. The zero
-  control is armed and stopped with Background off and no Freeze, voices or fixture
+- Stage motion is `stageMotion` in `tests/e2e/stage-image.js`. A stage draws the
+  server's feed, armed or disarmed, so a stopped show does not move; only an audition
+  and the effect editor's stage draw in the browser, on the demo beat. The zero
+  control is stopped with Background off and no Freeze, voices or fixture
   overrides; every darkness or zero-motion test clears those first, since a stopped
   show still renders Background (`src/server/renderer.ts`) and a frozen picture.
 - A page times a frame of the engine's feed when it draws it, not when the engine

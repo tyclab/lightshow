@@ -449,8 +449,8 @@ function ParamControls({ spec, caps, families, lib, fixtures, setParam, setKind,
 // ── The card ────────────────────────────────────────────────────────────────
 
 /**
- * `stage`: the editor draws the open draft on a stage of its own (G7), in this browser on the demo beat, wherever the
- * stopped preview would draw a look: not while armed, under Blackout or with the preview paused, and held by Freeze.
+ * `stage`: the editor draws the open draft on a stage of its own (G7), in this browser on the demo beat, while the outputs
+ * are disarmed: not while armed, under Blackout or with the preview paused, and held by Freeze.
  */
 export function Inspector({ id, onSelect, onPlay, onClose, inline = null, onApply, auditionTargets = 'shared', auditionUnavailable = null, stage = false }) {
   const s = pick(['families', 'patterns', 'fixtures', 'pattern', 'armed']);

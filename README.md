@@ -175,25 +175,23 @@ Effect settings holds the full catalogue and mapping controls, the effect editor
 that draws the open draft, and the saved cues to rename, overwrite or delete; Perform is the tablet surface for
 pads, strobes, the Matrix board and the tempo (typed, −1 and +1, ½ and ×2, the beat division); Sequence arranges clips or runs a playlist; Stage shows the
 rig in 3D with its room bindings. Arming is a separate action
-from preparing or previewing a look, and a stage previews by itself. Disarmed and stopped, with no pad,
-held energy effect, Identify or Freeze, Stage and the fixture plot draw the selected look (its effect and
-colours, the palette and its override, the band colours, the master and Background) on the built-in demo
-beat, sampled in this browser with the look's own flash limit, and say **Preview · demo beat**. It sends
-nothing to the server, so it starts nothing, and never gives the photosensitivity acknowledgement.
-Disarmed while something plays, they draw the server's feed, what arming would send, under **Preview
-(disarmed)**. **Stop** pressed on this page halts its preview as well: the stopped stage
-draws that feed, with a note saying so, until another effect is chosen or **Play**; another page, or a reload, previews as ever. Armed they say **Live output** and draw only the feed: arming drops the demo-beat preview at
-once. **Blackout** outranks the rest, armed or not, with a note over the 3D stage and under the plot that
-points to **Restore** in the header.
+from preparing or previewing a look. Stage and the fixture plot draw the server's feed, so they move only
+while the show plays: the header's **Play** starts it for every page at once, and **Stop**, a stop from
+another client or the idle stop stills every page; a reload changes nothing. Disarmed they say **Preview
+(disarmed)** and draw what arming would send, nothing reaching the rig. With nothing playing (no programme,
+pad, held energy effect, Identify or Freeze) a note over the 3D stage and under the plot says the show is
+stopped and that **Play**, in the header, starts it; choosing an effect then starts nothing. Armed they say
+**Live output**. **Blackout** outranks the rest, armed or not, with a note over the 3D stage and under the
+plot that points to **Restore** in the header.
 A disarmed page nobody touches for `outputs.idleStopMin` minutes (60; Settings → Show, **Stop an
 Unattended Show**) lets its DMX and picture feeds go: every view that draws a stage says **Preview paused
-after 60 minutes without input.** over the stage, the stage draws its lights off under **Preview paused**, the demo-beat
-preview included, and **Resume preview**, in the toolbar where Pause preview stands, brings the feeds back and
+after 60 minutes without input.** over the stage, the stage draws its lights off under **Preview paused**,
+and **Resume preview**, in the toolbar where Pause preview stands, brings the feeds back and
 starts nothing; neither the toolbar nor the stage moves. Arming resumes it too; armed, a page never pauses.
-**Pause preview**, in the stage's toolbar in 3D and 2D while it draws either disarmed preview, does the
+**Pause preview**, in the stage's toolbar in 3D and 2D while it draws the disarmed preview, does the
 same at once and says **Preview paused.**: only this page stops drawing; the show, Freeze, Blackout, Arm
 and other pages are as they were, and nothing is sent. It works with the idle stop at `0`, and a reload
-previews again. The
+draws the preview again. The
 server stops a disarmed show nobody attends after the same minutes (see
 [Home Assistant integration surface](#home-assistant-integration-surface)).
 
@@ -256,20 +254,19 @@ against a deterministic 124 BPM demo: build, drop, breakdown and groove, with
 synthetic beat, bass, mid and high levels. Pause, restart or scrub the demo; switch
 Stage between **3D room** and **2D plot** to inspect the same moment. These are
 simulated audio levels, so no music file or audio input is required. The audition
-uses its own palette and transport under the live master; like the demo beat, it draws
+uses its own palette and transport under the live master and draws
 each light as it emits, a dimmer channel's level times the emitters. It sends no look, engine, room or output
 commands. It runs only while the outputs are disarmed, so rapid effects audition
 without a question. Arming ends the audition. In the
 editor on Effect settings, the open draft plays on a stage of its own on the same demo beat, with the live
-colours, wherever the stopped preview would draw a look and while the show plays disarmed; armed, under Blackout
-or with the preview paused that stage is drawn as everywhere else, and Freeze holds the draft's frame. **Hold on
-live rig** is the separate live voice control. The stopped, disarmed stage's own preview runs on the same demo
-beat with the live look in place of the audition's demo palette.
+colours and the look's flash limit, while the outputs are disarmed, the show stopped or playing; armed, under
+Blackout or with the preview paused that stage is drawn as everywhere else, and Freeze holds the draft's frame.
+It never gives the photosensitivity acknowledgement. **Hold on live rig** is the separate live voice control.
 
 ```mermaid
 flowchart LR
   Demo[Local demo timeline] --> Audio[Typed audio and section source]
-  Draft[Audition effect, edited draft or the stopped live look] --> Preview[Browser preview sampler]
+  Draft[Audition effect or edited draft] --> Preview[Browser preview sampler]
   Audio --> Preview
   Rig[Read-only patch and room] --> Preview
   Preview --> Room[3D room]
@@ -424,7 +421,7 @@ a look appears.
 | | **Rapid ⚡** | with the outputs armed, plays only after the photosensitivity acknowledgement |
 
 A reaction also says where its input comes from: **track** (a song's sections and
-stems: the stopped preview's demo track sends them; the rig sends none, only a look's own
+stems: the demo track of an audition or the effect editor's stage sends them; the rig sends none, only a look's own
 build-up span sets the progress, and otherwise the look runs on its clock) or **live**
 (the Reactive audio mode with live input). The expression channel (`showDynamics`) is not counted as an input: only a
 patch through the API sets it; when set it shapes many classic patterns and dims every
@@ -1340,7 +1337,7 @@ the Background, which does not fill it as it fills a black picture; voices, pads
 overrides, Identify, Freeze's held light and Blackout stay above it, and it fades through
 the outputs' configured transitions like any other change. Stems in Space draws only the
 stems or bands that arrive (bands only in the reactive audio mode); a stem it lacks is
-zero. The disarmed demo beat draws the owned units dark too. A frame from a sender without
+zero. A frame from a sender without
 the lease is refused without touching the owner's picture; a helper that fails to capture
 releases its lease and shows as `no-sender` (its own reason stays on its status page).
 `board-problem` says what the board reports: the dark is sent, but a board that ignores the

@@ -19,7 +19,7 @@ async function load() {
       contents: `
         export { render as html } from 'preact-render-to-string';
         export { h, options } from 'preact';
-        export { store } from './public-src/state.js';
+        export { store, connectedSig } from './public-src/state.js';
         export { Perform } from './public-src/components/Perform.jsx';
         export { Show } from './public-src/components/Show.jsx';
         export { ShowEffects, effectsBox, effectsKey, searchRequestSig } from './public-src/components/ShowEffects.jsx';
@@ -1450,11 +1450,6 @@ test('Show\'s Effects box names the main effect as current only while it plays, 
   for (const [running, frozen, source, want] of rows) {
     assert.deepStrictEqual(ui.effectsBox({ running, frozen, source }), want, JSON.stringify({ running, frozen, source }));
   }
-  // Stopped and disarmed, the stage previews the selected effect by itself (G6): the hint says so, and what Play does.
-  for (const source of ['effects', 'squid']) {
-    assert.deepStrictEqual(ui.effectsBox({ running: false, frozen: false, source, previewing: true }),
-      { picture: false, label: 'Selected effect', hint: 'The show is stopped. The preview shows the selected effect; Play sends it.' }, source);
-  }
 
   const effects = (html) => /<section class="card contained-effects[^"]*"[^>]*>(.*?)<\/section>/s.exec(html)[1];
   const unmetLine = (html) => /<p class="hint unmet-line" role="status">([^<]*)<\/p>/.exec(html)?.[1] ?? null;
@@ -1481,6 +1476,17 @@ test('Show\'s Effects box names the main effect as current only while it plays, 
   givenLibrary({ running: false, control: { version: 1, frozen: true, blackout: false, armed: false }, picture: { source: 'effects', input: null } });
   assert.match(effects(ui.html(ui.h(ui.Show))),
     /<p class="hint contained-hint" role="status">The picture is frozen and the show is stopped\. The selected effect plays after Resume and play\.<\/p>.*Selected effect/s);
+  // The operator, 2026-11-17: the stage moves only while Play has the show playing, so a connected, disarmed, stopped
+  // page promises no preview of the selected effect, only that it plays when the show does.
+  ui.connectedSig.value = true;
+  try {
+    givenLibrary({ running: false, armed: false, control: { version: 1, playing: false, layers: false, frozen: false, blackout: false, armed: false },
+      picture: { source: 'effects', input: null } });
+    assert.match(effects(ui.html(ui.h(ui.Show))),
+      /<p class="hint contained-hint" role="status">The show is stopped\. The selected effect plays when the show plays\.<\/p>.*Selected effect/s);
+  } finally {
+    ui.connectedSig.value = false;
+  }
 });
 
 test('Perform lifts and grades the visualizer picture while it paints the room, and only then', () => {

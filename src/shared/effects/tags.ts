@@ -38,7 +38,7 @@ export const TAG_AXES: readonly { id: TagAxis; name: string; tags: readonly TagI
 export const REACTIVE_TAGS: ReadonlySet<TagId> = new Set(['bands', 'level', 'sections']);
 
 export const SOURCES: Readonly<Record<TagSource, { name: string; desc: string }>> = Object.freeze({
-  track: { name: 'track', desc: 'Reacts to a song\'s sections and stems: the stopped preview\'s demo track sends them; the rig sends none, only a look\'s own build-up span sets the progress, and otherwise it runs on its clock' },
+  track: { name: 'track', desc: 'Reacts to a song\'s sections and stems: the demo track of an audition or the effect editor\'s stage sends them; the rig sends none, only a look\'s own build-up span sets the progress, and otherwise it runs on its clock' },
   live: { name: 'live', desc: 'Reacts in the reactive audio mode with live input' },
 });
 

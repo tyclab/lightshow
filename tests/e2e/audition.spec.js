@@ -3,8 +3,8 @@ import { control, open, set, state } from './helpers.js';
 import { stageImage } from './stage-image.js';
 import { protectedState, watchControlWrites } from './audition-isolation.js';
 
-// A stopped stage draws the selected look on the demo beat (Show v3), so the look is made black to see the audition light
-// the room. The audition draws a dimmer par as it emits (Show v3 fixes, G1b), dimmer and emitters both: at the drop
+// The stage draws the look while the show plays, so the look is made black to see the audition light the room.
+// The audition draws a dimmer par as it emits (Show v3 fixes, G1b), dimmer and emitters both: at the drop
 // about a quarter of a percent of the room is brighter than 100, where the emitters alone made more than twice that.
 const OFF = { version: 1, mode: 'off', level: 1, colour: { r: 0, g: 0, b: 0, w: 0, a: 0, uv: 0 } };
 
