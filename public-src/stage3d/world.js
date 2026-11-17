@@ -213,6 +213,13 @@ export function poolOn(end, normal, aim, radius) {
     normal, along, across: cross(along, normal), major: minor / Math.max(GRAZE, cos), minor };
 }
 
+/**
+ * A pool on a ceiling: its surface faces down, within 45 degrees of straight down. The room's ceiling is never
+ * drawn, so nothing hides such a pool from above, and the stage shows it from both sides (scene.js). The underside
+ * of furniture counts too; there the furniture itself hides the pool from above, as it hides its own underside.
+ */
+export const onCeiling = (pool) => !!pool && pool.normal.y < -Math.SQRT1_2;
+
 const boxDistance = (box, point) => {
   const o = sub(point, box.centre);
   return Math.hypot(...box.axes.map((axis, i) => Math.max(0, Math.abs(dot(o, axis)) - box.half[i])));

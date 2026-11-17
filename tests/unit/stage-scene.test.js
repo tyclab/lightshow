@@ -12,7 +12,7 @@ const built = await esbuild.build({
   stdin: { contents: `export { createStageScene } from './public-src/stage3d/scene.js';
     export { keptRig } from './public-src/stage3d/kept-rig.js';
     export { lightRGB } from './public-src/stage3d/world.js';
-    export { FrontSide, Matrix4, Vector3 } from 'three';
+    export { FrontSide, DoubleSide, Matrix4, Vector3 } from 'three';
     export { built } from 'scene-counts';`, resolveDir: root },
   bundle: true, format: 'esm', platform: 'node', write: false, logLevel: 'silent',
   plugins: [{ name: 'stub-renderer', setup(build) {
@@ -134,7 +134,7 @@ function quadOf(meshes, pool) {
     if (at.setFromMatrixPosition(matrix).distanceTo(pool.at) > 1e-5) continue;
     const { index, attributes: { position } } = mesh.geometry;
     const [a, b, c] = [0, 1, 2].map((corner) => new ui.Vector3().fromBufferAttribute(position, index.getX(corner)).applyMatrix4(matrix));
-    return { mesh, front: b.sub(a).cross(c.sub(a)).normalize() };
+    return { mesh, front: b.sub(a).cross(c.sub(a)).normalize(), colour: [...mesh.instanceColor.array.slice(k * 3, k * 3 + 3)] };
   }
   return null;
 }
@@ -212,4 +212,37 @@ test('each beam hands the beam shader its clip: the box its haze stays in, its r
     assert.equal(beam.clip, undefined);
     assert.deepEqual([free.least(k), free.most(k), free.where(k)], [[-1e6, -1e6, -1e6], [1e6, 1e6, 1e6], [0, 0, 0, 0]]);
   });
+});
+
+test('a pool on a ceiling is drawn from both sides, on the room\'s ceiling and under furniture; the pools beside it keep their one side and their colours', () => {
+  const stage = ui.createStageScene(canvas, { room: { width: 12, depth: 8, trussHeight: 4.6 }, lightRGB: ui.lightRGB });
+  const LAMP = { id: 'scene-lamp', name: 'Lamp', channelMap: { red: 0, green: 1, blue: 2 } };
+  const lamps = [1, 2, 3, 4].map((id) => ({ id, label: `Lamp ${id}`, universe: 1, address: id * 3, profileId: LAMP.id }));
+  const shelf = { id: 'shelf', kind: 'box', role: 'furniture', position: { x: -1.5, y: 1.8, z: 1 }, size: { x: 0.8, y: 0.3, z: 0.4 } };
+  const base = room('Ceiling');
+  // One lamp aims at the ceiling, one up at the underside of a shelf, one at the wall, and one has no aim.
+  const model = { ...base, objects: [...base.objects, shelf], bindings: [
+    { id: 'up', fixtureId: 1, position: { x: 1, y: 1.6, z: 1 }, lightTarget: { x: 1, y: 2.4, z: 1 } },
+    { id: 'shelf', fixtureId: 2, position: { x: -1.5, y: 1, z: 1 }, lightTarget: { x: -1.5, y: 1.6, z: 1 } },
+    { id: 'wall', fixtureId: 3, position: { x: 0, y: 1.5, z: 1 }, lightTarget: { x: 0, y: 1.2, z: 0.05 } },
+    { id: 'under', fixtureId: 4, position: { x: 1.5, y: 2, z: -1 } }] };
+  const shown = ui.keptRig(lamps, { [LAMP.id]: LAMP }, model);
+  const from = ui.built.meshes.length;
+  stage.setRoom(model);
+  stage.setRig(shown.placed, shown.rig.units.length);
+  stage.setLights([{ r: 255 }, { g: 255 }, { b: 255 }, { r: 255, g: 255 }]);
+  const meshes = ui.built.meshes.slice(from);
+  const [up, onShelf, onWall] = shown.placed.lamps, [under] = shown.placed.pools;
+  assert.deepEqual([up.pool.normal, onShelf.pool.normal, onShelf.pool.at.y < 1.65], [{ x: 0, y: -1, z: 0 }, { x: 0, y: -1, z: 0 }, true], 'the ceiling and the shelf\'s underside face down');
+  const quads = [up, onShelf, onWall, under].map(({ pool }) => quadOf(meshes, pool));
+  assert.deepEqual(quads.map((quad) => quad.mesh.material.side), [ui.DoubleSide, ui.DoubleSide, ui.FrontSide, ui.FrontSide]);
+  assert.equal(quads[0].mesh, quads[1].mesh, 'the pools on ceilings are one sheet');
+  assert.equal(quads[2].mesh, quads[3].mesh, 'the others another');
+  assert.deepEqual(quads.map((quad) => quad.colour), [[1, 0, 0], [0, 1, 0], [0, 0, 1], [1, 1, 0]].map((rgb, k) => rgb.map((v) => Math.fround(v * [up, onShelf, onWall, under][k].pool.level))),
+    'each pool keeps its own light\'s colour at its own level');
+  assert.equal(stage.info().pools, 4);
+  // Each sheet's clips are its own pools': the ceiling pool's surface is the ceiling, the wall pool's the wall.
+  const surfaceOf = (quad, k) => [...quad.mesh.material.uniforms.uClip.value.image.data.slice(k * 20, k * 20 + 3)];
+  assert.deepEqual(surfaceOf(quads[0], 0), [0, 2.5, 0]);
+  assert.deepEqual(surfaceOf(quads[2], 0), [0, 0, Math.fround(0.05)].map((v, i) => (i === 1 ? onWall.pool.clip.surface.centre.y : v)));
 });

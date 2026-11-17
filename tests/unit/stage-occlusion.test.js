@@ -365,3 +365,21 @@ test('a beam names no room when its cone lies in one: the outline cuts nothing o
   assert.equal(over.clip.rooms.length, 1);
   assert.ok(inSlot.shown > 1000 && inSlot.cut > 100 && !hazeAt(over.clip, over.position, { x: 0, y: 0.2, z: 0.5 }), `the slot has none of its haze: ${inSlot.shown} shown, ${inSlot.cut} cut`);
 });
+
+test('a pool lies on a ceiling when its surface faces down within 45 degrees of straight down: the room\'s ceiling and the underside of furniture', () => {
+  const tilted = (degrees) => ({ normal: { x: Math.sin(degrees * Math.PI / 180), y: -Math.cos(degrees * Math.PI / 180), z: 0 } });
+  assert.deepEqual([0, 44, 46, 90, 180].map((degrees) => world.onCeiling(tilted(degrees))), [true, true, false, false, false]);
+  assert.equal(world.onCeiling(null), false, 'a beam that lands nowhere has no pool');
+  const { room } = fixtureFile('two-rooms');
+  const shelf = { id: 'shelf', kind: 'box', role: 'furniture', position: { x: -2, y: 1.8, z: 1 }, size: { x: 0.8, y: 0.3, z: 0.4 } };
+  const placed = placedIn({ ...room, objects: [...room.objects, shelf], bindings: [
+    lamp(1, { x: -1.5, y: 1.6, z: -1 }, { lightTarget: { x: -1.5, y: 2.4, z: -1 } }),
+    lamp(2, { x: -2, y: 1, z: 1 }, { lightTarget: { x: -2, y: 1.6, z: 1 } }),
+    lamp(3, { x: -0.6, y: 1.7, z: -1 }, { lightTarget: { x: -0.05, y: 1.7, z: -1 } }),
+    lamp(4, { x: -1, y: 2, z: 1.5 }, { lightTarget: { x: -1, y: 0, z: 1.2 } }),
+    lamp(5, { x: 1.5, y: 2, z: 1 }),
+  ] }, lamps(5));
+  const pools = [...placed.lamps.filter((light) => light.kind === 'par').map((beam) => beam.pool), placed.pools[0].pool];
+  near(pools[1].at.y, 1.65 - 0.006, 'the second lamp lights the shelf from below');
+  assert.deepEqual(pools.map(world.onCeiling), [true, true, false, false, false], 'the ceiling, the shelf\'s underside; not the wall, the floor or the pool under a lamp');
+});

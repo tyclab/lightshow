@@ -68,6 +68,12 @@ cylinder by its outline, a mesh by its triangles, so a beam passes a mesh wall's
 openings. The bounds' floor, ceiling and walls stop the rest. A pool shows only on
 the surface it lands on, inside the room polygon that holds its centre, and not
 past a wall from its centre.
+A pool shows from the side its surface faces, which is the side its light comes from:
+light on a wall's face is not drawn for a view from behind that wall, whether the wall
+stands at full height, is cut away or is hidden. A pool on a ceiling, a surface that faces
+down within 45° of straight down, shows from above as well: the room's ceiling is never
+drawn, so nothing else would show the light on it. That holds under furniture too, where
+the furniture itself hides the pool from above.
 A beam's haze, the cone drawn from its lamp to where it lands, shows only where the
 lamp's light is: inside the room's bounds, on the lamp's side of the floor and of the
 ceiling, in the room the lamp stands in and the one its pool lies in, and not past a

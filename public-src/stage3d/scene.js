@@ -2,7 +2,7 @@ import { performanceReport } from '../performance.js';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { roomObjectGeometry } from './room-geometry.js';
-import { meanLightRGB, roomViews, STAGE_FOV } from './world.js';
+import { meanLightRGB, onCeiling, roomViews, STAGE_FOV } from './world.js';
 
 /**
  * The 3D stage: the rig in a dark, hazy room, drawn with three.js.
@@ -19,7 +19,9 @@ import { meanLightRGB, roomViews, STAGE_FOV } from './world.js';
  * An imported room's surfaces shade under a dim fill, the same whatever the
  * outputs do; what a light gives the room is drawn where the light is: its own
  * glow, the room objects that are the light, and one pool, a beam's where it
- * lands and any other light's on the floor under it (world.roomRig).
+ * lands and any other light's on the floor under it (world.roomRig). A pool
+ * shows from the side its surface faces; one on a ceiling from above as well,
+ * since no ceiling is drawn to hide it.
  *
  * Loaded on its own (three.js is most of it), the first time a stage
  * opens. `createStageScene` throws when the browser has no WebGL.
@@ -456,15 +458,19 @@ export function createStageScene(canvas, { haze = 0.6, room, lightRGB }) {
     blending: THREE.AdditiveBlending,
     side: THREE.DoubleSide,
   }));
-  let poolClip = poolClipTexture([]);
-  const poolMaterial = keep(new THREE.ShaderMaterial({
-    uniforms: { uStrength: { value: 0.9 }, uClip: { value: poolClip }, uClipWidth: { value: CLIP_WIDTH } },
+  // Two sheets of pools, each with its own clips: those that show from the side their surface faces, and those on
+  // a ceiling, which show from both (one draw, nothing culled).
+  const poolClips = [poolClipTexture([]), poolClipTexture([])];
+  const poolMaterials = [THREE.FrontSide, THREE.DoubleSide].map((side, sheet) => keep(new THREE.ShaderMaterial({
+    uniforms: { uStrength: { value: 0.9 }, uClip: { value: poolClips[sheet] }, uClipWidth: { value: CLIP_WIDTH } },
     vertexShader: POOL_VERTEX,
     fragmentShader: POOL_FRAGMENT,
     transparent: true,
     depthWrite: false,
     blending: THREE.AdditiveBlending,
-  }));
+    side,
+    forceSinglePass: true,
+  })));
   const glowMap = keep(glowTexture());
   const glowMaterial = (size) => keep(new THREE.PointsMaterial({
     size, map: glowMap, vertexColors: true, transparent: true, depthWrite: false,
@@ -545,6 +551,7 @@ export function createStageScene(canvas, { haze = 0.6, room, lightRGB }) {
     const bulbs = placed.lamps.filter((l) => l.kind === 'bulb');
     // Every pool: a par's own, then those of the lights that throw no beam (world.roomRig).
     const pooled = [...pars, ...(placed.pools || [])];
+    const sheets = [pooled.filter(({ pool }) => !onCeiling(pool)), pooled.filter(({ pool }) => onCeiling(pool))];
 
     const bodies = instanced(bodyGeometry, bodyMaterial, pars.length);
     const lenses = instanced(lensGeometry, lensMaterial, pars.length);
@@ -555,7 +562,10 @@ export function createStageScene(canvas, { haze = 0.6, room, lightRGB }) {
       cones.setAttribute(name, new THREE.InstancedBufferAttribute(values, size));
     }
     const beams = instanced(cones, beamMaterial, pars.length);
-    const pools = instanced(poolGeometry, poolMaterial, pooled.length);
+    // The sheet of ceiling pools is made only for a rig that has one: any other draws and links nothing for it.
+    const pools = sheets.map((lights, sheet) => (sheet && !lights.length ? null : instanced(poolGeometry, poolMaterials[sheet], lights.length))).filter(Boolean);
+    // Where each light's pool is coloured: its sheet's colours and its place among them.
+    const poolOf = new Map();
     const bulbMesh = instanced(bulbGeometry, lensMaterial, bulbs.length);
     const cellMesh = instanced(cellGeometry, cellMaterial, placed.cells.length);
     const lampGlow = points(pars.length + bulbs.length, lampGlowMaterial);
@@ -574,14 +584,16 @@ export function createStageScene(canvas, { haze = 0.6, room, lightRGB }) {
       beams.setMatrixAt(k, tmpM);
       lampGlow.geometry.attributes.position.setXYZ(k, par.position.x + aim.x * 0.05, par.position.y + aim.y * 0.05, par.position.z + aim.z * 0.05);
     });
-    pooled.forEach(({ pool }, k) => {
+    sheets.forEach((lights, sheet) => lights.forEach((light, k) => {
       // The flat pool turned onto its surface (world.poolOn): x along the slant, y out of the surface, z across.
+      const { pool } = light;
       if (pool) tmpM.makeBasis(tmpX.set(pool.along.x, pool.along.y, pool.along.z).multiplyScalar(pool.major),
         tmpY.set(pool.normal.x, pool.normal.y, pool.normal.z), tmpZ.set(pool.across.x, pool.across.y, pool.across.z).multiplyScalar(pool.minor))
         .setPosition(pool.at.x, pool.at.y, pool.at.z);
       else tmpM.makeScale(0, 0, 0);
-      pools.setMatrixAt(k, tmpM);
-    });
+      pools[sheet].setMatrixAt(k, tmpM);
+      poolOf.set(light, [pools[sheet].instanceColor, k]);
+    }));
     bulbs.forEach((bulb, k) => {
       const body = bulb.body ?? 1;
       tmpM.compose(new THREE.Vector3(bulb.position.x, bulb.position.y, bulb.position.z), new THREE.Quaternion(), tmpS.set(body, body, body));
@@ -610,16 +622,18 @@ export function createStageScene(canvas, { haze = 0.6, room, lightRGB }) {
       bar.position.set((truss.from + truss.to) / 2, truss.y + 0.11, truss.z);
       rigGroup.add(bar);
     }
-    poolClip.dispose();
-    poolClip = poolMaterial.uniforms.uClip.value = poolClipTexture(pooled);
+    sheets.forEach((lights, sheet) => {
+      poolClips[sheet].dispose();
+      poolClips[sheet] = poolMaterials[sheet].uniforms.uClip.value = poolClipTexture(lights);
+    });
     beamClip.dispose();
     beamClip = beamMaterial.uniforms.uClip.value = clips.texture;
-    for (const mesh of [bodies, lenses, beams, pools, bulbMesh, cellMesh]) mesh.instanceMatrix.needsUpdate = true;
+    for (const mesh of [bodies, lenses, beams, ...pools, bulbMesh, cellMesh]) mesh.instanceMatrix.needsUpdate = true;
     lampGlow.geometry.attributes.position.needsUpdate = true;
     cellGlow.geometry.attributes.position.needsUpdate = true;
-    rigGroup.add(beams, pools, bodies, lenses, bulbMesh, cellMesh, lampGlow, cellGlow);
+    rigGroup.add(beams, ...pools, bodies, lenses, bulbMesh, cellMesh, lampGlow, cellGlow);
     scene.add(rigGroup);
-    parts = { pars, bulbs, cells: placed.cells, under: placed.pools || [], bodies, lenses, beams, pools, bulbMesh, cellMesh, lampGlow, cellGlow };
+    parts = { pars, bulbs, cells: placed.cells, under: placed.pools || [], bodies, lenses, beams, pools, poolOf, bulbMesh, cellMesh, lampGlow, cellGlow };
   }
 
   const rgb = new Float32Array(3);
@@ -628,7 +642,7 @@ export function createStageScene(canvas, { haze = 0.6, room, lightRGB }) {
   function setLights(frame) {
     if (!parts || !frame || frame === lastLights) return;
     lastLights = frame;
-    const { pars, bulbs, cells, under, lenses, beams, pools, bulbMesh, cellMesh, lampGlow, cellGlow } = parts;
+    const { pars, bulbs, cells, under, lenses, beams, poolOf, bulbMesh, cellMesh, lampGlow, cellGlow } = parts;
     const changed = new Set();
     const write = (attr, k, r, g, b) => {
       const at = k * 3;
@@ -649,13 +663,13 @@ export function createStageScene(canvas, { haze = 0.6, room, lightRGB }) {
       else lightRGB(frame[par.unit], rgb);
       put(lenses.instanceColor, k, 1);
       glow(beams.instanceColor, k, 1);
-      glow(pools.instanceColor, k, par.pool?.level ?? 1);
+      glow(...poolOf.get(par), par.pool?.level ?? 1);
       glow(lampGlow.geometry.attributes.color, k, par.body === 0 ? 0 : 0.9);
     });
-    under.forEach((light, k) => {
+    under.forEach((light) => {
       if (light.sources) meanLightRGB(light.sources, frame, rgb, sourceRGB);
       else lightRGB(frame[light.unit], rgb);
-      glow(pools.instanceColor, pars.length + k, light.pool.level);
+      glow(...poolOf.get(light), light.pool.level);
     });
     bulbs.forEach((bulb, k) => {
       if (bulb.sources) meanLightRGB(bulb.sources, frame, rgb, sourceRGB);
@@ -813,7 +827,7 @@ export function createStageScene(canvas, { haze = 0.6, room, lightRGB }) {
     for (const thing of rigDisposables) thing.dispose();
     for (const thing of [...roomDisposables, ...retired]) thing.dispose();
     if (screenTexture) screenTexture.dispose();
-    poolClip.dispose();
+    for (const clip of poolClips) clip.dispose();
     beamClip.dispose();
     for (const thing of disposables) if (thing && thing.dispose) thing.dispose();
     renderer.dispose();
@@ -828,6 +842,6 @@ export function createStageScene(canvas, { haze = 0.6, room, lightRGB }) {
     lost: () => renderer.getContext().isContextLost(),
     /** What is drawn, for tests and the page's description. */
     info: () => ({ units, pars: parts ? parts.pars.length : 0, bulbs: parts ? parts.bulbs.length : 0, cells: parts ? parts.cells.length : 0,
-      pools: parts ? parts.pools.count : 0 }),
+      pools: parts ? parts.pools.reduce((sum, mesh) => sum + mesh.count, 0) : 0 }),
   };
 }

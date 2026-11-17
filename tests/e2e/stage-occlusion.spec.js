@@ -1,6 +1,7 @@
 // A wall stops a pool in the 3D stage, drawn or hidden, an aimed lamp's and the one under a lamp without an aim;
-// light on a wall's face shows from that face's side only; and a lamp's haze stops at a wall: rendered by the
-// stage's own scene (public-src/stage3d/scene.js) on the two-room test room, read back by pixel.
+// light on a wall's face shows from that face's side only, light on the ceiling from above too; and a lamp's haze
+// stops at a wall: rendered by the stage's own scene (public-src/stage3d/scene.js) on the two-room test room,
+// read back by pixel.
 
 import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
@@ -161,7 +162,6 @@ test('a lamp\'s haze stops at the wall beside it: none of it shows in the room b
 });
 
 test('light on the ceiling shows from above, where the ceiling is never drawn', async ({ page }) => {
-  test.fail(true, 'A pool shows the side its surface faces only, so one on the ceiling is drawn from below alone on this source. The change that draws it from both sides lifts this mark.');
   // A lamp 0.9 m under the ceiling, aimed straight up: a pool 2.9 m across on the ceiling at full strength.
   const regions = { ceiling: level(2.5, -2.2, -0.8, -1.6, -0.4) };
   const { off, on } = await lampFrames(page, TWO_ROOMS, { x: -1.5, y: 1.6, z: -1 }, { regions, cutaway: false, name: 'above', binding: { lightTarget: { x: -1.5, y: 2.4, z: -1 } } });
