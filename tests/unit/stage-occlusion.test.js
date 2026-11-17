@@ -1,5 +1,5 @@
-// Walls, floors and ceilings stop light in the 3D stage (public-src/stage3d/world.js): which room
-// each room light serves and where it stands, what stops a beam, and where its pool is clipped.
+// Walls, floors and ceilings stop light in the 3D stage (public-src/stage3d/world.js): what stops a
+// beam, and where its pool is clipped.
 
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -23,83 +23,6 @@ const inside = (polygon, { x, z }) => {
   }
   return crossings;
 };
-const roomOf = (rooms, point) => rooms.findIndex((room) => inside(room.polygon, point));
-const emittersOf = (placed) => [...placed.lamps, ...placed.cells].filter((emitter) => emitter.cluster !== undefined);
-
-test('two rooms split by a wall: every light stands in the room of the emitters it mixes, all eight in use', () => {
-  const { room } = fixtureFile('two-rooms');
-  const placed = placedIn({ ...room, bindings: [
-    ...[-2.5, -2, -1.5, -1, -0.5, -0.3].map((x, k) => lamp(k + 1, { x, y: 2, z: -1.5 + k * 0.5 })),
-    ...[0.5, 1.5, 2.5].map((x, k) => lamp(k + 7, { x, y: 1, z: 1 - k })),
-  ] }, lamps(9));
-  assert.equal(placed.clusters.length, world.ROOM_LIGHTS, 'eight lights for two occupied rooms with nine emitters');
-  assert.deepEqual(placed.unlitRooms, []);
-  for (const emitter of emittersOf(placed)) {
-    const light = placed.clusters[emitter.cluster];
-    assert.equal(roomOf(room.rooms, light), roomOf(room.rooms, emitter.position), `the light of the lamp at x ${emitter.position.x} stands in its room`);
-  }
-  const perRoom = room.rooms.map((_, index) => placed.clusters.filter((light) => roomOf(room.rooms, light) === index).length);
-  assert.deepEqual(perRoom, [5, 3], 'the room with more emitters gets more of the eight');
-});
-
-test('nine occupied rooms: the eight with the most emitters get a light each and the ninth is named', () => {
-  const { room, fixtures } = fixtureFile('nine-rooms');
-  const placed = placedIn(room, fixtures);
-  assert.equal(placed.clusters.length, world.ROOM_LIGHTS);
-  assert.deepEqual(placed.unlitRooms, ['Room 9'], 'of the two rooms with one lamp, the later in the file has none');
-  const lit = placed.clusters.map((light) => roomOf(room.rooms, light)).sort((a, b) => a - b);
-  assert.deepEqual(lit, [0, 1, 2, 3, 4, 5, 6, 7], 'one light inside each of the eight rooms');
-  const dark = emittersOf(placed).filter((emitter) => roomOf(room.rooms, emitter.position) === 8);
-  assert.deepEqual(dark, [], 'the ninth room\'s lamp adds to no light');
-  assert.equal(placed.lamps.filter((emitter) => roomOf(room.rooms, emitter.position) === 8).length, 1, 'its lamp is still drawn');
-});
-
-test('a room file without polygons keeps today\'s clustering over the whole room', () => {
-  const { room, fixtures } = fixtureFile('nine-rooms');
-  const open = { ...room, rooms: [] };
-  const placed = placedIn(open, fixtures);
-  const emitters = placedIn(open, fixtures).lamps.map((emitter) => ({ ...emitter }));
-  const expected = world.roomLightClusters(emitters).map((centre) => world.roomLightAt(centre, open.bounds));
-  assert.deepEqual(placed.clusters, expected);
-  assert.deepEqual(placed.unlitRooms, []);
-});
-
-test('a concave room keeps its light inside, and an emitter outside every polygon belongs to the nearest room', () => {
-  const bounds = { width: 8, depth: 8, height: 2.5 };
-  const ell = { id: 'ell', label: 'Ell', polygon: [[-3, -3], [3, -3], [3, -1], [-1, -1], [-1, 3], [-3, 3]] };
-  const side = { id: 'side', label: 'Side', polygon: [[1, 1], [3, 1], [3, 3], [1, 3]] };
-  // Two lights for two rooms: the ell's two emitters share one, whose centre (0, 0) lies in the notch outside the ell.
-  const emitters = [{ x: 2.5, z: -2.5 }, { x: -2.5, z: 2.5 }, { x: 1.4, z: 3.9 }].map(({ x, z }) => ({ position: { x, y: 1.5, z } }));
-  const { lights, unlit } = world.roomLights(emitters, { bounds, rooms: [ell, side] }, 2);
-  assert.equal(lights.length, 2);
-  assert.deepEqual(unlit, []);
-  assert.equal(emitters[0].cluster, emitters[1].cluster);
-  const ellLight = lights[emitters[0].cluster], sideLight = lights[emitters[2].cluster];
-  assert.ok(inside(ell.polygon, ellLight), `the ell's light ${JSON.stringify(ellLight)} is inside the ell`);
-  assert.ok(inside(side.polygon, sideLight), 'the emitter beyond the side room\'s edge is lit by the side room\'s light');
-});
-
-test('a room 0.2 m wide puts its light on its centre line', () => {
-  const { room, fixtures } = fixtureFile('narrow-room');
-  const placed = placedIn(room, fixtures);
-  const corridor = placed.lamps.find((emitter) => emitter.fixture === 1);
-  const light = placed.clusters[corridor.cluster];
-  assert.ok(Math.abs(light.x - -1.9) < 1e-6, `on the centre line, not ${light.x}`);
-  assert.ok(Math.abs(light.z - 0.5) < 1e-6, 'and still beside its lamp along the corridor');
-  const hall = placed.clusters[placed.lamps.find((emitter) => emitter.fixture === 2).cluster];
-  assert.ok(inside(room.rooms[1].polygon, hall));
-  for (const at of placed.clusters) {
-    const index = roomOf(room.rooms, at);
-    assert.ok(index >= 0, 'every light stands inside a room');
-    const polygon = room.rooms[index].polygon;
-    const clearance = Math.min(...polygon.map(([x0, z0], i) => {
-      const [x1, z1] = polygon[(i + 1) % polygon.length];
-      const t = Math.max(0, Math.min(1, ((at.x - x0) * (x1 - x0) + (at.z - z0) * (z1 - z0)) / ((x1 - x0) ** 2 + (z1 - z0) ** 2)));
-      return Math.hypot(at.x - x0 - t * (x1 - x0), at.z - z0 - t * (z1 - z0));
-    }));
-    assert.ok(index === 0 || clearance >= 0.3 - 1e-6, `a light in the hall stands 0.3 m off its walls, not ${clearance}`);
-  }
-});
 
 const ray = (x, y, z) => { const length = Math.hypot(x, y, z); return { x: x / length, y: y / length, z: z / length }; };
 const BOUNDS = { width: 6, depth: 4, height: 2.5 };

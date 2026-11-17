@@ -41,7 +41,6 @@ export function hueEmission(fixture: StageFixture, profile?: Profile | null): Em
 // otherwise (maker's data at 4000 K, rounded). A strip also gives its lumen per metre of run.
 export const BULB_LUMEN = 806;
 export const STRIP_LUMEN_PER_METRE = 0.6 * BULB_LUMEN;
-export const PIXEL_LUMEN = 0.01 * BULB_LUMEN;
 const HUE_LUMEN: [RegExp, number, number?][] = [
   [/gradient tube/i, 1840, 1470],
   [/play gradient lightstrip/i, 1100, 700],
