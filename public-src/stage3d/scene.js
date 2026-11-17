@@ -2,7 +2,7 @@ import { performanceReport } from '../performance.js';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { roomObjectGeometry } from './room-geometry.js';
-import { meanLightRGB, roomViews, STAGE_FOV } from './world.js';
+import { meanLightRGB, onCeiling, roomViews, STAGE_FOV } from './world.js';
 
 /**
  * The 3D stage: the rig in a dark, hazy room, drawn with three.js.
@@ -18,8 +18,10 @@ import { meanLightRGB, roomViews, STAGE_FOV } from './world.js';
  *
  * An imported room's surfaces shade under a dim fill, the same whatever the
  * outputs do; what a light gives the room is drawn where the light is: its own
- * glow, the room objects that are the light, and one pool, a beam's where it
- * lands and any other light's on the floor under it (world.roomRig).
+ * glow, the room objects that are the light, and one pool where its light
+ * lands, drawn by the lux it throws there (world.roomRig). A pool shows from
+ * the side its surface faces; one on a ceiling from above as well, since no
+ * ceiling is drawn to hide it.
  *
  * Loaded on its own (three.js is most of it), the first time a stage
  * opens. `createStageScene` throws when the browser has no WebGL.
@@ -35,11 +37,21 @@ const DAMPING = 0.08;
 const GLOW = { lamp: 1.1, cell: 0.5 };
 const ROOM_GLOW = { lamp: 0.45, cell: 0.09 };
 
+// A beam's clip rides with its place and colour (aLeast, aMost, aWhere: see BEAM_FRAGMENT), so haze that no room
+// edge and no wall can cut reads no texel.
 const BEAM_VERTEX = /* glsl */`
+  attribute vec3 aLeast;
+  attribute vec3 aMost;
+  attribute vec4 aWhere;
   varying vec3 vColor;
   varying float vT;
   varying vec3 vNormal;
   varying vec3 vView;
+  varying vec3 vWorld;
+  varying vec3 vApex;
+  flat varying vec3 vLeast;
+  flat varying vec3 vMost;
+  flat varying vec4 vWhere;
   void main() {
     vec4 world = instanceMatrix * vec4(position, 1.0);
     vec4 view = modelViewMatrix * world;
@@ -47,17 +59,71 @@ const BEAM_VERTEX = /* glsl */`
     vNormal = normalize(normalMatrix * mat3(instanceMatrix) * normal);
     vColor = instanceColor;
     vT = -position.y;
+    vWorld = (modelMatrix * world).xyz;
+    vApex = (modelMatrix * instanceMatrix * vec4(0.0, 0.0, 0.0, 1.0)).xyz;
+    vLeast = aLeast;
+    vMost = aMost;
+    vWhere = aWhere;
     gl_Position = projectionMatrix * view;
   }
 `;
 
+// Each beam's clip (world.js coneClip): the least and the greatest corner of the box its haze stays in, and where
+// in uClip's texels its rooms' edges and its walls' boxes are: the first edge, how many edges the room of its lamp
+// has, how many the room it lands in, and how many walls follow them. clipAt and crosses are POOL_FRAGMENT's, word
+// for word, and the loops are built as its loops are: none leaves early (see there).
 const BEAM_FRAGMENT = /* glsl */`
   uniform float uHaze;
+  uniform sampler2D uClip;
+  uniform int uClipWidth;
   varying vec3 vColor;
   varying float vT;
   varying vec3 vNormal;
   varying vec3 vView;
+  varying vec3 vWorld;
+  varying vec3 vApex;
+  flat varying vec3 vLeast;
+  flat varying vec3 vMost;
+  flat varying vec4 vWhere;
+  vec4 clipAt(int i) { return texelFetch(uClip, ivec2(i % uClipWidth, i / uClipWidth), 0); }
+  bool crosses(vec3 from, vec3 to, int at) {
+    vec3 o = from - clipAt(at).xyz, d = to - from;
+    float enter = 0.0, leave = 1.0;
+    bool reaches = true;
+    for (int i = 1; i <= 3; i++) {
+      vec4 axis = clipAt(at + i);
+      float p = dot(o, axis.xyz), along = dot(d, axis.xyz);
+      if (abs(along) < 1e-9) reaches = reaches && abs(p) <= axis.w;
+      else {
+        float a = (-axis.w - p) / along, b = (axis.w - p) / along;
+        enter = max(enter, min(a, b)); leave = min(leave, max(a, b));
+      }
+    }
+    return reaches && enter <= leave;
+  }
   void main() {
+    // Haze shows where its lamp's light is: in the room box, in one of the lamp's rooms, and not past a wall from
+    // the lamp. What the box cuts reads no edge, and what the rooms' edges cut reads no wall: the counts drop to nought.
+    bool lit = vWorld.x >= vLeast.x && vWorld.y >= vLeast.y && vWorld.z >= vLeast.z && vWorld.x <= vMost.x && vWorld.y <= vMost.y && vWorld.z <= vMost.z;
+    int first = int(vWhere.x + 0.5);
+    int own = int(vWhere.y + 0.5);
+    int landing = int(vWhere.z + 0.5);
+    int edges = lit ? own + landing : 0;
+    if (edges > 0) {
+      // Each room by its own edges, so two outlines that overlap leave no hole where they do.
+      bool inOwn = false;
+      bool inLanding = false;
+      for (int i = 0; i < edges; i++) {
+        vec4 e = clipAt(first + i);
+        bool passed = (e.y > vWorld.z) != (e.w > vWorld.z) && vWorld.x < (e.z - e.x) * (vWorld.z - e.y) / (e.w - e.y) + e.x;
+        if (passed && i < own) inOwn = !inOwn;
+        if (passed && i >= own) inLanding = !inLanding;
+      }
+      lit = inOwn || inLanding;
+    }
+    int walls = lit ? int(vWhere.w + 0.5) : 0;
+    for (int i = 0; i < walls; i++) lit = lit && !crosses(vApex, vWorld, first + own + landing + i * 4);
+    if (!lit) discard;
     // Brightest through the middle of the cone, where the eye looks through
     // the most haze, and fading from the lens to where it lands.
     float facing = pow(abs(dot(normalize(vNormal), normalize(-vView))), 1.6);
@@ -67,16 +133,22 @@ const BEAM_FRAGMENT = /* glsl */`
   }
 `;
 
+// A pool's quad spans −1…1 along and across the pool; only its window is drawn (world.poolWindow: centre and half
+// size), and poolRun is how much of each half axis is the light's own run, where the pool is level.
 const POOL_VERTEX = /* glsl */`
+  attribute vec4 poolWindow;
+  attribute vec2 poolRun;
   varying vec3 vColor;
-  varying vec2 vUv;
+  varying vec2 vAt;
+  flat varying vec2 vRun;
   varying vec3 vWorld;
   varying vec3 vCentre;
   flat varying int vPool;
   void main() {
     vColor = instanceColor;
-    vUv = uv;
-    vec4 world = modelMatrix * instanceMatrix * vec4(position, 1.0);
+    vAt = poolWindow.xy + poolWindow.zw * position.xz;
+    vRun = poolRun;
+    vec4 world = modelMatrix * instanceMatrix * vec4(vAt.x, 0.0, vAt.y, 1.0);
     vWorld = world.xyz;
     vCentre = (modelMatrix * instanceMatrix * vec4(0.0, 0.0, 0.0, 1.0)).xyz;
     vPool = gl_InstanceID;
@@ -93,7 +165,8 @@ const POOL_FRAGMENT = /* glsl */`
   uniform sampler2D uClip;
   uniform int uClipWidth;
   varying vec3 vColor;
-  varying vec2 vUv;
+  varying vec2 vAt;
+  flat varying vec2 vRun;
   varying vec3 vWorld;
   varying vec3 vCentre;
   flat varying int vPool;
@@ -135,9 +208,10 @@ const POOL_FRAGMENT = /* glsl */`
     int walls = int(where.w + 0.5);
     for (int i = 0; i < walls; i++) lit = lit && !crosses(vCentre, vWorld, int(where.z + 0.5) + i * 4);
     if (!lit) discard;
-    float d = length(vUv - 0.5) * 2.0;
-    float fall = pow(clamp(1.0 - d, 0.0, 1.0), 1.8);
-    gl_FragColor = vec4(vColor * fall * uStrength, 1.0);
+    // Past the light's own run the pool falls off as (1 − d²)²: half its level 0.54 of the way out (world.POOL_HALF).
+    vec2 past = max(abs(vAt) - vRun, 0.0) / (1.0 - vRun);
+    float fall = 1.0 - min(dot(past, past), 1.0);
+    gl_FragColor = vec4(vColor * fall * fall * uStrength, 1.0);
     #include <colorspace_fragment>
   }
 `;
@@ -168,6 +242,36 @@ function poolClipTexture(lights) {
   const texture = new THREE.DataTexture(data, CLIP_WIDTH, height, THREE.RGBAFormat, THREE.FloatType);
   texture.needsUpdate = true;
   return texture;
+}
+
+// Past any room, as world.js writes it: a beam with no clip of its own (the generic venue) shows everywhere.
+const OUT = 1e6;
+/**
+ * These beams' clips for the beam shader: each beam's box and where its edges and walls are, to ride with the beam
+ * (aLeast, aMost, aWhere), and uClip's texels they point to: the edges of its lamp's room, those of the room it
+ * lands in, then its walls' boxes.
+ */
+function beamClips(pars) {
+  const beams = Math.max(1, pars.length), least = new Float32Array(beams * 3), most = new Float32Array(beams * 3), where = new Float32Array(beams * 4);
+  const texels = [];
+  pars.forEach(({ clip }, k) => {
+    const lo = clip?.lo ?? { x: -OUT, y: -OUT, z: -OUT }, hi = clip?.hi ?? { x: OUT, y: OUT, z: OUT };
+    least.set([lo.x, lo.y, lo.z], k * 3);
+    most.set([hi.x, hi.y, hi.z], k * 3);
+    const first = texels.length, [own = [], landing = []] = clip?.rooms || [];
+    for (const polygon of [own, landing]) for (const [i, [x, z]] of polygon.entries()) { const [x1, z1] = polygon[(i + 1) % polygon.length]; texels.push([x, z, x1, z1]); }
+    for (const { centre, axes, half } of clip?.walls || []) {
+      texels.push([centre.x, centre.y, centre.z, 0]);
+      axes.forEach((axis, i) => texels.push([axis.x, axis.y, axis.z, half[i]]));
+    }
+    where.set([first, own.length, landing.length, clip?.walls?.length || 0], k * 4);
+  });
+  const height = Math.max(1, Math.ceil(texels.length / CLIP_WIDTH));
+  const data = new Float32Array(CLIP_WIDTH * height * 4);
+  texels.forEach((texel, i) => data.set(texel, i * 4));
+  const texture = new THREE.DataTexture(data, CLIP_WIDTH, height, THREE.RGBAFormat, THREE.FloatType);
+  texture.needsUpdate = true;
+  return { texture, least, most, where };
 }
 
 /** A soft round dot, for the glow around lenses, bulbs and cells. */
@@ -359,8 +463,9 @@ export function createStageScene(canvas, { haze = 0.6, room, lightRGB }) {
   const bodyMaterial = keep(new THREE.MeshBasicMaterial({ color: 0x1c1c21 }));
   const lensMaterial = keep(new THREE.MeshBasicMaterial({ color: 0xffffff }));
   const cellMaterial = keep(new THREE.MeshBasicMaterial({ color: 0xffffff }));
+  let beamClip = beamClips([]).texture;
   const beamMaterial = keep(new THREE.ShaderMaterial({
-    uniforms: { uHaze: { value: haze } },
+    uniforms: { uHaze: { value: haze }, uClip: { value: beamClip }, uClipWidth: { value: CLIP_WIDTH } },
     vertexShader: BEAM_VERTEX,
     fragmentShader: BEAM_FRAGMENT,
     transparent: true,
@@ -368,15 +473,19 @@ export function createStageScene(canvas, { haze = 0.6, room, lightRGB }) {
     blending: THREE.AdditiveBlending,
     side: THREE.DoubleSide,
   }));
-  let poolClip = poolClipTexture([]);
-  const poolMaterial = keep(new THREE.ShaderMaterial({
-    uniforms: { uStrength: { value: 0.9 }, uClip: { value: poolClip }, uClipWidth: { value: CLIP_WIDTH } },
+  // Two sheets of pools, each with its own clips: those that show from the side their surface faces, and those on
+  // a ceiling, which show from both (one draw, nothing culled).
+  const poolClips = [poolClipTexture([]), poolClipTexture([])];
+  const poolMaterials = [THREE.FrontSide, THREE.DoubleSide].map((side, sheet) => keep(new THREE.ShaderMaterial({
+    uniforms: { uStrength: { value: 0.9 }, uClip: { value: poolClips[sheet] }, uClipWidth: { value: CLIP_WIDTH } },
     vertexShader: POOL_VERTEX,
     fragmentShader: POOL_FRAGMENT,
     transparent: true,
     depthWrite: false,
     blending: THREE.AdditiveBlending,
-  }));
+    side,
+    forceSinglePass: true,
+  })));
   const glowMap = keep(glowTexture());
   const glowMaterial = (size) => keep(new THREE.PointsMaterial({
     size, map: glowMap, vertexColors: true, transparent: true, depthWrite: false,
@@ -457,11 +566,32 @@ export function createStageScene(canvas, { haze = 0.6, room, lightRGB }) {
     const bulbs = placed.lamps.filter((l) => l.kind === 'bulb');
     // Every pool: a par's own, then those of the lights that throw no beam (world.roomRig).
     const pooled = [...pars, ...(placed.pools || [])];
+    const sheets = [pooled.filter(({ pool }) => !onCeiling(pool)), pooled.filter(({ pool }) => onCeiling(pool))];
 
     const bodies = instanced(bodyGeometry, bodyMaterial, pars.length);
     const lenses = instanced(lensGeometry, lensMaterial, pars.length);
-    const beams = instanced(beamGeometry, beamMaterial, pars.length);
-    const pools = instanced(poolGeometry, poolMaterial, pooled.length);
+    // The cone, with each beam's clip beside its place and colour.
+    const clips = beamClips(pars), cones = beamGeometry.clone();
+    rigDisposables.push(cones);
+    for (const [name, values, size] of [['aLeast', clips.least, 3], ['aMost', clips.most, 3], ['aWhere', clips.where, 4]]) {
+      cones.setAttribute(name, new THREE.InstancedBufferAttribute(values, size));
+    }
+    const beams = instanced(cones, beamMaterial, pars.length);
+    // Each sheet draws a quad of its own, with what each of its pools draws of it and how much of it is level (the
+    // pool's window and run). The sheet of ceiling pools is made only for a rig that has one: any other draws and
+    // links nothing for it.
+    const pools = sheets.map((lights, sheet) => {
+      if (sheet && !lights.length) return null;
+      const quad = poolGeometry.clone();
+      rigDisposables.push(quad);
+      const windows = new Float32Array(Math.max(1, lights.length) * 4), runs = new Float32Array(Math.max(1, lights.length) * 2);
+      lights.forEach(({ pool }, k) => { windows.set(pool?.window ?? [0, 0, 1, 1], k * 4); runs.set(pool?.run ?? [0, 0], k * 2); });
+      quad.setAttribute('poolWindow', new THREE.InstancedBufferAttribute(windows, 4));
+      quad.setAttribute('poolRun', new THREE.InstancedBufferAttribute(runs, 2));
+      return instanced(quad, poolMaterials[sheet], lights.length);
+    }).filter(Boolean);
+    // Where each light's pool is coloured: its sheet's colours and its place among them.
+    const poolOf = new Map();
     const bulbMesh = instanced(bulbGeometry, lensMaterial, bulbs.length);
     const cellMesh = instanced(cellGeometry, cellMaterial, placed.cells.length);
     const lampGlow = points(pars.length + bulbs.length, lampGlowMaterial);
@@ -480,14 +610,16 @@ export function createStageScene(canvas, { haze = 0.6, room, lightRGB }) {
       beams.setMatrixAt(k, tmpM);
       lampGlow.geometry.attributes.position.setXYZ(k, par.position.x + aim.x * 0.05, par.position.y + aim.y * 0.05, par.position.z + aim.z * 0.05);
     });
-    pooled.forEach(({ pool }, k) => {
+    sheets.forEach((lights, sheet) => lights.forEach((light, k) => {
       // The flat pool turned onto its surface (world.poolOn): x along the slant, y out of the surface, z across.
+      const { pool } = light;
       if (pool) tmpM.makeBasis(tmpX.set(pool.along.x, pool.along.y, pool.along.z).multiplyScalar(pool.major),
         tmpY.set(pool.normal.x, pool.normal.y, pool.normal.z), tmpZ.set(pool.across.x, pool.across.y, pool.across.z).multiplyScalar(pool.minor))
         .setPosition(pool.at.x, pool.at.y, pool.at.z);
       else tmpM.makeScale(0, 0, 0);
-      pools.setMatrixAt(k, tmpM);
-    });
+      pools[sheet].setMatrixAt(k, tmpM);
+      poolOf.set(light, [pools[sheet].instanceColor, k]);
+    }));
     bulbs.forEach((bulb, k) => {
       const body = bulb.body ?? 1;
       tmpM.compose(new THREE.Vector3(bulb.position.x, bulb.position.y, bulb.position.z), new THREE.Quaternion(), tmpS.set(body, body, body));
@@ -516,14 +648,18 @@ export function createStageScene(canvas, { haze = 0.6, room, lightRGB }) {
       bar.position.set((truss.from + truss.to) / 2, truss.y + 0.11, truss.z);
       rigGroup.add(bar);
     }
-    poolClip.dispose();
-    poolClip = poolMaterial.uniforms.uClip.value = poolClipTexture(pooled);
-    for (const mesh of [bodies, lenses, beams, pools, bulbMesh, cellMesh]) mesh.instanceMatrix.needsUpdate = true;
+    sheets.forEach((lights, sheet) => {
+      poolClips[sheet].dispose();
+      poolClips[sheet] = poolMaterials[sheet].uniforms.uClip.value = poolClipTexture(lights);
+    });
+    beamClip.dispose();
+    beamClip = beamMaterial.uniforms.uClip.value = clips.texture;
+    for (const mesh of [bodies, lenses, beams, ...pools, bulbMesh, cellMesh]) mesh.instanceMatrix.needsUpdate = true;
     lampGlow.geometry.attributes.position.needsUpdate = true;
     cellGlow.geometry.attributes.position.needsUpdate = true;
-    rigGroup.add(beams, pools, bodies, lenses, bulbMesh, cellMesh, lampGlow, cellGlow);
+    rigGroup.add(beams, ...pools, bodies, lenses, bulbMesh, cellMesh, lampGlow, cellGlow);
     scene.add(rigGroup);
-    parts = { pars, bulbs, cells: placed.cells, under: placed.pools || [], bodies, lenses, beams, pools, bulbMesh, cellMesh, lampGlow, cellGlow };
+    parts = { pars, bulbs, cells: placed.cells, under: placed.pools || [], bodies, lenses, beams, pools, poolOf, bulbMesh, cellMesh, lampGlow, cellGlow };
   }
 
   const rgb = new Float32Array(3);
@@ -532,7 +668,7 @@ export function createStageScene(canvas, { haze = 0.6, room, lightRGB }) {
   function setLights(frame) {
     if (!parts || !frame || frame === lastLights) return;
     lastLights = frame;
-    const { pars, bulbs, cells, under, lenses, beams, pools, bulbMesh, cellMesh, lampGlow, cellGlow } = parts;
+    const { pars, bulbs, cells, under, lenses, beams, poolOf, bulbMesh, cellMesh, lampGlow, cellGlow } = parts;
     const changed = new Set();
     const write = (attr, k, r, g, b) => {
       const at = k * 3;
@@ -552,14 +688,15 @@ export function createStageScene(canvas, { haze = 0.6, room, lightRGB }) {
       if (par.sources) meanLightRGB(par.sources, frame, rgb, sourceRGB);
       else lightRGB(frame[par.unit], rgb);
       put(lenses.instanceColor, k, 1);
-      glow(beams.instanceColor, k, 1);
-      glow(pools.instanceColor, k, par.pool?.level ?? 1);
+      // The cone is as strong as the pool it ends in: full for a beam of unknown lumen.
+      glow(beams.instanceColor, k, par.pool?.level ?? 1);
+      glow(...poolOf.get(par), par.pool?.level ?? 1);
       glow(lampGlow.geometry.attributes.color, k, par.body === 0 ? 0 : 0.9);
     });
-    under.forEach((light, k) => {
+    under.forEach((light) => {
       if (light.sources) meanLightRGB(light.sources, frame, rgb, sourceRGB);
       else lightRGB(frame[light.unit], rgb);
-      glow(pools.instanceColor, pars.length + k, light.pool.level);
+      glow(...poolOf.get(light), light.pool.level);
     });
     bulbs.forEach((bulb, k) => {
       if (bulb.sources) meanLightRGB(bulb.sources, frame, rgb, sourceRGB);
@@ -717,7 +854,8 @@ export function createStageScene(canvas, { haze = 0.6, room, lightRGB }) {
     for (const thing of rigDisposables) thing.dispose();
     for (const thing of [...roomDisposables, ...retired]) thing.dispose();
     if (screenTexture) screenTexture.dispose();
-    poolClip.dispose();
+    for (const clip of poolClips) clip.dispose();
+    beamClip.dispose();
     for (const thing of disposables) if (thing && thing.dispose) thing.dispose();
     renderer.dispose();
     // dispose() frees what the renderer allocated but not the context, which the
@@ -731,6 +869,6 @@ export function createStageScene(canvas, { haze = 0.6, room, lightRGB }) {
     lost: () => renderer.getContext().isContextLost(),
     /** What is drawn, for tests and the page's description. */
     info: () => ({ units, pars: parts ? parts.pars.length : 0, bulbs: parts ? parts.bulbs.length : 0, cells: parts ? parts.cells.length : 0,
-      pools: parts ? parts.pools.count : 0 }),
+      pools: parts ? parts.pools.reduce((sum, mesh) => sum + mesh.count, 0) : 0 }),
   };
 }

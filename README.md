@@ -296,9 +296,12 @@ where the effects sample it, its plot position scaled into the room, and stays l
 room position; with an explicit cell map it stands in a dark, see-through body spanning its
 pixels, since the room has no object for it. A fixture with no position anywhere is not drawn. The room's
 surfaces shade under a dim fill, the same whatever the outputs do. What a light gives the room
-is drawn where the light is: its own glow, the room objects that are the light, and one pool,
-where its beam lands or, for a light without an aim or a beam, on the floor under it
-([the rule](docs/stage-room.md)). **Eye level** stands 1.5 m behind the room's first listener (or at its front
+is drawn where the light is: its own glow, the room objects that are the light, and one pool
+where its light lands, drawn by the lux it throws there: a beam's where it is aimed, any other
+light's on the surface it is aimed at or on the floor under it
+([the rule](docs/stage-room.md)). A beam's haze stops at the walls, the floor and the ceiling,
+as its light does. Light on a wall shows from that wall's side only; light on the ceiling,
+which is never drawn, shows from above too. **Eye level** stands 1.5 m behind the room's first listener (or at its front
 edge) at 1.6 m; a double-click turns the view around the point under the pointer, and a
 right-drag or two fingers pan within the room.
 
