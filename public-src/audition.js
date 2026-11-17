@@ -65,7 +65,7 @@ export function useAuditionSampler(space, enabled = true) {
   return active ? mastered : null;
 }
 
-// The live look a stopped, disarmed stage draws (Show v3, G6): its keys, so an edit re-samples it.
+// The live look the editor's draft plays in (G7): its keys, so an edit re-samples it.
 const DEMO_KEYS = ['armed', 'pattern', 'colorA', 'colorB', 'colorC', 'colorD', 'beatDivision', 'flashLimit', 'strobeSpeed', 'strobeFunction',
   'pixelMap', 'pixelPattern', 'panelPattern', 'masterDimmer', 'basePalette', 'paletteOverride', 'overridePalette', 'effectColours',
   'background', 'hardware', 'profiles', 'safety', 'hueStrobe'];
