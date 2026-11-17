@@ -38,8 +38,7 @@ const GLOW = { lamp: 1.1, cell: 0.5 };
 const ROOM_GLOW = { lamp: 0.45, cell: 0.09 };
 
 // A beam's clip rides with its place and colour (aLeast, aMost, aWhere: see BEAM_FRAGMENT), so haze that no room
-// edge and no wall can cut reads no texel. What is the same over a whole beam is handed on flat: its lamp's place and
-// its clip are not interpolated for each fragment.
+// edge and no wall can cut reads no texel.
 const BEAM_VERTEX = /* glsl */`
   attribute vec3 aLeast;
   attribute vec3 aMost;
@@ -49,7 +48,7 @@ const BEAM_VERTEX = /* glsl */`
   varying vec3 vNormal;
   varying vec3 vView;
   varying vec3 vWorld;
-  flat varying vec3 vApex;
+  varying vec3 vApex;
   flat varying vec3 vLeast;
   flat varying vec3 vMost;
   flat varying vec4 vWhere;
@@ -82,7 +81,7 @@ const BEAM_FRAGMENT = /* glsl */`
   varying vec3 vNormal;
   varying vec3 vView;
   varying vec3 vWorld;
-  flat varying vec3 vApex;
+  varying vec3 vApex;
   flat varying vec3 vLeast;
   flat varying vec3 vMost;
   flat varying vec4 vWhere;
