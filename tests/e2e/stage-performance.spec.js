@@ -137,7 +137,7 @@ test('a room of many walls is built again, and draws steady frames, within the m
     const rebuild = await capture();
     await attach('rebuild-timing.json', rebuild);
 
-    // Steady frames: the look plays on the demo beat and nothing is built.
+    // Steady frames: the look plays and nothing is built.
     await startWindow();
     await drawn(20);
     const steady = await capture();

@@ -26,13 +26,13 @@ export function PreviewPaused({ fallback = false, over = false } = {}) {
   );
 }
 
-const PREVIEW_TAGS = ['Preview · demo beat', 'Preview (disarmed)', 'Preview paused'];
+const PREVIEW_TAGS = ['Preview (disarmed)', 'Preview paused'];
 
-/** The stage's tag. The preview's three share one box, so pausing never reflows the toolbar or moves the stage. */
+/** The stage's tag. The preview's two share one box, so pausing never reflows the toolbar or moves the stage. */
 export function StageTag({ tag, class: cls }) {
   if (!PREVIEW_TAGS.includes(tag)) return <span class={cls}>{tag}</span>;
-  const [a, b] = PREVIEW_TAGS.filter((other) => other !== tag);
-  return <span class={`${cls} stage-tag`} data-alt-a={a} data-alt-b={b}>{tag}</span>;
+  const [other] = PREVIEW_TAGS.filter((each) => each !== tag);
+  return <span class={`${cls} stage-tag`} data-alt={other}>{tag}</span>;
 }
 
 /**

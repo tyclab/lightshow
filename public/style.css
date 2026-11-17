@@ -2541,9 +2541,7 @@ input[type=range]::-moz-range-thumb {
 .preview-toggle { flex-direction: column; gap: 0; }
 .preview-toggle::after { content: attr(data-other); height: 0; overflow: hidden; visibility: hidden; }
 .stage-tag { display: inline-flex; flex-direction: column; align-items: center; }
-.stage-tag::before, .stage-tag::after { height: 0; overflow: hidden; visibility: hidden; }
-.stage-tag::before { content: attr(data-alt-a); }
-.stage-tag::after { content: attr(data-alt-b); }
+.stage-tag::before { content: attr(data-alt); height: 0; overflow: hidden; visibility: hidden; }
 
 /* =============================================================
    LOG — the server's log and health, under Settings, Check

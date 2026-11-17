@@ -1,4 +1,4 @@
-// The 3D Stage view: the rig drawn in 3D, previewing by itself or showing the live output.
+// The 3D Stage view: the rig drawn in 3D, the server's feed disarmed (moving only while the show plays) or the live output.
 
 import { test, expect } from '@playwright/test';
 import { control, open, reset, set, state } from './helpers.js';
@@ -13,31 +13,37 @@ test.afterEach(async ({ request }) => {
   await control(request, 'restore');
 });
 
+const BACKGROUND_OFF = { version: 1, mode: 'off', level: 1, colour: { r: 0, g: 0, b: 0, w: 0, a: 0, uv: 0 } };
+
 async function litShare(page) {
   return (await stageImage(page)).litShare;
 }
 
-// Show v3 (G6), the operator's "so to preview i need to klick look an preview? why?": no click, no dark stage.
-test('disarmed, the Stage view previews by itself: the selected look while stopped, the feed while playing, dark under the blackout', async ({ page, request }) => {
-  await set(request, { pattern: 'solid' });
+// The operator, 2026-11-17: "exspected would be to not start stage show on side load, except play is active?"
+test('disarmed, the Stage view shows the feed: dark while stopped, the look while playing, dark under the blackout', async ({ page, request }) => {
+  const { background } = await state(request);
+  await set(request, { pattern: 'solid', background: BACKGROUND_OFF });
   await control(request, 'stop');
-  await open(page, 'stage');
-  const stage = page.getByRole('img', { name: /The rig in 3D/ });
-  const tag = page.locator('.stage3d-tools .panel-tag');
-  await expect(stage).toHaveAttribute('aria-label', /4 fixtures, 4 lights, previewing the selected look on the demo beat/);
-  await expect(tag).toHaveText('Preview · demo beat');
-  await expect.poll(() => litShare(page), { message: 'stopped, the selected look lights the haze' }).toBeGreaterThan(0.01);
+  try {
+    await open(page, 'stage');
+    const stage = page.getByRole('img', { name: /The rig in 3D/ });
+    const tag = page.locator('.stage3d-tools .panel-tag');
+    await expect(stage).toHaveAttribute('aria-label', /4 fixtures, 4 lights, previewing with outputs disarmed/);
+    await expect(tag).toHaveText('Preview (disarmed)');
+    await expect.poll(() => litShare(page), { message: 'stopped, nothing plays: dark' }).toBeLessThan(0.001);
 
-  await control(request, 'start', 'look');
-  await expect(stage).toHaveAttribute('aria-label', /4 fixtures, 4 lights, previewing with outputs disarmed/);
-  await expect(tag).toHaveText('Preview (disarmed)');
-  await expect.poll(() => litShare(page), { message: 'the pars light the haze' }).toBeGreaterThan(0.01);
+    await control(request, 'start', 'look');
+    await expect(tag).toHaveText('Preview (disarmed)');
+    await expect.poll(() => litShare(page), { message: 'the pars light the haze' }).toBeGreaterThan(0.01);
 
-  await control(request, 'blackout');
-  await expect.poll(() => litShare(page), { message: 'nothing lit under the blackout' }).toBeLessThan(0.001);
-  await control(request, 'stop');
-  await expect(tag).toHaveText('Blackout');
-  await expect.poll(() => litShare(page), { message: 'stopped, the blackout still outranks the preview' }).toBeLessThan(0.001);
+    await control(request, 'blackout');
+    await expect.poll(() => litShare(page), { message: 'nothing lit under the blackout' }).toBeLessThan(0.001);
+    await control(request, 'stop');
+    await expect(tag).toHaveText('Blackout');
+    await expect.poll(() => litShare(page), { message: 'stopped, the blackout still outranks the preview' }).toBeLessThan(0.001);
+  } finally {
+    await set(request, { background });
+  }
 });
 
 test('the viewpoints, and the keys on the stage', async ({ page }) => {
@@ -53,16 +59,16 @@ test('the viewpoints, and the keys on the stage', async ({ page }) => {
   await expect(stage).toBeFocused();
 });
 
-// The operator, 2026-11-13: the Show stage stayed black, and only a header button read "Restore".
-// Show v3 (G6): stopped and disarmed it is no longer dark, so only Blackout needs a note.
-test('on Show, a stopped stage previews with nothing to explain, and Blackout names itself and Restore', async ({ page, request }) => {
+// The operator, 2026-11-13: the Show stage stayed black, and only a header button read "Restore". A stopped stage says
+// it is stopped and what starts it, as Blackout names itself and Restore.
+test('on Show, a stopped stage says Play starts it, and Blackout names itself and Restore', async ({ page, request }) => {
   await control(request, 'stop');
   await open(page, 'show');
   const tag = page.locator('.stage3d-tools .panel-tag');
   const note = page.locator('.stage3d-note.stage-dark');
   const header = page.locator('.app-header');
-  await expect(tag).toHaveText('Preview · demo beat');
-  await expect(note, 'a previewed look is drawn: nothing to explain').toHaveCount(0);
+  await expect(tag).toHaveText('Preview (disarmed)');
+  await expect(note).toHaveText('Stopped: the stage shows the show as it stands. Play, in the header, starts it.');
 
   await header.getByRole('button', { name: 'Blackout', exact: true }).click();
   await expect(tag).toHaveText('Blackout');
@@ -72,8 +78,10 @@ test('on Show, a stopped stage previews with nothing to explain, and Blackout na
   expect(under, 'a drag on the note turns the stage').toContain('stage3d-canvas');
 
   await header.getByRole('button', { name: 'Blackout, Restore', exact: true }).click();
-  await expect(tag).toHaveText('Preview · demo beat');
-  await expect(note).toHaveCount(0);
+  await expect(tag).toHaveText('Preview (disarmed)');
+  await expect(note).toContainText('Stopped');
+  await control(request, 'start', 'look');
+  await expect(note, 'playing, nothing to explain').toHaveCount(0);
 });
 
 test('without WebGL the Stage view says so', async ({ page }) => {
@@ -128,7 +136,8 @@ test('Stage and the fixture plot distinguish disarmed preview from armed output'
     await control(request, 'restore');
     await expect(plot).toHaveText('Preview (disarmed)');
     await control(request, 'stop');
-    await expect(plot, 'stopped, the plot previews the selected look itself').toHaveText('Preview · demo beat');
+    await expect(plot, 'stopped, the plot draws the feed too').toHaveText('Preview (disarmed)');
+    await expect(page.locator('.stage-panel .stage-dark')).toContainText('Stopped');
   } finally {
     await control(request, 'disarm');
     await control(request, before.control.playing ? 'start' : 'stop', before.control.programme);

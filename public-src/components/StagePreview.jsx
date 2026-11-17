@@ -1,6 +1,6 @@
 import { performanceReport } from '../performance.js';
 import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
-import { pick, dmxSig, connectedSig, emitFixture, idlePause, latestSent, previewHalted, stagePreviewSig } from '../state.js';
+import { pick, dmxSig, connectedSig, emitFixture, idlePause, latestSent, stagePreviewSig } from '../state.js';
 import { colorToCss, fixtureOutputColor, fixtureCellColors, meanLight, patchedAt, stageMode } from '../utils.js';
 import { pictureUnmetSig } from '../picture-source.js';
 import { useDmxFeed, useDmxPaint } from '../use-dmx.js';
@@ -87,14 +87,14 @@ export function StagePreview({ draftLook = null } = {}) {
   const signature = useMemo(() => rigSignature(drawn), [drawn]);
   const unplaced = drawn.filter((f) => !f.position).length;
   const mode = stageMode({ connected, armed: s.armed, blackout: s.masterBlackout, paused: idlePause.paused.value,
-    playing: !!s.control?.playing, layers: !!s.control?.layers, frozen: !!s.control?.frozen, halted: previewHalted(), unmet: pictureUnmetSig.value });
+    playing: !!s.control?.playing, layers: !!s.control?.layers, frozen: !!s.control?.frozen, unmet: pictureUnmetSig.value });
   // An idle page's lights draw as the blackout draws them: off.
   const shown = mode.lit ? s : { ...s, masterBlackout: true };
   const space = useUnitSpace(rig, [signature, s.profiles]);
   // One entry per light: a par, or each cell of a bar.
   const auditionSample = useAuditionSampler(space, auditioning);
-  // Stopped and disarmed, the selected look on the demo beat (G6); its clock re-renders only this plot.
-  const demoSample = useDemoLookSampler(space, drafting || (mode.demo && !auditioning), draftLook);
+  // The editor's draft on the demo beat (G7); its clock re-renders only this plot.
+  const demoSample = useDemoLookSampler(space, drafting, draftLook);
   const preview = auditioning ? auditionSample(audition.position, fixtures, s.colorPresets, rig)
     : demoSample ? demoSample(demoBeatSig.value, fixtures, s.colorPresets, rig) : null;
   // Live, the plot paints the DMX feed; auditioning, it draws the audition's own frames.

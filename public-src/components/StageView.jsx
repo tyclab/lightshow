@@ -1,7 +1,7 @@
 import { performanceReport } from '../performance.js';
 import { useEffect, useLayoutEffect, useRef, useState } from 'preact/hooks';
 import { effect } from '@preact/signals';
-import { pick, connectedSig, dmxSig, dmxReceivedAt, field, idlePause, pictureImageSig, previewHalted, wantPicture } from '../state.js';
+import { pick, connectedSig, dmxSig, dmxReceivedAt, field, idlePause, pictureImageSig, wantPicture } from '../state.js';
 import { rigLights, stageMode } from '../utils.js';
 import { pictureUnmetSig } from '../picture-source.js';
 import { useDmxFeed } from '../use-dmx.js';
@@ -36,8 +36,8 @@ const readHaze = () => {
 /**
  * `compact`: the stage alone, for the Show view — the room loads here, its panel and the notes stay in Stage.
  * `draft` ({ id, spec, name }): the effect editor's stage (G7), which draws the draft on the demo beat in this browser
- * wherever the stopped preview draws the selected look, and while the show plays disarmed; armed, under Blackout or with
- * the preview paused it is the stage as everywhere else, and Freeze holds the draft's frame.
+ * while the outputs are disarmed, the show stopped or playing; armed, under Blackout or with the preview paused it is the
+ * stage as everywhere else, and Freeze holds the draft's frame.
  */
 export function StageView({ compact = false, draft = null } = {}) {
   const s = pick(['fixtures', 'profiles', 'colorPresets', 'armed', 'masterBlackout', 'control']);
@@ -52,9 +52,8 @@ export function StageView({ compact = false, draft = null } = {}) {
   const paused = pause !== null;
   const frozen = !!s.control?.frozen;
   const mode = stageMode({ connected, armed: s.armed, blackout: s.masterBlackout, paused: pause,
-    playing: !!s.control?.playing, layers: !!s.control?.layers, frozen, halted: previewHalted(), unmet: pictureUnmetSig.value });
+    playing: !!s.control?.playing, layers: !!s.control?.layers, frozen, unmet: pictureUnmetSig.value });
   const drafting = !!draft && connected && !paused && !s.masterBlackout && !s.armed;
-  const demo = drafting || (mode.demo && !auditioning);
   const dark = auditioning || drafting ? null : mode.note;
   const tag = drafting ? (frozen ? 'Draft · held by Freeze' : 'Draft · demo beat') : auditioning ? 'Audition · browser only' : mode.tag;
   const tagClass = `panel-tag${tag === 'Blackout' ? ' blackout' : ''}`;
@@ -81,7 +80,7 @@ export function StageView({ compact = false, draft = null } = {}) {
   const { rig, placed } = keptRig(fixtures, profiles, room);
   const space = useUnitSpace(rig, [rig], room);
   const auditionSample = useAuditionSampler(space, auditioning && format === '3d');
-  const demoSample = useDemoLookSampler(space, demo && format === '3d', drafting ? draft : null);
+  const demoSample = useDemoLookSampler(space, drafting && format === '3d', drafting ? draft : null);
 
   // What the frame loop reads, without restarting it for every change.
   const live = useRef({});
@@ -270,8 +269,7 @@ export function StageView({ compact = false, draft = null } = {}) {
     + `${drafting ? `previewing the draft of ${draft.name || draft.id} on the demo beat in this browser${frozen ? ', held by Freeze' : ''}; nothing is transmitted`
       : auditioning ? `auditioning ${audition.name || audition.id}; browser only, outputs disarmed` : !connected ? 'offline'
       : paused ? `preview paused${pause.cause === 'idle' ? ' for want of input' : ''}, lights drawn off` : s.masterBlackout ? 'Blackout is on, every light is dark'
-      : s.armed ? 'showing the live output' : demo ? 'previewing the selected look on the demo beat in this browser; nothing is transmitted'
-        : 'previewing with outputs disarmed; nothing is transmitted'}.`;
+      : s.armed ? 'showing the live output' : 'previewing with outputs disarmed; nothing is transmitted'}.`;
   keys.current = onKeyDown;
   useLayoutEffect(() => { if (canvas.current) canvas.current.setAttribute('aria-label', description); });
 
@@ -321,9 +319,7 @@ export function StageView({ compact = false, draft = null } = {}) {
           : 'Generic venue: fixture heights follow the plan when set; otherwise groups supply approximate mounting heights. '}{auditioning
           ? 'Audition: the demo track drives this effect locally. No commands are sent to the rig.'
           : !connected ? 'Offline: the live output is unavailable.' : mode.note ? mode.note : s.armed
-            ? 'Live: what is going out to the rig now.' : demo
-            ? 'Preview: the selected look on the built-in demo beat, drawn in this browser; outputs are disarmed and nothing is transmitted to the rig.'
-            : 'Preview: outputs are disarmed; nothing is transmitted to the rig.'}
+            ? 'Live: what is going out to the rig now.' : 'Preview: outputs are disarmed; nothing is transmitted to the rig.'}
       </p>}
     </div>
   );
