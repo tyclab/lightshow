@@ -1,7 +1,7 @@
 import { state, universeOf, activeUniverses } from './state.ts';
 import { getProfile } from './profiles.ts';
 import { hueRoutes } from './hue-routes.ts';
-import { noteHueArea, sectionChannels } from './hue-sections.ts';
+import { followHuePatch, noteHueArea, sectionChannels } from './hue-sections.ts';
 import { createHueWire } from './hue-wire.ts';
 import { DEFAULT_WIRES, createTransmitter, sacnUniverseFor as mapSacnUniverse } from './transmit.ts';
 import { createDiscovery, interfaces, isBroadcastTarget } from './artnet-nodes.ts';
@@ -47,7 +47,7 @@ function getHueConfig(): HueOutputConfig {
 }
 
 // A lamp streams to the channels its recorded members are on in the area as last read.
-hue.setAreaSink(({ bridge, label, area }) => noteHueArea(bridge, label, area));
+hue.setAreaSink(({ bridge, label, area, named }) => noteHueArea(bridge, label, area, named));
 
 // This thread's sender streams Hue only while this thread renders; its status reaches hue.ts directly.
 const hueWire = createHueWire({ onStatus: hue.applyStreamStatus });
@@ -68,6 +68,7 @@ const artnetDiscovery = createDiscovery({
 });
 
 function transmitConfig(): TransmitConfig {
+  followHuePatch();
   return {
     rigRevision,
     universes: activeUniverses(),

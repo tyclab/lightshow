@@ -34,7 +34,8 @@ export function indexArea(channels: readonly AreaChannelLike[]): AreaIndex {
   const byId = new Map<number, readonly HueMember[]>();
   const byMembers = new Map<string, number[]>();
   for (const channel of channels) {
-    const members = channel.members || [];
+    // A member the bridge names no service for cannot be recorded or matched: its channel lights nothing known.
+    const members = (channel.members || []).every((m) => m.serviceId) ? channel.members || [] : [];
     byId.set(channel.id, members);
     if (!members.length) continue;
     const key = setKey(members);
@@ -128,7 +129,7 @@ function ranges(numbers: number[]): string {
   return runs.join(', ');
 }
 
-/** Lamps and segments by name, as the area names them now: "TV gradient segment 5 + Fenster gradient segments 1–4". */
+/** Lamps and segments by name, as the area names them now: "Strip A segment 5 + Strip B segments 1–4". */
 export function describeMembers(members: readonly HueMember[], area: Pick<EntertainmentArea, 'channels'>): string {
   const known = new Map<string, NamedMember>();
   for (const channel of area.channels) for (const m of channel.members || []) if (!known.has(m.serviceId)) known.set(m.serviceId, m);
@@ -154,7 +155,9 @@ export function describeDark(label: string, output: Pick<HueOutput, 'channels'>,
       return `"${label}" is on channel ${channels(result.taken)}, which another lamp of "${area.name}" lights by its recorded members, `
         + 'so what it lights cannot be told and it stays dark.';
     }
-    return `"${label}" is on channel ${channels(result.sections)}, which "${area.name}" does not have, so what it lights cannot be told and it stays dark.`;
+    const listed = result.sections.every((k) => area.channels.some((ch) => ch.id === hueChannels(output)[k]));
+    return `"${label}" is on channel ${channels(result.sections)}, ${listed ? `whose lamps "${area.name}" does not name` : `which "${area.name}" does not have`}, `
+      + 'so what it lights cannot be told and it stays dark.';
   }
   const parts = result.sections.map((k) => {
     const patched = result.members![k];
@@ -169,12 +172,18 @@ export function describeDark(label: string, output: Pick<HueOutput, 'channels'>,
   return `"${label}" was patched for ${parts.join('; and for ')}, so it stays dark.`;
 }
 
-// Each bridge's area as last read, or `unread` from an arm or a change of the bridge until it is read: a lamp of
-// such a bridge streams nothing. Every arm passes through `unread`, so a bridge never read is a disarmed one.
-const known = new Map<string, { index: AreaIndex; area: EntertainmentArea } | 'unread'>();
+// Each bridge's area as last read, or `unread` from an arm, an ended session or a change of the bridge until it
+// is read: a lamp of such a bridge streams nothing. Every arm passes through `unread`, so a bridge never read is
+// a disarmed one.
+interface ReadArea { index: AreaIndex; area: EntertainmentArea; named: boolean; label: string }
+const known = new Map<string, ReadArea | 'unread'>();
 let resolved = new WeakMap<object, SectionResolution>();
-const reported = new Map<number, string>();
+const reported = new Map<number, { bridge: string; line: string }>();
 let onPatched: (() => void) | null = null;
+// The patch as last followed: another array, another length or a lamp not resolved yet means it changed.
+let followed: { fixtures: readonly Fixture[]; count: number } | null = null;
+let stale = false;
+let following = false;
 
 /** Persist and announce a patch the area changed. */
 export function onHuePatched(fn: (() => void) | null): void { onPatched = fn; }
@@ -188,7 +197,8 @@ export function sectionChannels(output: HueOutput, bridge: string): readonly num
   if (area === 'unread') return null;
   let result = resolved.get(output);
   if (!result) {
-    // A lamp patched or loaded since the area was read: the whole bridge is resolved again, as one patch.
+    // A lamp patched or loaded since the patch was followed: resolved as one patch now, written at the next follow.
+    stale = true;
     for (const [id, entry] of followArea(state.fixtures, bridge, area.index, fallbackBridge()).results) {
       const fixture = state.fixtures.find((f) => f.id === id);
       if (fixture?.output) resolved.set(fixture.output, entry);
@@ -199,53 +209,92 @@ export function sectionChannels(output: HueOutput, bridge: string): readonly num
   return result.ok ? result.channels : null;
 }
 
-/** A bridge's area as just read: its lamps follow it and the patch is updated. */
-export function noteHueArea(bridge: string, label: string, area: EntertainmentArea | 'unread' | 'forgotten'): void {
-  resolved = new WeakMap();
+const numbers = (list: readonly number[]) => list.map((n) => `#${n}`).join(', ');
+
+/**
+ * A read bridge's lamps follow its area: resolved for the stream and, once the lamps' names are read, logged and
+ * written to the patch. True when the patch changed.
+ */
+function follow(bridge: string, { index, area, named, label }: ReadArea): boolean {
+  const result = followArea(state.fixtures, bridge, index, fallbackBridge());
+  const after = new Map((named ? result.fixtures : state.fixtures).map((f) => [f.id, f]));
+  for (const [id, entry] of result.results) {
+    const output = after.get(id)?.output;
+    if (output) resolved.set(output, entry);
+  }
+  if (!named) return false;
+  const before = new Map(state.fixtures.map((f) => [f.id, f]));
+  for (const [id, last] of reported) if (last.bridge === bridge && !result.results.has(id)) reported.delete(id);
+  for (const [id, entry] of result.results) {
+    const was = before.get(id)!;
+    const stored = hueChannels(was.output as HueOutput);
+    let line: string | null = null;
+    if (!entry.ok) line = `${describeDark(was.label, was.output as HueOutput, entry, area)} ${REGROUPED_FIX}`;
+    else if (result.held.has(id)) {
+      line = `"${was.label}" streams to ${numbers(entry.channels)}; its patch keeps ${numbers(stored)} while a lamp that stays dark holds them.`;
+    }
+    const last = reported.get(id)?.line;
+    if (line && line !== last) {
+      reported.set(id, { bridge, line });
+      console.warn(`[hue] ${label}: ${line}`);
+    } else if (!line && last) {
+      reported.delete(id);
+      console.log(`[hue] ${label}: "${was.label}" resolves again, to ${numbers(entry.ok ? entry.channels : stored)}`);
+    }
+    if (!entry.ok) continue;
+    if (entry.adopted) {
+      console.log(`[hue] ${label}: "${was.label}" records what ${numbers(stored)} light: `
+        + `${entry.members.map((set) => describeMembers(set, area)).join('; ')}`);
+    } else if (!result.held.has(id) && !sameNumbers(entry.channels, stored)) {
+      console.log(`[hue] ${label}: "${was.label}" follows its lamps from ${numbers(stored)} to ${numbers(entry.channels)}`);
+    }
+  }
+  if (!result.changed) return false;
+  state.fixtures = result.fixtures;
+  return true;
+}
+
+const mark = () => {
+  followed = { fixtures: state.fixtures, count: state.fixtures.length };
+  stale = false;
+};
+
+/** A bridge's area as just read: its lamps follow it, and with the lamps' names (`named`) the patch is updated. */
+export function noteHueArea(bridge: string, label: string, area: EntertainmentArea | 'unread' | 'forgotten', named = true): void {
   if (area === 'forgotten') known.delete(bridge);
   if (area === 'unread') known.set(bridge, area);
   if (typeof area === 'string') return;
-  const index = indexArea(area.channels);
-  known.set(bridge, { index, area });
-  const before = new Map(state.fixtures.map((f) => [f.id, f]));
-  const followed = followArea(state.fixtures, bridge, index, fallbackBridge());
-  for (const [id, result] of followed.results) {
-    const output = followed.fixtures.find((f) => f.id === id)?.output;
-    if (output) resolved.set(output, result);
+  const entry = { index: indexArea(area.channels), area, named, label: label || bridge };
+  known.set(bridge, entry);
+  const changed = follow(bridge, entry);
+  if (named) mark();
+  if (changed) onPatched?.();
+}
+
+/**
+ * The patch changed since the areas were followed (a lamp removed, added, imported or put back): each read
+ * bridge's lamps follow again, so a number a removed lamp held is taken up and a lamp without members records
+ * them. Three comparisons while nothing changed.
+ */
+export function followHuePatch(): void {
+  if (!stale && followed?.fixtures === state.fixtures && followed.count === state.fixtures.length) return;
+  if (following) return;
+  following = true;
+  try {
+    let changed = false;
+    // An area whose lamps' names are still being read follows the patch when they arrive.
+    for (const [bridge, entry] of known) if (entry !== 'unread' && entry.named) changed = follow(bridge, entry) || changed;
+    mark();
+    if (changed) onPatched?.();
+  } finally {
+    following = false;
   }
-  const name = label || bridge;
-  for (const [id, result] of followed.results) {
-    const was = before.get(id)!;
-    const stored = hueChannels(was.output as HueOutput);
-    const numbers = (list: readonly number[]) => list.map((n) => `#${n}`).join(', ');
-    let line: string | null = null;
-    if (!result.ok) line = `${describeDark(was.label, was.output as HueOutput, result, area)} ${REGROUPED_FIX}`;
-    else if (followed.held.has(id)) {
-      line = `"${was.label}" streams to ${numbers(result.channels)}; its patch keeps ${numbers(stored)} while a lamp that stays dark holds them.`;
-    }
-    const last = reported.get(id);
-    if (line && line !== last) {
-      reported.set(id, line);
-      console.warn(`[hue] ${name}: ${line}`);
-    } else if (!line && last) {
-      reported.delete(id);
-      console.log(`[hue] ${name}: "${was.label}" resolves again, to ${numbers(result.ok ? result.channels : stored)}`);
-    }
-    if (!result.ok) continue;
-    if (result.adopted) {
-      console.log(`[hue] ${name}: "${was.label}" records what ${numbers(stored)} light: `
-        + `${result.members.map((set) => describeMembers(set, area)).join('; ')}`);
-    } else if (!followed.held.has(id) && !sameNumbers(result.channels, stored)) {
-      console.log(`[hue] ${name}: "${was.label}" follows its lamps from ${numbers(stored)} to ${numbers(result.channels)}`);
-    }
-  }
-  if (!followed.changed) return;
-  state.fixtures = followed.fixtures;
-  onPatched?.();
 }
 
 export function _resetHueSections(): void {
   known.clear();
   resolved = new WeakMap();
   reported.clear();
+  followed = null;
+  stale = false;
 }

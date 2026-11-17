@@ -16,7 +16,7 @@ import { isArmed } from './armed.ts';
 import { engineStatus } from './engine.ts';
 import { MIN_UNIVERSE, MAX_UNIVERSE } from './sacn.ts';
 import { listEntertainmentConfigs } from './hue.ts';
-import { REGROUPED_FIX, describeDark, indexArea, resolveSections } from './hue-sections.ts';
+import { REGROUPED_FIX, describeDark, followArea, indexArea } from './hue-sections.ts';
 import { wledClient } from './wled.ts';
 import { runsOf, pixelWidth } from './ddp-routes.ts';
 import { OPENRGB_PORT, matchSameName, openrgbClient } from './openrgb.ts';
@@ -530,9 +530,10 @@ async function checkHueBridge(bridge: Settings['hue']['bridges'][number], lamps:
         };
     }
     // A lamp streams to the channels its recorded members are on now; one whose members are not exactly one
-    // channel each, or an older one whose numbers the area lacks, stays dark.
-    const index = indexArea(area.channels);
-    const resolved = new Map(lamps.map((f) => [f, resolveSections(f.output as HueOutput, index)]));
+    // channel each, or an older one whose numbers the area lacks or another lamp lights, stays dark. The bridge's
+    // lamps are resolved as one patch, as the stream resolves them.
+    const followed = followArea(lamps, bridge.id, indexArea(area.channels), bridge.id).results;
+    const resolved = new Map(lamps.map((f) => [f, followed.get(f.id)!]));
     const dark = lamps.flatMap((f) => {
         const result = resolved.get(f)!;
         return result.ok ? [] : [describeDark(f.label, f.output as HueOutput, result, area)];

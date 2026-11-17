@@ -65,12 +65,13 @@ const hueMember = z.object({
   serviceId: z.string().min(1).max(64),
   segmentIndex: z.number().int().min(0).max(255).nullable(),
 }).strict();
+const hueMembers = z.array(z.array(hueMember).min(1).max(256)).max(20);
 const hueOutput = z.object({
   protocol: z.literal('hue'),
   bridge: z.string().regex(HUE_BRIDGE_ID_RE, 'is not a bridge id').optional(),
   channels: z.array(z.number().int().min(0).max(255)).min(1).max(20)
     .refine((channels) => new Set(channels).size === channels.length, { message: 'names a channel twice' }),
-  members: z.array(z.array(hueMember).min(1).max(256)).max(20).optional(),
+  members: hueMembers.optional(),
 }).strict().refine((out) => !out.members || out.members.length === out.channels.length,
   { message: 'needs one member list per channel', path: ['members'] });
 const ddpOutput = z.object({
@@ -451,6 +452,7 @@ export {
   fixtureRestoreSchema,
   profileSchema,
   showSchema,
+  hueMembers as hueMembersSchema,
   midiConnectSchema,
   openrgbHostSchema,
   openrgbAddSchema,
