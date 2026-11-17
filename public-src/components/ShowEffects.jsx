@@ -2,7 +2,7 @@ import { signal } from '@preact/signals';
 import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'preact/hooks';
 import { connectedSig, idlePause, librarySig, pick, send } from '../state.js';
 import { pictureSourceSig, pictureUnmetSig } from '../picture-source.js';
-import { byName, catalogueOf, matchesSearch, quickDeck, readFavourites, tapRow, utilityEffect } from './Effects.jsx';
+import { EffectIcon, byName, catalogueOf, matchesSearch, quickDeck, readFavourites, tapRow, utilityEffect } from './Effects.jsx';
 import { Photosensitivity, acknowledgeThen } from './Photosensitivity.jsx';
 import { AudioReactiveColours, audioReactiveChoices, isAudioReactive } from './AudioReactiveColours.jsx';
 import { stageMode } from '../utils.js';
@@ -146,6 +146,7 @@ export function ShowEffects() {
     <button type="button" class={kind} data-effect={row.id} aria-current={row.id === playingId ? 'true' : undefined}
       tabIndex={row.id === current?.id ? 0 : -1} title={[row.name, row.desc || (row.tags || []).join(' · ')].filter(Boolean).join(': ')}
       onFocus={() => setFocus(row.id)} onClick={() => choose(row)}>
+      <EffectIcon row={row} />
       <span class="contained-row-text">
         <span class="contained-row-title">{row.name}</span>
         {twins.has(row.id) && <span class="contained-row-family">{twins.get(row.id)}</span>}

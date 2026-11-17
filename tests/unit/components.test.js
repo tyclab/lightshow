@@ -47,6 +47,8 @@ async function load() {
         export { CURRENT_CATALOGUE };
         export const CATALOGUE = [...LEGACY_PRESETS, ...CURRENT_CATALOGUE.filter((row) => !LEGACY_PRESETS.some((old) => old.id === row.id))];
         export { requiresAcknowledgement } from './src/shared/effects/registry.ts';
+        export { EFFECT_ICONS, effectIcon } from './public-src/effect-icons.js';
+        export * as mdi from '@mdi/js';
       `,
       resolveDir: ROOT,
       loader: 'js',
@@ -883,6 +885,42 @@ test('a favourite is pinned first on the deck, whatever it is', () => {
   } finally {
     delete globalThis.localStorage;
   }
+});
+
+// The operator, 2026-11-17: the effects carry symbols, the party looks each their own.
+const PARTY_SYMBOLS = {
+  'position-chase': 'mdiRunFast', 'radial-pulse': 'mdiRadar', 'spatial-wash': 'mdiBlur', 'bounce-scan': 'mdiSwapHorizontal',
+  streak: 'mdiRayStartArrow', starlight: 'mdiStarFourPoints', breathe: 'mdiWeatherWindy', 'volume-gate': 'mdiVolumeHigh',
+  confetti: 'mdiShimmer', 'anchor-fill': 'mdiAnchor', halves: 'mdiCircleHalfFull', flip: 'mdiFlipHorizontal', 'room-wave': 'mdiWaves',
+  'ring-strobe': 'mdiCircleOutline', 'ring-backlit': 'mdiCircleSlice8', fireworks: 'mdiFirework', flashes: 'mdiFlashOutline',
+  swirl: 'mdiRotate3dVariant', 'party.fire': 'mdiFire', 'party.ice': 'mdiSnowflake',
+};
+
+test('a party look has its own symbol; another effect takes its kind\'s, else the common shape', () => {
+  const party = ui.CURRENT_CATALOGUE.filter((row) => row.party).map((row) => row.id);
+  assert.deepStrictEqual([...party].sort(), Object.keys(PARTY_SYMBOLS).sort(), 'the party looks of the catalogue');
+  for (const [id, name] of Object.entries(PARTY_SYMBOLS)) {
+    assert.ok(ui.mdi[name], `${name} is an icon`);
+    assert.strictEqual(ui.effectIcon(id, ['room']), ui.mdi[name], `${id} draws ${name}`);
+  }
+  assert.strictEqual(ui.effectIcon('some.effect', ['beat', 'room']), ui.mdi.mdiCubeOutline, 'a room effect without its own');
+  assert.strictEqual(ui.effectIcon('some.effect', ['beat']), ui.mdi.mdiShape, 'the common shape');
+  assert.strictEqual(ui.effectIcon('some.effect'), ui.mdi.mdiShape);
+  for (const [id, path] of Object.entries(ui.EFFECT_ICONS)) assert.match(path, /^M[\d\s.,A-Za-z-]+$/, `${id} holds path data`);
+});
+
+test('every effect tile on Show and every pad and row of Effect settings draws its symbol before its name', () => {
+  const symbol = (path) => `<svg class="effect-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="${path}"></path></svg>`;
+  givenLibrary({ picture: { source: 'effects', input: null } });
+  const show = ui.html(ui.h(ui.ShowEffects));
+  const tiles = [...show.matchAll(/<button type="button" class="contained-(?:row|quick)" data-effect="([^"]+)"[^>]*>(<svg class="effect-icon".*?<\/svg>)?/g)];
+  assert.ok(tiles.length > 20, 'tiles');
+  for (const [, id, drawn] of tiles) assert.ok(drawn, `${id} has a symbol`);
+  const quick = /<button type="button" class="contained-quick" data-effect="position-chase"[^>]*>(.*?)<span/s.exec(show);
+  assert.strictEqual(quick?.[1], symbol(ui.mdi.mdiRunFast), 'the quick tile of Position Chase draws the runner');
+  const settings = ui.html(ui.h(ui.Effects, {}));
+  assert.ok(count(settings, 'class="effect-pad-tap"') > 0 && count(settings, 'class="pattern-btn') > 0, 'pads and rows');
+  assert.strictEqual(count(settings, '><svg class="effect-icon"'), count(settings, 'class="effect-pad-tap"') + count(settings, 'class="pattern-btn'));
 });
 
 // Show v3 fixes, PR 9 (operator 2026-11-15, "fix all bugs"): Show's list starts with the deck the header picker had.

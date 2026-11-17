@@ -136,7 +136,7 @@ it, and the switches that matter along the top — armed or not, what paints the
 room (the effects or the visualizer picture), the auto show on or off,
 blackout and the master. Choose the main effect from the searchable, scrolling grid
 under the stage. With the search empty it starts with the quick deck (the favourites starred in
-Effect settings, the presets saved here, then the party looks), then lists every effect: name-only tiles, one to five side by side as the card's width and the text
+Effect settings, the presets saved here, then the party looks), then lists every effect: tiles with the effect's symbol and its name (a quick tile draws the symbol over the name), one to five side by side as the card's width and the text
 size allow, each with its description as a tooltip and ⚡ on a rapid-flashing effect. Tiles that
 share a name add a second line that tells them apart: the family (Spatial, Party Looks, …),
 **Classic** for a classic pattern or **Saved preset**. The count stands in the card's title row,
