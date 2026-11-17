@@ -136,7 +136,7 @@ it, and the switches that matter along the top — armed or not, what paints the
 room (the effects or the visualizer picture), the auto show on or off,
 blackout and the master. Choose the main effect from the searchable, scrolling grid
 under the stage. With the search empty it starts with the quick deck (the favourites starred in
-Effect settings, the presets saved here, then the party looks), then lists every effect: tiles with the effect's symbol and its name (a quick tile draws the symbol over the name), one to five side by side as the card's width and the text
+Effect settings, the presets saved here, then the party looks), then lists every effect: tiles with the effect's symbol beside its name, one to five side by side as the card's width and the text
 size allow, each with its description as a tooltip and ⚡ on a rapid-flashing effect. Tiles that
 share a name add a second line that tells them apart: the family (Spatial, Party Looks, …),
 **Classic** for a classic pattern or **Saved preset**. The count stands in the card's title row,
@@ -165,7 +165,7 @@ Background moves down and the effects list takes the added height), and Backgrou
 there. Show scales with the window: once the view is 68.75em wide (962.5 CSS px in the
 app's 14px font) it has two columns as tall as the window; of the height the floors leave, the
 stage takes one part and the effects list two, and the palette list what the right column leaves.
-The floors: the stage at least 15rem and a third of its own width, each list four rows of tiles (the effects list four rows of its quick tiles);
+The floors: the stage at least 15rem and a third of its own width, each list four rows of tiles;
 when they do not fit, the page scrolls. On a phone, in one column, the order is Stage, Effects,
 Palettes, Edit colours, Background, the stage and the effects list each two fifths of the
 window. The stage opens in **3D room**, with **2D plot** available beside it. If the browser takes
