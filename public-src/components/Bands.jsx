@@ -268,7 +268,7 @@ function EffectPalette({ colour, palettes, masked, classic, frozen }) {
   const active = colour.spec ? activeOverride(strings, palettes, null, body) : classic;
   const choose = (p) => send(mainPalettePatch(colour, p));
   // The colours on the wheel, saved under a name: the list above takes the new palette and marks it, since it holds these colours.
-  const saveAs = useSavePaletteAs({ ...body, colours: entries }, !entries.length);
+  const saveAs = useSavePaletteAs({ ...body, colours: entries }, !entries.length, 'btn sm band-add');
   const mode = colour.spec?.params?.[colour.spec.kind === 'strobe' ? 'colourMode' : 'colour'];
   const white = mode === 'white';
   const full = fixed || entries.length >= MAX_BAND_STOPS;

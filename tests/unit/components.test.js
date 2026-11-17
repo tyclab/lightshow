@@ -853,7 +853,7 @@ test('one button on Show folds the wheel and the colour order: folded first, rem
     assert.match(open, /aria-label="Effect palette"/);
     assert.match(open, /class="colour-wheel-disc adds"/, 'its palette sits on the wheel, and a tap there adds a colour');
     assert.match(open, /aria-label="Palette colour order"/);
-    assert.match(open, /aria-label="Palette colour order".*<button type="button" class="btn sm">Save as palette…<\/button>/s, 'the colours on the wheel can be saved as a palette');
+    assert.match(open, /aria-label="Palette colour order".*<button type="button" class="btn sm band-add">Save as palette…<\/button>/s, 'the colours on the wheel can be saved as a palette');
     globalThis.localStorage.getItem = () => { throw new Error('storage unavailable'); };
     assert.strictEqual(toggle.exec(ui.html(ui.h(ui.Bands)))?.[1], 'false');
   } finally {

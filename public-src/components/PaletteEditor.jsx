@@ -52,9 +52,10 @@ export async function savePalette(name, colours) {
 
 /**
  * Save as palette, for an editor to place: the button that asks for a name and the row that takes it.
- * `palette` is the body to save, or the bare colours; `blocked` holds the save back while it is not valid.
+ * `palette` is the body to save, or the bare colours; `blocked` holds the save back while it is not valid;
+ * `buttonClass` lets the button sit like its neighbours.
  */
-export function useSavePaletteAs(palette, blocked = false) {
+export function useSavePaletteAs(palette, blocked = false, buttonClass = 'btn sm') {
   const [naming, setNaming] = useState(false);
   const [name, setName] = useState('');
   const [error, setError] = useState('');
@@ -66,7 +67,7 @@ export function useSavePaletteAs(palette, blocked = false) {
     if (res.ok) { close(); setName(''); } else setError(res.error || 'Could not save the palette');
   };
   return {
-    button: !naming && <button type="button" class="btn sm" onClick={() => setNaming(true)}>Save as palette…</button>,
+    button: !naming && <button type="button" class={buttonClass} onClick={() => setNaming(true)}>Save as palette…</button>,
     row: naming && (
       <div class="cue-save-row">
         <input class="cue-name-input" aria-label="Palette name" placeholder="Palette name" value={name} autoFocus
