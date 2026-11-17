@@ -1,5 +1,5 @@
-// A wall stops a pool in the 3D stage, drawn or hidden: rendered by the stage's own scene
-// (public-src/stage3d/scene.js) on the two-room test room, read back by pixel.
+// A wall stops a pool in the 3D stage, drawn or hidden, an aimed lamp's and the one under a lamp without an aim:
+// rendered by the stage's own scene (public-src/stage3d/scene.js) on the two-room test room, read back by pixel.
 
 import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
@@ -97,4 +97,21 @@ test('a pool beside a hidden wall shows nothing behind it, cut by the room and b
   }
   const { off, on } = await pool(bare);
   expect(changed(off.far, on.far), 'with no wall and no rooms, the same pool reaches on').toBeGreaterThan(60);
+});
+
+test('the pool under a lamp without an aim lights its own room\'s floor and stops at the wall, drawn, cut away or hidden', async ({ page }) => {
+  // 0.5 m from the wall and 2.3 m up, the pool reaches 1.7 m: past the wall, were it not there.
+  const lamp = { x: -0.5, y: 2.3, z: -1 };
+  for (const [name, model, options] of [
+    ['full height', TWO_ROOMS, { cutaway: false }],
+    ['cut away', TWO_ROOMS, { cutaway: true }],
+    ['hidden', withWall({ opacity: 0 }), { cutaway: false }],
+    ['hidden, in a room file without polygons', { ...withWall({ opacity: 0 }), rooms: [] }, { cutaway: false }],
+  ]) {
+    const { off, on } = await lampFrames(page, model, lamp, options);
+    expect(changed(off.near, on.near), `${name}: the lamp lights the floor of its own room`).toBeGreaterThan(60);
+    expect(changed(off.far, on.far), `${name}: and nothing past the wall`).toBe(0);
+  }
+  const { off, on } = await lampFrames(page, { ...withoutWall, rooms: [] }, lamp, { cutaway: false });
+  expect(changed(off.far, on.far), 'with no wall and no rooms, the same pool reaches on').toBeGreaterThan(20);
 });

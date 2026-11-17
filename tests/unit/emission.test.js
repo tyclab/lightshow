@@ -1,10 +1,11 @@
 // What a light throws when nobody has chosen its shape: a par a beam, a bar
 // its cells, a Hue lamp a bulb, unless its bridge says the lamp is a spot, a
 // pendant, a ceiling fitting or a wall lantern. A chosen shape always wins.
+// In a room every light has one pool: its beam's, or the one on the floor under it.
 
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { emissionOf, hueEmission, hueLumen, beamDirection } from '../../src/shared/emission.ts';
+import { emissionOf, hueEmission, hueLumen, beamDirection, BULB_LUMEN, PIXEL_LUMEN } from '../../src/shared/emission.ts';
 import { hueProfile } from '../../src/server/hue-profile.ts';
 import { buildRig } from '../../src/shared/rig.ts';
 import { roomRig, POOL_FULL } from '../../public-src/stage3d/world.js';
@@ -169,4 +170,140 @@ test('a par of unknown lumen keeps a full pool', () => {
   const room = { bounds: { width: 6, depth: 6, height: 2.6 }, objects: [], bindings: [{ id: 'par', fixtureId: 2, position: { x: 0, y: 2.5, z: 0 } }] };
   const lit = roomRig([par], buildRig([par], () => parProfile), room, { par: parProfile }).lamps[0];
   assert.equal(lit.pool.level, undefined);
+});
+
+// A plain lamp (no lumen of its own: a bulb's 806 lm) and a room to stand it in.
+const PLAIN = { id: 'plain', channelMap: { red: 0, green: 1, blue: 2 } };
+const plain = (id, extra = {}) => ({ id, label: `Lamp ${id}`, profileId: PLAIN.id, ...extra });
+const BOUNDS = { width: 8, depth: 8, height: 2.6 };
+const inRoom = (fixtures, bindings, { objects = [], rooms = [], bounds = BOUNDS, profileOf = () => PLAIN } = {}) =>
+  roomRig(fixtures, buildRig(fixtures, profileOf), { bounds, rooms, objects, bindings },
+    Object.fromEntries(fixtures.map((fixture) => [fixture.profileId, profileOf(fixture)])));
+const at = (id, position, extra = {}) => ({ id: `light-${id}`, fixtureId: id, position, ...extra });
+const near = (actual, expected, message) => assert.ok(Math.abs(actual - expected) < 1e-9, `${message}: ${actual} is not ${expected}`);
+const levelOf = (lumen, major, minor = major) => Math.min(1, lumen / (Math.PI * major * minor) / POOL_FULL);
+
+test('a lamp without an aim or a beam lights the floor under it: round, wider the higher it stands, by its lumen', () => {
+  const placed = inRoom([plain(1)], [at(1, { x: 1, y: 2.6, z: -1 })]);
+  assert.equal(placed.lamps[0].kind, 'bulb');
+  assert.equal(placed.lamps[0].pool, undefined, 'the bulb itself carries no pool');
+  assert.equal(placed.pools.length, 1);
+  const [{ pool, unit, fixture }] = placed.pools;
+  assert.deepEqual([unit, fixture], [0, 1], 'coloured by the lamp\'s own unit');
+  assert.deepEqual([pool.at.x, pool.at.z, pool.normal], [1, -1, { x: 0, y: 1, z: 0 }]);
+  assert.ok(pool.at.y > 0 && pool.at.y < 0.01, 'on the floor');
+  near(pool.major, 0.7 + 0.45 * 2.6, '0.7 m and 0.45 m for each metre of height');
+  assert.equal(pool.minor, pool.major, 'round');
+  near(pool.level, levelOf(BULB_LUMEN, pool.major), 'a bulb\'s 806 lm over the pool');
+  assert.ok(pool.level > 0.7 && pool.level < 0.8);
+  const reach = (y, bounds = BOUNDS) => inRoom([plain(1)], [at(1, { x: 0, y, z: 0 })], { bounds }).pools[0]?.pool.major;
+  near(reach(0), 0.7, 'lying on the floor');
+  near(reach(1), 1.15, 'a metre up');
+  near(reach(3.5, { ...BOUNDS, height: 4 }), 0.7 + 0.45 * 2.6, 'no wider above 2.6 m');
+  assert.equal(reach(-0.1), undefined, 'under the floor: none');
+  assert.equal(reach(2.7), undefined, 'above the ceiling: none');
+  // Furniture between the lamp and the floor changes nothing: the pool is the floor's, around whatever stands on it.
+  const table = { id: 'table', kind: 'box', role: 'furniture', position: { x: 1, y: 0.7, z: -1 }, size: { x: 1.6, y: 0.05, z: 0.9 } };
+  assert.deepEqual(inRoom([plain(1)], [at(1, { x: 1, y: 2.6, z: -1 })], { objects: [table] }).pools, placed.pools);
+});
+
+test('a light has one pool: an aimed lamp its aimed one, a beam fixture its beam\'s, any other the one under it, drawn or not', () => {
+  const aimed = inRoom([plain(1)], [at(1, { x: 0, y: 2, z: 0 }, { lightTarget: { x: 1, y: 0, z: 0 } })]);
+  assert.deepEqual([aimed.lamps.length, !!aimed.lamps[0].pool, aimed.pools.length], [1, true, 0], 'aimed');
+  const par = plain(2, { emission: { kind: 'beam', tilt: -90, beamAngle: 40 } });
+  const beam = inRoom([par], [at(2, { x: 0, y: 2, z: 0 })]);
+  assert.deepEqual([beam.lamps.length, !!beam.lamps[0].pool, beam.pools.length], [1, true, 0], 'a beam');
+  const head = { id: 'head', kind: 'box', role: 'furniture', position: { x: 0, y: 2, z: 0 }, size: { x: 0.1, y: 0.1, z: 0.1 }, lightBindingId: 'light-2' };
+  // A beam fixture whose head the room draws throws no beam, as before: it is a lamp without a pool, and gets the floor's.
+  const drawn = inRoom([par], [at(2, { x: 0, y: 2, z: 0 })], { objects: [head] });
+  assert.deepEqual([drawn.lamps.length, drawn.pools.length], [0, 1]);
+  assert.deepEqual(drawn.pools[0].pool, inRoom([plain(1)], [at(1, { x: 0, y: 2, z: 0 })]).pools[0].pool);
+  const shade = { ...head, id: 'shade', lightBindingId: 'light-1' };
+  const lamp = inRoom([plain(1)], [at(1, { x: 0, y: 2, z: 0 })], { objects: [shade] });
+  assert.deepEqual([lamp.lamps.length, lamp.objectLights.length, lamp.pools.length], [0, 1, 1], 'a lamp the room draws: no bulb, its pool');
+  assert.deepEqual(lamp.pools, inRoom([plain(1)], [at(1, { x: 0, y: 2, z: 0 })]).pools, 'the same pool as undrawn');
+  const both = inRoom([plain(1), plain(3)], [at(1, { x: -2, y: 2, z: 0 }, { lightTarget: { x: -2, y: 0, z: 1 } }), at(3, { x: 2, y: 2, z: 0 })]);
+  assert.deepEqual([both.lamps.filter((light) => light.pool).map((light) => light.fixture), both.pools.map((light) => light.fixture)], [[1], [3]]);
+});
+
+test('a strip lights a band under each section of its path; an upright section a round pool; an aimed strip none of these', () => {
+  const path = [{ x: -1, y: 2, z: 0 }, { x: 1, y: 2, z: 0 }, { x: 1, y: 2, z: 1 }, { x: 1, y: 1, z: 1 }];
+  const placed = inRoom([plain(1)], [at(1, path[0], { path })]);
+  assert.equal(placed.cells.length, 3);
+  assert.deepEqual(placed.lamps, []);
+  assert.equal(placed.pools.length, 3, 'one for each section');
+  const [long, short, upright] = placed.pools.map((light) => light.pool);
+  const reach = 0.7 + 0.45 * 2;
+  assert.deepEqual([long.at.x, long.at.z, Math.abs(long.along.x), long.along.z], [0, 0, 1, 0], 'under its middle, along it');
+  near(long.major, reach + 1, 'longer by half the section either way');
+  near(long.minor, reach, 'as wide as a lamp\'s pool at that height');
+  near(long.level, levelOf(2 * 0.6 * BULB_LUMEN, long.major, long.minor), 'the section\'s lumen, 484 lm a metre');
+  assert.deepEqual([short.at.x, short.at.z, Math.abs(short.along.z)], [1, 0.5, 1]);
+  near(short.major, reach + 0.5, 'the shorter section');
+  near(upright.major, 0.7 + 0.45 * 1.5, 'an upright section reaches from its middle\'s height');
+  assert.equal(upright.minor, upright.major, 'and is round');
+  const aimed = inRoom([plain(1)], [at(1, path[0], { path, lightTarget: { x: 0, y: 2.6, z: 0 } })]);
+  assert.deepEqual([aimed.lamps.length, aimed.pools.length], [3, 0]);
+  // Room objects drawn for the strip leave its bands as they are.
+  const bar = { id: 'bar', kind: 'box', role: 'furniture', position: { x: 0, y: 2, z: 0 }, size: { x: 2, y: 0.02, z: 0.02 }, lightBindingId: 'light-1' };
+  const drawn = inRoom([plain(1)], [at(1, path[0], { path })], { objects: [bar] });
+  assert.deepEqual([drawn.cells.length, drawn.pools], [0, placed.pools]);
+});
+
+test('the pixels of a fixture bound one by one share one pool, a band along their width; drawn as room objects it is the same', () => {
+  const panel = { id: 3, label: 'Panel', profileId: 'panel' };
+  const cells = Array.from({ length: 16 }, (_, c) => ({ at: { x: c % 4, y: Math.floor(c / 4) } }));
+  const panelProfile = { id: 'panel', channelMap: { red: 0, green: 1, blue: 2 }, cells, grid: { columns: 4, rows: 4 } };
+  const spot = (cell) => ({ x: 1 + cell.at.x * 0.005, y: 1 + cell.at.y * 0.005, z: -2 });
+  const bindings = cells.map((cell, unit) => ({ id: `p${unit}`, fixtureId: 3, unit, position: spot(cell) }));
+  const options = { profileOf: () => panelProfile };
+  const placed = inRoom([panel], bindings, options);
+  assert.equal(placed.cells.length, 16);
+  assert.equal(placed.pools.length, 1);
+  const [{ pool, sources, fixture }] = placed.pools;
+  assert.equal(fixture, 3);
+  assert.deepEqual(sources, cells.map((_, unit) => ({ unit, weight: 1 })), 'coloured by the mean of all sixteen');
+  near(pool.at.x, 1.0075, 'under their centre');
+  assert.equal(pool.at.z, -2);
+  const reach = 0.7 + 0.45 * 1.0075;
+  assert.deepEqual([Math.abs(pool.along.x), pool.along.z], [1, 0], 'along the panel\'s width');
+  near(pool.major, reach + 0.0075, 'longer by half its width');
+  near(pool.minor, reach, 'an upright panel has no depth to add');
+  near(pool.level, levelOf(16 * PIXEL_LUMEN * 0.09, pool.major, pool.minor), 'a 5 mm pitch is 0.3 of a strip\'s, so 0.09 of its pixel');
+  const drawn = inRoom([panel], bindings, { ...options,
+    objects: cells.map((cell, unit) => ({ id: `led${unit}`, kind: 'box', role: 'furniture', position: spot(cell), size: { x: 0.3, y: 0.3, z: 0.3 }, lightBindingId: `p${unit}` })) });
+  assert.equal(drawn.cells.length, 0, 'the parts are drawn, not pixels');
+  assert.deepEqual(drawn.pools, placed.pools);
+  // A row of pixels a strip's pitch apart or more are whole pixels, and the band runs along the row.
+  const bar = { id: 4, label: 'Bar', profileId: 'bar' }, barProfile = { id: 'bar', channelMap: {}, cells: Array.from({ length: 8 }, () => ({})) };
+  const row = inRoom([bar], barProfile.cells.map((_, unit) => ({ id: `b${unit}`, fixtureId: 4, unit, position: { x: 0, y: 1, z: unit * 0.1 } })), { profileOf: () => barProfile });
+  const band = row.pools[0].pool;
+  assert.deepEqual([row.pools.length, Math.abs(band.along.z)], [1, 1]);
+  near(band.major, 1.15 + 0.35, 'half the row longer');
+  near(band.level, levelOf(8 * PIXEL_LUMEN, band.major, band.minor), 'eight pixels of 8 lm');
+});
+
+test('a fixture of one light sent as LED data is a single LED, a pixel\'s lumen, unless its shape is chosen', () => {
+  const level = (extra, binding = {}) => {
+    const placed = inRoom([plain(1, extra)], [at(1, { x: 0, y: 2.6, z: 0 }, binding)]);
+    return (placed.pools[0] ?? placed.lamps[0]).pool.level;
+  };
+  const reach = 0.7 + 0.45 * 2.6;
+  near(level({}), levelOf(BULB_LUMEN, reach), 'a lamp of unknown lumen: a bulb');
+  for (const protocol of ['openrgb', 'ddp']) near(level({ output: { protocol } }), levelOf(PIXEL_LUMEN, reach), `${protocol}: one LED`);
+  near(level({ output: { protocol: 'hue' } }), levelOf(BULB_LUMEN, reach), 'a Hue lamp without a product stays a bulb');
+  near(level({ output: { protocol: 'openrgb' }, emission: { kind: 'bulb' } }), levelOf(BULB_LUMEN, reach), 'a chosen shape wins');
+  const aimed = inRoom([plain(1, { output: { protocol: 'openrgb' } })], [at(1, { x: 0, y: 2, z: 0 }, { lightTarget: { x: 0, y: 0, z: 0 } })]).lamps[0];
+  assert.equal(aimed.lumen, PIXEL_LUMEN, 'aimed, it is still one LED');
+  assert.ok(aimed.pool.level < 0.01);
+});
+
+test('a pool on the floor is cut to the room its light stands in, and a light on a room\'s edge belongs to the nearest', () => {
+  const rooms = [{ id: 'west', label: 'West', polygon: [[-4, -4], [0, -4], [0, 4], [-4, 4]] }, { id: 'east', label: 'East', polygon: [[0.2, -4], [4, -4], [4, 4], [0.2, 4]] }];
+  const clip = (x) => inRoom([plain(1)], [at(1, { x, y: 2, z: 0 })], { rooms }).pools[0].pool.clip.room;
+  assert.equal(clip(-1), rooms[0].polygon);
+  assert.equal(clip(1), rooms[1].polygon);
+  assert.equal(clip(0.05), rooms[0].polygon, 'in the wall between them, nearer the west room');
+  assert.equal(clip(0.15), rooms[1].polygon, 'nearer the east room');
+  assert.equal(inRoom([plain(1)], [at(1, { x: 0, y: 2, z: 0 })]).pools[0].pool.clip.room, null, 'a room file without polygons cuts by its walls alone');
 });

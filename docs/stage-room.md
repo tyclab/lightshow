@@ -112,14 +112,37 @@ without a beam spread. The first wall, opaque furniture surface or room boundary
 receives the pool, as for any beam.
 Physical positions, output addressing and effect sampling remain unchanged.
 
-How strongly a pool is drawn follows its lamp's lumen at full white. A Hue lamp has the lumen of
-the product its bridge names (a GU10 spot 350 lm, a candle 470 lm, a Play bar 530 lm, a light
+Every light gives the room one pool. An aimed lamp's and a beam fixture's lies where the beam
+lands. Any other light's lies on the room's floor under it, whatever furniture stands between.
+It reaches 0.7 m around a light lying on the floor and 0.45 m more for each metre the light
+stands above it, up to 2.6 m:
+
+- A lamp throws a round pool.
+- A strip with a surveyed `path` throws a band under each section of the path: a lamp's pool at
+  that height, longer by half the section either way. An upright section throws a round pool
+  from the height of its middle.
+- A fixture bound pixel by pixel (a panel, a cube, a ball, a strip without a path) throws one
+  band for all those pixels, in their mean colour, under their centre. It runs along their
+  longest level extent, longer by half of it either way and wider by half their extent across.
+  A strip that turns corners needs a `path` to be lit along its run.
+
+Such a pool is clipped like any other, to the room its light stands in; a light outside every
+room polygon, such as one hung in the line of a wall, belongs to the room whose edge is nearest.
+A light under the floor or above the ceiling throws none. Room objects drawn for a light
+(`lightBindingId`) change nothing about its pool, with one exception: a beam fixture they draw
+throws a beam only when it is aimed, and without an aim has the floor pool.
+
+How strongly a pool is drawn follows its light's lumen at full white. A Hue lamp has the lumen
+of the product its bridge names (a GU10 spot 350 lm, a candle 470 lm, a Play bar 530 lm, a light
 strip 800 lm a metre; `HUE_LUMEN` in `src/shared/emission.ts`, the maker's figures at 4000 K,
-rounded), any other strip 484 lm a metre of surveyed run. A pool is drawn at the lumen it
-spreads over each square metre, full strength at 97 lm/m² (a 350 lm, 36° spot on the floor
-2.45 m below), so a wide wash from a small lamp is faint. A lamp of unknown lumen (a DMX par)
-keeps a full-strength pool, and an aimed lamp without a product counts as an 806 lm bulb. The
-generic venue is drawn as before.
+rounded), any other strip 484 lm a metre of surveyed run and a pixel 8 lm. A panel's pixels
+closer than a 60-per-metre strip's are smaller LEDs and count by the area each has (a 5.6 mm
+pitch gives 0.9 lm a pixel); that figure is an estimate. A pool is drawn at the lumen it spreads
+over each square metre, full strength at 97 lm/m² (a 350 lm, 36° spot on the floor 2.45 m
+below), so a wide wash from a small lamp is faint. A beam of unknown lumen (a DMX par) keeps a
+full-strength pool. Any other light of unknown lumen counts as an 806 lm bulb, except the one
+light of a fixture sent as LED data (DDP, OpenRGB) whose **Light shape** nobody chose: it is a
+single LED and counts as a pixel. The generic venue is drawn as before.
 
 Optional `anchors` name points effects can start from, such as speakers:
 `[{ "id": "speakerLeft", "position": { "x": -1.5, "y": 1, "z": -1.5 } }]`. Optional

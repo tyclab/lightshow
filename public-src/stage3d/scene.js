@@ -18,7 +18,8 @@ import { meanLightRGB, roomViews, STAGE_FOV } from './world.js';
  *
  * An imported room's surfaces shade under a dim fill, the same whatever the
  * outputs do; what a light gives the room is drawn where the light is: its own
- * glow, the room objects that are the light, and its pool.
+ * glow, the room objects that are the light, and one pool, a beam's where it
+ * lands and any other light's on the floor under it (world.roomRig).
  *
  * Loaded on its own (three.js is most of it), the first time a stage
  * opens. `createStageScene` throws when the browser has no WebGL.
@@ -142,15 +143,15 @@ const POOL_FRAGMENT = /* glsl */`
 `;
 
 const CLIP_WIDTH = 1024;
-/** uClip's texels for these pars' pools: five per pool, then the room edges and wall boxes they point to. */
-function poolClipTexture(pars) {
+/** uClip's texels for these lights' pools: five per pool, then the room edges and wall boxes they point to. */
+function poolClipTexture(lights) {
   const texels = [], tail = [];
   const box = (target, { centre, axes, half }, flag = 0) => {
     target.push([centre.x, centre.y, centre.z, flag]);
     axes.forEach((axis, i) => target.push([axis.x, axis.y, axis.z, half[i]]));
   };
-  const head = pars.length * 5;
-  for (const { pool } of pars) {
+  const head = lights.length * 5;
+  for (const { pool } of lights) {
     const clip = pool?.clip;
     if (clip?.surface) box(texels, clip.surface, 1);
     else for (let i = 0; i < 4; i++) texels.push([0, 0, 0, 0]);
@@ -454,11 +455,13 @@ export function createStageScene(canvas, { haze = 0.6, room, lightRGB }) {
     units = unitCount;
     const pars = placed.lamps.filter((l) => l.kind === 'par');
     const bulbs = placed.lamps.filter((l) => l.kind === 'bulb');
+    // Every pool: a par's own, then those of the lights that throw no beam (world.roomRig).
+    const pooled = [...pars, ...(placed.pools || [])];
 
     const bodies = instanced(bodyGeometry, bodyMaterial, pars.length);
     const lenses = instanced(lensGeometry, lensMaterial, pars.length);
     const beams = instanced(beamGeometry, beamMaterial, pars.length);
-    const pools = instanced(poolGeometry, poolMaterial, pars.length);
+    const pools = instanced(poolGeometry, poolMaterial, pooled.length);
     const bulbMesh = instanced(bulbGeometry, lensMaterial, bulbs.length);
     const cellMesh = instanced(cellGeometry, cellMaterial, placed.cells.length);
     const lampGlow = points(pars.length + bulbs.length, lampGlowMaterial);
@@ -475,14 +478,15 @@ export function createStageScene(canvas, { haze = 0.6, room, lightRGB }) {
       lenses.setMatrixAt(k, tmpM);
       tmpM.compose(new THREE.Vector3(par.position.x, par.position.y, par.position.z), tmpQ, tmpS.set(par.radius, par.length, par.radius));
       beams.setMatrixAt(k, tmpM);
+      lampGlow.geometry.attributes.position.setXYZ(k, par.position.x + aim.x * 0.05, par.position.y + aim.y * 0.05, par.position.z + aim.z * 0.05);
+    });
+    pooled.forEach(({ pool }, k) => {
       // The flat pool turned onto its surface (world.poolOn): x along the slant, y out of the surface, z across.
-      const { pool } = par;
       if (pool) tmpM.makeBasis(tmpX.set(pool.along.x, pool.along.y, pool.along.z).multiplyScalar(pool.major),
         tmpY.set(pool.normal.x, pool.normal.y, pool.normal.z), tmpZ.set(pool.across.x, pool.across.y, pool.across.z).multiplyScalar(pool.minor))
         .setPosition(pool.at.x, pool.at.y, pool.at.z);
       else tmpM.makeScale(0, 0, 0);
       pools.setMatrixAt(k, tmpM);
-      lampGlow.geometry.attributes.position.setXYZ(k, par.position.x + aim.x * 0.05, par.position.y + aim.y * 0.05, par.position.z + aim.z * 0.05);
     });
     bulbs.forEach((bulb, k) => {
       const body = bulb.body ?? 1;
@@ -513,13 +517,13 @@ export function createStageScene(canvas, { haze = 0.6, room, lightRGB }) {
       rigGroup.add(bar);
     }
     poolClip.dispose();
-    poolClip = poolMaterial.uniforms.uClip.value = poolClipTexture(pars);
+    poolClip = poolMaterial.uniforms.uClip.value = poolClipTexture(pooled);
     for (const mesh of [bodies, lenses, beams, pools, bulbMesh, cellMesh]) mesh.instanceMatrix.needsUpdate = true;
     lampGlow.geometry.attributes.position.needsUpdate = true;
     cellGlow.geometry.attributes.position.needsUpdate = true;
     rigGroup.add(beams, pools, bodies, lenses, bulbMesh, cellMesh, lampGlow, cellGlow);
     scene.add(rigGroup);
-    parts = { pars, bulbs, cells: placed.cells, bodies, lenses, beams, pools, bulbMesh, cellMesh, lampGlow, cellGlow };
+    parts = { pars, bulbs, cells: placed.cells, under: placed.pools || [], bodies, lenses, beams, pools, bulbMesh, cellMesh, lampGlow, cellGlow };
   }
 
   const rgb = new Float32Array(3);
@@ -528,7 +532,7 @@ export function createStageScene(canvas, { haze = 0.6, room, lightRGB }) {
   function setLights(frame) {
     if (!parts || !frame || frame === lastLights) return;
     lastLights = frame;
-    const { pars, bulbs, cells, lenses, beams, pools, bulbMesh, cellMesh, lampGlow, cellGlow } = parts;
+    const { pars, bulbs, cells, under, lenses, beams, pools, bulbMesh, cellMesh, lampGlow, cellGlow } = parts;
     const changed = new Set();
     const write = (attr, k, r, g, b) => {
       const at = k * 3;
@@ -551,6 +555,11 @@ export function createStageScene(canvas, { haze = 0.6, room, lightRGB }) {
       glow(beams.instanceColor, k, 1);
       glow(pools.instanceColor, k, par.pool?.level ?? 1);
       glow(lampGlow.geometry.attributes.color, k, par.body === 0 ? 0 : 0.9);
+    });
+    under.forEach((light, k) => {
+      if (light.sources) meanLightRGB(light.sources, frame, rgb, sourceRGB);
+      else lightRGB(frame[light.unit], rgb);
+      glow(pools.instanceColor, pars.length + k, light.pool.level);
     });
     bulbs.forEach((bulb, k) => {
       if (bulb.sources) meanLightRGB(bulb.sources, frame, rgb, sourceRGB);
@@ -721,6 +730,7 @@ export function createStageScene(canvas, { haze = 0.6, room, lightRGB }) {
     /** The browser took the context away: this scene draws nothing more. */
     lost: () => renderer.getContext().isContextLost(),
     /** What is drawn, for tests and the page's description. */
-    info: () => ({ units, pars: parts ? parts.pars.length : 0, bulbs: parts ? parts.bulbs.length : 0, cells: parts ? parts.cells.length : 0 }),
+    info: () => ({ units, pars: parts ? parts.pars.length : 0, bulbs: parts ? parts.bulbs.length : 0, cells: parts ? parts.cells.length : 0,
+      pools: parts ? parts.pools.count : 0 }),
   };
 }
