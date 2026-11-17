@@ -140,10 +140,10 @@ history. The rulings below stay.
   the "Edit colours" fold and Background on the right; on a phone Stage, Effects, Palettes, Edit colours,
   Background. Effects are name-only tiles, one to five columns by the card's width and the text size, in a
   contained, searchable list with the chosen effect pinned beside the search; the description is the tile's
-  tooltip, and tiles that share a name show their family on a second line. With an empty search the quick
-  deck the header's picker had comes first, in its order (`quickDeck`: the favourites starred in Effect
-  settings, the presets saved here, the party looks), then every effect A to Z; a search shows matches only
-  ("fix all bugs", 2026-11-15).
+  tooltip, and tiles that share a name show their family on a second line. It is one list: with an empty
+  search the quick deck the header's picker had leads it, in its order (`quickDeck`: the favourites starred in
+  Effect settings, the presets saved here, the party looks), then the rest A to Z, each effect once; a search
+  shows matches only, A to Z ("fix all bugs", 2026-11-15; "One list", 2026-11-17).
   It says Current effect only while the show plays unfrozen, Selected effect otherwise. Under the Visualizer
   source the card shows one sentence about it and nothing to choose, met or not, with the amber unmet line
   while it cannot paint; under Squid, and under Effects for Stems in Space, that line sits above the list. Palettes names

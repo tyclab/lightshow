@@ -81,18 +81,19 @@ export function ShowEffects() {
   const twins = twinLines(rows, families);
   const [query, setQuery] = useState('');
   const [focusId, setFocusId] = useState(null);
-  const [deckFocusId, setDeckFocusId] = useState(null);
   const [confirm, setConfirm] = useState(null);
   const search = useRef(null), list = useRef(null), scroll = useRef(null);
   const id = useId();
   const words = query.trim().toLowerCase().split(/\s+/).filter(Boolean);
-  const found = byName(rows.filter((row) => words.every((word) => matchesSearch(row, word, families))));
-  // With no search, the deck the header's picker had comes first, in its order: starred, saved here, party looks.
+  const matches = byName(rows.filter((row) => words.every((word) => matchesSearch(row, word, families))));
+  // One list (the operator, 2026-11-17, "One list"). With no search the deck the header's picker had leads it, in its
+  // order (starred, saved here, party looks), then the rest A to Z, each effect once; a search lists its matches A to Z.
   const deck = words.length ? [] : quickDeck(rows, pins);
+  const leading = new Set(deck.map((row) => row.id));
+  const found = [...deck, ...matches.filter((row) => !leading.has(row.id))];
   const playing = rows.find((row) => row.id === playingId) || allRows.find((row) => row.id === playingId);
   const currentName = playing?.name || s.pattern || 'None';
   const focused = found.find((row) => row.id === focusId) || found.find((row) => row.id === playingId) || found[0];
-  const deckFocused = deck.find((row) => row.id === deckFocusId) || deck.find((row) => row.id === playingId) || deck[0];
   const choose = (row) => tapRow(row, !!s.safety?.photosensitivityAcknowledged, setConfirm);
   // The selected look's family, whether it plays, is frozen or stopped: what the header's picker offered before (G3).
   const looks = isAudioReactive(playingId, lib) ? audioReactiveChoices(lib) : [];
@@ -142,10 +143,10 @@ export function ShowEffects() {
     }
   };
 
-  const tile = (row, kind, current, setFocus) => <li key={row.id}>
-    <button type="button" class={kind} data-effect={row.id} aria-current={row.id === playingId ? 'true' : undefined}
-      tabIndex={row.id === current?.id ? 0 : -1} title={[row.name, row.desc || (row.tags || []).join(' · ')].filter(Boolean).join(': ')}
-      onFocus={() => setFocus(row.id)} onClick={() => choose(row)}>
+  const tile = (row) => <li key={row.id}>
+    <button type="button" class="contained-row" data-effect={row.id} aria-current={row.id === playingId ? 'true' : undefined}
+      tabIndex={row.id === focused?.id ? 0 : -1} title={[row.name, row.desc || (row.tags || []).join(' · ')].filter(Boolean).join(': ')}
+      onFocus={() => setFocusId(row.id)} onClick={() => choose(row)}>
       <EffectIcon row={row} />
       <span class="contained-row-text">
         <span class="contained-row-title">{row.name}</span>
@@ -203,11 +204,8 @@ export function ShowEffects() {
       </div>}
       {looks.length > 0 && <AudioReactiveColours />}
       <div class="contained-scroll" ref={scroll}>
-        {deck.length > 0 && <ul class="contained-list contained-deck" aria-label="Quick effects" onKeyDown={listKey}>
-          {deck.map((row) => tile(row, 'contained-quick', deckFocused, setDeckFocusId))}
-        </ul>}
         <ul class="contained-list" id={`${id}-list`} ref={list} aria-label="Effects" onKeyDown={listKey}>
-          {found.map((row) => tile(row, 'contained-row', focused, setFocusId))}
+          {found.map(tile)}
         </ul>
         {!found.length && <div class="contained-empty"><strong>No matching effects.</strong>Try another name or clear the search.</div>}
       </div>
