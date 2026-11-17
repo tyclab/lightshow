@@ -915,36 +915,41 @@ test('every effect tile on Show and every pad and row of Effect settings draws i
   const symbol = (path) => `<svg class="effect-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="${path}"></path></svg>`;
   givenLibrary({ picture: { source: 'effects', input: null } });
   const show = ui.html(ui.h(ui.ShowEffects));
-  const tiles = [...show.matchAll(/<button type="button" class="contained-(?:row|quick)" data-effect="([^"]+)"[^>]*>(<svg class="effect-icon".*?<\/svg>)?/g)];
+  const tiles = [...show.matchAll(/<button type="button" class="contained-row" data-effect="([^"]+)"[^>]*>(<svg class="effect-icon".*?<\/svg>)?/g)];
   assert.ok(tiles.length > 20, 'tiles');
   for (const [, id, drawn] of tiles) assert.ok(drawn, `${id} has a symbol`);
-  const quick = /<button type="button" class="contained-quick" data-effect="position-chase"[^>]*>(.*?)<span/s.exec(show);
-  assert.strictEqual(quick?.[1], symbol(ui.mdi.mdiRunFast), 'the quick tile of Position Chase draws the runner');
+  const chase = /<button type="button" class="contained-row" data-effect="position-chase"[^>]*>(.*?)<span/s.exec(show);
+  assert.strictEqual(chase?.[1], symbol(ui.mdi.mdiRunFast), 'the tile of Position Chase draws the runner');
   const settings = ui.html(ui.h(ui.Effects, {}));
   assert.ok(count(settings, 'class="effect-pad-tap"') > 0 && count(settings, 'class="pattern-btn') > 0, 'pads and rows');
   assert.strictEqual(count(settings, '><svg class="effect-icon"'), count(settings, 'class="effect-pad-tap"') + count(settings, 'class="pattern-btn'));
 });
 
 // Show v3 fixes, PR 9 (operator 2026-11-15, "fix all bugs"): Show's list starts with the deck the header picker had.
-test('Show\'s Effects card starts with the quick deck in quickDeck\'s order, then lists every effect A to Z', () => {
-  const showDeck = (html) => {
-    const deck = /<ul class="contained-list contained-deck"[^>]*>(.*?)<\/ul>/s.exec(html);
-    return deck ? [...deck[1].matchAll(/data-effect="([^"]+)"/g)].map((m) => m[1]) : null;
+// One list since 2026-11-17 (the operator, asked about the empty spot the deck's last row left: "One list").
+test('Show\'s Effects card is one list: the quick deck in quickDeck\'s order, then the rest A to Z, each effect once', () => {
+  const listed = (html) => {
+    const lists = [...html.matchAll(/<ul class="contained-list[^"]*"[^>]*>(.*?)<\/ul>/gs)];
+    assert.strictEqual(lists.length, 1, 'one list');
+    return [...lists[0][1].matchAll(/class="contained-row"[^>]*data-effect="([^"]+)"/g)].map((m) => m[1]);
   };
   givenLibrary({ picture: { source: 'effects', input: null } });
   globalThis.localStorage = { getItem: (key) => (key === 'lightshow.effects.favourites' ? JSON.stringify(['ldj.Swirl', 'u1', 'energy.uvWash']) : null), setItem() {}, removeItem() {} };
   try {
     const html = ui.html(ui.h(ui.ShowEffects));
-    const deck = showDeck(html);
-    assert.ok(deck, 'a deck');
-    assert.ok(html.indexOf('contained-deck') < html.indexOf('class="contained-row"'), 'the deck before the full list');
+    const full = listed(html);
+    assert.ok(!html.includes('contained-deck') && !html.includes('contained-quick') && !html.includes('Quick effects'), 'no second block');
     const rows = ui.catalogueOf(ui.pick(['patterns', 'effects', 'pattern']), ui.librarySig.value, ui.FAMILIES, ['ldj.Swirl', 'u1', 'energy.uvWash']);
     const offered = rows.rows.filter((row) => !ui.utilityEffect(row));
-    assert.deepStrictEqual(deck, ui.quickDeck(offered, rows.pins).map((row) => row.id), 'the order is quickDeck\'s');
-    assert.deepStrictEqual(deck.slice(0, 3), ['ldj.Swirl', 'u1', 'position-chase'], 'the starred looks first, a utility effect left out');
-    assert.deepStrictEqual(deck.slice(0, 3), deckOf(ui.html(ui.h(ui.Effects, {}))).filter((id) => id !== 'energy.uvWash').slice(0, 3), 'as Effect settings orders it');
-    const full = [...html.matchAll(/class="contained-row"[^>]*data-effect="([^"]+)"/g)].map((m) => m[1]);
-    assert.strictEqual(full.length, offered.length, 'then every effect');
+    const deck = ui.quickDeck(offered, rows.pins).map((row) => row.id);
+    assert.ok(deck.length > 3 && deck.length < offered.length, 'a deck, and effects outside it');
+    assert.deepStrictEqual(full.slice(0, deck.length), deck, 'the deck leads, in quickDeck\'s order');
+    assert.deepStrictEqual(full.slice(0, 3), ['ldj.Swirl', 'u1', 'position-chase'], 'the starred looks first, a utility effect left out');
+    assert.deepStrictEqual(full.slice(0, 3), deckOf(ui.html(ui.h(ui.Effects, {}))).filter((id) => id !== 'energy.uvWash').slice(0, 3), 'as Effect settings orders it');
+    const rest = ui.byName(offered.filter((row) => !deck.includes(row.id))).map((row) => row.id);
+    assert.deepStrictEqual(full.slice(deck.length), rest, 'then the rest, A to Z');
+    assert.strictEqual(new Set(full).size, full.length, 'each effect once');
+    assert.strictEqual(full.length, offered.length, 'every effect');
   } finally {
     delete globalThis.localStorage;
   }

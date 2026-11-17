@@ -135,8 +135,8 @@ run the night from Show: the room in 3D as the rig paints it, the effects under
 it, and the switches that matter along the top — armed or not, what paints the
 room (the effects or the visualizer picture), the auto show on or off,
 blackout and the master. Choose the main effect from the searchable, scrolling grid
-under the stage. With the search empty it starts with the quick deck (the favourites starred in
-Effect settings, the presets saved here, then the party looks), then lists every effect: tiles with the effect's symbol beside its name, one to five side by side as the card's width and the text
+under the stage. It is one list: with the search empty the quick deck leads it (the favourites starred in
+Effect settings, the presets saved here, then the party looks), then the rest A to Z, each effect once: tiles with the effect's symbol beside its name, one to five side by side as the card's width and the text
 size allow, each with its description as a tooltip and ⚡ on a rapid-flashing effect. Tiles that
 share a name add a second line that tells them apart: the family (Spatial, Party Looks, …),
 **Classic** for a classic pattern or **Saved preset**. The count stands in the card's title row,
