@@ -102,3 +102,23 @@ test('a room is shaded by its fill alone, whatever its lamps show; the generic v
   stage.render();
   assert.deepEqual(ui.built.lights, []);
 });
+
+test('every light\'s pool is drawn: an aimed lamp\'s own, and the one under a lamp without an aim', () => {
+  const stage = scene();
+  const LAMP = { id: 'scene-lamp', name: 'Lamp', channelMap: { red: 0, green: 1, blue: 2 } };
+  const lamps = [1, 2, 3].map((id) => ({ id, label: `Lamp ${id}`, universe: 1, address: id * 3, profileId: LAMP.id }));
+  const model = { ...room('Pools'), bindings: [
+    { id: 'west', fixtureId: 1, position: { x: -1.5, y: 2, z: 0 } }, { id: 'east', fixtureId: 2, position: { x: 1.5, y: 2, z: 0 } },
+    { id: 'aimed', fixtureId: 3, position: { x: 0, y: 2, z: 1 }, lightTarget: { x: 0, y: 0, z: 1.5 } }] };
+  const shown = ui.keptRig(lamps, { [LAMP.id]: LAMP }, model);
+  stage.setRoom(model);
+  stage.setRig(shown.placed, shown.rig.units.length);
+  assert.deepEqual(stage.info(), { units: 3, pars: 1, bulbs: 2, cells: 0, pools: 3 });
+  stage.setLights([{ r: 255 }, { b: 255 }, { g: 255 }]);
+  assert.equal(stage.render(), true);
+  // The generic venue has beams only: a pool for each, none under anything.
+  stage.setRoom(null);
+  const venue = ui.keptRig(lamps, { [LAMP.id]: LAMP }, null);
+  stage.setRig(venue.placed, venue.rig.units.length);
+  assert.deepEqual([stage.info().pars, stage.info().pools], [3, 3]);
+});
