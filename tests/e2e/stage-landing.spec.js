@@ -138,4 +138,11 @@ test('an aimed strip lights a band along its wall and throws no cone; a pool wid
     points: [[0.95, 0.003, 0.95], [-0.95, 0.003, 0.95], [0.95, 0.003, -0.95], [-0.95, 0.003, -0.95], [0, 0.003, 0.95], [1.1, 0.003, 0], [0, 0.003, -1.2]] }));
   for (const value of corner.slice(0, 5)) expect(value, JSON.stringify(corner)).toBeGreaterThan(0.03);
   expect(corner.slice(5)).toEqual([0, 0]);
+  // A room four times as long as wide: what is drawn of the pool's quad differs along it and across it. The pool
+  // reaches the room's far ends and stops at its near sides.
+  const long = { ...ROOM, rooms: [{ id: 'long', label: 'Long', polygon: [[-2, -0.5], [2, -0.5], [2, 0.5], [-2, 0.5]] }] };
+  const ends = added(await page.evaluate((input) => window.landing(input), { model: long, binding: { position: { x: 0, y: 2.4, z: 0 } }, colour: { r: 255, g: 255, b: 255 },
+    points: [[1.8, 0.003, 0], [-1.8, 0.003, 0], [1.8, 0.003, 0.45], [0.6, 0.003, -0.45], [0, 0.003, 0.7], [2.2, 0.003, 0]] }));
+  for (const value of ends.slice(0, 4)) expect(value, JSON.stringify(ends)).toBeGreaterThan(0.03);
+  expect(ends.slice(4)).toEqual([0, 0]);
 });
