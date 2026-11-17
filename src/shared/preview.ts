@@ -452,6 +452,7 @@ function createPreviewSampler(events: readonly PreviewEvent[] = [], grid: GridSo
     ops.push(op);
   }
 
+  const flashLimited = frames.some((frame) => frame.look.flashLimit);
   // A voice event anywhere means the timeline owns its voices, as a renderer input with `voices` does.
   const explicitVoices = timeline.some((e) => e.action === 'voice' || e.action === 'voice-end');
   const patterns = [...new Set(frames.map((f) => f.look.pattern))];
@@ -621,7 +622,7 @@ function createPreviewSampler(events: readonly PreviewEvent[] = [], grid: GridSo
       if (spec) anyEffect = true;
       effectsKey += `${JSON.stringify(id)}=${key};`;
     }
-    if (!(explicitVoices || strobeBursts || anyEffect || sequence || options.hardware || options.audioSource || frames.some((frame) => frame.look.flashLimit))) {
+    if (!(explicitVoices || strobeBursts || anyEffect || sequence || options.hardware || options.audioSource || flashLimited)) {
       // Nothing steps: answered straight from the timeline, nothing kept.
       if (env) { env = null; forgetHistory(); }
       return { key: '', stepped: false, fixtures, presets, rig, specs, hue: rig.hue, cells: new Map() };
@@ -893,18 +894,20 @@ function createPreviewSampler(events: readonly PreviewEvent[] = [], grid: GridSo
       dims[u] = w.outputGuard.effectLevel(u, dims[u], trim, tops[u], t);
     }
 
-    if (s.flashLimit) {
+    // As the renderer, the room's light is followed with the limit off too, when this timeline switches it on at all.
+    if (flashLimited) {
       const all = rig.ranges.map(({ start, count }) => Array.from({ length: count }, (_, c) => ({ col: cols[start + c], dim: dims[start + c] })));
       const measure = (gain = 1) => all.reduce((sum, lights, i) => sum + fixtureLuminance(lights,
         options.profiles?.[fixtures[i]?.profileId ?? ''] ?? { channelMap: { red: 0, green: 1, blue: 2 } },
         rig.cellMaps[i], (fixtures[i]?.maxBrightness ?? 255) / 255, gain), 0) / Math.max(1, all.length);
-      limitRoomFlashes(w.outputGuard, measure, (gain) => {
+      if (s.flashLimit) limitRoomFlashes(w.outputGuard, measure, (gain) => {
         for (let i = 0; i < all.length; i++) for (let c = 0; c < all[i].length; c++) {
           const dim = Math.min(255, all[i][c].dim * gain);
           all[i][c].dim = dim; dims[rig.ranges[i].start + c] = dim;
         }
       }, t);
-    } else w.outputGuard.resetRoom();
+      else w.outputGuard.commitRoom(measure(), t, false);
+    }
 
     if (e.hardware) for (let u = 0; u < n; u++) {
       const { fixture: i, cell } = rig.units[u], fixture = fixtures[i], caps = e.hardware[i];

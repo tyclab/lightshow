@@ -1792,7 +1792,7 @@ details and in Perform opens the warning.
 |---------|-------|
 | `safety.strobeMaxLatchSec`, default 60 | Maximum manual strobe-kind latch lifetime, regardless of launch route |
 | `safety.hdFlashIntervalMs`, default 350 | Per-lamp bright-rise interval for the Party effects (`hd.*`); not Disco or every effect family |
-| `safety.flashLimit`, default false | Limit large-area flashing to three flashes per second |
+| `safety.flashLimit`, default false | Limit large-area flashing to three flashes per second, from the frame it is switched on: the room's light is followed while it is off, so a strobe already running is held from that frame |
 | Master blackout | Darken the show while retaining output ownership |
 | Disarm | Darken/release output streams and clear voices; programme, Freeze and Blackout remain unchanged |
 
@@ -2374,12 +2374,10 @@ renders every ninth tick (about 5 a second), and every tick again as soon as a
 change, an effect command or an Art-Net retirement waits on a frame. `awake`
 names what keeps it from idling, as the performance record does. `roomChanges`
 is the flash limit's own count, from the engine's report once a second: the most
-changes of the room's light in any one second since `safety.flashLimit` was
-switched on, on the time the engine gave each frame, and 0 while it is off. Three
-flashes are six changes; one more rise within the second ends in a fall that
-dimming cannot hold, so seven is the limit holding and eight is not. The limiter
-takes the light for rising when it starts, so a rise on its first frames is not
-in the count. `eventLoop`
+changes of the room's light in any one second from the frame `safety.flashLimit`
+was switched on, on the time the engine gave each frame, and 0 while it is off.
+Three flashes are six changes; one more rise within the second ends in a fall that
+dimming cannot hold, so seven is the limit holding and eight is not. `eventLoop`
 gives the main thread's delay in milliseconds over the last 30 s window: the
 excess over the 10 ms sampling timer, so an idle loop reads 0.
 

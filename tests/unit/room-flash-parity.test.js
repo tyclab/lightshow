@@ -50,3 +50,40 @@ for (const pattern of ['hit', 'chase']) test(`room flash limiter keeps ${pattern
   if (pattern === 'hit') assert.ok(limitedFrames > 10, 'room limiting actually changes the otherwise rapid pulses');
   for (const [now, expected] of [...saved].reverse()) assert.deepEqual(preview(now, fixtures, COLOR_PRESETS, rig), expected, 'seeks clone room flash history');
 });
+
+// The renderer follows the room's light with the limit off and holds a light already changing from the first frame the
+// limit is on; the preview of a timeline that switches it on does the same.
+test('switched on while the hits run, the preview holds the room as the output does from the first frame', () => {
+  const renderer = createRenderer({ profileOf: (fixture) => profiles[fixture.profileId], profilesRevision: () => 0, now: 0 });
+  const rig = buildRig(fixtures, (fixture) => profiles[fixture.profileId]), store = createUniverseStore(allocateShared());
+  const look = { pattern: 'hit', colorA: 1, colorB: 1, colorC: 1, colorD: 1, bpm: 180, beatDivision: 4, flashLimit: false };
+  const SWITCH_MS = 2000;
+  const preview = createPreviewSampler([{ timeMs: 0, action: 'patch', data: look }, { timeMs: SWITCH_MS, action: 'patch', data: { flashLimit: true } }], null, { profiles });
+  const unbounded = createPreviewSampler([{ timeMs: 0, action: 'patch', data: look }], null, { profiles });
+  const input = { ...look, running: true, split: null, pixelMap: 'stage', strobeSpeed: 0, strobeFunction: 'standard',
+    masterDimmer: 255, masterBlackout: false, energy: null, showDynamics: null, patternAnchor: null,
+    fade: null, syncTest: null, universes: [0], fixtures };
+  let limitedFrames = 0, firstLimited = null;
+  const saved = new Map();
+  for (let tick = 0; tick < 176; tick++) {
+    const now = tick * (1000 / 44);
+    renderer.frame({ ...input, flashLimit: now >= SWITCH_MS }, { beatPos: now * 180 / 60000, bpm: 180, epoch: 0 }, now, store, 0);
+    const visible = preview(now, fixtures, COLOR_PRESETS, rig), free = unbounded(now, fixtures, COLOR_PRESETS, rig);
+    const bytes = store.getBuffer(0);
+    for (let u = 0; u < rig.units.length; u++) {
+      const { fixture: i, cell } = rig.units[u], map = rig.cellMaps[i]?.[cell] ?? profiles[fixtures[i].profileId].channelMap;
+      for (const channel of ['r', 'g', 'b']) {
+        const wire = bytes[fixtures[i].address - 1 + map[{ r: 'red', g: 'green', b: 'blue' }[channel]]];
+        assert.ok(Math.abs(wire - visible[u][channel]) <= 1, `frame ${tick}, unit ${u}, ${channel}: output ${wire}, preview ${visible[u][channel]}`);
+      }
+    }
+    if (visible.some((colour, u) => Math.abs(colour.r - free[u].r) > 2)) {
+      limitedFrames++;
+      firstLimited ??= now;
+    }
+    if (tick % 17 === 0) saved.set(now, visible);
+  }
+  assert.ok(limitedFrames > 10, 'the limit switched on changes the otherwise rapid pulses');
+  assert.ok(firstLimited >= SWITCH_MS, 'and nothing before it');
+  for (const [now, expected] of [...saved].reverse()) assert.deepEqual(preview(now, fixtures, COLOR_PRESETS, rig), expected, 'seeks clone room flash history');
+});

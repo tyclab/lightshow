@@ -101,8 +101,8 @@ const timedFrames = (page, ms) => page.evaluate((ms) => new Promise((resolve) =>
 }), ms);
 
 /** The engine's own count under the flash limit (/api/health engine.roomChanges): the most changes of the room's light in any
- * one second since the limit was switched on, by the limiter's rule on the time the engine gave each frame. The engine
- * thread reports once a second: the second report from now has counted every frame up to now. */
+ * one second from the frame the limit was switched on, by the limiter's rule on the time the engine gave each frame. The
+ * engine thread reports once a second: the second report from now has counted every frame up to now. */
 async function engineRoomChanges(request) {
   const engine = async () => (await (await request.get('/api/health')).json()).engine;
   let report = (await engine()).sampledAtMs, later = 0;
@@ -232,10 +232,9 @@ test('a rapid effect is limited on the disarmed feed as on the rig, and armed af
     .toBeGreaterThan(LIMIT);
   await safetySet(request, { flashLimit: true });
   await until(request, (s) => s.flashLimit === true);
-  await page.waitForTimeout(500);
   const drawn = mostChangesInASecond(await timedFrames(page, 3000));
   // Eight changes of the limited strobe span a second and one frame on the engine's clock, and the page's stamp of a
-  // drawn frame wanders by that much against it: the second is counted where the frames are made.
+  // drawn frame wanders by that much against it: the second is counted where the frames are made, from the switch-on.
   const engine = await engineRoomChanges(request);
   expect(engine, 'the engine, under the same limit').toBeLessThanOrEqual(LIMIT);
   expect(engine, 'and still changing the room\'s light: the strobe is limited, not gone').toBeGreaterThanOrEqual(1);

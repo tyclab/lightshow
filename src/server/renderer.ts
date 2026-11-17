@@ -1161,7 +1161,7 @@ function createRenderer({ profileOf, profilesRevision = () => 0, now = performan
       for (const unit of emittedUnits) {
         outputGuard.measuredLight(unit.id, COLOR_PRESETS[14], 0, now, capabilities[unit.fixture], 'blackout', true, unit.measure);
       }
-      if (input.flashLimit) outputGuard.commitRoom(0, now);
+      outputGuard.commitRoom(0, now, !!input.flashLimit);
       return rigNow;
     }
     if (capabilities.length) {
@@ -1184,8 +1184,9 @@ function createRenderer({ profileOf, profilesRevision = () => 0, now = performan
         light.dim = outputGuard.effectLevel(guardUnitIds[u], light.dim, scale, ownership[u].kind, now);
       }
     }
+    // With the limit off the room's light is still followed: switched on, the limit holds a light already changing.
     if (input.flashLimit) limitFlashes(input, all, now);
-    else outputGuard.resetRoom();
+    else outputGuard.commitRoom(rigLuminance(input, all), now, false);
     for (const unit of emittedUnits) {
       const { owner, cut } = ownership[rigNow.ranges[unit.fixture].start + unit.cell];
       unit.owner = owner; unit.cut = cut;

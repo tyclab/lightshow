@@ -69,8 +69,8 @@ export class OutputGuard {
   }
 
   targetRoom(luminance: number, now: number): number { return this.room.target(luminance, now); }
-  commitRoom(luminance: number, now: number): void { this.room.commit(luminance, now); }
-  resetRoom(): void { this.room.reset(); }
+  /** The room's light as it went out, on every frame; `limited` while the flash limit is on. */
+  commitRoom(luminance: number, now: number, limited: boolean): void { this.room.commit(luminance, now, limited); }
   /** The most changes of the room's light the flash limit has counted in any one second since it was switched on. */
   get roomChanges(): number { return this.room.most(); }
 
