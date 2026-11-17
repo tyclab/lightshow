@@ -113,6 +113,8 @@ export interface Emission {
   pan?: number;
   tilt?: number;
   beamAngle?: number;
+  /** Lumen the whole fixture gives at full white; unset, the Stage takes its product's where it knows one. */
+  lumen?: number;
 }
 
 /** A bar's line on the stage plot: length in percent and angle in degrees. */
