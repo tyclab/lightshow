@@ -1515,8 +1515,7 @@ clients. Old indexed palettes retain their curated 2/3/4-colour variants;
 old palette files, presets and cues load without losing colours or Random.
 The lists offer **TycStation** and the palettes saved here. The tables the
 effects came with and the indexed looks are what the engine draws from and are
-not offered; their ids still work through REST and Home Assistant. A palette's strip draws each of its colours as its own
-block. The **TycStation** palette (`tycStation`) holds the
+not offered; their ids still work through REST and Home Assistant. The **TycStation** palette (`tycStation`) holds the
 product mark's colours: blue `#5AA2FF`, violet `#8B6CF0`, red `#FF4A3D` and
 violet again, so an effect that runs round the palette comes back to blue
 without a seam. As the global override (`PUT /api/palette-override` with
