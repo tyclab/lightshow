@@ -598,7 +598,9 @@ main.mode-show { --show-top: .71rem; --show-bottom: 3rem; padding-block: var(--s
 .show-view {
   --show-gap: .86rem; --show-tile: 3.15rem; --show-tile-gap: .43rem; --show-list-pad: .29rem; --show-stage-min: 15rem;
   --show-effect-min: 13rem; --show-palette-min: 8rem;
-  --show-list-floor: calc(4 * var(--show-tile) + 3 * var(--show-tile-gap) + 2 * var(--show-list-pad) + 2 * var(--hairline));
+  /* A quick tile: its padding, the symbol, the gap, one line of the name and its border. The effects list's four rows are rows of these. */
+  --show-quick-tile: 4.93rem;
+  --show-list-floor: calc(4 * var(--show-quick-tile) + 3 * var(--show-tile-gap) + 2 * var(--show-list-pad) + 2 * var(--hairline));
   container: show / inline-size;
   display: flex; flex-direction: column; gap: var(--show-gap);
   /* The window's share; the safety notice, toolbar and pads take theirs inside it and the stage canvas gets what is left.
@@ -649,7 +651,7 @@ html:has(.show-fold-toggle[aria-expanded="true"]) { scrollbar-gutter: stable; }
 :is(.contained-row, .contained-quick)[aria-current="true"] { border-color: var(--accent); background: rgba(90,162,255,.14); }
 /* An effect's symbol: beside the name in a list, over it on a quick tile and on a pad. */
 .effect-icon { flex: none; width: 1.5rem; height: 1.5rem; fill: currentColor; color: var(--text-blue); }
-.contained-quick { flex-direction: column; justify-content: center; gap: .21rem; padding: .57rem; text-align: center; }
+.contained-quick { flex-direction: column; justify-content: center; gap: .21rem; min-height: var(--show-quick-tile); padding: .57rem; text-align: center; }
 .contained-quick .effect-icon { width: 2.29rem; height: 2.29rem; }
 .contained-quick .contained-row-text { flex: none; width: 100%; }
 .contained-quick :is(.contained-row-mark, .contained-rapid) { position: absolute; top: .29rem; right: .43rem; }

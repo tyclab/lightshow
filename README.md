@@ -165,7 +165,7 @@ Background moves down and the effects list takes the added height), and Backgrou
 there. Show scales with the window: once the view is 68.75em wide (962.5 CSS px in the
 app's 14px font) it has two columns as tall as the window; of the height the floors leave, the
 stage takes one part and the effects list two, and the palette list what the right column leaves.
-The floors: the stage at least 15rem and a third of its own width, each list four rows of tiles;
+The floors: the stage at least 15rem and a third of its own width, each list four rows of tiles (the effects list four rows of its quick tiles);
 when they do not fit, the page scrolls. On a phone, in one column, the order is Stage, Effects,
 Palettes, Edit colours, Background, the stage and the effects list each two fifths of the
 window. The stage opens in **3D room**, with **2D plot** available beside it. If the browser takes
