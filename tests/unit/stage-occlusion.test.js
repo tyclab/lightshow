@@ -228,7 +228,7 @@ test('a light outside its room\'s polygon carries the wall between itself and th
 
 // The beam shader's clip (scene.js BEAM_FRAGMENT), point by point: in the box, in one of the rooms, past no wall.
 const hazeAt = (clip, from, point, walls = clip.walls) => ['x', 'y', 'z'].every((axis) => point[axis] >= clip.lo[axis] && point[axis] <= clip.hi[axis])
-  && (!clip.rooms.length || clip.rooms.filter((polygon) => inside(polygon, point)).length === 1) && !walls.some((wall) => crosses(wall, from, point));
+  && (!clip.rooms.length || clip.rooms.some((polygon) => inside(polygon, point))) && !walls.some((wall) => crosses(wall, from, point));
 // Points over a beam's cone as the stage draws it: from its lamp along its aim, as wide at its end as its radius.
 const cone = (beam, step = 0.02) => {
   const aim = beam.aim, side = Math.abs(aim.y) < 0.9 ? { x: 0, y: 1, z: 0 } : { x: 1, y: 0, z: 0 };

@@ -69,8 +69,9 @@ const BEAM_VERTEX = /* glsl */`
 `;
 
 // Each beam's clip (world.js coneClip): the least and the greatest corner of the box its haze stays in, and where
-// in uClip's texels its rooms' edges and its walls' boxes are (first edge, edges, first wall, walls). clipAt and
-// crosses are POOL_FRAGMENT's, word for word, and the loops are built as its loops are: none leaves early (see there).
+// in uClip's texels its rooms' edges and its walls' boxes are: the first edge, how many edges the room of its lamp
+// has, how many the room it lands in, and how many walls follow them. clipAt and crosses are POOL_FRAGMENT's, word
+// for word, and the loops are built as its loops are: none leaves early (see there).
 const BEAM_FRAGMENT = /* glsl */`
   uniform float uHaze;
   uniform sampler2D uClip;
@@ -101,20 +102,27 @@ const BEAM_FRAGMENT = /* glsl */`
     return reaches && enter <= leave;
   }
   void main() {
-    // Haze shows where its lamp's light is: in the room box, in the lamp's rooms, and not past a wall from the lamp.
-    // What the box cuts reads no edge, and what a room's edge cuts reads no wall: the counts drop to nought.
+    // Haze shows where its lamp's light is: in the room box, in one of the lamp's rooms, and not past a wall from
+    // the lamp. What the box cuts reads no edge, and what the rooms' edges cut reads no wall: the counts drop to nought.
     bool lit = vWorld.x >= vLeast.x && vWorld.y >= vLeast.y && vWorld.z >= vLeast.z && vWorld.x <= vMost.x && vWorld.y <= vMost.y && vWorld.z <= vMost.z;
-    int edges = lit ? int(vWhere.y + 0.5) : 0;
+    int first = int(vWhere.x + 0.5);
+    int own = int(vWhere.y + 0.5);
+    int landing = int(vWhere.z + 0.5);
+    int edges = lit ? own + landing : 0;
     if (edges > 0) {
-      bool inside = false;
+      // Each room by its own edges, so two outlines that overlap leave no hole where they do.
+      bool inOwn = false;
+      bool inLanding = false;
       for (int i = 0; i < edges; i++) {
-        vec4 e = clipAt(int(vWhere.x + 0.5) + i);
-        if ((e.y > vWorld.z) != (e.w > vWorld.z) && vWorld.x < (e.z - e.x) * (vWorld.z - e.y) / (e.w - e.y) + e.x) inside = !inside;
+        vec4 e = clipAt(first + i);
+        bool passed = (e.y > vWorld.z) != (e.w > vWorld.z) && vWorld.x < (e.z - e.x) * (vWorld.z - e.y) / (e.w - e.y) + e.x;
+        if (passed && i < own) inOwn = !inOwn;
+        if (passed && i >= own) inLanding = !inLanding;
       }
-      lit = inside;
+      lit = inOwn || inLanding;
     }
     int walls = lit ? int(vWhere.w + 0.5) : 0;
-    for (int i = 0; i < walls; i++) lit = lit && !crosses(vApex, vWorld, int(vWhere.z + 0.5) + i * 4);
+    for (int i = 0; i < walls; i++) lit = lit && !crosses(vApex, vWorld, first + own + landing + i * 4);
     if (!lit) discard;
     // Brightest through the middle of the cone, where the eye looks through
     // the most haze, and fading from the lens to where it lands.
@@ -232,7 +240,8 @@ function poolClipTexture(lights) {
 const OUT = 1e6;
 /**
  * These beams' clips for the beam shader: each beam's box and where its edges and walls are, to ride with the beam
- * (aLeast, aMost, aWhere), and uClip's texels they point to: its rooms' edges, then its walls' boxes.
+ * (aLeast, aMost, aWhere), and uClip's texels they point to: the edges of its lamp's room, those of the room it
+ * lands in, then its walls' boxes.
  */
 function beamClips(pars) {
   const beams = Math.max(1, pars.length), least = new Float32Array(beams * 3), most = new Float32Array(beams * 3), where = new Float32Array(beams * 4);
@@ -241,15 +250,13 @@ function beamClips(pars) {
     const lo = clip?.lo ?? { x: -OUT, y: -OUT, z: -OUT }, hi = clip?.hi ?? { x: OUT, y: OUT, z: OUT };
     least.set([lo.x, lo.y, lo.z], k * 3);
     most.set([hi.x, hi.y, hi.z], k * 3);
-    const edges = texels.length;
-    // Rooms do not overlap, so a point is in one of them where it is inside an odd number of all their edges.
-    for (const polygon of clip?.rooms || []) for (const [i, [x, z]] of polygon.entries()) { const [x1, z1] = polygon[(i + 1) % polygon.length]; texels.push([x, z, x1, z1]); }
-    const walls = texels.length;
+    const first = texels.length, [own = [], landing = []] = clip?.rooms || [];
+    for (const polygon of [own, landing]) for (const [i, [x, z]] of polygon.entries()) { const [x1, z1] = polygon[(i + 1) % polygon.length]; texels.push([x, z, x1, z1]); }
     for (const { centre, axes, half } of clip?.walls || []) {
       texels.push([centre.x, centre.y, centre.z, 0]);
       axes.forEach((axis, i) => texels.push([axis.x, axis.y, axis.z, half[i]]));
     }
-    where.set([edges, walls - edges, walls, clip?.walls?.length || 0], k * 4);
+    where.set([first, own.length, landing.length, clip?.walls?.length || 0], k * 4);
   });
   const height = Math.max(1, Math.ceil(texels.length / CLIP_WIDTH));
   const data = new Float32Array(CLIP_WIDTH * height * 4);

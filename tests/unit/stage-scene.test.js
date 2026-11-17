@@ -192,16 +192,32 @@ test('each beam hands the beam shader its clip: the box its haze stays in, its r
   const single = (values) => values.map(Math.fround);
   const clips = clipsOf(), beams = shown.placed.lamps;
   assert.deepEqual(beams.map((beam) => [beam.clip.rooms.length, beam.clip.walls.length]), [[0, 1], [1, 1]]);
-  beams.forEach(({ clip }, k) => {
-    assert.deepEqual([clips.least(k), clips.most(k)], [single([clip.lo.x, clip.lo.y, clip.lo.z]), single([clip.hi.x, clip.hi.y, clip.hi.z])], `beam ${k}: its box`);
-    const [edges, count, walls, wallCount] = clips.where(k);
-    assert.deepEqual([count, wallCount], [k ? 4 : 0, 1], `beam ${k}: the edges of the room that cuts it, one wall`);
-    const [polygon = []] = clip.rooms;
-    polygon.forEach(([x, z], i) => assert.deepEqual(clips.texel(edges + i), single([x, z, ...polygon[(i + 1) % polygon.length]]), `beam ${k}: edge ${i}`));
-    const [{ centre, axes, half }] = clip.walls;
-    assert.deepEqual(clips.texel(walls), single([centre.x, centre.y, centre.z, 0]), `beam ${k}: its wall's centre`);
-    axes.forEach((axis, i) => assert.deepEqual(clips.texel(walls + 1 + i), single([axis.x, axis.y, axis.z, half[i]]), `beam ${k}: its wall's axis ${i}`));
-  });
+  // A beam's place in the texels: its first edge, the edges of its lamp's room, those of the room it lands in, its
+  // walls; the edges stand in that order from the first, and the walls' boxes follow them.
+  const carried = (read, { clip }, k, name) => {
+    assert.deepEqual([read.least(k), read.most(k)], [single([clip.lo.x, clip.lo.y, clip.lo.z]), single([clip.hi.x, clip.hi.y, clip.hi.z])], `${name}: its box`);
+    const [first, own, landing, walls] = read.where(k);
+    assert.deepEqual([own, landing, walls], [clip.rooms[0]?.length ?? 0, clip.rooms[1]?.length ?? 0, clip.walls.length], `${name}: its counts`);
+    clip.rooms.flatMap((polygon) => polygon.map(([x, z], i) => [x, z, ...polygon[(i + 1) % polygon.length]]))
+      .forEach((edge, i) => assert.deepEqual(read.texel(first + i), single(edge), `${name}: edge ${i}`));
+    clip.walls.forEach(({ centre, axes, half }, w) => {
+      const at = first + own + landing + w * 4;
+      assert.deepEqual(read.texel(at), single([centre.x, centre.y, centre.z, 0]), `${name}: the centre of wall ${w}`);
+      axes.forEach((axis, i) => assert.deepEqual(read.texel(at + 1 + i), single([axis.x, axis.y, axis.z, half[i]]), `${name}: axis ${i} of wall ${w}`));
+    });
+    return [first, own, landing, walls];
+  };
+  assert.deepEqual(beams.map((beam, k) => carried(clips, beam, k, `beam ${k}`)), [[0, 0, 0, 1], [4, 4, 0, 1]], 'the second beam\'s texels follow the first\'s');
+  // A beam that lands in the next room carries both rooms: its lamp's four edges, the other's five, then the wall.
+  const pair = { ...room('Pair'), rooms: [{ id: 'west', label: 'West', polygon: [[-1.9, -1.9], [0.6, -1.9], [0.6, 1.9], [-1.9, 1.9]] },
+    { id: 'east', label: 'East', polygon: [[0.6, -1.9], [1.9, -1.9], [1.9, 0], [1.9, 1.9], [0.6, 1.9]] }],
+  bindings: [{ id: 'through', fixtureId: 1, position: { x: 0.2, y: 2, z: 1 }, lightTarget: { x: 1.2, y: 0, z: 1 } }] };
+  const through = ui.keptRig(lamps.slice(0, 1), { [LAMP.id]: LAMP }, pair);
+  from = ui.built.meshes.length;
+  stage.setRoom(pair);
+  stage.setRig(through.placed, through.rig.units.length);
+  assert.deepEqual(through.placed.lamps[0].clip.rooms, pair.rooms.map((area) => area.polygon), 'the lamp\'s room first, then the one its pool lies in');
+  assert.deepEqual(carried(clipsOf(), through.placed.lamps[0], 0, 'the beam into the next room'), [0, 4, 5, 1]);
   // The generic venue has no room to stop a beam: its haze shows wherever its cone is, and reads no texel.
   from = ui.built.meshes.length;
   stage.setRoom(null);

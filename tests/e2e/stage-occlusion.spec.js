@@ -161,6 +161,21 @@ test('a lamp\'s haze stops at the wall beside it: none of it shows in the room b
   }
 });
 
+test('a beam that lands in the next room shows its haze there too, also where the two rooms\' outlines overlap', async ({ page }) => {
+  // Without the box wall the two rooms stand open to each other. The lamp hangs in the near room, 0.5 m from the far
+  // one and 1.2 m up, aimed at the far room's floor. Read on a strip of the near room's floor beside the far room,
+  // from the camera east of it: each line of sight enters the cone above the far room and ends on that strip inside
+  // the cone, where no pool lies (the pool is cut to the far room). What changes there is the haze in the room the
+  // beam lands in.
+  const lamp = { x: -0.5, y: 1.2, z: -1 }, binding = { lightTarget: { x: 0.6, y: 0, z: -1 } };
+  const regions = { strip: floor(-0.35, -0.05, -1.3, -0.7) };
+  const overlapping = { ...withoutWall, rooms: TWO_ROOMS.rooms.map((area) => (area.id === 'near' ? { ...area, polygon: [[-3, -2], [0.5, -2], [0.5, 2], [-3, 2]] } : area)) };
+  for (const [name, model] of [['two rooms side by side', withoutWall], ['two rooms whose outlines overlap by half a metre', overlapping]]) {
+    const { off, on } = await lampFrames(page, model, lamp, { regions, cutaway: false, name: 'audience', haze: 1, binding });
+    expect(changed(off.strip, on.strip), `${name}: the haze in the room the beam lands in shows`).toBeGreaterThan(60);
+  }
+});
+
 test('light on the ceiling shows from above, where the ceiling is never drawn', async ({ page }) => {
   // A lamp 0.9 m under the ceiling, aimed straight up: a pool 2.9 m across on the ceiling at full strength.
   const regions = { ceiling: level(2.5, -2.2, -0.8, -1.6, -0.4) };
