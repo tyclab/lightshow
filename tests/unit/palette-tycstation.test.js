@@ -22,10 +22,9 @@ test('TycStation is an offered built-in palette in the mark colours', () => {
   assert.equal(ALL_PALETTES.at(-1), entry, 'appended, so every older palette keeps its place in the list');
 });
 
-test('the offered palettes are the looks and the mark; the tables the effects came with are no choice, and still resolve', () => {
-  assert.deepEqual([...new Set(OFFERED_PALETTES.map((p) => p.app))], ['look', 'own']);
-  assert.equal(OFFERED_PALETTES.length, 27);
-  for (const id of ['redCyan', 'screwdriver', 'strawberryDaiquiri', 'randomRandom', 'rainbow', 'hdDefault', 'hdStrobe']) {
+test('the one built-in palette offered is the mark; the effects\' tables and the looks are no choice, and still resolve', () => {
+  assert.deepEqual(OFFERED_PALETTES.map((p) => p.id), ['tycStation']);
+  for (const id of ['redCyan', 'screwdriver', 'strawberryDaiquiri', 'randomRandom', 'rainbow', 'hdDefault', 'hdStrobe', 'synthwave', 'arctic', 'acidRave']) {
     assert.ok(!OFFERED_PALETTES.some((p) => p.id === id), `${id} is not offered`);
     assert.ok(ALL_PALETTES.some((p) => p.id === id), `${id} still resolves by its id`);
   }

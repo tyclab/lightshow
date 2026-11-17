@@ -44,7 +44,7 @@ local Audition and colour sliders. All new-show workflows hide retired rows.
   every legacy renderer or clock:** deleting those would break saved specs whose
   parameter richness has no exact field equivalent. No claim of byte identity is
   made for the explicitly changed aliases.
-- **Palettes:** the chooser offers the stage palettes and TycStation and includes a hue-pair
+- **Palettes:** the chooser offers TycStation and the saved palettes and includes a hue-pair
   generator; every old palette id still resolves through integrations.
 - **Audition:** a typed, deterministic demo source supplies beat, bands, sections,
   stems to a browser-only Stage sampler. It never sends a

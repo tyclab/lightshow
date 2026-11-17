@@ -14,11 +14,14 @@ export async function set(request, patch) {
   if (!res.ok()) throw new Error(`POST /api/set ${res.status()}: ${await res.text()}`);
 }
 
+/** A control action on the state as read. One that another action overtakes answers 409: read again and ask again, as a client does. */
 export async function control(request, action, programme) {
-  const current = await (await request.get('/api/control')).json();
-  const response = await request.post('/api/control', { data: { ...current.control, action, ...(programme ? { programme } : {}) } });
-  if (!response.ok()) throw new Error(`Control ${action} ${response.status()}: ${await response.text()}`);
-  return (await response.json()).control;
+  for (let attempt = 1; ; attempt++) {
+    const current = await (await request.get('/api/control')).json();
+    const response = await request.post('/api/control', { data: { ...current.control, action, ...(programme ? { programme } : {}) } });
+    if (response.ok()) return (await response.json()).control;
+    if (response.status() !== 409 || attempt === 3) throw new Error(`Control ${action} ${response.status()}: ${await response.text()}`);
+  }
 }
 
 /** Arm with the header's button: it asks for the photosensitivity acknowledgement every time. */
