@@ -50,14 +50,43 @@ export async function savePalette(name, colours) {
   return res;
 }
 
+/**
+ * Save as palette, for an editor to place: the button that asks for a name and the row that takes it.
+ * `palette` is the body to save, or the bare colours; `blocked` holds the save back while it is not valid;
+ * `buttonClass` lets the button sit like its neighbours.
+ */
+export function useSavePaletteAs(palette, blocked = false, buttonClass = 'btn sm') {
+  const [naming, setNaming] = useState(false);
+  const [name, setName] = useState('');
+  const [error, setError] = useState('');
+  const close = () => { setNaming(false); setError(''); };
+  const save = async () => {
+    const trimmed = name.trim();
+    if (!trimmed || blocked) return;
+    const res = await savePalette(trimmed, palette);
+    if (res.ok) { close(); setName(''); } else setError(res.error || 'Could not save the palette');
+  };
+  return {
+    button: !naming && <button type="button" class={buttonClass} onClick={() => setNaming(true)}>Save as palette…</button>,
+    row: naming && (
+      <div class="cue-save-row">
+        <input class="cue-name-input" aria-label="Palette name" placeholder="Palette name" value={name} autoFocus
+          onInput={(e) => setName(e.target.value)}
+          onKeyDown={(e) => { if (e.key === 'Enter') save(); if (e.key === 'Escape') { e.stopPropagation(); close(); } }} />
+        <button type="button" class="btn sm" onClick={save} disabled={!name.trim() || blocked}>Save palette</button>
+        <button type="button" class="btn sm" onClick={close}>Cancel</button>
+        {error && <p role="alert">{error}</p>}
+      </div>
+    ),
+  };
+}
+
 export function PaletteEditor({ colours, onChange, body, onBodyChange, onInvalid, builtin = [], user = [], label = 'Palette' }) {
   // What is typed into a hex field, by index, kept while it is edited; the
   // stored colour is written back on blur or Enter.
   const texts = useRef({});
   const [, redraw] = useState(0);
   const [selected, setSelected] = useState(0);
-  const [naming, setNaming] = useState(false);
-  const [name, setName] = useState('');
   const list = body?.colours ?? (Array.isArray(colours) ? colours : []);
   const palette = { ...gradientSettings(body || {}), colours: list };
   // Colours changed from outside (revert, recommended, another family) drop what was typed.
@@ -100,12 +129,7 @@ export function PaletteEditor({ colours, onChange, body, onBodyChange, onInvalid
   const anyInvalid = !parsed.success || list.some((entry, i) => !isRandom(entry) && !isHexColour(textAt(entry, i)));
   useEffect(() => { if (onInvalid) onInvalid(anyInvalid); }, [anyInvalid]);
   useEffect(() => () => { if (onInvalid) onInvalid(false); }, []);
-  const save = async () => {
-    const trimmed = name.trim();
-    if (!trimmed || !list.length || anyInvalid) return;
-    const res = await savePalette(trimmed, onBodyChange ? palette : list);
-    if (res.ok) { setNaming(false); setName(''); }
-  };
+  const saveAs = useSavePaletteAs(onBodyChange ? palette : list, !list.length || anyInvalid);
   const randomTitle = 'Random: a fresh colour each time the effect starts';
 
   return (
@@ -163,17 +187,9 @@ export function PaletteEditor({ colours, onChange, body, onBodyChange, onInvalid
             <optgroup label="Your palettes">{user.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</optgroup>
           )}
         </select>
-        {!naming && <button type="button" class="btn sm" onClick={() => setNaming(true)}>Save as palette…</button>}
+        {saveAs.button}
       </div>
-      {naming && (
-        <div class="cue-save-row">
-          <input class="cue-name-input" aria-label="Palette name" placeholder="Palette name" value={name} autoFocus
-            onInput={(e) => setName(e.target.value)}
-            onKeyDown={(e) => { if (e.key === 'Enter') save(); if (e.key === 'Escape') { e.stopPropagation(); setNaming(false); } }} />
-          <button type="button" class="btn sm" onClick={save} disabled={!name.trim() || anyInvalid}>Save palette</button>
-          <button type="button" class="btn sm" onClick={() => setNaming(false)}>Cancel</button>
-        </div>
-      )}
+      {saveAs.row}
     </div>
   );
 }

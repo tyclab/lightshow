@@ -165,6 +165,16 @@ test('another effect keeps its own palette, chosen from the same list and the sa
     await until(request, (s) => s.effectColours?.palette?.colours.join(',') === '#FF0000,#FFC800');
     await expect(card.locator('.show-palette-name')).toHaveText('Custom colours');
     await expect(card.getByLabel('Colour distribution')).toBeVisible();
+    // The operator, 2026-11-17: Edit colours saves what it holds as a palette, and the list above takes it.
+    await editor.getByRole('button', { name: 'Save as palette…' }).click();
+    await editor.getByLabel('Palette name', { exact: true }).fill('Sunrise');
+    await editor.getByRole('button', { name: 'Save palette', exact: true }).click();
+    await expect(card.locator('.show-palette-name')).toHaveText('Sunrise');
+    await card.getByLabel('Search Effect palettes').fill('');
+    await expect(card.locator('.band-palette[aria-pressed="true"]')).toHaveText('Sunrise');
+    const saved = (await (await request.get('/api/effects')).json()).palettes.user.find((p) => p.name === 'Sunrise');
+    expect(saved?.colours).toEqual(['#FF0000', '#FFC800']);
+    await expect(editor.getByRole('button', { name: 'Save as palette…' })).toBeVisible();
   } finally {
     await set(request, { pattern: DISCO });
     await request.put('/api/settings', { data: { safety: { photosensitivityAcknowledged: false } } });
