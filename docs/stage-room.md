@@ -113,13 +113,45 @@ receives the pool, as for any beam.
 Physical positions, output addressing and effect sampling remain unchanged.
 
 How strongly a pool is drawn follows its lamp's lumen at full white. A Hue lamp has the lumen of
-the product its bridge names (a GU10 spot 350 lm, a candle 470 lm, a Play bar 530 lm, a light
+the product its bridge names (a GU10 spot 350 lm, a candle 470 lm, a Play bar 500 lm, a light
 strip 800 lm a metre; `HUE_LUMEN` in `src/shared/emission.ts`, the maker's figures at 4000 K,
 rounded), any other strip 484 lm a metre of surveyed run. A pool is drawn at the lumen it
 spreads over each square metre, full strength at 97 lm/m² (a 350 lm, 36° spot on the floor
 2.45 m below), so a wide wash from a small lamp is faint. A lamp of unknown lumen (a DMX par)
 keeps a full-strength pool, and an aimed lamp without a product counts as an 806 lm bulb. The
 generic venue is drawn as before.
+
+A fixture's own figure comes first: the **Lumen** of its light shape (`emission.lumen`, set in
+the fixture inspector) is what the whole fixture gives at full white, for any output. Its units
+share it; where its markers lie along surveyed paths, it is spread over their metres of run.
+Without one, a Hue lamp takes the row of the product its bridge names, and a lamp no row names
+counts as the E27 bulb. The rows are the maker's figures at 4000 K (its product pages, and the EU
+product registry EPREL where a lamp is entered there):
+
+| Product name holds | Lumen | Per metre of run | From |
+|---|---|---|---|
+| gradient tube | 1800 | 1300 | the large tube, 1,800 lm over 1.377 m; the compact one gives 1,540 lm over 0.877 m |
+| play gradient lightstrip | 1100 | 430 | 1,100 lm whatever the size; per metre the 65 inch strip's 2.54 m (55 inch 2.165 m, 75 inch 3.04 m) |
+| gradient lightstrip | 1800 | 900 | the 2 m strip |
+| lightstrip | 1600 | 800 | Lightstrip Plus, the 2 m base; its later model gives 1,700 lm |
+| Centris ceiling | 2500 | | the panel of the three-spot bar: the fixture's 3,550 lm less three 350 lm spots |
+| spot, GU10 | 350 | | the 5.7 W colour GU10 (EPREL 1508900); the 4.2 W lamp of 2024 gives 400 lm (EPREL 1805047) |
+| candle | 470 | | the E14 candle (EPREL 1522893) |
+| Play | 500 | | the Play light bar |
+| Go table | 530 | | the Go portable table lamp |
+| Go | 300 | | the first Go; its second model gives 530 lm |
+| any other | 806 | | the E27 bulb, all round (EPREL 1522885) |
+
+The three sizes of the play gradient lightstrip give the same 1,100 lm, so a per-metre row holds
+for a product at its own length; a run of another length is better stated as its own Lumen.
+The registry gives a beam angle for directional lamps only. Hue's GU10 has 43° (the 5.7 W
+colour lamp, 570 cd on its axis; EPREL 1508900 and 387862), which is the spread a spot is
+drawn with; the white ambiance GU10 has 42° (EPREL 391948) and the 4.2 W colour lamp 40°. The
+120° of a pendant, a ceiling fitting or a Centris ceiling panel, the 90° of a wall fitting, the
+55° of spots combined on one channel and the 100° wash of an aimed lamp without a spread are
+assumptions, as is the 484 lm a metre of a strip that is not Hue.
+The 97 lm/m² of a full-strength pool is what 350 lm spreads over the foot of a 36° cone 2.45 m
+long; Hue's 43° spot pointing straight down from that height is drawn at 0.68 of it.
 
 Optional `anchors` name points effects can start from, such as speakers:
 `[{ "id": "speakerLeft", "position": { "x": -1.5, "y": 1, "z": -1.5 } }]`. Optional

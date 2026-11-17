@@ -48,6 +48,7 @@ const fixtureEmission = z.object({
   pan: z.number().finite().min(-180).max(180).optional(),
   tilt: z.number().finite().min(-90).max(90).optional(),
   beamAngle: z.number().finite().min(1).max(160).optional(),
+  lumen: z.number().finite().positive().optional(),
 }).strict();
 const colorIdx = z.number().int().min(0).max(COLOR_PRESETS.length - 1);
 const unitValue = z.number().min(0).max(1).optional();

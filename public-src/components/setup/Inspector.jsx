@@ -1,4 +1,4 @@
-import { emissionOf } from '../../../src/shared/emission.ts';
+import { emissionOf, hueLumen } from '../../../src/shared/emission.ts';
 import { FixtureHardware } from './Hardware.jsx';
 import { FixtureOverride } from './FixtureOverride.jsx';
 import { pick, connectedSig, emitFixture, fixtureAckSig, latestSent } from '../../state.js';
@@ -112,6 +112,9 @@ export function Inspector() {
           onChange={(e) => shape({ kind: e.target.value })}>
           <option value="bulb">Bulb / diffuse</option><option value="strip">Strip / panel</option><option value="beam">Directional beam</option>
         </select>
+        <label for="insp-lumen">Lumen</label>
+        <FieldInput id="insp-lumen" type="number" min="1" step="10" value={emission.lumen ?? ''} placeholder={hueLumen(profile)?.lumen ?? ''}
+          onCommit={(lumen) => shape({ lumen: lumen > 0 ? lumen : undefined })} />
         {emission.kind === 'beam' && <>
           <label for="insp-pan">Beam pan</label>
           <FieldInput id="insp-pan" type="number" min="-180" max="180" step="5" value={emission.pan ?? (fix.group === 'floor' ? 180 : 0)}
@@ -146,6 +149,7 @@ export function Inspector() {
         </select>
       </div>
       {emission.kind === 'beam' && <p class="setting-help">Angles are degrees: pan 0 points toward the audience; tilt 0 is horizontal and +90 points upward. Spread is the full cone angle.</p>}
+      <p class="setting-help">Lumen is what the whole fixture gives at full white; the Stage room draws its light by it. Left empty, a Hue lamp takes its product's figure.</p>
       <FixtureHardware fixture={fix} profile={profile} settings={s.hardware} send={send} />
       {hueLamp && <p class="setting-help">A lamp of the entertainment area of the Hue bridge "{hueBridgeLabel(s.hueBridges, fix.output.bridge)}",
         added from Rig → Outputs → Philips Hue: it takes no DMX channels, and each section is sent its rendered colour.</p>}
