@@ -24,10 +24,6 @@ const VIEWS = [
 ];
 const VIEW_NAMES = { audience: 'the audience', above: 'above', side: 'the side', eye: 'eye level' };
 
-const readRoomLight = () => {
-  try { return localStorage.getItem('lightshow.stage.roomLight') !== 'off'; } catch { return true; }
-};
-
 const readHaze = () => {
   try {
     const v = Number(localStorage.getItem('lightshow.stage.haze'));
@@ -67,7 +63,6 @@ export function StageView({ compact = false, draft = null } = {}) {
   const [haze, setHaze] = useState(readHaze);
   const [roomState, setRoomState] = useState(() => knownRoom() || { room: null, revision: null });
   const [cutaway, setCutaway] = useState(true);
-  const [roomLight, setRoomLight] = useState(readRoomLight);
   const room = roomState.room;
   const host = useRef(null);
   const canvas = useRef(null);
@@ -163,10 +158,6 @@ export function StageView({ compact = false, draft = null } = {}) {
     return () => { stop(); release(); };
   }, [status]);
   useEffect(() => { if (status === 'ready') scene.current.setCutaway(cutaway); }, [status, cutaway]);
-  useEffect(() => {
-    try { localStorage.setItem('lightshow.stage.roomLight', roomLight ? 'on' : 'off'); } catch { /* private mode */ }
-    if (status === 'ready') scene.current.setRoomLight(roomLight);
-  }, [status, roomLight]);
   // The generic venue has no eye-level view: leaving a room returns to the audience.
   useEffect(() => { if (!room && view === 'eye') setView('audience'); }, [room, view]);
 
@@ -304,10 +295,6 @@ export function StageView({ compact = false, draft = null } = {}) {
           ))}
         </div>
         {room && <button type="button" class={`btn sm ${cutaway ? 'active' : ''}`} aria-pressed={cutaway} onClick={() => setCutaway(!cutaway)}>Cutaway walls</button>}
-        {room && <button type="button" class={`btn sm ${roomLight ? 'active' : ''}`} aria-pressed={roomLight} title="Light the room's surfaces with the colours of the lights near them"
-          onClick={() => setRoomLight(!roomLight)}>Room light</button>}
-        {room && roomLight && placed.unlitRooms?.length > 0 && <span class="stage3d-unlit">
-          No room light in {placed.unlitRooms.join(', ')}: the eight go to the rooms with the most lights.</span>}
         {hasBeams(placed) && <label class="stage3d-haze">
           <span>Haze</span>
           <input type="range" min="0" max="100" value={haze} aria-valuetext={`${haze} percent`}

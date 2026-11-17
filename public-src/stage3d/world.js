@@ -1,4 +1,4 @@
-import { emissionOf, hueEmission, hueLumen, beamDirection, BULB_LUMEN, STRIP_LUMEN_PER_METRE, PIXEL_LUMEN } from '../../src/shared/emission.ts';
+import { emissionOf, hueEmission, hueLumen, beamDirection, BULB_LUMEN, STRIP_LUMEN_PER_METRE } from '../../src/shared/emission.ts';
 import { isPlaced, stagePositions } from '../../src/shared/stage.ts';
 import { lineOf } from '../../src/shared/rig.ts';
 import { bindingSources, pathPoints, plotPosition, resolveBindings } from '../../src/shared/space.ts';
@@ -29,8 +29,6 @@ const POOL_LIFT = 0.006;
 const GRAZE = 0.35;
 // Lumen per square metre at which a pool is drawn at full strength: a 350 lm, 36° spot on the floor 2.45 m below it.
 export const POOL_FULL = 97;
-// The pitch of a 60-per-metre strip: a panel's pixels closer than this are smaller LEDs, giving less by the area each has.
-const PIXEL_PITCH = 1 / 60;
 
 const dot = (a, b) => a.x * b.x + a.y * b.y + a.z * b.z;
 const cross = (a, b) => ({ x: a.y * b.z - a.z * b.y, y: a.z * b.x - a.x * b.z, z: a.x * b.y - a.y * b.x });
@@ -356,8 +354,6 @@ export function roomRig(fixtures, rig, model, profiles = {}) {
   const unresolved = [];
   const incomplete = [];
   const objectLights = [];
-  const objectEmitters = [];
-  const drawnPixels = [];
   const lightObjects = new Map();
   for (const object of model.objects || []) {
     if (!object.lightBindingId) continue;
@@ -384,18 +380,10 @@ export function roomRig(fixtures, rig, model, profiles = {}) {
     const offset = target && { x: target.x - origin.x, y: target.y - origin.y, z: target.z - origin.z };
     const aim = offset && Math.hypot(offset.x, offset.y, offset.z) >= 0.001 ? unit(offset) : null;
     const directed = (source, body) => ({ ...beamLight({ lumen: BULB_LUMEN, ...source }, { kind: 'beam', beamAngle: emission?.beamAngle ?? 100 },
-      false, room, aim), body, ...(body === 0 ? { weight: 0 } : {}) });
+      false, room, aim), body });
     const pixel = emission?.kind === 'strip' || !emission && !binding.sources && !!rig.cellMaps[index];
     if (lightObjects.has(binding.id)) {
-      // What the light gives the room is its own, whatever is drawn for it (emitterWeight): its parts share it by their area.
-      const objects = lightObjects.get(binding.id), areas = objects.map(surfaceArea), area = areas.reduce((sum, value) => sum + value, 0);
-      const run = binding.path ? pathLength(binding.path) : 0;
-      const emitter = run ? { ...light, lumen: (flux?.perMetre ?? STRIP_LUMEN_PER_METRE) * run } : pixel ? { ...light, size: POINT_CELL } : light;
-      if (pixel && !run) drawnPixels.push(emitter);
-      objects.forEach((object, part) => {
-        objectLights.push({ objectId: object.id, sources });
-        objectEmitters.push({ position: object.position, emitter, share: area ? areas[part] / area : 1 / objects.length });
-      });
+      for (const object of lightObjects.get(binding.id)) objectLights.push({ objectId: object.id, sources });
       if (aim) lamps.push(directed({ ...light, position: origin }, 0));
       continue;
     }
@@ -430,21 +418,13 @@ export function roomRig(fixtures, rig, model, profiles = {}) {
       else lamps.push({ ...light, kind: 'bulb', aim: null, length: 0, body: ROOM_BULB });
     }
   });
-  const pitch = pitches([...cells, ...drawnPixels]);
-  for (const cell of [...cells, ...drawnPixels]) if (!cell.length && pitch.has(cell.fixture)) {
-    const grid = rig.grids[indices.get(cell.fixture)], dense = grid?.rows > 1 && grid.columns > 1 ? pitch.get(cell.fixture) / PIXEL_PITCH : 1;
-    cell.size = pixelSize(pitch.get(cell.fixture));
-    if (!cell.lumen) cell.lumen = PIXEL_LUMEN * Math.min(1, dense * dense);
-  }
+  const pitch = pitches(cells);
+  for (const cell of cells) if (!cell.length && pitch.has(cell.fixture)) cell.size = pixelSize(pitch.get(cell.fixture));
   const bodies = plotted.filter((fixture) => fixture.geometry?.points?.length > 1).map((fixture) => bodyOf(fixture.id, cells));
   const missing = fixtures.filter((fixture) => !mapped.has(fixture.id));
   const partial = fixtures.filter((fixture, index) => mapped.has(fixture.id) && mapped.get(fixture.id).size < rig.ranges[index].count);
   const shared = [...outputs.values()].filter((output) => output.bindings.length > 1);
-  for (const part of objectEmitters) part.weight = emitterWeight(part.emitter) * part.share;
-  const { lights: clusters, unlit: unlitRooms } = roomLights([...lamps, ...cells, ...objectEmitters], model);
-  const objectClusters = objectEmitters.map(({ cluster, weight }) => ({ cluster, weight }));
-  return { lamps, cells, objectLights, objectClusters, bodies, trusses: [], missing, partial, plotted, unresolved, incomplete, shared, estimated,
-    clusters, unlitRooms };
+  return { lamps, cells, objectLights, bodies, trusses: [], missing, partial, plotted, unresolved, incomplete, shared, estimated };
 }
 
 /** The box an explicit cell map spans, a pixel wider than its pixels: the body Stage draws them in when no room object is the fixture. */
@@ -457,153 +437,6 @@ function bodyOf(fixture, cells) {
   const pad = own[0].size;
   return { fixture, position: { x: (lo.x + hi.x) / 2, y: (lo.y + hi.y) / 2, z: (lo.z + hi.z) / 2 },
     size: { x: hi.x - lo.x + pad, y: hi.y - lo.y + pad, z: hi.z - lo.z + pad } };
-}
-
-// What an emitter adds to the light a room is lit by, against an 806 lm bulb's 1: its lumen where known
-// (emission.ts), else a pixel's hundredth, a strip's 0.6 a metre. A light drawn as parts of the room adds the same.
-const surfaceArea = ({ size }) => (size ? size.x * size.y + size.y * size.z + size.x * size.z : 0);
-const pathLength = (path) => path.slice(1).reduce((sum, to, i) => sum + Math.hypot(to.x - path[i].x, to.y - path[i].y, to.z - path[i].z), 0);
-export function emitterWeight(emitter) {
-  if (emitter.weight !== undefined) return emitter.weight;
-  if (emitter.lumen) return emitter.lumen / BULB_LUMEN;
-  // A beam's `length` is its throw, not a run of tape: it counts as a lamp.
-  if (emitter.length && emitter.kind !== 'par') return STRIP_LUMEN_PER_METRE * emitter.length / BULB_LUMEN;
-  return emitter.size !== undefined ? PIXEL_LUMEN / BULB_LUMEN : 1;
-}
-
-export const ROOM_LIGHTS = 8;
-
-/**
- * Where the room's few real lights stand: up to ROOM_LIGHTS weighted k-means centres of the emitters,
- * seeded by farthest points from the heaviest emitter so the same rig always lights the same way.
- * Writes each emitter's `cluster`; `weight` is what it adds to that light.
- */
-export function roomLightClusters(emitters, k = ROOM_LIGHTS) {
-  const used = emitters.filter((emitter) => emitter.position && emitterWeight(emitter) > 0);
-  const n = used.length;
-  if (!n) return [];
-  const x = new Float64Array(n), y = new Float64Array(n), z = new Float64Array(n), w = new Float64Array(n);
-  used.forEach((emitter, i) => { x[i] = emitter.position.x; y[i] = emitter.position.y; z[i] = emitter.position.z; w[i] = emitterWeight(emitter); });
-  let first = 0;
-  for (let i = 1; i < n; i++) if (w[i] > w[first]) first = i;
-  const cx = [x[first]], cy = [y[first]], cz = [z[first]];
-  const nearest = new Float64Array(n);
-  for (let i = 0; i < n; i++) nearest[i] = (x[i] - cx[0]) ** 2 + (y[i] - cy[0]) ** 2 + (z[i] - cz[0]) ** 2;
-  while (cx.length < Math.min(k, n)) {
-    let far = 0;
-    for (let i = 1; i < n; i++) if (nearest[i] * w[i] > nearest[far] * w[far]) far = i;
-    if (nearest[far] < 1e-6) break;
-    cx.push(x[far]); cy.push(y[far]); cz.push(z[far]);
-    for (let i = 0; i < n; i++) nearest[i] = Math.min(nearest[i], (x[i] - x[far]) ** 2 + (y[i] - y[far]) ** 2 + (z[i] - z[far]) ** 2);
-  }
-  const m = cx.length, owner = new Int32Array(n);
-  for (let round = 0; round < 8; round++) {
-    const sx = new Float64Array(m), sy = new Float64Array(m), sz = new Float64Array(m), sw = new Float64Array(m);
-    for (let i = 0; i < n; i++) {
-      let best = 0, bestD = Infinity;
-      for (let c = 0; c < m; c++) {
-        const d = (x[i] - cx[c]) ** 2 + (y[i] - cy[c]) ** 2 + (z[i] - cz[c]) ** 2;
-        if (d < bestD) { bestD = d; best = c; }
-      }
-      owner[i] = best;
-      sx[best] += x[i] * w[i]; sy[best] += y[i] * w[i]; sz[best] += z[i] * w[i]; sw[best] += w[i];
-    }
-    for (let c = 0; c < m; c++) if (sw[c] > 0) { cx[c] = sx[c] / sw[c]; cy[c] = sy[c] / sw[c]; cz[c] = sz[c] / sw[c]; }
-  }
-  used.forEach((emitter, i) => { emitter.cluster = owner[i]; emitter.weight = w[i]; });
-  return cx.map((_, c) => ({ x: cx[c], y: cy[c], z: cz[c] }));
-}
-
-const ROOM_INSET = 0.3;
-// A light inside the room box stays this far off its floor and ceiling; one outside it stays outside.
-const lightHeight = (y, height) => (y < 0 || y > height ? y : Math.max(0.25, Math.min(height - 0.15, y)));
-
-/** A light a little into the room from its cluster, so the wall or shelf its emitters sit on is not lit from a hair away. */
-export function roomLightAt(centre, { height }, inset = ROOM_INSET) {
-  const across = Math.hypot(centre.x, centre.z), k = across > inset ? (across - inset) / across : 0;
-  return { x: centre.x * k, y: lightHeight(centre.y, height), z: centre.z * k };
-}
-
-function nearestOnEdges(polygon, x, z) {
-  let best = null;
-  for (let i = 0; i < polygon.length; i++) {
-    const [x0, z0] = polygon[i], [x1, z1] = polygon[(i + 1) % polygon.length];
-    const ex = x1 - x0, ez = z1 - z0, t = Math.max(0, Math.min(1, ((x - x0) * ex + (z - z0) * ez) / (ex * ex + ez * ez)));
-    const px = x0 + t * ex, pz = z0 + t * ez, distance = Math.hypot(x - px, z - pz);
-    if (!best || distance < best.distance) best = { x: px, z: pz, distance, edge: i };
-  }
-  return best;
-}
-
-/**
- * A light inside its own room, `inset` off the polygon's edges as far as the room allows: each edge nearer than
- * that pushes it away by half of what it lacks, so a room narrower than twice the inset holds it on its centre line.
- */
-export function insetInRoom(centre, polygon, inset = ROOM_INSET) {
-  const area = polygon.reduce((sum, [x0, z0], i) => { const [x1, z1] = polygon[(i + 1) % polygon.length]; return sum + x0 * z1 - x1 * z0; }, 0);
-  const inward = (edge) => {
-    const [x0, z0] = polygon[edge], [x1, z1] = polygon[(edge + 1) % polygon.length], length = Math.hypot(x1 - x0, z1 - z0);
-    return area > 0 ? [-(z1 - z0) / length, (x1 - x0) / length] : [(z1 - z0) / length, -(x1 - x0) / length];
-  };
-  let x = centre.x, z = centre.z;
-  if (!insidePolygon(polygon, x, z)) {
-    const edge = nearestOnEdges(polygon, x, z), [nx, nz] = inward(edge.edge);
-    x = edge.x + nx * EPS; z = edge.z + nz * EPS;
-  }
-  const start = { x, z };
-  for (let round = 0; round < 48; round++) {
-    let dx = 0, dz = 0;
-    for (let i = 0; i < polygon.length; i++) {
-      const near = nearestOnEdges([polygon[i], polygon[(i + 1) % polygon.length]], x, z);
-      if (near.distance >= inset) continue;
-      const [nx, nz] = near.distance > 1e-9 ? [(x - near.x) / near.distance, (z - near.z) / near.distance] : inward(i);
-      dx += nx * (inset - near.distance); dz += nz * (inset - near.distance);
-    }
-    if (Math.hypot(dx, dz) < 1e-9) break;
-    x += dx / 2; z += dz / 2;
-  }
-  return insidePolygon(polygon, x, z) ? { x, z } : start;
-}
-
-/** The room an emitter is in: the first whose polygon holds it, else the one whose polygon is nearest. */
-function roomIndex(rooms, { x, z }) {
-  const holding = rooms.findIndex((room) => insidePolygon(room.polygon, x, z));
-  if (holding >= 0) return holding;
-  let best = 0;
-  rooms.forEach((room, index) => { if (nearestOnEdges(room.polygon, x, z).distance < nearestOnEdges(rooms[best].polygon, x, z).distance) best = index; });
-  return best;
-}
-
-/**
- * The room's `k` lights: every occupied room gets one, the rest go one at a time to the room with the most
- * emitters per light, each clustered inside its room (roomLightClusters) and set in from its walls. Past `k`
- * occupied rooms, the `k` with the most emitters (ties in file order) get one each and `unlit` names the others,
- * whose emitters add to no light. Without polygons, the whole room is clustered as one. Writes each emitter's `cluster`.
- */
-export function roomLights(emitters, { bounds, rooms = [] }, k = ROOM_LIGHTS) {
-  if (!rooms.length) return { lights: roomLightClusters(emitters, k).map((centre) => roomLightAt(centre, bounds)), unlit: [] };
-  const members = rooms.map(() => []);
-  for (const emitter of emitters) if (emitter.position && emitterWeight(emitter) > 0) members[roomIndex(rooms, emitter.position)].push(emitter);
-  const occupied = rooms.map((_, index) => index).filter((index) => members[index].length)
-    .sort((a, b) => members[b].length - members[a].length || a - b);
-  const lit = occupied.slice(0, k), share = new Map(lit.map((index) => [index, 1]));
-  for (let spare = k - lit.length; spare > 0; spare--) {
-    const open = lit.filter((index) => share.get(index) < members[index].length);
-    if (!open.length) break;
-    const next = open.reduce((best, index) => (members[index].length / share.get(index) > members[best].length / share.get(best)
-      || members[index].length / share.get(index) === members[best].length / share.get(best) && index < best ? index : best));
-    share.set(next, share.get(next) + 1);
-  }
-  const lights = [];
-  for (const index of [...lit].sort((a, b) => a - b)) {
-    const offset = lights.length;
-    for (const centre of roomLightClusters(members[index], share.get(index))) {
-      const at = insetInRoom(centre, rooms[index].polygon);
-      lights.push({ x: at.x, y: lightHeight(centre.y, bounds.height), z: at.z });
-    }
-    for (const emitter of members[index]) emitter.cluster += offset;
-  }
-  return { lights, unlit: occupied.slice(k).sort((a, b) => a - b).map((index) => rooms[index].label) };
 }
 
 export function meanLightRGB(sources, frame, out, scratch = new Float32Array(3)) {
