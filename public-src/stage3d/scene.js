@@ -18,8 +18,8 @@ import { meanLightRGB, roomViews, STAGE_FOV } from './world.js';
  *
  * An imported room's surfaces shade under a dim fill, the same whatever the
  * outputs do; what a light gives the room is drawn where the light is: its own
- * glow, the room objects that are the light, and one pool, a beam's where it
- * lands and any other light's on the floor under it (world.roomRig).
+ * glow, the room objects that are the light, and one pool where its light
+ * lands, drawn by the lux it throws there (world.roomRig).
  *
  * Loaded on its own (three.js is most of it), the first time a stage
  * opens. `createStageScene` throws when the browser has no WebGL.
@@ -67,16 +67,22 @@ const BEAM_FRAGMENT = /* glsl */`
   }
 `;
 
+// A pool's quad spans −1…1 along and across the pool; only its window is drawn (world.poolWindow: centre and half
+// size), and poolRun is how much of each half axis is the light's own run, where the pool is level.
 const POOL_VERTEX = /* glsl */`
+  attribute vec4 poolWindow;
+  attribute vec2 poolRun;
   varying vec3 vColor;
-  varying vec2 vUv;
+  varying vec2 vAt;
+  flat varying vec2 vRun;
   varying vec3 vWorld;
   varying vec3 vCentre;
   flat varying int vPool;
   void main() {
     vColor = instanceColor;
-    vUv = uv;
-    vec4 world = modelMatrix * instanceMatrix * vec4(position, 1.0);
+    vAt = poolWindow.xy + poolWindow.zw * position.xz;
+    vRun = poolRun;
+    vec4 world = modelMatrix * instanceMatrix * vec4(vAt.x, 0.0, vAt.y, 1.0);
     vWorld = world.xyz;
     vCentre = (modelMatrix * instanceMatrix * vec4(0.0, 0.0, 0.0, 1.0)).xyz;
     vPool = gl_InstanceID;
@@ -93,7 +99,8 @@ const POOL_FRAGMENT = /* glsl */`
   uniform sampler2D uClip;
   uniform int uClipWidth;
   varying vec3 vColor;
-  varying vec2 vUv;
+  varying vec2 vAt;
+  flat varying vec2 vRun;
   varying vec3 vWorld;
   varying vec3 vCentre;
   flat varying int vPool;
@@ -135,9 +142,10 @@ const POOL_FRAGMENT = /* glsl */`
     int walls = int(where.w + 0.5);
     for (int i = 0; i < walls; i++) lit = lit && !crosses(vCentre, vWorld, int(where.z + 0.5) + i * 4);
     if (!lit) discard;
-    float d = length(vUv - 0.5) * 2.0;
-    float fall = pow(clamp(1.0 - d, 0.0, 1.0), 1.8);
-    gl_FragColor = vec4(vColor * fall * uStrength, 1.0);
+    // Past the light's own run the pool falls off as (1 − d²)²: half its level 0.54 of the way out (world.POOL_HALF).
+    vec2 past = max(abs(vAt) - vRun, 0.0) / (1.0 - vRun);
+    float fall = 1.0 - min(dot(past, past), 1.0);
+    gl_FragColor = vec4(vColor * fall * fall * uStrength, 1.0);
     #include <colorspace_fragment>
   }
 `;
@@ -461,7 +469,14 @@ export function createStageScene(canvas, { haze = 0.6, room, lightRGB }) {
     const bodies = instanced(bodyGeometry, bodyMaterial, pars.length);
     const lenses = instanced(lensGeometry, lensMaterial, pars.length);
     const beams = instanced(beamGeometry, beamMaterial, pars.length);
-    const pools = instanced(poolGeometry, poolMaterial, pooled.length);
+    // The quad with what each pool draws of it and how much of it is level (the pool's window and run).
+    const poolQuad = poolGeometry.clone();
+    rigDisposables.push(poolQuad);
+    const windows = new Float32Array(Math.max(1, pooled.length) * 4), runs = new Float32Array(Math.max(1, pooled.length) * 2);
+    pooled.forEach(({ pool }, k) => { windows.set(pool?.window ?? [0, 0, 1, 1], k * 4); runs.set(pool?.run ?? [0, 0], k * 2); });
+    poolQuad.setAttribute('poolWindow', new THREE.InstancedBufferAttribute(windows, 4));
+    poolQuad.setAttribute('poolRun', new THREE.InstancedBufferAttribute(runs, 2));
+    const pools = instanced(poolQuad, poolMaterial, pooled.length);
     const bulbMesh = instanced(bulbGeometry, lensMaterial, bulbs.length);
     const cellMesh = instanced(cellGeometry, cellMaterial, placed.cells.length);
     const lampGlow = points(pars.length + bulbs.length, lampGlowMaterial);
@@ -552,7 +567,8 @@ export function createStageScene(canvas, { haze = 0.6, room, lightRGB }) {
       if (par.sources) meanLightRGB(par.sources, frame, rgb, sourceRGB);
       else lightRGB(frame[par.unit], rgb);
       put(lenses.instanceColor, k, 1);
-      glow(beams.instanceColor, k, 1);
+      // The cone is as strong as the pool it ends in: full for a beam of unknown lumen.
+      glow(beams.instanceColor, k, par.pool?.level ?? 1);
       glow(pools.instanceColor, k, par.pool?.level ?? 1);
       glow(lampGlow.geometry.attributes.color, k, par.body === 0 ? 0 : 0.9);
     });

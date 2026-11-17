@@ -84,7 +84,7 @@ test('walls of every kind, hidden ones too, and opaque furniture of every kind s
   assert.equal(world.surfaceHit(from, ray(1, 0, 0), BOUNDS, world.blockersOf(objects)).id, 'hidden');
   assert.equal(world.surfaceHit(from, ray(-1, 0, 0), BOUNDS, world.blockersOf(objects)).id, 'sofa');
 
-  // A plain beam fixture and an aimed lamp meet the same sofa.
+  // A plain beam fixture and an aimed lamp meet the same sofa: the beam ends there, and the lamp's pool lies on it.
   const PAR = { id: 'par', channelMap: { red: 0, green: 1, blue: 2 } };
   const fixtures = [
     { id: 1, label: 'Par', universe: 0, address: 1, profileId: 'par', emission: { kind: 'beam', pan: -90, tilt: 0 } },
@@ -94,8 +94,10 @@ test('walls of every kind, hidden ones too, and opaque furniture of every kind s
     bindings: [lamp(1, { x: 0, y: 0.4, z: 0.01 }), lamp(2, { x: 0, y: 0.4, z: -0.01 }, { lightTarget: { x: -2, y: 0.4, z: -0.01 } })] };
   const placed = world.roomRig(fixtures, buildRig(fixtures, () => PAR), room, { par: PAR });
   const beams = placed.lamps.filter((emitter) => emitter.kind === 'par');
-  assert.equal(beams.length, 2);
-  for (const beam of beams) assert.ok(beam.end.x > -0.76 && beam.end.x < -0.74, `beam of fixture ${beam.fixture} ends at the sofa, x ${beam.end.x}`);
+  assert.deepEqual([beams.map((beam) => beam.fixture), placed.pools.length], [[1], 1]);
+  assert.ok(beams[0].end.x > -0.76 && beams[0].end.x < -0.74, `the beam ends at the sofa, x ${beams[0].end.x}`);
+  const { pool } = placed.pools[0];
+  assert.ok(pool.at.x > -0.76 && pool.at.x < -0.74 && pool.clip.surface, `the aimed lamp's pool lies on the sofa, x ${pool.at.x}`);
 });
 
 const sub = (a, b) => ({ x: a.x - b.x, y: a.y - b.y, z: a.z - b.z });
@@ -135,7 +137,7 @@ test('a pool beside a wall has no part behind it, on the floor or on a wall', ()
   ];
   for (const [name, model, position, lightTarget, behind] of cases) {
     const placed = placedIn({ ...model, bindings: [lamp(1, position, { lightTarget })] }, lamps(1));
-    const { pool } = placed.lamps[0];
+    const { pool } = placed.pools[0];
     const points = spread(pool);
     assert.ok(points.some(behind), `${name}: unclipped, the pool reaches behind the wall`);
     const leaks = points.filter((point) => behind(point) && lit(pool, point));
@@ -187,7 +189,7 @@ test('a pool carries only the walls that reach into its room\'s box, and shows t
   assert.ok(total.carried < 0.6 * total.reached, `fewer walls: ${total.carried} of the ${total.reached} reached`);
   assert.ok(total.shown > 16 * 3000 && total.cut > 16 * 50, `the walls it keeps do cut it: ${total.shown} points shown, ${total.cut} cut inside the rooms`);
   // An aimed lamp's pool is cut to the room it lands in by the same rule.
-  const aimed = placedIn({ ...model, bindings: [lamp(1, { x: -5.4, y: 2.2, z: -4.2 }, { lightTarget: { x: -5.1, y: 0, z: -4.5 } })] }, lamps(1)).lamps[0].pool;
+  const aimed = placedIn({ ...model, bindings: [lamp(1, { x: -5.4, y: 2.2, z: -4.2 }, { lightTarget: { x: -5.1, y: 0, z: -4.5 } })] }, lamps(1)).pools[0].pool;
   const counts = sameShown(model.objects, aimed, 'the aimed pool');
   assert.ok(counts.carried < counts.reached && counts.cut > 0, `aimed: ${counts.carried} of ${counts.reached}, ${counts.cut} cut`);
 });
@@ -202,7 +204,8 @@ test('a wall outside a room\'s polygon but inside its box still cuts the pool: a
   const [corner, west] = placedIn(model, lamps(2)).pools.map((light) => light.pool);
   assert.ok(!inside(ell.polygon, notch.position), 'the wall stands outside the polygon');
   const counts = sameShown(model.objects, corner, 'the pool at the inner corner');
-  assert.deepEqual([counts.carried, counts.reached], [1, 1], 'the wall in the notch is carried');
+  // The pool is wide enough to reach the wall west of the room's box as well: that one is not carried, the notch's is.
+  assert.deepEqual([counts.carried, counts.reached, corner.clip.walls.length], [1, 2, 1], 'the wall in the notch is carried');
   // In the south arm, behind the notch wall as seen from the lamp: inside the polygon and in reach, and cut.
   const behind = { x: -0.3, y: corner.at.y, z: 1.3 };
   assert.ok(inside(ell.polygon, behind) && Math.hypot(behind.x - corner.at.x, behind.z - corner.at.z) < corner.major);
@@ -224,4 +227,52 @@ test('a light outside its room\'s polygon carries the wall between itself and th
   assert.deepEqual([counts.carried, counts.reached], [1, 1]);
   assert.ok(!lit(pool, { x: 0.5, y: pool.at.y, z: 0 }), 'the room\'s floor behind the wall is cut');
   assert.ok(lit(pool, { x: 0.3, y: pool.at.y, z: 1.4 }), 'past the wall\'s end it shows');
+});
+
+// A pool's own coordinates (−1…1 along and across) of a point of its surface, and whether its window holds them.
+const inWindow = (pool, point) => {
+  const from = sub(point, pool.at), u = dot(from, pool.along) / pool.major, v = dot(from, pool.across) / pool.minor, [cu, cv, hu, hv] = pool.window;
+  return Math.abs(u - cu) <= hu && Math.abs(v - cv) <= hv;
+};
+// Every point a pool shows lies in its window, and the share of its quad the window is.
+const windowed = (pool, name, step = 0.02) => {
+  let shown = 0;
+  for (const point of quad(pool, step)) if (lit(pool, point)) { shown++; assert.ok(inWindow(pool, point), `${name}: ${JSON.stringify(point)} shows outside the window ${pool.window}`); }
+  assert.deepEqual(pool.window, world.poolWindow(pool), `${name}: the window is the pool's own`);
+  return { shown, share: pool.window[2] * pool.window[3] };
+};
+
+test('a pool\'s window holds every point it shows, and is no wider than its room and its surface', () => {
+  // The many-wall house: sixteen pools far wider than the 1.2 m rooms they are cut to.
+  const house = walledRoom(1), pools = placedIn(house, lamps(1)).pools.map((light) => light.pool);
+  let area = 0, drawn = 0;
+  for (const [k, pool] of pools.entries()) {
+    const { shown, share } = windowed(pool, `pool ${k}`, 0.04);
+    assert.ok(shown > 400, `pool ${k} shows ${shown} points`);
+    area += 4 * pool.major * pool.minor; drawn += 4 * pool.major * pool.minor * share;
+  }
+  assert.ok(pools.every((pool) => pool.major > 3), 'each is more than 6 m across');
+  assert.ok(drawn < 16 * 1.3 * 1.3 && drawn < area / 20, `sixteen rooms' worth is drawn: ${drawn.toFixed(1)} of ${area.toFixed(1)} m²`);
+  // A beam on the floor of a split room, a wash on the room box's back wall, and a slanting band on a ceiling.
+  const { room } = fixtureFile('two-rooms');
+  const spot = { emission: { kind: 'beam', beamAngle: 43, lumen: 350 } };
+  const cases = [
+    ['a beam in a split room', room, lamp(1, { x: -1, y: 2, z: -1 }, { lightTarget: { x: -0.25, y: 0, z: -1 } }), spot],
+    ['a wash on the back wall', { ...room, rooms: [] }, lamp(1, { x: -0.4, y: 1.2, z: -1 }, { lightTarget: { x: -0.2, y: 1.2, z: -2 } }), {}],
+    ['a lamp in a corner', room, lamp(1, { x: -2.8, y: 2.3, z: -1.8 }), {}],
+    ['a strip aimed at the ceiling', room, lamp(1, { x: -2.5, y: 2, z: 0.5 }, { path: [{ x: -2.5, y: 2, z: 0.5 }, { x: -0.5, y: 2, z: 1.5 }], lightTarget: { x: -1.2, y: 2.5, z: 0.6 } }), {}],
+  ];
+  for (const [name, model, binding, extra] of cases) {
+    const placed = placedIn({ ...model, bindings: [binding] }, lamps(1).map((fixture) => ({ ...fixture, ...extra })));
+    const pool = (placed.pools[0] ?? placed.lamps[0]).pool, { shown, share } = windowed(pool, name);
+    assert.ok(shown > 500 && share < 1, `${name}: ${shown} points shown in ${share.toFixed(2)} of the quad`);
+  }
+  // A pool whose room lies wholly to one side of it has no window left: nothing of it is drawn.
+  const beside = world.poolWindow({ ...pools[0], at: { ...pools[0].at, x: pools[0].at.x + 20 } });
+  assert.equal(Math.min(beside[2], beside[3]), 0, `${beside}`);
+});
+
+test('a deliberate cut is caught: a window a tenth narrower than the room loses points the pool shows', () => {
+  const pool = placedIn(walledRoom(1), lamps(1)).pools[0].pool, narrow = { ...pool, window: pool.window.map((value, k) => (k === 2 ? value * 0.9 : value)) };
+  assert.ok(quad(pool, 0.04).some((point) => lit(pool, point) && !inWindow(narrow, point)));
 });

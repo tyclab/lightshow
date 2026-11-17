@@ -5,6 +5,7 @@
 
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
 // ES modules like the server, imported as they are; they read the plan
 // through src/shared/stage.ts and src/shared/rig.ts.
 import * as world from '../../public-src/stage3d/world.js';
@@ -292,6 +293,15 @@ test('a room\'s walls and opaque furniture stop a beam before the room box does,
   }
 });
 
+test('the pool shader\'s falloff is a half where a pool is said to be at half its level', () => {
+  // scene.js POOL_FRAGMENT: (1 − d²)², d the share of the pool's half width.
+  const fall = (d) => (1 - Math.min(d * d, 1)) ** 2;
+  near(fall(world.POOL_HALF), 0.5, 'at POOL_HALF');
+  assert.deepEqual([fall(0), fall(1), fall(1.2)], [1, 0, 0]);
+  const glsl = fs.readFileSync(new URL('../../public-src/stage3d/scene.js', import.meta.url), 'utf8');
+  assert.match(glsl, /float fall = 1\.0 - min\(dot\(past, past\), 1\.0\);\s*gl_FragColor = vec4\(vColor \* fall \* fall \* uStrength, 1\.0\);/, 'the falloff the shader draws');
+});
+
 test('a pool lies on its surface facing the lamp, an ellipse stretched along the slant and capped when grazing', () => {
   const plane = new PlaneGeometry(2, 2).rotateX(-Math.PI / 2);   // the pool as scene.js builds it
   const drawn = (pool) => new Matrix4().makeBasis(
@@ -303,7 +313,7 @@ test('a pool lies on its surface facing the lamp, an ellipse stretched along the
     ['grazing', ray(0.05, -1, 0.2), 1 / 0.35]];
   for (const [name, aim, stretch] of cases) {
     const pool = world.poolOn(end, wall, aim, 1);
-    near(pool.minor, 1.35, `${name}: as wide as the softened cone`);
+    near(pool.minor * world.POOL_HALF, 1, `${name}: at half its level a metre from its centre`);
     near(pool.major / pool.minor, stretch, `${name}: stretched by 1/cos, capped`);
     const matrix = drawn(pool);
     assert.ok(matrix.determinant() > 0, `${name}: turned, not mirrored`);

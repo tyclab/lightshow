@@ -1,8 +1,7 @@
-import { emissionOf, hueEmission, hueLumen, beamDirection, BULB_LUMEN, STRIP_LUMEN_PER_METRE, PIXEL_LUMEN } from '../../src/shared/emission.ts';
+import { emissionOf, hueEmission, hueLumen, lampLumen, beamDirection, BULB_LUMEN, STRIP_LUMEN_PER_METRE, PIXEL_LUMEN } from '../../src/shared/emission.ts';
 import { isPlaced, stagePositions } from '../../src/shared/stage.ts';
 import { lineOf } from '../../src/shared/rig.ts';
 import { bindingSources, pathPoints, plotPosition, resolveBindings, runLength } from '../../src/shared/space.ts';
-import { lampLumen } from '../../src/shared/emission.ts';
 
 
 export const STAGE_W = 12;
@@ -28,14 +27,15 @@ const ROOF = TRUSS_H + 2.5;
 const POOL_LIFT = 0.006;
 // The cone's footprint stretches by 1/cos of the angle it strikes at; this cos caps a grazing hit.
 const GRAZE = 0.35;
-// Lumen per square metre at which a pool is drawn at full strength: what 350 lm spreads over the softened foot of a 36° cone 2.45 m long.
+// Lux (lumen a square metre) at which a pool is drawn at full strength.
 export const POOL_FULL = 97;
+// How far from its centre a pool is at half its level, as a share of its half width: the pool shader's falloff, (1 − d²)², is 1/2 there.
+export const POOL_HALF = Math.sqrt(1 - Math.SQRT1_2);
+// A light's own half size, in metres: a bulb's. No light is nearer a surface than that.
+const OWN_SIZE = 0.035;
 // The pitch of a 60-per-metre strip: a panel's pixels closer than this are smaller LEDs, giving less by the area each has.
 const PIXEL_PITCH = 1 / 60;
 const DOWN = { x: 0, y: -1, z: 0 };
-// How far, in metres, a light without an aim or a beam reaches on the floor under it: 0.7 m around one lying on
-// the floor, and 0.45 m more for each metre it stands above, up to 2.6 m.
-const reachUnder = (height) => 0.7 + 0.45 * Math.min(2.6, height);
 // Outputs that carry LED data: a fixture of one light on one of them is a single LED.
 const LED_OUTPUTS = new Set(['ddp', 'openrgb']);
 
@@ -54,6 +54,8 @@ const sub = (a, b) => ({ x: a.x - b.x, y: a.y - b.y, z: a.z - b.z });
 const AXES = [{ x: 1, y: 0, z: 0 }, { x: 0, y: 1, z: 0 }, { x: 0, y: 0, z: 1 }];
 // How far a pool's surface reaches off the face it lies on, more than POOL_LIFT.
 const FACE = 0.02;
+// A pool's window is this much wider, of its own half size, than what it must show: no edge is lost to rounding.
+const WINDOW_EDGE = 0.001;
 // room-geometry.js draws a cylinder with this many sides.
 const CYLINDER_SIDES = 16;
 
@@ -201,14 +203,50 @@ export function surfaceHit(from, aim, bounds = null, blockers = []) {
   return best;
 }
 
-/** Where a cone of `radius` lands on a surface: an ellipse, `along` the beam's slant on it and `across` that. */
-export function poolOn(end, normal, aim, radius) {
+/**
+ * What a light throws on a surface, from its lumen and its shape: a lamp's intensity falls to half at half its
+ * beam angle (a Gaussian about its axis; `angle` in radians), and a light without a beam (0) shines the same all
+ * round. A pool is drawn by the lux that lands at its centre, and is at half its level where half of that lands.
+ */
+const offAxis = (angle, theta) => (angle ? 2 ** -((2 * theta / angle) ** 2) : 1);
+
+/** Candela on the axis of a light of one lumen: one over the solid angle its shape fills (4π all round). */
+export function axisCandela(angle) {
+  const steps = 256, h = Math.PI / steps;
+  let sum = 0;
+  for (let i = 1; i < steps; i++) sum += (i % 2 ? 4 : 2) * offAxis(angle, i * h) * Math.sin(i * h);
+  return 3 / (2 * Math.PI * h * sum);
+}
+
+/** How far to the side, for each metre of throw, the lux on a surface square to the light has fallen to `share` of the centre's. */
+export function sideReach(angle, share) {
+  let lo = 0, hi = Math.PI / 2;
+  for (let i = 0; i < 40; i++) {
+    const theta = (lo + hi) / 2;
+    if (offAxis(angle, theta) * Math.cos(theta) ** 3 > share) lo = theta; else hi = theta;
+  }
+  return Math.tan(lo);
+}
+
+// Lux at `d` metres from the middle of a line of light 2 × `b` metres long, for each lumen and square on: one that
+// shines all round, and a strip that faces the surface (its LEDs' 120°: their intensity falls with the cosine of
+// the angle off the way they face). `b` 0 is a point.
+const roundLux = (b, d) => 1 / (4 * Math.PI * d * Math.hypot(d, b));
+const facingLux = (b, d) => (1 / (b * b + d * d) + (b > EPS ? Math.atan(b / d) / (b * d) : 1 / (d * d))) / (2 * Math.PI);
+
+// What a pool shows of the lux at its centre: its level, the share of POOL_FULL, and where it is at half that level, as
+// the share of the centre's lux that lands there. A light brighter than full is drawn at full, as wide as it lights to
+// half of full; a beam of unknown lumen (null) at full, as wide as its own half.
+const shown = (lux) => (lux === null ? { share: 0.5 } : lux > POOL_FULL ? { level: 1, share: POOL_FULL / lux / 2 } : { level: lux / POOL_FULL, share: 0.5 });
+
+/** Where a light lands on a surface, at half its level `half` metres from its centre: an ellipse, `along` the slant on it and `across` that. */
+export function poolOn(end, normal, aim, half) {
   const into = dot(aim, normal), cos = Math.abs(into);
   const slant = { x: aim.x - normal.x * into, y: aim.y - normal.y * into, z: aim.z - normal.z * into };
   // Square on, any line in the surface will do: the pool is round.
   const along = Math.hypot(slant.x, slant.y, slant.z) > EPS ? unit(slant)
     : unit(cross(normal, Math.abs(normal.x) < 0.9 ? { x: 1, y: 0, z: 0 } : { x: 0, y: 0, z: 1 }));
-  const minor = radius * 1.35;
+  const minor = half / POOL_HALF;
   return { at: { x: end.x + normal.x * POOL_LIFT, y: end.y + normal.y * POOL_LIFT, z: end.z + normal.z * POOL_LIFT },
     normal, along, across: cross(along, normal), major: minor / Math.max(GRAZE, cos), minor };
 }
@@ -240,13 +278,49 @@ function poolClip(pool, hit, room, area = room.rooms.find((candidate) => insideP
   return { surface: hit.surface, room: area?.polygon ?? null, walls };
 }
 
-/** The level line through points: their centre, the direction of their longest level extent, half of it and half of the extent across. */
-function levelRun(points) {
+/**
+ * The part of a pool's quad that can show, in the pool's own coordinates (−1…1 along and across) as its centre and
+ * half size: what the box of its surface leaves of it, and on a level axis the box of its room's polygon. The scene
+ * draws no more of the quad, so a pool wider than its room costs what its room does.
+ */
+export function poolWindow(pool) {
+  const lo = [-1, -1], hi = [1, 1], axes = [[pool.along, pool.major], [pool.across, pool.minor]];
+  const within = (points, level = false) => axes.forEach(([axis, size], k) => {
+    if (level && Math.abs(axis.y) > EPS) return;
+    const at = points.map((point) => dot(sub(point, pool.at), axis) / size);
+    lo[k] = Math.max(lo[k], Math.min(...at) - WINDOW_EDGE); hi[k] = Math.min(hi[k], Math.max(...at) + WINDOW_EDGE);
+  });
+  const { surface, room } = pool.clip;
+  if (surface) within([-1, 1].flatMap((i) => [-1, 1].flatMap((j) => [-1, 1].map((k) => ({
+    x: surface.centre.x + i * surface.half[0] * surface.axes[0].x + j * surface.half[1] * surface.axes[1].x + k * surface.half[2] * surface.axes[2].x,
+    y: surface.centre.y + i * surface.half[0] * surface.axes[0].y + j * surface.half[1] * surface.axes[1].y + k * surface.half[2] * surface.axes[2].y,
+    z: surface.centre.z + i * surface.half[0] * surface.axes[0].z + j * surface.half[1] * surface.axes[1].z + k * surface.half[2] * surface.axes[2].z })))));
+  if (room) within(room.map(([x, z]) => ({ x, y: pool.at.y, z })), true);
+  return [(lo[0] + hi[0]) / 2, (lo[1] + hi[1]) / 2, Math.max(0, hi[0] - lo[0]) / 2, Math.max(0, hi[1] - lo[1]) / 2];
+}
+
+/** A pool in a room: where it may show (poolClip) and how much of its quad that leaves to draw. */
+function clipped(pool, hit, room, area) {
+  pool.clip = poolClip(pool, hit, room, area);
+  pool.window = poolWindow(pool);
+  return pool;
+}
+
+const UP = { x: 0, y: 1, z: 0 };
+
+/**
+ * The line through points as they lie on a surface of this `normal` (the floor's by default): their centre, the
+ * direction of their longest extent on it, half of that and half of the extent across.
+ */
+function runOn(points, normal = UP) {
   const n = points.length, centre = { x: 0, y: 0, z: 0 };
   for (const point of points) { centre.x += point.x / n; centre.y += point.y / n; centre.z += point.z / n; }
-  let xx = 0, xz = 0, zz = 0;
-  for (const point of points) { const x = point.x - centre.x, z = point.z - centre.z; xx += x * x; xz += x * z; zz += z * z; }
-  const angle = Math.atan2(2 * xz, xx - zz) / 2, along = { x: Math.cos(angle), y: 0, z: Math.sin(angle) }, side = { x: -along.z, y: 0, z: along.x };
+  // Two axes of the surface; on the floor they are x and z.
+  const first = Math.abs(normal.x) < 0.9 ? AXES[0] : AXES[2], u = unit(sub(first, scaled(normal, dot(first, normal)))), v = cross(u, normal);
+  let uu = 0, uv = 0, vv = 0;
+  for (const point of points) { const from = sub(point, centre), a = dot(from, u), b = dot(from, v); uu += a * a; uv += a * b; vv += b * b; }
+  const angle = Math.atan2(2 * uv, uu - vv) / 2, c = Math.cos(angle), k = Math.sin(angle);
+  const along = { x: u.x * c + v.x * k, y: u.y * c + v.y * k, z: u.z * c + v.z * k }, side = cross(along, normal);
   let half = 0, across = 0;
   for (const point of points) {
     const from = sub(point, centre);
@@ -268,22 +342,30 @@ function roomOf(rooms, { x, z }) {
 }
 
 /**
- * The pool of a light that has no aim and no beam: round, on the room's floor under it, as far as it reaches from
- * its height (reachUnder), whatever furniture stands between. `run` (levelRun) makes it a band: longer by the
- * run's half length either way along it, and wider by its half extent across. Its strength is its lumen over that
- * area, as for any pool. It is clipped as any pool, to the room its light stands in. A light under the floor or
- * above the ceiling has none.
+ * The pool of a light without a beam. It shines all round, so what lands is its lumen over the sphere at that
+ * distance, turned by the angle it strikes at: under it on its room's floor, whatever furniture stands between,
+ * or with an `aim` on the first surface that meets. `points` make it a line of light (a strip's section, or a
+ * fixture's pixels): the pool is a band, longer by their half length either way and wider by their half extent
+ * across, and an aimed strip faces its surface. It is clipped as any pool; the one under a light, to the room the
+ * light stands in. A light under the floor or above the ceiling has none under it.
  */
-function poolUnder({ position, lumen }, room, run = null) {
-  if (position.y < 0 || position.y > room.bounds.height) return null;
-  const hit = surfaceHit(position, DOWN, room.bounds);
-  const pool = poolOn({ x: position.x, y: 0, z: position.z }, hit.normal, DOWN, 0);
-  const reach = reachUnder(hit.length), band = run?.half > EPS;
-  if (band) Object.assign(pool, { along: run.along, across: cross(run.along, hit.normal) });
-  Object.assign(pool, { major: reach + (band ? run.half : 0), minor: reach + (band ? run.across : 0) });
-  pool.level = Math.min(1, lumen / (Math.PI * pool.major * pool.minor) / POOL_FULL);
-  pool.clip = poolClip(pool, hit, room, roomOf(room.rooms, position));
-  return pool;
+function poolRound({ position, lumen }, room, aim = null, points = null) {
+  if (!aim && (position.y < 0 || position.y > room.bounds.height)) return null;
+  const toward = aim ?? DOWN, hit = aim ? surfaceHit(position, aim, room.bounds, room.blockers) : surfaceHit(position, DOWN, room.bounds);
+  if (!hit?.normal) return null;
+  const d = Math.max(hit.length, OWN_SIZE), cos = Math.abs(dot(toward, hit.normal));
+  const run = points && runOn(points, hit.normal), b = run?.half > EPS ? run.half : 0;
+  const { level, share } = shown(lumen * cos * (aim && points ? facingLux(b, d) : roundLux(b, d)));
+  const end = { x: position.x + toward.x * hit.length, y: position.y + toward.y * hit.length, z: position.z + toward.z * hit.length };
+  const pool = poolOn(end, hit.normal, toward, d * sideReach(0, share));
+  if (b) {
+    // A band: level along the run and across the run's own width, and beyond them falling off as a round pool does.
+    // A strip's slant lies across its run, so the reach the slant stretched (poolOn's major) is the band's width.
+    const major = pool.minor + b, minor = pool.major + run.across;
+    Object.assign(pool, { along: run.along, across: cross(run.along, hit.normal), major, minor, run: [b / major, run.across / minor] });
+  }
+  pool.level = level;
+  return clipped(pool, hit, room, aim ? undefined : roomOf(room.rooms, position));
 }
 
 /** `room`: { bounds, blockers, rooms } of an imported room, null in the generic venue. */
@@ -292,11 +374,15 @@ function beamLight(light, emission, floor = false, room = null, direction = null
   const hit = surfaceHit(from, aim, room?.bounds ?? null, room?.blockers ?? []);
   const length = hit ? hit.length : MAX_BEAM;
   const end = { x: from.x + aim.x * length, y: from.y + aim.y * length, z: from.z + aim.z * length };
-  const radius = Math.tan((emission.beamAngle ?? 22) * Math.PI / 360) * length;
-  const pool = hit?.normal && radius > 0 ? poolOn(end, hit.normal, aim, radius) : null;
-  // A lamp of known lumen lights its pool by the area it spreads over; a par of unknown lumen keeps full strength.
-  if (pool && light.lumen) pool.level = Math.min(1, light.lumen / (Math.PI * pool.major * pool.minor) / POOL_FULL);
-  if (pool && room) pool.clip = poolClip(pool, hit, room);
+  const angle = (emission.beamAngle ?? 22) * Math.PI / 180, radius = Math.tan(angle / 2) * length;
+  let pool = null;
+  if (hit?.normal && length > 0) {
+    // A lamp of known lumen lights its pool by what lands at its centre; a par of unknown lumen keeps full strength.
+    const { level, share } = shown(light.lumen ? light.lumen * axisCandela(angle) * Math.abs(dot(aim, hit.normal)) / length ** 2 : null);
+    pool = poolOn(end, hit.normal, aim, length * sideReach(angle, share));
+    if (level !== undefined) pool.level = level;
+    if (room) clipped(pool, hit, room);
+  }
   return { ...light, kind: 'par', aim, length, end, radius, pool };
 }
 
@@ -413,9 +499,10 @@ function pitches(cells) {
 }
 
 /**
- * A light gives the room one pool: an aimed lamp its aimed one and a beam fixture its beam's (both in `lamps`),
- * every other light the one under it (`pools`: what it is coloured by, and the pool). A lamp has its own; a strip
- * one for each section of its path; the pixels of a fixture bound one by one share one, in their mean colour.
+ * A light gives the room one pool, where its light lands. A lamp with a beam throws it by its aim or its own pan
+ * and tilt (in `lamps`, with its cone). Every other light shines all round (`pools`: what it is coloured by, and
+ * the pool): on the surface it is aimed at, else on the floor under it. A lamp has its own; a strip one band for
+ * each section of its path; the pixels of a fixture bound one by one share one, in their mean colour.
  */
 export function roomRig(fixtures, rig, model, profiles = {}) {
   const lamps = [];
@@ -435,8 +522,8 @@ export function roomRig(fixtures, rig, model, profiles = {}) {
   const indices = new Map(fixtures.map((fixture, index) => [fixture.id, index]));
   const room = { bounds: model.bounds, blockers: blockersOf(model.objects), rooms: model.rooms || [] };
   const { resolved, mapped, outputs } = resolveBindings(fixtures, rig, model.bindings);
-  const under = (light, run = null) => {
-    const pool = poolUnder({ lumen: BULB_LUMEN, ...light }, room, run);
+  const round = (light, aim = null, points = null) => {
+    const pool = poolRound({ lumen: BULB_LUMEN, ...light }, room, aim, points);
     if (pool) pools.push({ unit: light.unit, fixture: light.fixture, ...(light.sources ? { sources: light.sources } : {}), pool });
   };
   const share = (light, fixture) => { if (!loose.has(fixture)) loose.set(fixture, []); loose.get(fixture).push(light); };
@@ -465,8 +552,6 @@ export function roomRig(fixtures, rig, model, profiles = {}) {
     const origin = binding.path ? pathPoints(binding.path, 1)[0] : light.position;
     const offset = target && { x: target.x - origin.x, y: target.y - origin.y, z: target.z - origin.z };
     const aim = offset && Math.hypot(offset.x, offset.y, offset.z) >= 0.001 ? unit(offset) : null;
-    const directed = (source, body) => ({ ...beamLight({ lumen: BULB_LUMEN, ...source }, { kind: 'beam', beamAngle: emission?.beamAngle ?? 100 },
-      false, room, aim), body });
     const pixel = emission?.kind === 'strip' || !emission && !binding.sources && !!rig.cellMaps[index];
     // Room objects that are the light are drawn in its place; what it gives the room stays its own.
     const drawn = lightObjects.get(binding.id);
@@ -481,19 +566,16 @@ export function roomRig(fixtures, rig, model, profiles = {}) {
         position: { x: (from.x + to.x) / 2, y: (from.y + to.y) / 2, z: (from.z + to.z) / 2 } });
     }
     if (!drawn) cells.push(...strip);
-    if (aim) {
-      if (drawn) lamps.push(directed({ ...light, position: origin }, 0));
-      else if (binding.path) for (const cell of strip) lamps.push(directed(cell, 0));
-      else lamps.push(directed(light, ROOM_BULB));
-    } else if (binding.path) for (const cell of strip) under(cell, levelRun([cell.from, cell.to]));
-    else if (emission?.kind === 'beam' && !drawn) lamps.push({ ...beamLight(light, emission, fixture.group === 'floor', room), body: ROOM_BULB });
-    else if (pixel) {
+    if (binding.path) for (const cell of strip) round(cell, aim, [cell.from, cell.to]);
+    // A lamp with a beam throws it where it is aimed, else by its own pan and tilt; aimed and of unknown lumen it counts as a bulb.
+    else if (emission?.kind === 'beam') lamps.push({ ...beamLight(aim ? { lumen: BULB_LUMEN, ...light } : light, emission, fixture.group === 'floor', room, aim), body: drawn ? 0 : ROOM_BULB });
+    else if (pixel && !aim) {
       const cell = { ...light, size: POINT_CELL };
       if (!drawn) cells.push(cell);
       share(cell, fixture?.id ?? binding.id);
     } else {
       if (!drawn) lamps.push({ ...light, kind: 'bulb', aim: null, length: 0, body: ROOM_BULB });
-      under(light);
+      round(light, aim);
     }
   }
   // A placed fixture no binding names is drawn where the effects sample it: its Rig plot position in this room (space.ts).
@@ -514,7 +596,7 @@ export function roomRig(fixtures, rig, model, profiles = {}) {
       } else if (emission.kind === 'beam') lamps.push({ ...beamLight(light, emission, fixture.group === 'floor', room), body: ROOM_BULB });
       else {
         lamps.push({ ...light, kind: 'bulb', aim: null, length: 0, body: ROOM_BULB });
-        under(light);
+        round(light);
       }
     }
   });
@@ -522,9 +604,9 @@ export function roomRig(fixtures, rig, model, profiles = {}) {
   for (const cell of cells) if (!cell.length && pitch.has(cell.fixture)) cell.size = pixelSize(pitch.get(cell.fixture));
   for (const [id, own] of loose) {
     const grid = rig.grids[indices.get(id)], dense = grid?.rows > 1 && grid.columns > 1 && pitch.has(id) ? pitch.get(id) / PIXEL_PITCH : 1;
-    const run = levelRun(own.map((light) => light.position));
-    under({ fixture: id, position: run.centre, sources: own.flatMap((light) => light.sources ?? [{ unit: light.unit, weight: 1 }]),
-      lumen: own.reduce((sum, light) => sum + (light.lumen ?? PIXEL_LUMEN * Math.min(1, dense * dense)), 0) }, run);
+    const points = own.map((light) => light.position);
+    round({ fixture: id, position: runOn(points).centre, sources: own.flatMap((light) => light.sources ?? [{ unit: light.unit, weight: 1 }]),
+      lumen: own.reduce((sum, light) => sum + (light.lumen ?? PIXEL_LUMEN * Math.min(1, dense * dense)), 0) }, null, points);
   }
   const bodies = plotted.filter((fixture) => fixture.geometry?.points?.length > 1).map((fixture) => bodyOf(fixture.id, cells));
   const missing = fixtures.filter((fixture) => !mapped.has(fixture.id));
