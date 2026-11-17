@@ -216,7 +216,8 @@ export function poolOn(end, normal, aim, radius) {
 /**
  * A pool on a ceiling: its surface faces down, within 45 degrees of straight down. The room's ceiling is never
  * drawn, so nothing hides such a pool from above, and the stage shows it from both sides (scene.js). The underside
- * of furniture counts too; there the furniture itself hides the pool from above, as it hides its own underside.
+ * of furniture or of a wall counts too: there the object, where it is drawn opaque, hides the pool from above as
+ * it hides its own underside.
  */
 export const onCeiling = (pool) => !!pool && pool.normal.y < -Math.SQRT1_2;
 

@@ -70,14 +70,18 @@ the surface it lands on, inside the room polygon that holds its centre, and not
 past a wall from its centre.
 A pool shows from the side its surface faces, which is the side its light comes from:
 light on a wall's face is not drawn for a view from behind that wall, whether the wall
-stands at full height, is cut away or is hidden. A pool on a ceiling, a surface that faces
-down within 45° of straight down, shows from above as well: the room's ceiling is never
-drawn, so nothing else would show the light on it. That holds under furniture too, where
-the furniture itself hides the pool from above.
+stands at full height, is cut away or is hidden. A pool on a ceiling shows from above as
+well: the room's ceiling is never drawn, so nothing else would show the light on it. A
+pool is on a ceiling when the surface it lies on faces down within 45° of straight down:
+the room's own ceiling, and the underside of furniture or of a wall. An object drawn
+opaque hides the pool on its underside from above, as it hides that underside; under an
+object drawn see-through (opacity below 1), under a hidden wall and under the part of a
+wall that Cutaway takes away, the pool shows from above too.
 A beam's haze, the cone drawn from its lamp to where it lands, shows only where the
 lamp's light is: inside the room's bounds, on the lamp's side of the floor and of the
 ceiling, in the room the lamp stands in and the one its pool lies in, and not past a
-wall from the lamp, hidden or not. A lamp outside every room polygon belongs to the
+wall from the lamp, hidden or not. So none shows in a gap between two room polygons, or
+in a room the beam only passes through. A lamp outside every room polygon belongs to the
 room whose edge is nearest; a wall a lamp is set into stops neither its beam nor its
 haze. A wall stops haze and clips a pool by its box, whatever its shape: where a beam
 passes a mesh wall's opening, its haze ends at that wall. Furniture does not cut haze.
