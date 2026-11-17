@@ -151,8 +151,14 @@ test('a lamp\'s haze stops at the wall beside it: none of it shows in the room b
   // which reaches 0.65 m past the wall's far face. Read where that part would stand, in the far room and inside
   // the cone, from the camera on that side; and on the wall's near face, which the cone stands before, from the other.
   const lamp = { x: -0.13, y: 0.7, z: -1 }, binding = { lightTarget: { x: -0.13, y: 0, z: -1 } };
+  // In the two rooms the lamp's own room ends at the wall, and its outline cuts the haze there as well. The wall alone
+  // stops it in a room file without polygons, and where it is a partition inside one room, 0.6 m short of that room's
+  // edge: there the cone carries that room's edges and the wall both.
   const regions = { behind: across(-1, 0.1, 0.35, 0.02, 0.22), before: face(-0.05, 0.1, 0.5, -1.25, -0.75) };
-  for (const [name, model, cutaway] of [['full height', TWO_ROOMS, false], ['cut away', TWO_ROOMS, true], ['hidden', withWall({ opacity: 0 }), false]]) {
+  const oneRoom = [{ id: 'one', label: 'One', polygon: [[-3, -2], [0.6, -2], [0.6, 2], [-3, 2]] }];
+  for (const [name, model, cutaway] of [['full height', TWO_ROOMS, false], ['cut away', TWO_ROOMS, true], ['hidden', withWall({ opacity: 0 }), false],
+    ['hidden, in a room file without polygons', { ...withWall({ opacity: 0 }), rooms: [] }, false],
+    ['hidden, a partition inside one room', { ...withWall({ opacity: 0 }), rooms: oneRoom }, false]]) {
     const view = { regions, cutaway, name: 'audience', haze: 1, binding };
     const far = await lampFrames(page, model, lamp, view);
     expect(changed(far.off.behind, far.on.behind), `${name}: no haze past the wall`).toBe(0);
