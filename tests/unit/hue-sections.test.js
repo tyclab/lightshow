@@ -59,13 +59,15 @@ const RENUMBERED = MUSIC.map(([id, ...members]) => [(id + 6) % 16, ...members]).
 const AREA = '5c1f0e2a-7b3d-4c8e-9f10-2a3b4c5d6e7f';
 const BRIDGE = { id: 'b1', label: 'Lounge', enabled: true, host: '10.0.0.2', username: 'user', clientKey: 'aabb', applicationId: 'app-id', entertainmentId: AREA };
 
-// The bridge's CLIP v2 side: its area as `grouping` says, every lamp's device, light and entertainment service
-// (answered `slow` ms late), and the area's start and stop.
+// The bridge's CLIP v2 side: its area as `grouping` says (none while `gone`), every lamp's device, light and
+// entertainment service (answered `slow` ms late), and the area's start and stop. `reads` are the resources read,
+// `asked` every request made of it, answered or not.
 function fakeBridge(t, grouping) {
-  const bridge = { grouping, status: 'inactive', reachable: true, slow: 0 };
+  const bridge = { grouping, status: 'inactive', reachable: true, gone: false, slow: 0, reads: [], asked: 0 };
   const lamps = Object.entries(LAMPS);
   const body = (path) => {
     if (path.endsWith('/entertainment_configuration')) {
+      if (bridge.gone) return { data: [] };
       return { data: [{
         id: AREA, metadata: { name: 'Music area' }, status: bridge.status,
         ...(bridge.status === 'active' ? { active_streamer: { rid: BRIDGE.applicationId, rtype: 'auth_v1' } } : {}),
@@ -95,7 +97,9 @@ function fakeBridge(t, grouping) {
     req.destroy = (err) => { if (err) setImmediate(() => req.emit('error', err)); };
     const late = /\/(entertainment|device|light)$/.test(options.path) ? bridge.slow : 0;
     req.end = () => setTimeout(() => {
+      bridge.asked++;
       if (!bridge.reachable) { req.emit('error', new Error(`connect EHOSTUNREACH ${options.host}:443`)); return; }
+      if (options.method !== 'PUT') bridge.reads.push(options.path.split('/').pop());
       let reply = body(options.path);
       if (options.method === 'PUT') {
         bridge.status = JSON.parse(payload).action === 'start' ? 'active' : 'inactive';
@@ -374,12 +378,121 @@ test('an unreachable bridge resolves nothing and changes nothing; reachable agai
     await show();
     await until(() => status().status === 'failed', 'the bridge reads failed');
     assert.match(status().error, /could not read the entertainment area: connect EHOSTUNREACH/);
+    const asked = bridge.asked;
     for (const lamp of hueLamps()) assert.deepEqual(await show(lamp.id), [], 'nothing streams');
+    assert.equal(bridge.asked, asked, 'and the bridge is not asked again with every frame');
     assert.ok(state.fixtures.every((f, k) => f === before[k]));
     assert.equal(patched.length, 0);
+    // Still armed: the read is tried again by itself, from 2 s on.
     bridge.reachable = true;
-    await connect();
+    const sofa = hueLamps().find((lamp) => lamp.label === 'Sofa light');
+    let lit = [];
+    const end = Date.now() + 9000;
+    while (!lit.length && Date.now() < end) lit = await show(sofa.id);
+    assert.deepEqual(lit, expectedLit(patchedOn.get(sofa.id), RENUMBERED), 'without another arm');
     await assertLit(RENUMBERED, patchedOn);
+  });
+});
+
+test('an area the bridge no longer has: armed, the bridge reads failed and nothing streams', async (t) => {
+  await withRig(t, MUSIC, async ({ bridge, call, show, connect, assertLit }) => {
+    const patchedOn = await patchAll(call);
+    await connect();
+    output.setArmed(false);
+    await show();
+    await until(() => bridge.status === 'inactive', 'the session is released');
+    bridge.gone = true;
+    output.setArmed(true);
+    await show();
+    await until(() => status().status === 'failed', 'the bridge reads failed');
+    assert.equal(status().error, `the bridge has no entertainment area ${AREA}; pick one again`);
+    for (const lamp of hueLamps()) assert.deepEqual(await show(lamp.id), []);
+    bridge.gone = false;
+    await connect();
+    await assertLit(MUSIC, patchedOn);
+    // Gone while the stream runs: the watch stops the lamps rather than leave them on numbers of an area it cannot read.
+    bridge.gone = true;
+    await hue.checkAreas();
+    assert.equal(output.transmitConfig().hue.lamps.length, 0, 'no lamp is routed');
+    await show();
+    await until(() => status().status === 'failed', 'and the bridge reads failed');
+  });
+});
+
+test('a bridge added while armed waits for its area as the others did', async (t) => {
+  await withRig(t, MUSIC, async ({ call, connect }) => {
+    await patchAll(call);
+    await connect();
+    const second = { ...BRIDGE, id: 'b2', label: 'Party', host: '10.0.0.3' };
+    state.fixtures = [...state.fixtures, { id: 41, label: 'Party sofa', address: 1, universe: 0, profileId: HUE_COLOR_PROFILE_ID, maxBrightness: 255, override: null,
+      output: { protocol: 'hue', bridge: 'b2', channels: [3], members: [[{ serviceId: 'ent-sofa', segmentIndex: 0 }]] } }];
+    placeAddresslessFixtures();
+    output.configureHue({ bridges: [BRIDGE, second] });
+    const routed = () => output.transmitConfig().hue.lamps.filter((route) => route.bridge === 'b2').map((route) => [...route.channels]);
+    assert.deepEqual(routed(), [], 'not on the number it was saved with');
+    await until(() => routed().length === 1, 'routed once its area is read');
+    assert.deepEqual(routed(), [[10]], 'on the channel its lamp is on');
+  });
+});
+
+test('an arm reads the area list; the lamps are read again only when the grouping differs', async (t) => {
+  await withRig(t, MUSIC, async ({ bridge, call, connect, assertLit }) => {
+    const patchedOn = await patchAll(call);
+    await connect();
+    const lamps = () => bridge.reads.filter((resource) => resource !== 'entertainment_configuration').length;
+    const lists = () => bridge.reads.length - lamps();
+    const [read, listed] = [lamps(), lists()];
+    await connect();
+    assert.equal(lamps(), read, 'unchanged: no lamp is read again');
+    assert.ok(lists() > listed, 'the list is');
+    bridge.grouping = RENUMBERED;
+    await connect();
+    assert.equal(lamps(), read + 3, 'grouped otherwise: services, devices and lights once');
+    await assertLit(RENUMBERED, patchedOn);
+  });
+});
+
+// While a lost engine thread's sessions are released no sender is given a bridge, and nothing asks for one.
+test('disarmed and armed again while Hue is held off: the area is still read before the lamps stream', async (t) => {
+  await withRig(t, MUSIC, async ({ bridge, call, show, connect }) => {
+    const patchedOn = await patchAll(call);
+    await connect();
+    let release;
+    output.holdHue(new Promise((resolve) => { release = resolve; }));
+    output.setArmed(false);
+    await show();
+    await until(() => bridge.status === 'inactive', 'the session is released');
+    bridge.grouping = RENUMBERED;
+    bridge.slow = 300;
+    output.setArmed(true);
+    await show();
+    release();
+    const sofa = hueLamps().find((lamp) => lamp.label === 'Sofa light');
+    const want = expectedLit(patchedOn.get(sofa.id), RENUMBERED);
+    const seen = [];
+    const end = Date.now() + 3000;
+    while (Date.now() < end && seen.at(-1)?.join() !== want.join()) seen.push(await show(sofa.id));
+    assert.deepEqual(seen.at(-1), want);
+    for (const lit of seen) assert.ok(!lit.length || lit.join() === want.join(), `"Sofa light" lit ${describe(RENUMBERED, lit)}`);
+  });
+});
+
+test('a lamp is patched once: by the members a fixture recorded, and no channel number is saved twice', async (t) => {
+  await withRig(t, MUSIC, async ({ call }) => {
+    // On another profile and a number its lamp has left: only its recorded members say it is the sofa light.
+    state.fixtures = [...state.fixtures, { id: 40, label: 'Sofa', address: 1, universe: 0, profileId: HUE_COLOR_PROFILE_ID, maxBrightness: 255, override: null,
+      output: { protocol: 'hue', bridge: BRIDGE.id, channels: [3], members: [[{ serviceId: 'ent-sofa', segmentIndex: 0 }]] } }];
+    placeAddresslessFixtures();
+    const same = await call('POST', `/api/hue/${BRIDGE.id}/add`, { lamps: ['ent-sofa'] });
+    assert.equal(same.status, 409);
+    assert.match(same.body.error, /Sofa light is patched already, as "Sofa"/);
+    const number = await call('POST', `/api/hue/${BRIDGE.id}/add`, { lamps: ['ent-tv'] });
+    assert.equal(number.status, 409, 'the TV strip is on #2–#7: #3 is still saved for "Sofa"');
+    const rest = await call('POST', `/api/hue/${BRIDGE.id}/add`, {});
+    assert.equal(rest.body.ok, true, rest.body.error);
+    const saved = hueLamps().flatMap((lamp) => lamp.output.channels);
+    assert.equal(new Set(saved).size, saved.length, 'no number twice');
+    assert.ok(!hueLamps().some((lamp) => lamp.id !== 40 && lamp.output.members.flat().some((m) => m.serviceId === 'ent-sofa')));
   });
 });
 
@@ -417,6 +530,17 @@ test('a renumbered lamp keeps its stored number while a lamp that stays dark sti
   assert.equal(followed.results.get(1).channels[0], 0, 'it streams to its new number regardless');
   const after = followArea([held], 'b1', area, 'b1');
   assert.deepEqual(after.fixtures[0].output.channels, [0], 'written once the dark lamp is gone');
+});
+
+test('a lamp saved without members does not adopt a channel another lamp lights by its recorded members', () => {
+  const area = indexArea([{ id: 0, members: m('a') }, { id: 1, members: m('b') }]);
+  const recorded = lamp(1, [1], [m('a')]);
+  const older = lamp(2, [0]);
+  const followed = followArea([recorded, older], 'b1', area, 'b1');
+  assert.deepEqual(followed.results.get(1).channels, [0], 'the recorded lamp follows to #0');
+  assert.deepEqual(followed.results.get(2), { ok: false, members: null, sections: [], taken: [0] });
+  assert.equal(followed.fixtures[1], older, 'nothing recorded for it');
+  assert.equal(followed.changed, false, 'and #0 is not saved twice');
 });
 
 test('a show keeps what each section lights, and a member list must match its channels', () => {

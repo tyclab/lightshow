@@ -437,11 +437,17 @@ export function attachFixtureRoutes(app: Express, ctx: RouteContext): void {
     return area || null;
   }
 
-  /** The fixture a lamp of a bridge's area is patched as already: on its profile, or on one of its channels. */
-  function patchedAs(bridgeId: string, lamp: AreaLamp): Fixture | null {
+  /**
+   * The fixture a lamp of a bridge's area is patched as already: on its profile, lighting one of its members by
+   * the members it recorded, or still holding one of its channel numbers in the patch (no number is saved twice).
+   */
+  function patchedAs(bridgeId: string, lamp: AreaLamp, area: EntertainmentArea): Fixture | null {
     const profileId = hueProfileId(lamp.id, bridgeId);
-    return state.fixtures.find((f) => f.output?.protocol === 'hue' && f.output.bridge === bridgeId
-      && (f.profileId === profileId || hueChannels(f.output).some((ch) => lamp.channels.includes(ch)))) || null;
+    const key = (m: HueMember) => `${m.serviceId}#${m.segmentIndex ?? ''}`;
+    const lit = new Set(area.channels.filter((ch) => lamp.channels.includes(ch.id)).flatMap((ch) => (ch.members || []).map(key)));
+    return state.fixtures.find((f) => f.output?.protocol === 'hue' && f.output.bridge === bridgeId && (f.profileId === profileId
+      || !!f.output.members?.some((set) => set.some((m) => lit.has(key(m))))
+      || hueChannels(f.output).some((ch) => lamp.channels.includes(ch)))) || null;
   }
 
   /** The lamps of the area a bridge streams, their sections, and what each can show. */
@@ -480,10 +486,10 @@ export function attachFixtureRoutes(app: Express, ctx: RouteContext): void {
     for (const id of wanted || []) {
       const lamp = area.lamps.find((l) => l.id === id);
       if (!lamp) return res.status(404).json({ ok: false, error: `"${area.name}" has no lamp ${id}` });
-      const already = patchedAs(bridge.id, lamp);
+      const already = patchedAs(bridge.id, lamp, area);
       if (already) return res.status(409).json({ ok: false, error: `${lamp.name || 'That lamp'} is patched already, as "${already.label}"` });
     }
-    const fresh = area.lamps.filter((lamp) => (wanted ? wanted.has(lamp.id) : !patchedAs(bridge.id, lamp)));
+    const fresh = area.lamps.filter((lamp) => (wanted ? wanted.has(lamp.id) : !patchedAs(bridge.id, lamp, area)));
     if (!fresh.length) return res.status(409).json({ ok: false, error: `Every lamp of "${area.name}" is patched already` });
     const built = fresh.map((lamp) => ({ lamp, profile: hueProfile(lamp, bridge.id) }));
     const unread = built.find((b) => !b.profile);

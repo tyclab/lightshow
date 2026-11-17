@@ -18,8 +18,11 @@ export interface AreaIndex {
 
 export type SectionResolution =
   | { ok: true; channels: number[]; members: HueMember[][]; adopted: boolean }
-  /** `members` null: an older patch whose numbers could not be read as members; `sections` are the ones not found. */
-  | { ok: false; members: HueMember[][] | null; sections: number[] };
+  /**
+   * `members` null: a lamp saved without them whose numbers could not be read as members: `sections` are those
+   * the area lacks, `taken` those whose channel is another lamp's by its recorded members.
+   */
+  | { ok: false; members: HueMember[][] | null; sections: number[]; taken?: number[] };
 
 const memberKey = (m: HueMember) => `${m.serviceId}#${m.segmentIndex ?? ''}`;
 const setKey = (members: readonly HueMember[]) => members.map(memberKey).sort().join('|');
@@ -75,6 +78,13 @@ export function followArea(fixtures: readonly Fixture[], bridge: string, area: A
   const mine = fixtures.filter((f) => f.output?.protocol === 'hue' && (f.output.bridge || fallbackBridge) === bridge);
   const results = new Map(mine.map((f) => [f.id, resolveSections(f.output as HueOutput, area)]));
   const storedOf = (f: Fixture) => hueChannels(f.output as HueOutput);
+  // A lamp without members does not adopt a channel that a lamp with members resolves to: that one is the other's.
+  const recorded = new Set([...results.values()].flatMap((r) => (r.ok && !r.adopted ? r.channels : [])));
+  for (const [id, result] of results) {
+    if (!result.ok || !result.adopted) continue;
+    const taken = result.channels.flatMap((channel, k) => (recorded.has(channel) ? [k] : []));
+    if (taken.length) results.set(id, { ok: false, members: null, sections: [], taken });
+  }
   const numbers = new Map(mine.map((f) => {
     const result = results.get(f.id)!;
     return [f.id, result.ok ? result.channels : [...storedOf(f)]];
@@ -139,8 +149,12 @@ export const REGROUPED_FIX = 'The area was changed in the Hue app. Remove those 
 export function describeDark(label: string, output: Pick<HueOutput, 'channels'>, result: Extract<SectionResolution, { ok: false }>,
   area: Pick<EntertainmentArea, 'name' | 'channels'>): string {
   if (!result.members) {
-    const absent = result.sections.map((k) => `#${hueChannels(output)[k]}`).join(', ');
-    return `"${label}" is on channel ${absent}, which "${area.name}" does not have, so what it lights cannot be told and it stays dark.`;
+    const channels = (list: readonly number[]) => list.map((k) => `#${hueChannels(output)[k]}`).join(', ');
+    if (result.taken?.length) {
+      return `"${label}" is on channel ${channels(result.taken)}, which another lamp of "${area.name}" lights by its recorded members, `
+        + 'so what it lights cannot be told and it stays dark.';
+    }
+    return `"${label}" is on channel ${channels(result.sections)}, which "${area.name}" does not have, so what it lights cannot be told and it stays dark.`;
   }
   const parts = result.sections.map((k) => {
     const patched = result.members![k];
@@ -174,7 +188,12 @@ export function sectionChannels(output: HueOutput, bridge: string): readonly num
   if (area === 'unread') return null;
   let result = resolved.get(output);
   if (!result) {
-    result = resolveSections(output, area.index);
+    // A lamp patched or loaded since the area was read: the whole bridge is resolved again, as one patch.
+    for (const [id, entry] of followArea(state.fixtures, bridge, area.index, fallbackBridge()).results) {
+      const fixture = state.fixtures.find((f) => f.id === id);
+      if (fixture?.output) resolved.set(fixture.output, entry);
+    }
+    result = resolved.get(output) ?? resolveSections(output, area.index);
     resolved.set(output, result);
   }
   return result.ok ? result.channels : null;
@@ -190,6 +209,10 @@ export function noteHueArea(bridge: string, label: string, area: EntertainmentAr
   known.set(bridge, { index, area });
   const before = new Map(state.fixtures.map((f) => [f.id, f]));
   const followed = followArea(state.fixtures, bridge, index, fallbackBridge());
+  for (const [id, result] of followed.results) {
+    const output = followed.fixtures.find((f) => f.id === id)?.output;
+    if (output) resolved.set(output, result);
+  }
   const name = label || bridge;
   for (const [id, result] of followed.results) {
     const was = before.get(id)!;

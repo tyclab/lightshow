@@ -1461,20 +1461,25 @@ Each section of a Hue lamp records what it lights: the members (entertainment se
 and segment) its channel had when the lamp was added, as `output.members` in
 `output.channels` order. The bridge numbers an area's channels itself and numbers them
 again whenever the area's lamps or positions change in the Hue app, so the numbers are
-read from the bridge: on each arm, when a bridge or its area changes in the settings,
-and whenever the area watch sees the area's grouping differ. Each section streams to
+read from the bridge: on each arm, when a session opens again, when a bridge or its
+area changes in the settings, and whenever the area watch sees the area's grouping
+differ. An arm reads the area list; the lamps are read again only when the grouping
+differs from the one last read. Each section streams to
 the one channel whose members equal its recorded ones; a changed number is written
 back to `output.channels`, so the saved show, the Rig and room exporters keep the
 current one. A lamp with a section whose members are no longer exactly one channel
 (the area grouped its segments otherwise, or the lamp left the area) stays dark, and
 the log and preflight name it, what it was patched for and where the area has those
 lamps and segments now: remove it and add it again. After an arm a bridge's lamps
-stream once its area was read; a read that fails meanwhile is the bridge's failure
-until one succeeds, and nothing is rewritten. A lamp saved without members adopts them
-once from its stored numbers (logged); one whose number the area lacks is reported
-instead. A renumbered lamp whose new number a dark lamp still holds streams to it but
-keeps its saved number until that lamp is removed, so the patch never names a channel
-twice.
+stream once its area was read; a read that fails meanwhile, or an area the bridge no
+longer has, is the bridge's failure, retried from 2 s to 60 s while armed, and nothing
+is rewritten. A lamp saved without members adopts them once from its stored numbers
+(logged); one whose number the area lacks, or is another lamp's by that lamp's members,
+is reported instead. A renumbered lamp whose new number a dark lamp still holds streams
+to it but keeps its saved number until that lamp is removed, so the patch never names a
+channel twice; adding a lamp is refused while a fixture records one of its members or
+still holds one of its numbers. A lamp that stops resolving while its stream runs gets
+no further frames and keeps its last streamed colour until the session is released.
 
 ```mermaid
 flowchart LR

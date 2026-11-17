@@ -6,6 +6,7 @@ import {
 import type { HueBridgeConfig, HueState, HueOccupant, ClipList, ClipChannel, ClipEntertainmentConfig } from './hue-clip.ts';
 import type { HueLight } from '../types/rig.ts';
 import type { HueStreamStatus } from './hue-stream.ts';
+import { isArmed, onArmedChange } from './armed.ts';
 
 export type { HueBridgeConfig, HueState, HueOccupant, HueStreamStatus };
 
@@ -405,14 +406,16 @@ class HueSession {
   private watching = false;
   private watchFailures = 0;
   private watchNextAt = 0;
-  private rewatch = false;
   private readonly areaSink: () => AreaSink | null;
-  // The selected area's grouping as last handed on; null until it is read again.
-  private grouping: string | null = null;
+  // The selected area as last read with its lamps, and whether it was handed on since the last arm or change
+  // of the bridge. Armed, the lamps wait for that: a read that fails is the bridge's failure and is retried.
+  private area: { grouping: string; value: EntertainmentArea } | null = null;
+  private fresh = false;
   private areaEpoch = 0;
   private armed = false;
-  // Armed, the lamps wait for the area: a read that fails is the bridge's failure until one succeeds.
   private areaError: string | null = null;
+  private areaRetryAt = 0;
+  private areaDelay = RETRY_BASE_MS;
 
   constructor(config: HueBridgeConfig, sink: () => ApplicationIdSink | null = () => null, areaSink: () => AreaSink | null = () => null) {
     this.id = config.id;
@@ -469,24 +472,21 @@ class HueSession {
     }
   }
 
-  // Read-only: reports another app's stream and never stops it. The selected area, read again with its lamps
-  // whenever its grouping differs from the one last handed on, goes to the area sink.
+  // Read-only: reports another app's stream and never stops it. The selected area goes to the area sink when it
+  // was not handed on since the last arm or change of the bridge, and whenever its grouping differs.
   async checkArea(force = false): Promise<void> {
     if (!this.config.enabled || !this.isConfigured()) {
       this.occupant = null;
       return;
     }
-    if (this.watching) {
-      if (force) this.rewatch = true;
-      return;
-    }
-    if (!force && Date.now() < this.watchNextAt) return;
+    if (this.watching || (!force && Date.now() < this.watchNextAt)) return;
     this.watching = true;
     const config = { ...this.config };
     const epoch = this.areaEpoch;
     const identity = config.applicationId || this.resolvedApplicationId;
     const same = () => this.config.host === config.host && this.config.username === config.username
       && this.config.entertainmentId === config.entertainmentId && !!this.config.enabled;
+    const current = () => same() && epoch === this.areaEpoch;
     try {
       const parsed = await bridgeRequest(config.host, { path: AREAS_PATH, key: config.username }) as ClipList<ClipEntertainmentConfig>;
       const error = describeClipError(parsed);
@@ -497,39 +497,60 @@ class HueSession {
       const area = parsed.data.find((a) => a && typeof a.id === 'string' && isForeign(a, config, identity));
       if (same()) this.noteOccupant(area ? occupantOf(area) : null);
       const selected = parsed.data.find((a) => a && a.id === config.entertainmentId);
-      await this.followArea(config, selected ? clipGrouping(selected.channels) : null, () => same() && epoch === this.areaEpoch);
+      if (current()) await this.followSelected(config, selected ? clipGrouping(selected.channels) : null, current);
     } catch (err) {
       this.watchFailures++;
-      const waiting = this.armed && this.grouping === null && !!this.areaSink();
-      this.watchNextAt = Date.now() + Math.min(RETRY_MAX_MS, (waiting ? RETRY_BASE_MS : AREA_WATCH_MS) * 2 ** this.watchFailures);
+      this.watchNextAt = Date.now() + Math.min(RETRY_MAX_MS, AREA_WATCH_MS * 2 ** this.watchFailures);
       // An unreadable bridge is not a held one; the stream reports its own failure.
       if (same()) this.noteOccupant(null);
-      if (same() && waiting && epoch === this.areaEpoch) this.areaError = `could not read the entertainment area: ${messageOf(err)}`;
+      if (current()) this.areaFailed(`could not read the entertainment area: ${messageOf(err)}`);
     } finally {
       this.watching = false;
-      if (this.rewatch) {
-        this.rewatch = false;
-        void this.checkArea(true);
-      }
     }
   }
 
-  private async followArea(config: HueBridgeConfig, grouping: string | null, current: () => boolean): Promise<void> {
-    if (!current() || grouping === this.grouping || !this.areaSink()) return;
-    let area: EntertainmentArea | null = null;
-    if (grouping !== null) {
-      try {
-        area = (await listEntertainmentConfigs(config.host, config.username)).find((a) => a.id === config.entertainmentId) || null;
-      } catch (err) {
-        console.warn(`[hue] ${this.name}: could not read area ${config.entertainmentId} with its lamps: ${messageOf(err)}`);
-        if (this.armed && this.grouping === null) this.areaError = `could not read the entertainment area: ${messageOf(err)}`;
-        return;
-      }
-      if (!current()) return;
+  // Never throws: the list was read, so a failure here says nothing about who holds the bridge.
+  private async followSelected(config: HueBridgeConfig, grouping: string | null, current: () => boolean): Promise<void> {
+    if (!this.areaSink()) return;
+    if (grouping !== null && this.area?.grouping === grouping) {
+      if (!this.fresh) this.handOn();
+      return;
     }
-    this.grouping = area ? groupingKey(area.channels.map((ch) => ({ id: ch.id, members: ch.members || [] }))) : null;
-    this.areaError = area || !this.armed ? null : `the bridge has no entertainment area ${config.entertainmentId}; pick one again`;
-    this.handArea(area || 'unread');
+    // Gone or grouped otherwise: what was read before lights other lamps now.
+    this.area = null;
+    if (this.fresh) {
+      this.fresh = false;
+      this.handArea('unread');
+    }
+    const gone = `the bridge has no entertainment area ${config.entertainmentId}; pick one again`;
+    if (grouping === null) { this.areaFailed(gone); return; }
+    let value: EntertainmentArea | undefined;
+    try {
+      value = (await listEntertainmentConfigs(config.host, config.username)).find((a) => a.id === config.entertainmentId);
+    } catch (err) {
+      if (current()) this.areaFailed(`could not read the entertainment area: ${messageOf(err)}`);
+      return;
+    }
+    if (!current()) return;
+    if (!value) { this.areaFailed(gone); return; }
+    this.area = { grouping: groupingKey(value.channels.map((ch) => ({ id: ch.id, members: ch.members || [] }))), value };
+    this.handOn();
+  }
+
+  private handOn(): void {
+    this.fresh = true;
+    this.areaError = null;
+    this.areaRetryAt = 0;
+    this.areaDelay = RETRY_BASE_MS;
+    if (this.area) this.handArea(this.area.value);
+  }
+
+  private areaFailed(message: string): void {
+    if (this.fresh || !this.armed) return;
+    if (this.areaError !== message) console.warn(`[hue] ${this.name}: ${message}`);
+    this.areaError = message;
+    this.areaRetryAt = Date.now() + this.areaDelay;
+    this.areaDelay = Math.min(RETRY_MAX_MS, this.areaDelay * 2);
   }
 
   private handArea(area: HueAreaReport['area']): void {
@@ -539,27 +560,36 @@ class HueSession {
     catch (err) { console.warn(`[hue] ${this.name}: ${messageOf(err)}`); }
   }
 
-  /** Nothing of this bridge's area is known until it is read again, which starts now. */
-  private reread(): void {
+  /** The lamps wait until the area is read again, which starts now. */
+  private unread(): void {
     this.areaEpoch++;
-    this.grouping = null;
+    this.fresh = false;
     this.areaError = null;
+    this.areaRetryAt = 0;
+    this.areaDelay = RETRY_BASE_MS;
     this.handArea('unread');
     if (this.areaSink()) void this.checkArea(true);
   }
 
   /** Arming opens a session: its lamps stream only once the area was read since. */
   noteArmed(armed: boolean): void {
-    const rising = armed && !this.armed;
+    if (armed === this.armed) return;
     this.armed = armed;
-    if (!armed) this.areaError = null;
-    if (rising) this.reread();
+    if (armed) this.unread();
+    else this.areaError = null;
+  }
+
+  /** Armed with the area not handed on yet: read it, backing off from 2 s to 60 s while that fails. */
+  awaitArea(): void {
+    if (!this.armed || this.fresh || this.watching || Date.now() < this.areaRetryAt || !this.areaSink()) return;
+    void this.checkArea(true);
   }
 
   /** The bridge left the settings: its area is unknown from now. */
   forgetArea(): void {
     this.areaEpoch++;
-    this.grouping = null;
+    this.area = null;
+    this.fresh = false;
     this.handArea('forgotten');
   }
 
@@ -580,7 +610,10 @@ class HueSession {
       this.watchFailures = 0;
       this.watchNextAt = 0;
     }
-    if (moved || previous.enabled !== this.config.enabled) this.reread();
+    if (moved || previous.enabled !== this.config.enabled) {
+      this.area = null;
+      this.unread();
+    }
     return { ...this.config };
   }
 
@@ -646,6 +679,9 @@ function setApplicationIdSink(fn: ApplicationIdSink | null): void { onApplicatio
 let onArea: AreaSink | null = null;
 function setAreaSink(fn: AreaSink | null): void { onArea = fn; }
 
+// Every arm passes each bridge's area through a fresh read before its lamps stream.
+onArmedChange(() => { for (const session of sessions.values()) session.noteArmed(isArmed()); });
+
 function configureBridges(list: readonly HueBridgeConfig[]): void {
   const keep = new Set(list.map((b) => b.id));
   for (const [id, session] of sessions) {
@@ -656,7 +692,11 @@ function configureBridges(list: readonly HueBridgeConfig[]): void {
   for (const bridge of list) {
     const session = sessions.get(bridge.id);
     if (session) session.configure(bridge);
-    else sessions.set(bridge.id, new HueSession(bridge, () => onApplicationId, () => onArea));
+    else {
+      const created = new HueSession(bridge, () => onApplicationId, () => onArea);
+      sessions.set(bridge.id, created);
+      created.noteArmed(isArmed());
+    }
   }
 }
 
@@ -675,12 +715,12 @@ function liveStatusAll(): HueLiveStatus[] {
 /**
  * The bridges a sender may stream to. With `resolve` (armed), an enabled, set-up bridge whose application id is
  * not known yet is looked up, with backoff, and joins once it is; disarmed, a failed lookup is forgotten.
- * On arming, each bridge's area is read again before its lamps stream.
+ * Armed, a bridge whose area was not read since the arm is read, with backoff as well.
  */
 function streamConfigs({ resolve = false }: { resolve?: boolean } = {}): HueBridgeConfig[] {
   const out: HueBridgeConfig[] = [];
   for (const session of sessions.values()) {
-    session.noteArmed(resolve);
+    if (resolve) session.awaitArea();
     const config = session.streamConfig();
     if (config) out.push(config);
     else if (resolve) void session.resolveIdentity();
