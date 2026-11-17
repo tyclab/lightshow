@@ -116,6 +116,10 @@ test('the units of a fixture share its stated lumen, and markers along surveyed 
   assert.equal(drawn.length, 3, 'one cell an edge');
   assert.ok(Math.abs(sum(drawn) - 1000) < 1e-9, `all of it, once: ${sum(drawn)}`);
   assert.ok(Math.abs(drawn[0].lumen - 250) < 1e-9 && Math.abs(drawn[1].lumen - 500) < 1e-9 && Math.abs(drawn[2].lumen - 250) < 1e-9, drawn.map((cell) => cell.lumen).join(' '));
+  // A run of a unit the fixture does not have is not drawn, and takes no share.
+  const gone = { id: 'gone', fixtureId: 1, unit: 3, position: { x: -2, y: 1, z: 1 }, path: [{ x: -2, y: 1, z: 1 }, { x: 2, y: 1, z: 1 }] };
+  const kept = draw(strip, unnamed, [...runs, gone]).cells;
+  assert.ok(kept.length === 3 && Math.abs(sum(kept) - 1000) < 1e-9, `${kept.length} cells, ${sum(kept)} lm`);
   // Unstated, the same runs take a strip's 484 lm a metre; a Hue strip its product's.
   assert.ok(Math.abs(sum(draw(plain(), unnamed, runs).cells) - 4 * 0.6 * BULB_LUMEN) < 1e-9);
   const hue = lamp([light('hue_lightstrip', 'Hue lightstrip plus')]);
