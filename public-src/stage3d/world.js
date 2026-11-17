@@ -1,7 +1,8 @@
 import { emissionOf, hueEmission, hueLumen, beamDirection, BULB_LUMEN, STRIP_LUMEN_PER_METRE, PIXEL_LUMEN } from '../../src/shared/emission.ts';
 import { isPlaced, stagePositions } from '../../src/shared/stage.ts';
 import { lineOf } from '../../src/shared/rig.ts';
-import { bindingSources, pathPoints, plotPosition, resolveBindings } from '../../src/shared/space.ts';
+import { bindingSources, pathPoints, plotPosition, resolveBindings, runLength } from '../../src/shared/space.ts';
+import { lampLumen } from '../../src/shared/emission.ts';
 
 
 export const STAGE_W = 12;
@@ -27,7 +28,7 @@ const ROOF = TRUSS_H + 2.5;
 const POOL_LIFT = 0.006;
 // The cone's footprint stretches by 1/cos of the angle it strikes at; this cos caps a grazing hit.
 const GRAZE = 0.35;
-// Lumen per square metre at which a pool is drawn at full strength: a 350 lm, 36° spot on the floor 2.45 m below it.
+// Lumen per square metre at which a pool is drawn at full strength: what 350 lm spreads over the softened foot of a 36° cone 2.45 m long.
 export const POOL_FULL = 97;
 // The pitch of a 60-per-metre strip: a panel's pixels closer than this are smaller LEDs, giving less by the area each has.
 const PIXEL_PITCH = 1 / 60;
@@ -368,13 +369,19 @@ export function roomRig(fixtures, rig, model, profiles = {}) {
   const room = { bounds: model.bounds, blockers: blockersOf(model.objects), rooms: model.rooms || [] };
   const { resolved, mapped, outputs } = resolveBindings(fixtures, rig, model.bindings);
   let estimated = 0;
+  // The metres of surveyed run each fixture's markers lie along: what a lumen its light shape states spreads over.
+  const runs = new Map();
+  for (const { binding, sources, missingSources } of resolved) if (binding.path && missingSources < sources.length) {
+    const id = binding.fixtureId ?? binding.sources?.[0]?.fixtureId;
+    runs.set(id, (runs.get(id) ?? 0) + runLength(binding.path));
+  }
   for (const { binding, sources, missingSources } of resolved) {
     if (missingSources === sources.length) { unresolved.push(binding); continue; }
     if (missingSources) incomplete.push({ binding, missingSources });
     if (binding.confidence !== 'measured') estimated++;
     const index = indices.get(binding.fixtureId ?? binding.sources?.[0]?.fixtureId), fixture = fixtures[index];
-    // A Hue lamp's lumen: the whole lamp's for one marker over all its units, else this unit's share.
-    const flux = fixture ? hueLumen(profiles[fixture.profileId]) : null;
+    // A lamp's lumen is what its light shape states, else its Hue product's: the whole lamp's for one marker over all its units, else this unit's share.
+    const flux = fixture ? lampLumen(fixture, hueLumen(profiles[fixture.profileId]), runs.get(fixture.id)) : null;
     const light = { unit: sources[0].unit, fixture: binding.fixtureId, position: binding.position,
       ...(binding.sources ? { sources } : {}), ...(flux ? { lumen: flux.lumen / (binding.sources ? 1 : rig.ranges[index].count) } : {}) };
     // A room draws unshaped lamps as bulbs, except a Hue fitting its bridge names (emission.ts).
@@ -422,7 +429,7 @@ export function roomRig(fixtures, rig, model, profiles = {}) {
     plotted.push(fixture);
     const { start, count } = rig.ranges[index];
     const emission = emissionOf(fixture, profiles[fixture.profileId], !!rig.cellMaps[index]);
-    const flux = hueLumen(profiles[fixture.profileId]);
+    const flux = lampLumen(fixture, hueLumen(profiles[fixture.profileId]));
     for (let unit = start; unit < start + count; unit++) {
       const light = { unit, fixture: fixture.id, position: plotPosition(rig, unit, model.bounds), plot: true, ...(flux ? { lumen: flux.lumen / count } : {}) };
       if (rig.cellMaps[index] || emission.kind === 'strip') cells.push({ ...light, size: POINT_CELL });

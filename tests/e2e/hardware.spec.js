@@ -67,11 +67,19 @@ test('physical light shape, beam aim and strip length survive show export and re
     await panel.getByLabel('Beam spread', { exact: true }).fill('38');
     await panel.getByLabel('Beam spread', { exact: true }).press('Enter');
     await until(request, (s) => s.fixtures.find((f) => f.id === fixture.id)?.emission?.beamAngle === 38);
+    await panel.getByLabel('Lumen', { exact: true }).fill('350');
+    await panel.getByLabel('Lumen', { exact: true }).press('Enter');
+    await until(request, (s) => s.fixtures.find((f) => f.id === fixture.id)?.emission?.lumen === 350);
     const show = await (await request.get('/api/show')).json();
-    expect(show.fixtures.find((f) => f.id === fixture.id).emission).toEqual({ kind: 'beam', pan: 75, tilt: -25, beamAngle: 38 });
+    expect(show.fixtures.find((f) => f.id === fixture.id).emission).toEqual({ kind: 'beam', pan: 75, tilt: -25, beamAngle: 38, lumen: 350 });
     await page.reload();
     await selectFixture();
     await expect(panel.getByLabel('Beam pan', { exact: true })).toHaveValue('75');
+    await expect(panel.getByLabel('Lumen', { exact: true })).toHaveValue('350');
+    // Emptied, the lamp states none again and keeps the rest of its shape.
+    await panel.getByLabel('Lumen', { exact: true }).fill('');
+    await panel.getByLabel('Lumen', { exact: true }).press('Enter');
+    await until(request, (s) => { const e = s.fixtures.find((f) => f.id === fixture.id)?.emission; return e?.beamAngle === 38 && e.lumen === undefined; });
     await panel.getByLabel('Light shape', { exact: true }).selectOption('strip');
     await panel.getByLabel('Length', { exact: true }).fill('35');
     await panel.getByLabel('Length', { exact: true }).press('Enter');

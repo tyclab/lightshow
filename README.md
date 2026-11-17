@@ -866,14 +866,17 @@ Single-zone strips use the same output colour along their length; segmented
 strips keep their individual cells. Stage and imported room bindings use the
 selected shape and aim. Existing shows keep their default appearance until a
 shape is chosen, except that a Hue lamp whose bridge names a spot, pendant,
-ceiling or wall fitting defaults to a beam: spots 36° straight down (55° for
-spots combined on one channel), pendants and ceiling fittings 120° down, wall
-lanterns and washers 90° level. A beam's pool lies on the first surface it
+ceiling or wall fitting defaults to a beam: spots 43° straight down (the beam
+angle of Hue's GU10 lamp; 55° for spots combined on one channel), pendants,
+ceiling fittings and a Centris ceiling panel 120° down, wall lanterns and
+washers 90° level. **Lumen** states what the whole fixture gives at full white;
+the Stage room draws its light by it, and a Hue lamp without one takes its
+product's figure (`docs/stage-room.md`). A beam's pool lies on the first surface it
 meets within 14 m (the floor, and in an imported room its ceiling, a wall of its
 bounds or a box wall), stretched along the angle the beam strikes at; the
 generic venue draws no ceiling, so a beam stops at its roof without one. Show
 export/import and fixture undo preserve `emission` (`kind`, optional `pan`,
-`tilt`, `beamAngle`) separately from cell geometry.
+`tilt`, `beamAngle`, `lumen`) separately from cell geometry.
 
 **Maximum brightness** is a fixture trim, 0–255, applied after looks and
 masters; it is not a temporary override. A fixture override can set colour,
