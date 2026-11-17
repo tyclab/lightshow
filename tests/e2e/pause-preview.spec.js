@@ -3,7 +3,7 @@
 // page lets its own feeds go as the idle pause does, until Resume preview or Arm. Nothing reaches the server.
 
 import { test, expect } from '@playwright/test';
-import { control, open, reset, set } from './helpers.js';
+import { control, open, playButton, reset, set } from './helpers.js';
 import { stageImage, stageMotion } from './stage-image.js';
 import { watchControlWrites } from './audition-isolation.js';
 
@@ -81,6 +81,47 @@ async function stillAndDark(page, format) {
     expect(new Set(frames).size, '2D: still').toBe(1);
     expect(frames[0].split(' ').every((light) => light === '#000'), `2D: drawn off, got ${frames[0]}`).toBe(true);
   }
+}
+
+/** Whether the stage in `format` has come to rest. */
+async function rests(page, format) {
+  if (format === '3D') {
+    await stageImage(page, { remember: 'rest' });
+    return (await stageMotion(page, 'rest', { timeout: 1500 })) < 50;
+  }
+  return new Set(await lampFrames(page, 1500)).size === 1;
+}
+
+// The operator, 2026-11-17, asked "should the header's Stop also halt the preview animation?": "1".
+for (const format of FORMATS) {
+  test(`${format}: Stop on this page halts its preview until another effect is chosen or Play; a reload is not held`, async ({ page, request }) => {
+    const stopped = page.getByRole('status').filter({ hasText: /^Stopped: the stage shows the show as it stands\./ });
+    await open(page, 'show');
+    await useFormat(page, format);
+    await expect(tag(page)).toHaveText(FEED);
+    await expect(stopped).toHaveCount(0);
+
+    await playButton(page, 'Stop').click();
+    await expect.poll(async () => (await controlOf(request)).playing).toBe(false);
+    await expect(stopped).toBeVisible();
+    await expect(tag(page), 'the feed, not the demo beat').toHaveText(FEED);
+    await expect.poll(() => rests(page, format), { message: 'the stage comes to rest', timeout: 15_000 }).toBe(true);
+    await expect(pauseButton(page), 'Pause preview stays').toBeVisible();
+
+    await page.locator('.contained-effects [data-effect="ping-pong"]').first().click();
+    await expect(tag(page), 'another effect is previewed').toHaveText(DEMO);
+    await expect(stopped).toHaveCount(0);
+    expect(await moves(page, format, 'chosen'), 'the demo beat moves').toBe(true);
+
+    await playButton(page, 'Play').click();
+    await expect(tag(page)).toHaveText(FEED);
+    await playButton(page, 'Stop').click();
+    await expect(stopped).toBeVisible();
+    await page.reload();
+    await useFormat(page, format);
+    await expect(tag(page), 'a fresh page previews as ever').toHaveText(DEMO);
+    await expect(stopped).toHaveCount(0);
+  });
 }
 
 for (const format of FORMATS) {

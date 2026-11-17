@@ -1,7 +1,7 @@
 import { performanceReport } from '../performance.js';
 import { useEffect, useLayoutEffect, useRef, useState } from 'preact/hooks';
 import { effect } from '@preact/signals';
-import { pick, connectedSig, dmxSig, dmxReceivedAt, field, idlePause, pictureImageSig, wantPicture } from '../state.js';
+import { pick, connectedSig, dmxSig, dmxReceivedAt, field, idlePause, pictureImageSig, previewHalted, wantPicture } from '../state.js';
 import { rigLights, stageMode } from '../utils.js';
 import { pictureUnmetSig } from '../picture-source.js';
 import { useDmxFeed } from '../use-dmx.js';
@@ -52,7 +52,7 @@ export function StageView({ compact = false, draft = null } = {}) {
   const paused = pause !== null;
   const frozen = !!s.control?.frozen;
   const mode = stageMode({ connected, armed: s.armed, blackout: s.masterBlackout, paused: pause,
-    playing: !!s.control?.playing, layers: !!s.control?.layers, frozen, unmet: pictureUnmetSig.value });
+    playing: !!s.control?.playing, layers: !!s.control?.layers, frozen, halted: previewHalted(), unmet: pictureUnmetSig.value });
   const drafting = !!draft && connected && !paused && !s.masterBlackout && !s.armed;
   const demo = drafting || (mode.demo && !auditioning);
   const dark = auditioning || drafting ? null : mode.note;
