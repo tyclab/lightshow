@@ -63,6 +63,16 @@ test('the beam shader tests a wall with the pool shader\'s own code, and loops a
   assert.equal(loopBodies(beam).length, 3);
 });
 
+test('what is the same over a whole beam reaches its fragments flat: only a fragment\'s own place is interpolated for the clip', () => {
+  const [vertex, fragment] = ['BEAM_VERTEX', 'BEAM_FRAGMENT'].map((name) => shaders.find((s) => s.name === name).glsl);
+  // Every varying of a shader, with whether it is flat.
+  const varyings = (glsl) => Object.fromEntries([...glsl.matchAll(/^\s*(flat )?varying \w+ (\w+);/gm)].map(([, flat, name]) => [name, !!flat]));
+  assert.deepEqual(varyings(vertex), varyings(fragment), 'both stages declare the same');
+  const flat = Object.entries(varyings(fragment)).filter(([, isFlat]) => isFlat).map(([name]) => name).sort();
+  assert.deepEqual(flat, ['vApex', 'vLeast', 'vMost', 'vWhere'], 'the lamp\'s place and the beam\'s clip');
+  assert.equal(varyings(fragment).vWorld, false, 'the fragment\'s place in the room is its own');
+});
+
 test('no loop of a stage shader is left early', () => {
   for (const { name, glsl } of shaders) {
     for (const body of loopBodies(glsl)) {
