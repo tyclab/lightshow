@@ -354,6 +354,7 @@ export function roomRig(fixtures, rig, model, profiles = {}) {
   const unresolved = [];
   const incomplete = [];
   const objectLights = [];
+  const drawnPixels = [];
   const lightObjects = new Map();
   for (const object of model.objects || []) {
     if (!object.lightBindingId) continue;
@@ -384,6 +385,8 @@ export function roomRig(fixtures, rig, model, profiles = {}) {
     const pixel = emission?.kind === 'strip' || !emission && !binding.sources && !!rig.cellMaps[index];
     if (lightObjects.has(binding.id)) {
       for (const object of lightObjects.get(binding.id)) objectLights.push({ objectId: object.id, sources });
+      // A pixel that room objects draw still counts for its fixture's pitch.
+      if (pixel && !binding.path) drawnPixels.push(light);
       if (aim) lamps.push(directed({ ...light, position: origin }, 0));
       continue;
     }
@@ -418,7 +421,7 @@ export function roomRig(fixtures, rig, model, profiles = {}) {
       else lamps.push({ ...light, kind: 'bulb', aim: null, length: 0, body: ROOM_BULB });
     }
   });
-  const pitch = pitches(cells);
+  const pitch = pitches([...cells, ...drawnPixels]);
   for (const cell of cells) if (!cell.length && pitch.has(cell.fixture)) cell.size = pixelSize(pitch.get(cell.fixture));
   const bodies = plotted.filter((fixture) => fixture.geometry?.points?.length > 1).map((fixture) => bodyOf(fixture.id, cells));
   const missing = fixtures.filter((fixture) => !mapped.has(fixture.id));
