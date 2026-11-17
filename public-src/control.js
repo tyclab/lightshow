@@ -1,5 +1,5 @@
 import { signal } from '@preact/signals';
-import { api, connectedSig, field, store, toast } from './state.js';
+import { api, connectedSig, field, previewHaltedSig, store, toast } from './state.js';
 
 export const controlPending = signal(0);
 
@@ -57,6 +57,8 @@ export async function takeControl(action, programme) {
       if (current?.session === reply.control.session && current.revision <= reply.control.revision) {
         store.merge({ control: reply.control });
       }
+      if (action === 'stop') previewHaltedSig.value = String(field('pattern').peek() ?? '');
+      else if (action === 'start') previewHaltedSig.value = null;
     } else {
       const fresh = await refreshControl();
       const now = fresh.ok ? fresh.control : control;

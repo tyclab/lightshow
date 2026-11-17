@@ -136,6 +136,12 @@ socket.on('picture-image', (message) => {
   if (performanceReport) performanceReport.count('picture.received');
 });
 
+// Stop pressed on this page halts its demo preview too (the operator, 2026-11-17): the effect that was selected then,
+// or null. Choosing another effect, or Play, shows motion again; another page, or a reload, is not held.
+export const previewHaltedSig = signal(null);
+/** Whether this page's Stop still holds the demo preview: until the selected effect changes or Play. */
+export const previewHalted = () => previewHaltedSig.value !== null && previewHaltedSig.value === String(field('pattern').value ?? '');
+
 // After the idle-stop minutes without input while disarmed, the page lets its feeds go until Resume preview (idle-pause.js).
 export const idlePause = createIdlePause({
   now: () => Date.now(),
