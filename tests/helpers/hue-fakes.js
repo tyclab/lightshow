@@ -10,10 +10,9 @@ export const PAIRED = {
   clientKey: 'aabb', applicationId: 'app-id', entertainmentId: AREA,
 };
 export const RED = [{ id: 0, r: 255, g: 0, b: 0 }];
-/** The service of the one lamp in the area: channel 0 lights it. */
-export const LAMP_SERVICE = 'lamp-service';
+/** Our area, active: channels 0–9, each lighting a lamp of its own. */
 export const OURS = { data: [{ id: AREA, status: 'active', active_streamer: { rid: 'app-id', rtype: 'auth_v1' },
-  channels: [{ channel_id: 0, members: [{ service: { rid: LAMP_SERVICE, rtype: 'entertainment' }, index: 0 }] }] }] };
+  channels: Array.from({ length: 10 }, (_, id) => ({ channel_id: id, members: [{ service: { rid: `lamp-${id}`, rtype: 'entertainment' }, index: 0 }] })) }] };
 
 export function fakeBridge(t, { put = () => ({ status: 200, body: { data: [{ rid: AREA }], errors: [] } }), area = () => ({ status: 200, body: OURS }) } = {}) {
   const calls = [];
