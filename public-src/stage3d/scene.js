@@ -35,11 +35,21 @@ const DAMPING = 0.08;
 const GLOW = { lamp: 1.1, cell: 0.5 };
 const ROOM_GLOW = { lamp: 0.45, cell: 0.09 };
 
+// A beam's clip rides with its place and colour (aLeast, aMost, aWhere: see BEAM_FRAGMENT), so haze that no room
+// edge and no wall can cut reads no texel.
 const BEAM_VERTEX = /* glsl */`
+  attribute vec3 aLeast;
+  attribute vec3 aMost;
+  attribute vec4 aWhere;
   varying vec3 vColor;
   varying float vT;
   varying vec3 vNormal;
   varying vec3 vView;
+  varying vec3 vWorld;
+  varying vec3 vApex;
+  flat varying vec3 vLeast;
+  flat varying vec3 vMost;
+  flat varying vec4 vWhere;
   void main() {
     vec4 world = instanceMatrix * vec4(position, 1.0);
     vec4 view = modelViewMatrix * world;
@@ -47,17 +57,63 @@ const BEAM_VERTEX = /* glsl */`
     vNormal = normalize(normalMatrix * mat3(instanceMatrix) * normal);
     vColor = instanceColor;
     vT = -position.y;
+    vWorld = (modelMatrix * world).xyz;
+    vApex = (modelMatrix * instanceMatrix * vec4(0.0, 0.0, 0.0, 1.0)).xyz;
+    vLeast = aLeast;
+    vMost = aMost;
+    vWhere = aWhere;
     gl_Position = projectionMatrix * view;
   }
 `;
 
+// Each beam's clip (world.js coneClip): the least and the greatest corner of the box its haze stays in, and where
+// in uClip's texels its rooms' edges and its walls' boxes are (first edge, edges, first wall, walls). clipAt and
+// crosses are POOL_FRAGMENT's, word for word, and the loops are built as its loops are: none leaves early (see there).
 const BEAM_FRAGMENT = /* glsl */`
   uniform float uHaze;
+  uniform sampler2D uClip;
+  uniform int uClipWidth;
   varying vec3 vColor;
   varying float vT;
   varying vec3 vNormal;
   varying vec3 vView;
+  varying vec3 vWorld;
+  varying vec3 vApex;
+  flat varying vec3 vLeast;
+  flat varying vec3 vMost;
+  flat varying vec4 vWhere;
+  vec4 clipAt(int i) { return texelFetch(uClip, ivec2(i % uClipWidth, i / uClipWidth), 0); }
+  bool crosses(vec3 from, vec3 to, int at) {
+    vec3 o = from - clipAt(at).xyz, d = to - from;
+    float enter = 0.0, leave = 1.0;
+    bool reaches = true;
+    for (int i = 1; i <= 3; i++) {
+      vec4 axis = clipAt(at + i);
+      float p = dot(o, axis.xyz), along = dot(d, axis.xyz);
+      if (abs(along) < 1e-9) reaches = reaches && abs(p) <= axis.w;
+      else {
+        float a = (-axis.w - p) / along, b = (axis.w - p) / along;
+        enter = max(enter, min(a, b)); leave = min(leave, max(a, b));
+      }
+    }
+    return reaches && enter <= leave;
+  }
   void main() {
+    // Haze shows where its lamp's light is: in the room box, in the lamp's rooms, and not past a wall from the lamp.
+    // What the box cuts reads no edge, and what a room's edge cuts reads no wall: the counts drop to nought.
+    bool lit = vWorld.x >= vLeast.x && vWorld.y >= vLeast.y && vWorld.z >= vLeast.z && vWorld.x <= vMost.x && vWorld.y <= vMost.y && vWorld.z <= vMost.z;
+    int edges = lit ? int(vWhere.y + 0.5) : 0;
+    if (edges > 0) {
+      bool inside = false;
+      for (int i = 0; i < edges; i++) {
+        vec4 e = clipAt(int(vWhere.x + 0.5) + i);
+        if ((e.y > vWorld.z) != (e.w > vWorld.z) && vWorld.x < (e.z - e.x) * (vWorld.z - e.y) / (e.w - e.y) + e.x) inside = !inside;
+      }
+      lit = inside;
+    }
+    int walls = lit ? int(vWhere.w + 0.5) : 0;
+    for (int i = 0; i < walls; i++) lit = lit && !crosses(vApex, vWorld, int(vWhere.z + 0.5) + i * 4);
+    if (!lit) discard;
     // Brightest through the middle of the cone, where the eye looks through
     // the most haze, and fading from the lens to where it lands.
     float facing = pow(abs(dot(normalize(vNormal), normalize(-vView))), 1.6);
@@ -168,6 +224,37 @@ function poolClipTexture(lights) {
   const texture = new THREE.DataTexture(data, CLIP_WIDTH, height, THREE.RGBAFormat, THREE.FloatType);
   texture.needsUpdate = true;
   return texture;
+}
+
+// Past any room, as world.js writes it: a beam with no clip of its own (the generic venue) shows everywhere.
+const OUT = 1e6;
+/**
+ * These beams' clips for the beam shader: each beam's box and where its edges and walls are, to ride with the beam
+ * (aLeast, aMost, aWhere), and uClip's texels they point to: its rooms' edges, then its walls' boxes.
+ */
+function beamClips(pars) {
+  const beams = Math.max(1, pars.length), least = new Float32Array(beams * 3), most = new Float32Array(beams * 3), where = new Float32Array(beams * 4);
+  const texels = [];
+  pars.forEach(({ clip }, k) => {
+    const lo = clip?.lo ?? { x: -OUT, y: -OUT, z: -OUT }, hi = clip?.hi ?? { x: OUT, y: OUT, z: OUT };
+    least.set([lo.x, lo.y, lo.z], k * 3);
+    most.set([hi.x, hi.y, hi.z], k * 3);
+    const edges = texels.length;
+    // Rooms do not overlap, so a point is in one of them where it is inside an odd number of all their edges.
+    for (const polygon of clip?.rooms || []) for (const [i, [x, z]] of polygon.entries()) { const [x1, z1] = polygon[(i + 1) % polygon.length]; texels.push([x, z, x1, z1]); }
+    const walls = texels.length;
+    for (const { centre, axes, half } of clip?.walls || []) {
+      texels.push([centre.x, centre.y, centre.z, 0]);
+      axes.forEach((axis, i) => texels.push([axis.x, axis.y, axis.z, half[i]]));
+    }
+    where.set([edges, walls - edges, walls, clip?.walls?.length || 0], k * 4);
+  });
+  const height = Math.max(1, Math.ceil(texels.length / CLIP_WIDTH));
+  const data = new Float32Array(CLIP_WIDTH * height * 4);
+  texels.forEach((texel, i) => data.set(texel, i * 4));
+  const texture = new THREE.DataTexture(data, CLIP_WIDTH, height, THREE.RGBAFormat, THREE.FloatType);
+  texture.needsUpdate = true;
+  return { texture, least, most, where };
 }
 
 /** A soft round dot, for the glow around lenses, bulbs and cells. */
@@ -359,8 +446,9 @@ export function createStageScene(canvas, { haze = 0.6, room, lightRGB }) {
   const bodyMaterial = keep(new THREE.MeshBasicMaterial({ color: 0x1c1c21 }));
   const lensMaterial = keep(new THREE.MeshBasicMaterial({ color: 0xffffff }));
   const cellMaterial = keep(new THREE.MeshBasicMaterial({ color: 0xffffff }));
+  let beamClip = beamClips([]).texture;
   const beamMaterial = keep(new THREE.ShaderMaterial({
-    uniforms: { uHaze: { value: haze } },
+    uniforms: { uHaze: { value: haze }, uClip: { value: beamClip }, uClipWidth: { value: CLIP_WIDTH } },
     vertexShader: BEAM_VERTEX,
     fragmentShader: BEAM_FRAGMENT,
     transparent: true,
@@ -460,7 +548,13 @@ export function createStageScene(canvas, { haze = 0.6, room, lightRGB }) {
 
     const bodies = instanced(bodyGeometry, bodyMaterial, pars.length);
     const lenses = instanced(lensGeometry, lensMaterial, pars.length);
-    const beams = instanced(beamGeometry, beamMaterial, pars.length);
+    // The cone, with each beam's clip beside its place and colour.
+    const clips = beamClips(pars), cones = beamGeometry.clone();
+    rigDisposables.push(cones);
+    for (const [name, values, size] of [['aLeast', clips.least, 3], ['aMost', clips.most, 3], ['aWhere', clips.where, 4]]) {
+      cones.setAttribute(name, new THREE.InstancedBufferAttribute(values, size));
+    }
+    const beams = instanced(cones, beamMaterial, pars.length);
     const pools = instanced(poolGeometry, poolMaterial, pooled.length);
     const bulbMesh = instanced(bulbGeometry, lensMaterial, bulbs.length);
     const cellMesh = instanced(cellGeometry, cellMaterial, placed.cells.length);
@@ -518,6 +612,8 @@ export function createStageScene(canvas, { haze = 0.6, room, lightRGB }) {
     }
     poolClip.dispose();
     poolClip = poolMaterial.uniforms.uClip.value = poolClipTexture(pooled);
+    beamClip.dispose();
+    beamClip = beamMaterial.uniforms.uClip.value = clips.texture;
     for (const mesh of [bodies, lenses, beams, pools, bulbMesh, cellMesh]) mesh.instanceMatrix.needsUpdate = true;
     lampGlow.geometry.attributes.position.needsUpdate = true;
     cellGlow.geometry.attributes.position.needsUpdate = true;
@@ -718,6 +814,7 @@ export function createStageScene(canvas, { haze = 0.6, room, lightRGB }) {
     for (const thing of [...roomDisposables, ...retired]) thing.dispose();
     if (screenTexture) screenTexture.dispose();
     poolClip.dispose();
+    beamClip.dispose();
     for (const thing of disposables) if (thing && thing.dispose) thing.dispose();
     renderer.dispose();
     // dispose() frees what the renderer allocated but not the context, which the

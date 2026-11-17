@@ -167,3 +167,49 @@ test('a pool on a wall or on the floor is drawn on the side its light comes from
     assert.ok(quad.front.dot(towardLight) > 0, `${name}: that is the side its light comes from`);
   }
 });
+
+test('each beam hands the beam shader its clip: the box its haze stays in, its rooms\' edges and its walls; a beam of the generic venue none', () => {
+  const stage = scene();
+  const LAMP = { id: 'scene-lamp', name: 'Lamp', channelMap: { red: 0, green: 1, blue: 2 } };
+  const lamps = [1, 2].map((id) => ({ id, label: `Lamp ${id}`, universe: 1, address: id * 3, profileId: LAMP.id }));
+  // One lamp 8 cm from the wall's face and aimed at the floor, its cone through the wall and inside the room's
+  // outline; one across the room, whose wide cone passes the outline and reaches the wall too.
+  const model = { ...room('Haze'), rooms: [{ id: 'all', label: 'All', polygon: [[-1.9, -1.9], [1.9, -1.9], [1.9, 1.9], [-1.9, 1.9]] }], bindings: [
+    { id: 'near', fixtureId: 1, position: { x: 0.3, y: 0.7, z: 0.13 }, lightTarget: { x: 0.3, y: 0, z: 0.13 } },
+    { id: 'far', fixtureId: 2, position: { x: -1.5, y: 2, z: -1.5 }, lightTarget: { x: -1.5, y: 0, z: -1.4 } }] };
+  const shown = ui.keptRig(lamps, { [LAMP.id]: LAMP }, model);
+  let from = ui.built.meshes.length;
+  stage.setRoom(model);
+  stage.setRig(shown.placed, shown.rig.units.length);
+  // The clips of the rig's beams: per beam its box and its places in the texels, and the texels.
+  const clipsOf = () => {
+    const { geometry, material: { uniforms } } = ui.built.meshes.slice(from).find((mesh) => mesh.material.uniforms?.uHaze);
+    const { data, width } = uniforms.uClip.value.image;
+    assert.equal(uniforms.uClipWidth.value, width);
+    const of = (name, k) => { const { array, itemSize } = geometry.attributes[name]; return [...array.slice(k * itemSize, (k + 1) * itemSize)]; };
+    return { least: (k) => of('aLeast', k), most: (k) => of('aMost', k), where: (k) => of('aWhere', k), texel: (i) => [...data.slice(i * 4, i * 4 + 4)] };
+  };
+  const single = (values) => values.map(Math.fround);
+  const clips = clipsOf(), beams = shown.placed.lamps;
+  assert.deepEqual(beams.map((beam) => [beam.clip.rooms.length, beam.clip.walls.length]), [[0, 1], [1, 1]]);
+  beams.forEach(({ clip }, k) => {
+    assert.deepEqual([clips.least(k), clips.most(k)], [single([clip.lo.x, clip.lo.y, clip.lo.z]), single([clip.hi.x, clip.hi.y, clip.hi.z])], `beam ${k}: its box`);
+    const [edges, count, walls, wallCount] = clips.where(k);
+    assert.deepEqual([count, wallCount], [k ? 4 : 0, 1], `beam ${k}: the edges of the room that cuts it, one wall`);
+    const [polygon = []] = clip.rooms;
+    polygon.forEach(([x, z], i) => assert.deepEqual(clips.texel(edges + i), single([x, z, ...polygon[(i + 1) % polygon.length]]), `beam ${k}: edge ${i}`));
+    const [{ centre, axes, half }] = clip.walls;
+    assert.deepEqual(clips.texel(walls), single([centre.x, centre.y, centre.z, 0]), `beam ${k}: its wall's centre`);
+    axes.forEach((axis, i) => assert.deepEqual(clips.texel(walls + 1 + i), single([axis.x, axis.y, axis.z, half[i]]), `beam ${k}: its wall's axis ${i}`));
+  });
+  // The generic venue has no room to stop a beam: its haze shows wherever its cone is, and reads no texel.
+  from = ui.built.meshes.length;
+  stage.setRoom(null);
+  const venue = ui.keptRig(lamps, { [LAMP.id]: LAMP }, null);
+  stage.setRig(venue.placed, venue.rig.units.length);
+  const free = clipsOf();
+  venue.placed.lamps.forEach((beam, k) => {
+    assert.equal(beam.clip, undefined);
+    assert.deepEqual([free.least(k), free.most(k), free.where(k)], [[-1e6, -1e6, -1e6], [1e6, 1e6, 1e6], [0, 0, 0, 0]]);
+  });
+});

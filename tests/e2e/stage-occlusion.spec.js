@@ -1,6 +1,6 @@
-// A wall stops a pool in the 3D stage, drawn or hidden, an aimed lamp's and the one under a lamp without an aim,
-// and light on a wall's face shows from that face's side only: rendered by the stage's own scene
-// (public-src/stage3d/scene.js) on the two-room test room, read back by pixel.
+// A wall stops a pool in the 3D stage, drawn or hidden, an aimed lamp's and the one under a lamp without an aim;
+// light on a wall's face shows from that face's side only; and a lamp's haze stops at a wall: rendered by the
+// stage's own scene (public-src/stage3d/scene.js) on the two-room test room, read back by pixel.
 
 import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
@@ -146,7 +146,6 @@ test('light on a wall\'s face shows from the side its lamp is on and not from be
 });
 
 test('a lamp\'s haze stops at the wall beside it: none of it shows in the room behind, with the wall at full height, cut away or hidden', async ({ page }) => {
-  test.fail(true, 'A cone of haze is cut nowhere on this source: it stands through the wall. The change that cuts it lifts this mark.');
   // The lamp hangs 8 cm from the wall's near face, 0.7 m up, aimed at the floor under it: a cone 1.7 m wide there,
   // which reaches 0.65 m past the wall's far face. Read where that part would stand, in the far room and inside
   // the cone, from the camera on that side; and on the wall's near face, which the cone stands before, from the other.

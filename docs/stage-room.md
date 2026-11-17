@@ -68,6 +68,13 @@ cylinder by its outline, a mesh by its triangles, so a beam passes a mesh wall's
 openings. The bounds' floor, ceiling and walls stop the rest. A pool shows only on
 the surface it lands on, inside the room polygon that holds its centre, and not
 past a wall from its centre.
+A beam's haze, the cone drawn from its lamp to where it lands, shows only where the
+lamp's light is: inside the room's bounds, on the lamp's side of the floor and of the
+ceiling, in the room the lamp stands in and the one its pool lies in, and not past a
+wall from the lamp, hidden or not. A lamp outside every room polygon belongs to the
+room whose edge is nearest; a wall a lamp is set into stops neither its beam nor its
+haze. A wall stops haze and clips a pool by its box, whatever its shape: where a beam
+passes a mesh wall's opening, its haze ends at that wall. Furniture does not cut haze.
 Optional `rotation` contains `x`, `y`, `z` Euler angles in radians. A cylinder's
 local axis is Y; X/Z sizes are diameters. A prism also needs a local X/Z polygon
 within its width/depth. Room polygons use world X/Z coordinates. Colours are

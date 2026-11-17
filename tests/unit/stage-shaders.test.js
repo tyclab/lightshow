@@ -33,6 +33,21 @@ test('the reader finds the stage shaders and their loops', () => {
   assert.deepEqual(loopBodies('for (int i = 0; i < n; i++) if (hit(i)) discard;').map((body) => /\bdiscard\b/.test(body)), [true]);
 });
 
+test('the beam shader tests a wall with the pool shader\'s own code, and loops as it does', () => {
+  const [pool, beam] = ['POOL_FRAGMENT', 'BEAM_FRAGMENT'].map((name) => shaders.find((s) => s.name === name).glsl);
+  // A function of a shader, from its signature to the brace that closes it.
+  const functionOf = (glsl, signature) => {
+    const start = glsl.indexOf(signature);
+    assert.ok(start >= 0, signature);
+    let at = glsl.indexOf('{', start), depth = 0;
+    do { if (glsl[at] === '{') depth++; else if (glsl[at] === '}') depth--; at++; } while (depth > 0);
+    return glsl.slice(start, at);
+  };
+  for (const signature of ['vec4 clipAt(int i)', 'bool crosses(vec3 from, vec3 to, int at)']) assert.equal(functionOf(beam, signature), functionOf(pool, signature), signature);
+  // Its own three: the wall test's axes, its rooms' edges, its walls.
+  assert.equal(loopBodies(beam).length, 3);
+});
+
 test('no loop of a stage shader is left early', () => {
   for (const { name, glsl } of shaders) {
     for (const body of loopBodies(glsl)) {

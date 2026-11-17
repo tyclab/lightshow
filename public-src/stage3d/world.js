@@ -286,6 +286,58 @@ function poolUnder({ position, lumen }, room, run = null) {
   return pool;
 }
 
+// Past any room: how far a lamp hung above the ceiling or set under the floor is free to shine.
+const OUT = 1e6;
+
+/** Whether the level box x0..x1, z0..z1 lies in a polygon: its corners, a hair in from each, are inside, and no edge passes through it. */
+function holds(polygon, x0, x1, z0, z1) {
+  const [a, b, c, d] = [x0 + EPS, x1 - EPS, z0 + EPS, z1 - EPS];
+  if (a >= b || c >= d || ![[a, c], [b, c], [b, d], [a, d]].every(([x, z]) => insidePolygon(polygon, x, z))) return false;
+  return polygon.every(([x, z], i) => {
+    const [x1e, z1e] = polygon[(i + 1) % polygon.length];
+    let enter = 0, leave = 1;
+    for (const [at, along, least, most] of [[x, x1e - x, a, b], [z, z1e - z, c, d]]) {
+      if (Math.abs(along) < 1e-12) { if (at < least || at > most) return true; continue; }
+      const s = (least - at) / along, t = (most - at) / along;
+      enter = Math.max(enter, Math.min(s, t)); leave = Math.min(leave, Math.max(s, t));
+    }
+    return enter > leave;
+  });
+}
+
+/**
+ * Where a beam's haze may show (the beam shader clips to it): inside the room box, on its lamp's side of the floor
+ * and of the ceiling; in the room its lamp stands in or the one its pool lies in; and not past a wall from the
+ * lamp. A wall the lamp is set into does not stop its haze, as it does not stop its beam. Haze that shows lies in
+ * the cone and inside all of that, and so does the line from the lamp to it: of the walls, the clip carries only
+ * those that reach into the box around it, since no other can stand between. And it names no room when the cone,
+ * as far as the room box lets it reach, lies in one of them: that room's outline cuts nothing of it.
+ */
+function coneClip({ position: from, aim, length, radius, pool }, room) {
+  const { width, depth, height } = room.bounds;
+  const lo = { x: -width / 2, y: from.y > height ? height : from.y < 0 ? -OUT : 0, z: -depth / 2 };
+  const hi = { x: width / 2, y: from.y > height ? OUT : from.y < 0 ? 0 : height, z: depth / 2 };
+  const own = roomOf(room.rooms, from)?.polygon ?? null, landing = pool?.clip?.room ?? null;
+  const within = !own ? [] : landing && landing !== own ? [own, landing] : [own];
+  // The box around the cone, the room box and the rooms' outlines, each taken with the lamp.
+  const box = { lo: {}, hi: {} }, reach = { lo: {}, hi: {} }, corners = { x: within.flat().map(([x]) => x), z: within.flat().map(([, z]) => z) };
+  for (const axis of ['x', 'y', 'z']) {
+    const end = from[axis] + aim[axis] * length, spread = radius * Math.sqrt(Math.max(0, 1 - aim[axis] ** 2));
+    const outline = corners[axis]?.length ? corners[axis] : [-OUT, OUT];
+    // As far as the cone goes inside the room box.
+    reach.lo[axis] = Math.max(Math.min(from[axis], end - spread), lo[axis]);
+    reach.hi[axis] = Math.min(Math.max(from[axis], end + spread), hi[axis]);
+    box.lo[axis] = Math.max(Math.min(from[axis], end - spread), Math.min(from[axis], lo[axis]), Math.min(from[axis], ...outline));
+    box.hi[axis] = Math.min(Math.max(from[axis], end + spread), Math.max(from[axis], hi[axis]), Math.max(from[axis], ...outline));
+  }
+  const rooms = within.some((polygon) => holds(polygon, reach.lo.x, reach.hi.x, reach.lo.z, reach.hi.z)) ? [] : within;
+  const walls = room.blockers.filter((blocker) => blocker.wall && boxDistance(blocker, from) > 0 && ['x', 'y', 'z'].every((axis) => {
+    const reach = blocker.axes.reduce((sum, along, i) => sum + Math.abs(along[axis]) * blocker.half[i], 0);
+    return blocker.centre[axis] + reach >= box.lo[axis] && blocker.centre[axis] - reach <= box.hi[axis];
+  })).map(({ centre, axes, half }) => ({ centre, axes, half }));
+  return { lo, hi, rooms, walls };
+}
+
 /** `room`: { bounds, blockers, rooms } of an imported room, null in the generic venue. */
 function beamLight(light, emission, floor = false, room = null, direction = null) {
   const from = light.position, aim = direction ?? beamDirection(emission, floor);
@@ -297,7 +349,9 @@ function beamLight(light, emission, floor = false, room = null, direction = null
   // A lamp of known lumen lights its pool by the area it spreads over; a par of unknown lumen keeps full strength.
   if (pool && light.lumen) pool.level = Math.min(1, light.lumen / (Math.PI * pool.major * pool.minor) / POOL_FULL);
   if (pool && room) pool.clip = poolClip(pool, hit, room);
-  return { ...light, kind: 'par', aim, length, end, radius, pool };
+  const beam = { ...light, kind: 'par', aim, length, end, radius, pool };
+  // In a room the beam's haze stops where the room does; the generic venue has nothing to stop it.
+  return room ? { ...beam, clip: coneClip(beam, room) } : beam;
 }
 
 export function placeRig(fixtures, profiles, rig) {
