@@ -204,7 +204,7 @@ test('blackout, palettes and the master', async ({ page, request }) => {
   await until(request, (s) => s.masterBlackout === false);
 
   await page.locator('.palette-strip').getByRole('button', { name: 'Main effect', exact: true }).click();
-  const palette = page.locator('[data-palette="tycStation"]');
+  const palette = page.locator('[data-palette="solarPunch"]');
   await palette.scrollIntoViewIfNeeded();
   await palette.click();
   await expect(palette).toHaveAttribute('aria-pressed', 'true');

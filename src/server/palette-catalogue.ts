@@ -18,8 +18,7 @@ export const ALL_PALETTES: readonly BuiltinPalette[] = Object.freeze([
 ]);
 
 /**
- * The built-in palettes offered for picking: the mark's alone (the operator, 2026-11-17); every other choice is
- * a palette the operator saved. The tables the effects came with and the looks are what the engine draws from,
- * not a choice: an id saved before still resolves (ALL_PALETTES).
+ * The palettes offered for picking: the looks and the mark's (the operator, 2026-11-16). The tables the effects
+ * came with are what those effects draw from, not a choice: an id saved before still resolves (ALL_PALETTES).
  */
-export const OFFERED_PALETTES: readonly BuiltinPalette[] = Object.freeze(ALL_PALETTES.filter((p) => p.app === 'own'));
+export const OFFERED_PALETTES: readonly BuiltinPalette[] = Object.freeze(ALL_PALETTES.filter((p) => p.app === 'look' || p.app === 'own'));
