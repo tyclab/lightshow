@@ -153,7 +153,7 @@ function postCommands(): void {
 function renderTick(due: number, now: number): void {
   if (now - lastStatsAt >= 1000) {
     lastStatsAt = now;
-    if (ticker) post({ type: 'stats', stats: ticker.stats.summary(), heap: heap() });
+    if (ticker) post({ type: 'stats', stats: ticker.stats.summary(), heap: heap(), roomChanges: renderer.roomChanges() });
   }
   // Idle effects step about 0.2 s per render (effDt is unclamped, beats capped at 4): nobody can see it.
   if (snapshot?.idle && !fresh) return;

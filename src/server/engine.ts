@@ -47,6 +47,9 @@ export type EngineStatus = {
   idle: boolean;
   /** The engine thread's heap from its last report; null while it renders on the main thread. */
   heap: EngineHeap | null;
+  /** Under the flash limit, the most changes of the room's light the renderer counted in any one second since it was
+   * switched on, on the frames' own time; 0 while it is off. From the engine thread's last report. */
+  roomChanges: number;
 } & Partial<FrameSummary>;
 
 // Send control snapshots ahead of the deadline so the worker has them before rendering.
@@ -442,6 +445,7 @@ let worker: Worker | null = null;               // the engine thread, while one 
 let thread: EngineThread | null = null;         // null while stopped
 let workerStats: FrameSummary | null = null;    // the worker's last timing report
 let workerHeap: EngineHeap | null = null;       // and its heap, from the same report
+let workerRoomChanges = 0;                      // and its count under the flash limit
 let fellBack: string | null = null;             // why the engine is here and not in its worker
 let crashes: number[] = [];
 let postedRevision = -1;
@@ -583,6 +587,7 @@ function onWorkerMessage(msg: FromWorker | null): void {
     case 'stats':
       workerStats = msg.stats;
       workerHeap = msg.heap ?? null;
+      workerRoomChanges = msg.roomChanges ?? 0;
       break;
     case 'commands':
       settleCommands(msg.results, { processed: msg.processed, applied: msg.applied });
@@ -619,6 +624,7 @@ function spawnWorker(epochMs: number): void {
     if (worker !== w) return;           // a worker already replaced or stopped
     worker = null;
     workerHeap = null;                  // that isolate is gone; a replacement reports its own
+    workerRoomChanges = 0;
     ready = false;
     control.rendererLost();
     frames.fail('The renderer restarted before acknowledging this change');
@@ -711,6 +717,7 @@ function stopEngine(): Promise<void> {
   worker = null;
   workerStats = null;
   workerHeap = null;
+  workerRoomChanges = 0;
   lastPosted = null;
   mainGridOrigin = undefined;
   failPendingCommands();
@@ -764,6 +771,7 @@ function engineStatus(): EngineStatus {
     ...(stats || {}),
     idle: isIdle(),
     heap: thread === 'worker' ? workerHeap : null,
+    roomChanges: thread === 'worker' ? workerRoomChanges : renderer.roomChanges(),
   };
 }
 

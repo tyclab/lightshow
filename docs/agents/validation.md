@@ -22,6 +22,13 @@ Do not update golden outputs merely to make a failing check pass.
   control is armed and stopped with Background off and no Freeze, voices or fixture
   overrides; every darkness or zero-motion test clears those first, since a stopped
   show still renders Background (`src/server/renderer.ts`) and a frozen picture.
+- A page times a frame of the engine's feed when it draws it, not when the engine
+  made it: the server samples the feed on its own timer, the page paints on its
+  next animation frame and a test reads the plot one frame later. Against the
+  engine's stamp that delay moves by 30 to 75 ms from frame to frame (measured on
+  2 and 4 CPUs). A rate per second of the engine's output is counted in the
+  engine (`/api/health` `engine.roomChanges` for the flash limit); what the page
+  drew shows that the light changes, or changes more often than a bound.
 - On Nix, `npm run check` fails the MIDI tests with libasound `ERR_DLOPEN_FAILED`
   unless `LD_LIBRARY_PATH` holds
   `$(nix build --no-link --print-out-paths nixpkgs#alsa-lib)/lib`.

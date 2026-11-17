@@ -222,6 +222,8 @@ export interface Renderer {
   takeCommandResults(): CommandResult[];
   rejectCommands(status: CommandStatus): void;
   commandStatus(): { processed: number; applied: number };
+  /** The most changes of the room's light in any one second since the flash limit was switched on, on the frames' own time; 0 while it is off. */
+  roomChanges(): number;
   setSequence(table: SequenceTable | null): void;
   // Room metres per unit for this rig, built on the main thread; null is plan-only.
   setSpace(space: UnitSpace | null): void;
@@ -1231,6 +1233,7 @@ function createRenderer({ profileOf, profilesRevision = () => 0, now = performan
       }
     },
     commandStatus() { return { processed: processedSeq, applied: appliedSeq }; },
+    roomChanges() { return outputGuard.roomChanges; },
     setSpace(next) { space = next ?? null; },
     setSequence(table) {
       const ok = !!table && typeof table === 'object' && Number.isFinite(table.revision) && Array.isArray(table.lanes) && Array.isArray(table.clips);

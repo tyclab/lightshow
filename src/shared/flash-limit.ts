@@ -10,18 +10,26 @@ const HOLD = SWING * 0.9;
 export interface FlashLimiter {
   target(luminance: number, now: number): number;
   commit(luminance: number, now: number): void;
+  /** The most changes it has counted in any one second since the last reset, on the clock it is given. */
+  most(): number;
   reset(): void;
   clone(): FlashLimiter;
 }
 
-function createFlashLimiter(saved?: { extreme: number | null; rising: boolean; changes: number[] }): FlashLimiter {
+function createFlashLimiter(saved?: { extreme: number | null; rising: boolean; changes: number[]; most: number }): FlashLimiter {
   let extreme: number | null = saved?.extreme ?? null;
   let rising = saved?.rising ?? true;
+  let most = saved?.most ?? 0;
   const changes: number[] = [...(saved?.changes ?? [])];
 
   const engaged = (now: number) => {
     while (changes.length && now - changes[0] >= WINDOW_MS) changes.shift();
     return changes.length >= MAX_CHANGES;
+  };
+  const changed = (now: number) => {
+    engaged(now);
+    changes.push(now);
+    most = Math.max(most, changes.length);
   };
 
   return {
@@ -34,22 +42,24 @@ function createFlashLimiter(saved?: { extreme: number | null; rising: boolean; c
       if (rising) {
         if (luminance >= extreme) extreme = luminance;
         else if (extreme - luminance >= SWING && luminance < DARKER) {
-          changes.push(now);
+          changed(now);
           rising = false;
           extreme = luminance;
         }
       } else if (luminance <= extreme) {
         extreme = luminance;
       } else if (luminance - extreme >= SWING && extreme < DARKER) {
-        changes.push(now);
+        changed(now);
         rising = true;
         extreme = luminance;
       }
     },
-    clone() { return createFlashLimiter({ extreme, rising, changes }); },
+    most: () => most,
+    clone() { return createFlashLimiter({ extreme, rising, changes, most }); },
     reset() {
       extreme = null;
       rising = true;
+      most = 0;
       changes.length = 0;
     },
   };

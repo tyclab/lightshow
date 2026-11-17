@@ -630,20 +630,21 @@ test('the engine thread reports its own heap with its timings, and nothing once 
   startEngine({ thread: 'main' });
   try {
     assert.strictEqual(engineStatus().heap, null, 'on the main thread, the main heap is the engine\'s');
+    assert.strictEqual(engineStatus().roomChanges, 0, 'and the flash limit\'s count is the renderer\'s own: nothing with the limit off');
   } finally {
     await stopEngine();
   }
 });
 
-// A stand-in engine thread that reports a heap once, when HEAP_WORKER says so, and dies after it
-// when HEAP_WORKER_EXIT does; otherwise it never reports.
+// A stand-in engine thread that reports a heap, and its count under the flash limit, once, when HEAP_WORKER says so,
+// and dies after it when HEAP_WORKER_EXIT does; otherwise it never reports.
 const HEAP_WORKER = `
 import { parentPort } from 'node:worker_threads';
 const timing = { frames: 1, lateMs: { p50: 0, p95: 0, max: 0 }, renderMs: { p50: 0, p95: 0, max: 0 }, lateFrames: 0, skippedFramesTotal: 0 };
 parentPort.on('message', (msg) => { if (msg.type === 'stop') parentPort.postMessage({ type: 'stopped', applied: true }); });
 parentPort.postMessage({ type: 'ready' });
 if (process.env.HEAP_WORKER === 'report') {
-  parentPort.postMessage({ type: 'stats', stats: timing, heap: { usedBytes: 1000, totalBytes: 2000 } });
+  parentPort.postMessage({ type: 'stats', stats: timing, heap: { usedBytes: 1000, totalBytes: 2000 }, roomChanges: 7 });
   if (process.env.HEAP_WORKER_EXIT) setTimeout(() => process.exit(1), 50);
 }
 `;
@@ -663,12 +664,14 @@ test('a restarted or replaced engine thread has no heap until it reports one its
     let end = Date.now() + 5000;
     while (!engineStatus().heap && Date.now() < end) await wait(5);
     assert.deepStrictEqual(engineStatus().heap, { usedBytes: 1000, totalBytes: 2000 });
+    assert.strictEqual(engineStatus().roomChanges, 7, 'the thread\'s count under the flash limit, from the same report');
     // The thread dies 50 ms after its report and the engine starts another, which stays silent.
     process.env.HEAP_WORKER = 'silent';
     delete process.env.HEAP_WORKER_EXIT;
     await wait(700);
     assert.strictEqual(engineStatus().thread, 'worker', 'restarted, not fallen back');
     assert.strictEqual(engineStatus().heap, null, 'the dead thread\'s heap is not the running one\'s');
+    assert.strictEqual(engineStatus().roomChanges, 0, 'nor is its count');
     await stopEngine();
 
     process.env.HEAP_WORKER = 'report';

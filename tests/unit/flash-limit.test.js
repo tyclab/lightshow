@@ -11,7 +11,8 @@ import * as universes from '../../src/server/universes.ts';
 import { getProfile, profilesRevision, registerProfile, unregisterProfile, BUILTIN_PROFILE_ID } from '../../src/server/profiles.ts';
 import { barProfile } from '../../src/server/bar-profile.ts';
 import { STROBE_FUNCTIONS } from '../../src/server/presets.ts';
-import { FRAME_MS } from '../../src/server/frame-clock.ts';
+import { FRAME_MS, MAX_BEHIND_FRAMES } from '../../src/server/frame-clock.ts';
+import { validateSpec } from '../../src/shared/effects/registry.ts';
 
 /**
  * The most flashes any one second of `levels` holds — counted independently
@@ -56,6 +57,16 @@ test('two flashes a second go through untouched', () => {
     limiter.commit(level, t);
     assert.strictEqual(level, asked, `at ${t} ms`);
   }
+});
+
+test('the limiter counts the most changes any one second held, until it is reset', () => {
+  const limiter = createFlashLimiter();
+  assert.strictEqual(limiter.most(), 0);
+  for (let t = 0; t < 3000; t += 100) limiter.commit((t / 100) % 2, t);
+  assert.strictEqual(limiter.most(), 10, 'a change every 100 ms: ten within a second, the eleventh a full second after the first');
+  assert.strictEqual(limiter.clone().most(), 10, 'a copy keeps the count');
+  limiter.reset();
+  assert.strictEqual(limiter.most(), 0);
 });
 
 test('brightness is luminance: white counts in full, blue barely', () => {
@@ -130,3 +141,98 @@ test('with the limit off, a frame is exactly what it was', () => {
   const b = render({ flashLimit: false }, { seconds: 1 });
   assert.deepStrictEqual(a, b);
 });
+
+// ── On the engine's own clock ───────────────────────────────────────────────
+// The engine stamps a frame with the time it renders it (frame-clock.ts hands a tick `now`, not its deadline): on a
+// busy host a late frame is followed by an early one. On those stamps eight changes of the limited strobe span a
+// second and one frame, which a page timing the frames as it draws them squeezes under the second: a rate per second
+// is counted here, and by the engine itself (Renderer.roomChanges), not by a page.
+//
+// Counted off the DMX by an observer that assumes no direction at its start, from SETTLED_MS after the limiter's, as
+// the browser test read the page: the limiter takes the light for rising when it starts and does not count a first
+// rise, so the seconds that begin before that are left out.
+
+// Three flashes, and the fall after one more rise: dimming holds a rise within a swing, never a frame the look leaves dark.
+const LIMIT = 2 * FLASHES_PER_SECOND + 1;
+const PARS = [0, 1, 2, 3].map((id) => fixture(id, 1 + 12 * id, PAR));
+const STROBE = {
+  running: true, pattern: 'ldj.TrueStrobe', effect: validateSpec({ kind: 'ldj.TrueStrobe' }), colorA: 1, colorB: 1, colorC: 1, colorD: 1,
+  split: null, pixelMap: 'stage', beatDivision: 1, strobeSpeed: 0, strobeFunction: 'standard', masterDimmer: 255, masterBlackout: false,
+  energy: null, showDynamics: null, patternAnchor: null, fade: null, syncTest: null, universes: [0], fixtures: PARS,
+  safety: { acknowledged: true, hdFlashIntervalMs: 350 }, hardware: { technologies: {}, products: {} },
+};
+
+function seeded(seed) {
+  let a = seed >>> 0;
+  return () => { a = (a + 0x6D2B79F5) >>> 0; let t = a; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
+}
+
+/** How late each frame is, in ms after its deadline. */
+const CLOCKS = {
+  'on the frame grid': () => () => 0,
+  'a few milliseconds late': (rand) => () => -4 * Math.log(1 - rand()),
+  'stalling for up to 0.4 s': (rand) => () => (rand() < 0.05 ? 50 + 350 * rand() : -10 * Math.log(1 - rand())),
+};
+
+/** Frame times as createTicker gives them: `late()` after each deadline, never before the frame before, a stall skipping the frames it covered. */
+function frameTimes(ms, late) {
+  const times = [];
+  for (let index = 0, t = 0; t < ms; index++, t += 0.3) {
+    t = Math.max(t, index * FRAME_MS + late());
+    if (t - index * FRAME_MS > MAX_BEHIND_FRAMES * FRAME_MS) index = Math.floor(t / FRAME_MS);
+    times.push(t);
+  }
+  return times;
+}
+
+/** The wall-clock strobe on four pars at `times`, under the limit from `limitFrom` ms: each frame's room light off the DMX, and the engine's own count. */
+function strobe(times, limitFrom = 0) {
+  const store = universes.createUniverseStore(universes.allocateShared());
+  const renderer = createRenderer({ profileOf: getProfile, profilesRevision, now: 0 });
+  const random = Math.random;
+  Math.random = seeded(7);
+  try {
+    const frames = times.map((t) => {
+      renderer.frame({ ...STROBE, flashLimit: t >= limitFrom }, { beatPos: t / 500, bpm: 120, epoch: 0 }, t, store);
+      const dmx = store.getBuffer(0);
+      const level = PARS.reduce((sum, f) => {
+        const ch = getProfile(f).channelMap, at = f.address - 1;
+        return sum + lightLuminance({ r: dmx[at + ch.red], g: dmx[at + ch.green], b: dmx[at + ch.blue], w: dmx[at + ch.white], a: dmx[at + ch.amber] }, dmx[at + ch.dimmer]);
+      }, 0) / PARS.length;
+      return { t, level, limited: t >= limitFrom };
+    });
+    return { frames, counted: renderer.roomChanges() };
+  } finally {
+    Math.random = random;
+  }
+}
+
+/** The times the room's light changes over `frames`, by worstSecond's rule on the frames' own times; the first swing counts whichever way it goes. */
+function changeTimes(frames) {
+  const at = [];
+  let low = frames[0].level, high = low, rising = null;
+  for (const { t, level } of frames) {
+    if (rising !== true && level - low >= SWING && low < DARKER) { at.push(t); rising = true; high = level; }
+    else if (rising !== false && high - level >= SWING && level < DARKER) { at.push(t); rising = false; low = level; }
+    else if (rising !== false && level > high) high = level;
+    else if (rising !== true && level < low) low = level;
+  }
+  return at;
+}
+/** The most of the times `at` that any one second holds. */
+const mostIn = (at) => at.reduce((most, start) => Math.max(most, at.filter((t) => t >= start && t - start < 1000).length), 0);
+const SETTLED_MS = 500;
+
+for (const [name, lateness] of Object.entries(CLOCKS)) {
+  test(`a wall-clock strobe keeps the limit on the engine's own clock: ${name}`, () => {
+    const free = strobe(frameTimes(3000, lateness(seeded(1))), Infinity);
+    const unlimited = mostIn(changeTimes(free.frames));
+    assert.ok(unlimited > LIMIT, `off: ${unlimited} changes in a second`);
+    assert.strictEqual(free.counted, 0, 'off, the engine counts nothing');
+    const held = strobe(frameTimes(30_000, lateness(seeded(1))));
+    const most = mostIn(changeTimes(held.frames).filter((t) => t >= SETTLED_MS));
+    assert.ok(most <= LIMIT, `on: ${most} changes in a second`);
+    assert.ok(most >= 2 * FLASHES_PER_SECOND, `limited, not gone: ${most}`);
+    assert.strictEqual(held.counted, most, 'the engine\'s own count is what the wire shows');
+  });
+}

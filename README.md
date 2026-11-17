@@ -2375,7 +2375,14 @@ ticks that rendered a frame. `idle` is true while the outputs are disarmed, no
 page watches the DMX feed and no identify runs: the engine then
 renders every ninth tick (about 5 a second), and every tick again as soon as a
 change, an effect command or an Art-Net retirement waits on a frame. `awake`
-names what keeps it from idling, as the performance record does. `eventLoop`
+names what keeps it from idling, as the performance record does. `roomChanges`
+is the flash limit's own count, from the engine's report once a second: the most
+changes of the room's light in any one second since `safety.flashLimit` was
+switched on, on the time the engine gave each frame, and 0 while it is off. Three
+flashes are six changes; one more rise within the second ends in a fall that
+dimming cannot hold, so seven is the limit holding and eight is not. The limiter
+takes the light for rising when it starts, so a rise on its first frames is not
+in the count. `eventLoop`
 gives the main thread's delay in milliseconds over the last 30 s window: the
 excess over the 10 ms sampling timer, so an idle loop reads 0.
 
