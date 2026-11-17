@@ -4,6 +4,7 @@ import { NowPlaying, PictureLayers, PlayingVoices } from './NowPlaying.jsx';
 import { signal } from '@preact/signals';
 import { useEffect, useRef, useState } from 'preact/hooks';
 import { librarySig, pick, send } from '../state.js';
+import { effectIcon } from '../effect-icons.js';
 import { useFocusTrap } from '../focus-trap.js';
 import { Inspector, familyOf } from './Inspector.jsx';
 import { Photosensitivity as PhotosensitivityConfirm, acknowledgeThen } from './Photosensitivity.jsx';
@@ -28,8 +29,6 @@ export const FILTER_AXES = TAG_AXES.map((axis) => {
   return { id: axis.id, name: axis.name, chips: [...own, ...folded].map((chip) => ({ ...chip, axis: axis.id })) };
 });
 const FILTER_CHIPS = FILTER_AXES.flatMap((axis) => axis.chips);
-// A fallback glyph for a row without its own, from what it is.
-const TAG_ICONS = [['energy', '◉'], ['room', '◎'], ['bars', '▤'], ['rig', '●']];
 const BY_NAME = new Intl.Collator('en', { sensitivity: 'base', numeric: true });
 const FAVOURITES_KEY = 'lightshow.effects.favourites';
 const LONG_PRESS_MS = 500;
@@ -38,18 +37,6 @@ const LONG_PRESS_MS = 500;
 export const editingSig = signal(null);
 /** The filter chips switched on, by id; kept while the view is away. */
 export const filtersSig = signal([]);
-
-// Map pattern ids to a unicode glyph; a preset takes its group's.
-const PATTERN_ICONS = {
-  solid: '●', chase: '→', 'chase-rev': '←', 'ping-pong': '⇄', strobe: '⚡', fade: '◐', 'color-cycle': '◌', rainbow: '✦',
-  twinkle: '✶', split: '◧', sparkle: '✧', wave: '∿', 'stack-up': '⇡', 'random-flash': '⚹', runner: '➤', pairs: '⋮⋮', hit: '✖',
-  'alt-halves': '◨', 'split-3': '⫶', 'chase-3': '➰', 'alt-thirds': '☷', 'split-4': '⊞', 'chase-4': '⟳', 'alt-quarters': '⊠',
-  'pairs-4': '⫴', sections: '▥', ensemble: '◉', ribbon: '〰', gradient: '▤', comet: '☄', burst: '◎', plasma: '≋', meter: '▮',
-  drums: '◍', stems: '☰', rise: '▲', impact: '✺', bars: '▁▅▃', fire: '♨', rain: '⁞', 'position-chase': '⇶', 'radial-pulse': '◉',
-  'spatial-wash': '≈', 'bounce-scan': '↔', streak: '⟿', starlight: '✵', breathe: '◯', 'volume-gate': '◫', confetti: '❉',
-  'anchor-fill': '⊞', halves: '◧', flip: '◩', 'room-wave': '〜', 'ring-strobe': '◌', 'ring-backlit': '◍', fireworks: '✸',
-  flashes: '⚡', swirl: '↻',
-};
 
 // How a pattern is laid over the rig. Per bar needs bars; the other two
 // order a rig of pars as well.
@@ -254,7 +241,12 @@ function TagBadges({ row }) {
 /** The layout mapping, when it is not already said by the Room-placed badge. */
 const Mapping = ({ row }) => (row.mapping && row.mapping !== 'room' ? <span class="effect-mapping">{MAPPING_LABELS[row.mapping]}</span> : null);
 
-export const iconOf = (row) => PATTERN_ICONS[row.id] || TAG_ICONS.find(([tag]) => tagsOf(row).includes(tag))?.[1] || '·';
+export const iconOf = (row) => effectIcon(row.id, tagsOf(row));
+
+/** An effect's symbol beside or over its name; the name says what it is, so the symbol is hidden from assistive technology. */
+export const EffectIcon = ({ row }) => (
+  <svg class="effect-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d={iconOf(row)} /></svg>
+);
 
 function Star({ row, on, onToggle }) {
   return (
@@ -275,6 +267,7 @@ function Pad({ row, active, favourite, onTap, onEdit, onToggleFavourite }) {
   return (
     <div class={`effect-pad ${active ? 'active' : ''}`} data-id={row.id} data-layer={active ? 'base' : undefined}>
       <button type="button" class="effect-pad-tap" aria-pressed={active} title={row.desc || row.name} {...press}>
+        <EffectIcon row={row} />
         <span class="effect-pad-name">{row.name}</span>
         <Mapping row={row} />
         <TagBadges row={row} />
@@ -296,7 +289,7 @@ function Row({ row, active, onBars, onPanels, favourite, onTap, onEdit, onToggle
     <div class="effect-row">
       <button type="button" class={`pattern-btn ${active ? 'active' : ''} ${where ? 'on-bars' : ''}`} data-id={row.id}
         aria-pressed={active} title={row.desc || row.name} {...press}>
-        <span class="icon" aria-hidden="true">{iconOf(row)}</span>
+        <span class="icon" aria-hidden="true"><EffectIcon row={row} /></span>
         <span class="body">
           <span class="name">{row.name}{active && <span class="layer-tag" data-layer="base"> · Main effect</span>}{where && <span class="layer-tag"> · on {where}</span>}</span>
           <Mapping row={row} />
