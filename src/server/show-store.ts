@@ -6,16 +6,18 @@ import { INTERNAL_UNIVERSE, hasNoAddress, isHueLamp, universesOf } from '../shar
 import { isHueProfile, hueSections, hueChannels } from '../shared/hue-lamp.ts';
 import { geometryUnitIssue } from '../shared/rig.ts';
 import { ddpConflict } from './ddp-routes.ts';
-import { showSchema, validate } from './validation.ts';
+import { showSchema, hueMembersSchema, validate } from './validation.ts';
 import { HttpError, messageOf } from '../errors.ts';
 import { JsonStore } from './json-store.ts';
 import { settings, defaultHueBridgeId } from './settings.ts';
 import type { ShowFile } from './validation.ts';
-import type { Fixture, Profile } from '../types/rig.ts';
+import type { Fixture, HueMember, Profile } from '../types/rig.ts';
 import { configFile } from './config-dir.ts';
 import { AcknowledgementTimeout } from './frame-barrier.ts';
 
 const SAVE_DEBOUNCE_MS = 400;
+const SAVE_RETRY_MS = 2000;
+const SAVE_RETRY_MAX_MS = 60000;
 const APPLY_TIMEOUT_MS = 5000;
 
 function badShow(message: string): HttpError {
@@ -43,6 +45,40 @@ function snapshotRig(artnet: typeof state.artnet, fixtures: readonly Fixture[], 
       output: f.output ? { ...f.output } : null,
     })),
   };
+}
+
+// In the file a Hue lamp's recorded members sit beside the show, by fixture id with the channels they belong
+// to: the build before them refuses a show whose outputs carry a key it does not know and would start on the
+// default patch after a rollback. It reads `show` alone, so it starts on the same patch, by the stored numbers.
+type SavedMembers = Record<string, { channels: number[]; members: HueMember[][] }>;
+
+function splitMembers(show: ReturnType<typeof snapshotRig>): { show: unknown; hueMembers: SavedMembers | null } {
+  const hueMembers: SavedMembers = {};
+  const fixtures = show.fixtures.map((fixture) => {
+    const output = fixture.output;
+    if (output?.protocol !== 'hue' || !output.members) return fixture;
+    const { members, ...plain } = output;
+    hueMembers[fixture.id] = { channels: [...hueChannels(output)], members };
+    return { ...fixture, output: plain };
+  });
+  return Object.keys(hueMembers).length ? { show: { ...show, fixtures }, hueMembers } : { show, hueMembers: null };
+}
+
+// Members whose lamp is gone, or whose channels are not the lamp's any more, are left out: the lamp records again.
+function joinMembers(show: unknown, saved: unknown): unknown {
+  if (!show || typeof show !== 'object' || !saved || typeof saved !== 'object') return show;
+  const fixtures = (show as { fixtures?: unknown }).fixtures;
+  if (!Array.isArray(fixtures)) return show;
+  return { ...show, fixtures: fixtures.map((fixture) => {
+    const output = fixture?.output;
+    const entry = (saved as Record<string, { channels?: unknown; members?: unknown }>)[String(fixture?.id)];
+    if (!entry || output?.protocol !== 'hue' || output.members || !Array.isArray(output.channels)) return fixture;
+    const members = hueMembersSchema.safeParse(entry.members);
+    const same = Array.isArray(entry.channels) && entry.channels.length === output.channels.length
+      && entry.channels.every((channel: unknown, k: number) => channel === output.channels[k]);
+    if (!members.success || !same || members.data.length !== output.channels.length) return fixture;
+    return { ...fixture, output: { ...output, members: members.data } };
+  }) };
 }
 
 interface PreparedRig {
@@ -93,7 +129,8 @@ function prepareShow(rawShow: unknown): PreparedRig {
       geometry: f.geometry ? { ...f.geometry } : null,
       emission: f.emission ? { ...f.emission } : null,
       output: !f.output ? null
-        : f.output.protocol === 'hue' ? { protocol: 'hue', channels: [...hueChannels(f.output)], bridge: f.output.bridge || fallback } : { ...f.output },
+        : f.output.protocol === 'hue' ? { protocol: 'hue', channels: [...hueChannels(f.output)], bridge: f.output.bridge || fallback,
+          ...(f.output.members ? { members: f.output.members.map((set) => set.map((m) => ({ ...m }))) } : {}) } : { ...f.output },
       productId: f.productId, hardware: f.hardware, admission: f.admission,
       override: explicitFixtures ? null : state.fixtures[i]?.override ?? null,
     }));
@@ -165,6 +202,7 @@ class ShowStore extends JsonStore {
   declare _debounceMs: number;
   declare _timer: ReturnType<typeof setTimeout> | null;
   declare _saved: string | null;
+  private retryMs = 0;
   private revision = 0;
   private appliedRevision = 0;
   private applyError: string | null = null;
@@ -190,7 +228,7 @@ class ShowStore extends JsonStore {
       if (!Number.isSafeInteger(file.revision) || Number(file.revision) < 0) throw new Error('Invalid saved rig revision');
       this.revision = Number(file.revision);
       this.versioned = true;
-      return file.show;
+      return joinMembers(file.show, (file as { hueMembers?: unknown }).hueMembers);
     }
     return document;
   }
@@ -280,8 +318,9 @@ class ShowStore extends JsonStore {
 
   commitArtnet(patch: unknown): Promise<RigCommitResult> { return this.commit({ artnet: patch }); }
 
-  private serialise(show: ReturnType<typeof snapshotShow>, revision = this.revision): string {
-    return `${JSON.stringify({ formatVersion: 1, revision, show }, null, 2)}\n`;
+  private serialise(rig: ReturnType<typeof snapshotShow>, revision = this.revision): string {
+    const { show, hueMembers } = splitMembers(rig);
+    return `${JSON.stringify({ formatVersion: 1, revision, show, ...(hueMembers ? { hueMembers } : {}) }, null, 2)}\n`;
   }
 
   _serialise(): string { return this.serialise(snapshotShow()); }
@@ -314,11 +353,24 @@ class ShowStore extends JsonStore {
       this.write(body);
       this.versioned = true;
       this._saved = body;
+      this.retryMs = 0;
       return true;
     } catch (err) {
       console.warn(`[show] could not save the patch to ${this.file}: ${messageOf(err)}`);
+      this.retrySave();
       return false;
     }
+  }
+
+  // What is in memory and not in the file is lost at the next start: a failed save is tried again.
+  private retrySave(): void {
+    if (this._timer) return;
+    this.retryMs = Math.min(SAVE_RETRY_MAX_MS, Math.max(SAVE_RETRY_MS, this.retryMs * 2));
+    this._timer = setTimeout(() => {
+      this._timer = null;
+      this.save();
+    }, this.retryMs);
+    if (this._timer.unref) this._timer.unref();
   }
 }
 

@@ -16,6 +16,7 @@ import { isArmed } from './armed.ts';
 import { engineStatus } from './engine.ts';
 import { MIN_UNIVERSE, MAX_UNIVERSE } from './sacn.ts';
 import { listEntertainmentConfigs } from './hue.ts';
+import { REGROUPED_FIX, describeDark, followArea, indexArea } from './hue-sections.ts';
 import { wledClient } from './wled.ts';
 import { runsOf, pixelWidth } from './ddp-routes.ts';
 import { OPENRGB_PORT, matchSameName, openrgbClient } from './openrgb.ts';
@@ -23,7 +24,7 @@ import { openrgbOutputOf } from './openrgb-routes.ts';
 import { unitCount } from '../shared/rig.ts';
 import type { WledClient } from './wled.ts';
 import type { OpenRgbClient } from './openrgb.ts';
-import type { DdpOutput, Fixture } from '../types/rig.ts';
+import type { DdpOutput, Fixture, HueOutput } from '../types/rig.ts';
 import { cues } from './cues.ts';
 import { midiMap } from './midi-map.ts';
 import * as pythonEnv from '../python-env.ts';
@@ -528,20 +529,23 @@ async function checkHueBridge(bridge: Settings['hue']['bridges'][number], lamps:
             fix: 'It was probably renamed or rebuilt in the Hue app. Pick the area again in Rig → Outputs → Philips Hue.',
         };
     }
-    const areaChannels = new Set(area.channels.map((c) => c.id));
-    const stray = lamps.filter((f) => channelsOf(f).some((ch) => !areaChannels.has(ch)));
-    if (stray.length) {
-        const absent = (f: (typeof lamps)[number]) => channelsOf(f).filter((ch) => !areaChannels.has(ch)).map((ch) => `#${ch}`).join(', ');
-        return {
-            id, label, status: WARN,
-            detail: `"${area.name}" has no channel ${stray.map((f) => `${absent(f)} for "${f.label}"`).join('; ')}, `
-                + `so ${stray.length === 1 ? 'that stays' : 'those stay'} dark.`,
-            fix: 'The area was probably changed in the Hue app. Remove those lamps and add them again from Rig → Outputs → Philips Hue.',
-        };
-    }
+    // A lamp streams to the channels its recorded members are on now; one whose members are not exactly one
+    // channel each, or an older one whose numbers the area lacks or another lamp lights, stays dark. The bridge's
+    // lamps are resolved as one patch, as the stream resolves them.
+    const followed = followArea(lamps, bridge.id, indexArea(area.channels), bridge.id).results;
+    const resolved = new Map(lamps.map((f) => [f, followed.get(f.id)!]));
+    const dark = lamps.flatMap((f) => {
+        const result = resolved.get(f)!;
+        return result.ok ? [] : [describeDark(f.label, f.output as HueOutput, result, area)];
+    });
+    if (dark.length) return { id, label, status: WARN, detail: dark.join(' '), fix: REGROUPED_FIX };
+    const now = (f: (typeof lamps)[number]) => {
+        const result = resolved.get(f)!;
+        return result.ok ? result.channels : channelsOf(f);
+    };
     const resectioned = lamps.filter((f) => {
         if (getProfile(f).hue?.legacy || getProfile(f).hue?.partial) return false;
-        const channels = channelsOf(f);
+        const channels = now(f);
         const lamp = area.lamps?.find((l) => l.channels.includes(channels[0]));
         return lamp && (lamp.channels.length !== channels.length || lamp.channels.some((ch, k) => ch !== channels[k]));
     });
@@ -568,7 +572,8 @@ async function checkHueBridge(bridge: Settings['hue']['bridges'][number], lamps:
             fix: 'A bridge only allows one entertainment stream at a time. Close the Hue app\'s sync or any other tool streaming to it.',
         };
     }
-    const left = (area.lamps || []).filter((l) => !l.channels.some((ch) => seen.has(ch))).length;
+    const streamed = new Set(lamps.flatMap(now));
+    const left = (area.lamps || []).filter((l) => !l.channels.some((ch) => streamed.has(ch))).length;
     return {
         id, label, status: OK,
         detail: `"${area.name}" on "${name}" at ${bridge.host}: ${lamps.map((f) => f.label).join(', ')}`

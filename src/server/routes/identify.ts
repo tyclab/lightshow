@@ -1,4 +1,3 @@
-import { hueChannels } from '../../shared/hue-lamp.ts';
 import net from 'node:net';
 import { z } from 'zod';
 
@@ -11,6 +10,8 @@ import { sendArtAddress, AC_LED_LOCATE, AC_LED_NORMAL } from '../artnet.ts';
 import { resolveCid } from '../sacn.ts';
 import { sendDdp } from '../ddp.ts';
 import { identifyDevices, listEntertainmentConfigs } from '../hue.ts';
+import { followArea, indexArea } from '../hue-sections.ts';
+import { defaultHueBridgeId } from '../settings.ts';
 import { OPENRGB_PORT } from '../openrgb.ts';
 import { createOpenRgbIdentify } from '../openrgb-devices.ts';
 import { openrgbOutputOf } from '../openrgb-routes.ts';
@@ -243,7 +244,12 @@ function attachIdentifyRoutes(app: Express, deps: IdentifyRouteDeps): void {
       const found = area?.lamps.find((lamp) => lamp.id === body.lamp);
       if (!found) return res.status(404).json({ ok: false, error: `Lamp is not in the entertainment area of "${bridge.label || bridge.id}"` });
       const channels = found.channels;
-      const fixtures = state.fixtures.filter((f) => f.output?.protocol === 'hue' && f.output.bridge === bridge.id && hueChannels(f.output).some((channel) => channels.includes(channel)));
+      // The fixtures that light the lamp now, by what they are recorded for: a stored number may wait on another lamp.
+      const lit = followArea(state.fixtures, bridge.id, indexArea(area!.channels), defaultHueBridgeId(output.getHueConfig().bridges)).results;
+      const fixtures = state.fixtures.filter((f) => {
+        const result = lit.get(f.id);
+        return !!result?.ok && result.channels.some((channel) => channels.includes(channel));
+      });
       if (fixtures.length) return res.json({ ok: true, via: 'fixture', ...start(fixtures.map((f) => f.id), secs) });
       const lamps = secs > 0 ? await hueIdentify(bridge.host, bridge.username, found.devices || []) : 0;
       res.json({ ok: true, via: 'bridge', lamps });

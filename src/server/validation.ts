@@ -61,12 +61,19 @@ const paletteOverride = z.array(hexColour).min(1).max(8).nullable();
 
 const HOSTNAME_RE = /^(?=.{1,253}$)[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$/;
 
+const hueMember = z.object({
+  serviceId: z.string().min(1).max(64),
+  segmentIndex: z.number().int().min(0).max(255).nullable(),
+}).strict();
+const hueMembers = z.array(z.array(hueMember).min(1).max(256)).max(20);
 const hueOutput = z.object({
   protocol: z.literal('hue'),
   bridge: z.string().regex(HUE_BRIDGE_ID_RE, 'is not a bridge id').optional(),
   channels: z.array(z.number().int().min(0).max(255)).min(1).max(20)
     .refine((channels) => new Set(channels).size === channels.length, { message: 'names a channel twice' }),
-}).strict();
+  members: hueMembers.optional(),
+}).strict().refine((out) => !out.members || out.members.length === out.channels.length,
+  { message: 'needs one member list per channel', path: ['members'] });
 const ddpOutput = z.object({
     protocol: z.literal('ddp'),
     host: z.string().regex(HOSTNAME_RE, 'is not a hostname or an IPv4 address'),
@@ -445,6 +452,7 @@ export {
   fixtureRestoreSchema,
   profileSchema,
   showSchema,
+  hueMembers as hueMembersSchema,
   midiConnectSchema,
   openrgbHostSchema,
   openrgbAddSchema,

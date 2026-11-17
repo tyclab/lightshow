@@ -201,7 +201,16 @@ export interface OpenRgbOutput {
 export interface HueOutput {
   protocol: 'hue';
   bridge: string;
+  /** Each section's channel number in the area as last read from the bridge. */
   channels?: number[];
+  /** What each section lights, in `channels` order: the members its channel had when the lamp was patched. */
+  members?: HueMember[][];
+}
+
+/** A member of an entertainment channel: an entertainment service, and the segment of it on a gradient light. */
+export interface HueMember {
+  serviceId: string;
+  segmentIndex: number | null;
 }
 
 /** Expression values are normalized to 0–1. */

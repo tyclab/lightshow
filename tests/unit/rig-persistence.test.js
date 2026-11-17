@@ -240,3 +240,81 @@ test('each mapping edit publishes a barrier even while persistence is debounced'
   store.save();
   assert.equal(JSON.parse(fs.readFileSync(store.file)).revision, 2);
 });
+
+// ── What a Hue lamp lights, in the file ──────────────────────────────────────
+// The build before the recorded members refuses a show whose Hue outputs carry a key it does not know, moves the
+// file aside and starts on the default patch. It reads `show` alone, so the members are kept beside it.
+
+const { HUE_COLOR_PROFILE_ID } = await import('../../src/server/profiles.ts');
+const MEMBERS = [[{ serviceId: 'ent-a', segmentIndex: 0 }, { serviceId: 'ent-b', segmentIndex: null }]];
+const hueShow = () => ({ ...draft('192.0.2.60', 2), fixtures: [
+  { id: 4, label: 'Lamp', profileId: HUE_COLOR_PROFILE_ID, output: { protocol: 'hue', bridge: 'bridge-1', channels: [6], members: MEMBERS } },
+  { id: 5, label: 'Older lamp', profileId: HUE_COLOR_PROFILE_ID, output: { protocol: 'hue', bridge: 'bridge-1', channels: [7] } },
+] });
+const savedOutputs = (file) => JSON.parse(fs.readFileSync(file, 'utf8')).show.fixtures.map((f) => f.output);
+const members = () => state.fixtures.map((f) => f.output.members);
+
+test('a Hue lamp\'s members are saved beside the show, which keeps the shape the build before them reads', async () => {
+  const store = fresh();
+  store.setPublisher(async () => {});
+  await store.commit(hueShow());
+  const file = JSON.parse(fs.readFileSync(store.file, 'utf8'));
+  assert.deepEqual(savedOutputs(store.file), [{ protocol: 'hue', channels: [6], bridge: 'bridge-1' }, { protocol: 'hue', channels: [7], bridge: 'bridge-1' }]);
+  assert.deepEqual(file.hueMembers, { 4: { channels: [6], members: MEMBERS } });
+  assert.deepEqual([file.formatVersion, Object.keys(file)], [1, ['formatVersion', 'revision', 'show', 'hueMembers']]);
+  state.fixtures = [];
+  assert.equal(new ShowStore(store.file).restore(), true);
+  assert.deepEqual(members(), [MEMBERS, undefined], 'a restart has them again');
+});
+
+test('members beside the show that do not fit their lamp any more are left out, and the patch still loads', async () => {
+  const store = fresh();
+  store.setPublisher(async () => {});
+  await store.commit(hueShow());
+  const rewrite = (edit) => {
+    const file = JSON.parse(fs.readFileSync(store.file, 'utf8'));
+    edit(file);
+    fs.writeFileSync(store.file, JSON.stringify(file));
+  };
+  const reloaded = () => {
+    state.fixtures = [];
+    assert.equal(new ShowStore(store.file).restore(), true);
+    assert.deepEqual(state.fixtures.map((f) => f.id), [4, 5], 'the patch is there');
+    return members();
+  };
+  // The build before wrote the show again: the lamp is on another number, and it knows no members.
+  rewrite((file) => { file.show.fixtures[0].output.channels = [9]; });
+  assert.deepEqual(reloaded(), [undefined, undefined]);
+  rewrite((file) => { file.show.fixtures[0].output.channels = [6]; file.hueMembers[4].members = [[{ serviceId: '', segmentIndex: 0 }]]; });
+  assert.deepEqual(reloaded(), [undefined, undefined], 'a member that names no service');
+  rewrite((file) => { file.hueMembers = { 77: { channels: [6], members: MEMBERS }, 5: 'nothing' }; });
+  assert.deepEqual(reloaded(), [undefined, undefined], 'a lamp that is gone');
+  rewrite((file) => { delete file.hueMembers; });
+  assert.deepEqual(reloaded(), [undefined, undefined], 'a file the build before saved');
+  assert.deepEqual(fs.readdirSync(dir).filter((name) => name.startsWith(path.basename(store.file)) && name !== path.basename(store.file)), [], 'nothing was moved aside');
+});
+
+test('a patch that could not be saved is saved again by itself', async (t) => {
+  const store = fresh();
+  store.setPublisher(async () => {});
+  await store.commit(hueShow());
+  t.mock.method(console, 'warn', () => {});
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const write = store.write;
+  let refused = 0;
+  store.write = function refuse(body) {
+    if (refused++ < 2) throw new Error('ENOSPC: no space left on device');
+    return write.call(this, body);
+  };
+  // What the first area read after the rollout adds to an older lamp.
+  state.fixtures = state.fixtures.map((f) => (f.id === 5 ? { ...f, output: { ...f.output, members: [[{ serviceId: 'ent-c', segmentIndex: null }]] } } : f));
+  assert.equal(store.save(), false);
+  const saved = () => Object.keys(JSON.parse(fs.readFileSync(store.file, 'utf8')).hueMembers);
+  assert.deepEqual(saved(), ['4']);
+  t.mock.timers.tick(2000);
+  assert.deepEqual([refused, saved()], [2, ['4']], 'refused again');
+  t.mock.timers.tick(3999);
+  assert.equal(refused, 2, 'the next try waits twice as long');
+  t.mock.timers.tick(1);
+  assert.deepEqual(saved(), ['4', '5']);
+});

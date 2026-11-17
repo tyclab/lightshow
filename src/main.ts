@@ -14,6 +14,7 @@ import MidiClock from './midi-clock.ts';
 import { state, voices } from './server/state.ts';
 import { startEngine, stopEngine, publishRigRevision, waitForEngineReady } from './server/engine.ts';
 import { artnetDiscovery, startHueAreaWatch } from './server/output.ts';
+import { onHuePatched } from './server/hue-sections.ts';
 import { conductor } from './server/conductor.ts';
 import { applyPatch, applyOverride, setFixtureMaxBrightness, processTap, setPersist, setHooks } from './server/patch.ts';
 import { setupIntegrations } from './server/integrations.ts';
@@ -120,6 +121,11 @@ setPersist((patch) => {
 });
 
 setHooks({ showChanged: () => showStore.scheduleSave() });
+// A Hue lamp the bridge renumbered, or one that recorded what it lights, is saved like any other edit.
+onHuePatched(() => {
+  showStore.scheduleSave();
+  integrations.broadcast();
+});
 
 const lookStore = new LookStore(configFile('look.json'));
 const savedLook = lookStore.load();

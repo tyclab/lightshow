@@ -40,6 +40,8 @@ showStore.scheduleSave = () => {};   // never the real show file
 state.artnet.enabled = false;
 
 const HUE = { protocol: 'hue', bridge: 'b1', channels: [0] };
+/** What a lamp added from `areaOf` records per section: its service, segment by segment. */
+const recorded = (service, count = 1) => Array.from({ length: count }, (_, k) => [{ serviceId: service, segmentIndex: k }]);
 const par = (id, address, universe = 0) => ({ id, label: `Par ${id}`, address, universe, profileId: BUILTIN_PROFILE_ID, maxBrightness: 255, override: null });
 const lamp = (id, channels = [id], profile = HUE_COLOR, bridge = 'b1') => ({
   id, label: `Lamp ${id}`, address: 1, universe: 0, profileId: profile.id, maxBrightness: 255, override: null, output: { protocol: 'hue', bridge, channels },
@@ -171,9 +173,11 @@ const LAMPS = [
   areaLamp({ id: 'hall', name: 'Hall', product: 'Hue white lamp', channels: [2], gamut: null, whites: null, fixedWhite: 2732 }),
   areaLamp({ id: 'tv', name: 'TV strip', product: 'Hue gradient lightstrip', channels: [3, 4, 5] }),
 ];
+// Each section of a lamp is one segment of its entertainment service, as a bridge lists a channel's members.
 const areaOf = (lamps) => async () => [{
   id: AREA, name: 'Living room', status: 'inactive',
-  channels: lamps.flatMap((l) => l.channels.map((id) => ({ id, name: l.name, position: null, devices: l.devices, product: l.product, kind: l.kind }))),
+  channels: lamps.flatMap((l) => l.channels.map((id, k) => ({ id, name: l.name, position: null, devices: l.devices, product: l.product, kind: l.kind,
+    members: [{ serviceId: l.id, name: l.name, segmentIndex: k, segmentCount: l.channels.length }] }))),
   lamps,
 }];
 
@@ -313,7 +317,7 @@ test('a lamp is added from its bridge, on a profile of its own built from what i
     const one = await call('POST', '/api/hue/b1/add', { lamps: ['desk'] });
     assert.strictEqual(one.body.ok, true, one.body.error);
     assert.deepStrictEqual(one.body.fixtures.map((f) => [f.label, f.profileId, f.output]), [
-      ['Desk', hueProfileId('desk', 'b1'), { protocol: 'hue', bridge: 'b1', channels: [1] }],
+      ['Desk', hueProfileId('desk', 'b1'), { protocol: 'hue', bridge: 'b1', channels: [1], members: recorded('desk') }],
     ]);
     const profile = listProfiles()[hueProfileId('desk', 'b1')];
     assert.deepStrictEqual([profile.name, profile.channelMap, profile.hue],
@@ -347,14 +351,15 @@ test('the second bridge\'s lamps are added beside the first\'s, channel for chan
     assert.strictEqual(second.body.ok, true, second.body.error);
     assert.deepStrictEqual(second.body.bridge, { id: 'b2', label: 'Party' });
     assert.deepStrictEqual(state.fixtures.filter(hasNoAddress).map((f) => f.output), [
-      { protocol: 'hue', bridge: 'b1', channels: [0] }, { protocol: 'hue', bridge: 'b2', channels: [0] },
+      { protocol: 'hue', bridge: 'b1', channels: [0], members: recorded('shelf') },
+      { protocol: 'hue', bridge: 'b2', channels: [0], members: recorded('party-bulb') },
     ]);
     const twice = await call('POST', '/api/hue/b2/add', { lamps: ['party-bulb'] });
     assert.strictEqual(twice.status, 409, 'but a lamp of one bridge is patched once');
     const listed = await call('GET', '/api/hue/b2/lamps');
     assert.deepStrictEqual(listed.body.lamps.map((l) => [l.id, l.channels]), [['party-bulb', [0]], ['party-strip', [1, 2, 3]]]);
     const rest = await call('POST', '/api/hue/b2/add', {});
-    assert.deepStrictEqual(rest.body.fixtures.map((f) => f.output), [{ protocol: 'hue', bridge: 'b2', channels: [1, 2, 3] }],
+    assert.deepStrictEqual(rest.body.fixtures.map((f) => f.output), [{ protocol: 'hue', bridge: 'b2', channels: [1, 2, 3], members: recorded('party-strip', 3) }],
       'every lamp of that bridge not patched yet, whatever the other has on those channels');
   });
 });
@@ -365,7 +370,7 @@ test('the routes name their bridge, and an unknown bridge is a 404', async () =>
     assert.deepStrictEqual(listed.body.bridge, { id: 'b1', label: 'Lounge' });
     assert.deepStrictEqual(listed.body.channels, (await areaOf(LAMPS)())[0].channels);
     const added = await call('POST', '/api/hue/b1/add', { lamps: ['hall'] });
-    assert.deepStrictEqual(added.body.fixtures.map((f) => f.output), [{ protocol: 'hue', bridge: 'b1', channels: [2] }]);
+    assert.deepStrictEqual(added.body.fixtures.map((f) => f.output), [{ protocol: 'hue', bridge: 'b1', channels: [2], members: recorded('hall') }]);
     assert.strictEqual((await call('GET', '/api/hue/nope/lamps')).status, 404);
     assert.strictEqual((await call('POST', '/api/hue/nope/add', {})).status, 404);
   });

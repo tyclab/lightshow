@@ -1,6 +1,7 @@
 import { state, universeOf, activeUniverses } from './state.ts';
 import { getProfile } from './profiles.ts';
 import { hueRoutes } from './hue-routes.ts';
+import { followHuePatch, noteHueArea, sectionChannels } from './hue-sections.ts';
 import { createHueWire } from './hue-wire.ts';
 import { DEFAULT_WIRES, createTransmitter, sacnUniverseFor as mapSacnUniverse } from './transmit.ts';
 import { createDiscovery, interfaces, isBroadcastTarget } from './artnet-nodes.ts';
@@ -45,6 +46,9 @@ function getHueConfig(): HueOutputConfig {
   return { bridges: hue.getConfigs(), latencyMs: hueLatencyMs };
 }
 
+// A lamp streams to the channels its recorded members are on in the area as last read.
+hue.setAreaSink(({ bridge, label, area, named }) => noteHueArea(bridge, label, area, named));
+
 // This thread's sender streams Hue only while this thread renders; its status reaches hue.ts directly.
 const hueWire = createHueWire({ onStatus: hue.applyStreamStatus });
 const transmitter = createTransmitter({ wires: { ...DEFAULT_WIRES, ...hueWire.wires } });
@@ -64,6 +68,7 @@ const artnetDiscovery = createDiscovery({
 });
 
 function transmitConfig(): TransmitConfig {
+  followHuePatch();
   return {
     rigRevision,
     universes: activeUniverses(),
@@ -80,7 +85,7 @@ function transmitConfig(): TransmitConfig {
     openrgb: openrgbRoutes(state.fixtures, getProfile, universeOf),
     hue: {
       bridges: hueHolds.size ? [] : hue.streamConfigs({ resolve: isArmed() }),
-      lamps: hueRoutes(state.fixtures, getProfile, universeOf, defaultHueBridgeId(hue.getConfigs())),
+      lamps: hueRoutes(state.fixtures, getProfile, universeOf, defaultHueBridgeId(hue.getConfigs()), sectionChannels),
     },
     armed: isArmed(),
   };
