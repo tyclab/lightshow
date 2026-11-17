@@ -23,7 +23,7 @@ import { renderLayer } from '../shared/layer.ts';
 import { buildRig, createRigSignature } from '../shared/rig.ts';
 import { cellPlace, channelPlace, stripOf } from '../shared/placement.ts';
 // Shared with the browser's stage preview so the two cannot drift.
-import { EXPRESSION_REST, blendExpression, blendFixture, cellDrive, HOLD_STROBE } from '../shared/look-math.ts';
+import { EXPRESSION_REST, blendExpression, blendFixture, cellDrive, exact, HOLD_STROBE } from '../shared/look-math.ts';
 import { anchorStep, stepAt, motionAdvance } from '../shared/beat-clock.ts';
 import { strobeCap, FLASHES_PER_SECOND } from './flash-limit.ts';
 import { fixtureLuminance, limitRoomFlashes } from '../shared/room-flash.ts';
@@ -199,7 +199,7 @@ function commandArg(cmd: string, arg: unknown): Colour | null | undefined {
   return Object.values(colour).every((v) => !Number.isNaN(v)) ? colour : undefined;
 }
 
-export type FrameStore = Pick<UniverseStore, 'getBuffer' | 'sync' | 'clearAll'>;
+export type FrameStore = Pick<UniverseStore, 'getBuffer' | 'sync' | 'clearAll'> & Partial<Pick<UniverseStore, 'getFine'>>;
 
 interface LightValue {
   col: Colour;
@@ -214,6 +214,8 @@ interface StrobeRequest {
 }
 
 type Dmx = Buffer | Uint8Array;
+/** Beside a Hue lamp's bytes: the level each was rounded from, for a stream finer than DMX. */
+type Fine = Float64Array | null;
 
 export interface Renderer {
   frame(input: RenderInput, reading: MusicalTime, now: number, store: FrameStore, gridOriginMs?: number): Rig<RenderFixture>;
@@ -254,12 +256,18 @@ function softStrobeLit({ raw }: StrobeRequest, now: number): boolean {
   return ((now % period) + period) % period < flash;
 }
 
+function put(dmx: Dmx, fine: Fine, at: number, value: number): void {
+  if (!fine) { dmx[at] = value; return; }
+  dmx[at] = Math.round(value);
+  fine[at] = value;
+}
+
 // Write both dimmer bytes so fine-channel fixtures retain smooth fades.
-function writeDimmer(dmx: Dmx, base: number, ch: ChannelMap, level: number): void {
+function writeDimmer(dmx: Dmx, base: number, ch: ChannelMap, level: number, fine: Fine = null): void {
   if (ch.dimmer === undefined) return;
   const clamped = level > 255 ? 255 : (level > 0 ? level : 0);
   if (ch.dimmerFine === undefined) {
-    dmx[base + ch.dimmer] = Math.round(clamped);
+    put(dmx, fine, base + ch.dimmer, fine ? clamped : Math.round(clamped));
     return;
   }
   const v16 = Math.round((clamped / 255) * 65535);
@@ -942,8 +950,9 @@ function createRenderer({ profileOf, profilesRevision = () => 0, now = performan
         identified ? 'identify' : unit.owner, !identified && unit.cut, unit.measure, ms);
       col = light.colour; dim = light.dim;
     } else if (!gate) return;
-    writeDimmer(dmx, base, ch, dim * ms);
-    writeEmitters(dmx, base, ch, col, ms * (dim / 255));
+    const fine = hueLamp(fix) ? store.getFine?.(fix.universe) ?? null : null;
+    writeDimmer(dmx, base, ch, dim * ms, fine);
+    writeEmitters(dmx, base, ch, col, ms * (dim / 255), fine);
   }
 
   function writeBar(input: RenderInput, store: FrameStore, fix: RenderFixture, cells: ChannelMap[], lights: LightValue[],
@@ -977,22 +986,28 @@ function createRenderer({ profileOf, profilesRevision = () => 0, now = performan
       }
     } else if (!gate) return;
     const fixtureDimmer = ch.dimmer !== undefined;
-    writeDimmer(dmx, base, ch, top * ms);
+    const hue = hueLamp(fix);
+    const fine = hue ? store.getFine?.(fix.universe) ?? null : null;
+    writeDimmer(dmx, base, ch, top * ms, fine);
 
     for (let c = 0; c < cells.length; c++) {
       const cell = cells[c];
       const { col, dim } = lights[c];
-      const { cellDim, scale } = cellDrive(dim, top, ms, fixtureDimmer, cell.dimmer !== undefined);
       let out = dmx;
+      let outFine = fine;
       let at = base;
       if (strip) {
         const place = cellPlace(strip, fix.address, c);
-        if (place.universe) out = store.getBuffer(fix.universe + place.universe);
+        if (place.universe) {
+          out = store.getBuffer(fix.universe + place.universe);
+          outFine = hue ? store.getFine?.(fix.universe + place.universe) ?? null : null;
+        }
         at = place.shift;
       }
-      if (cell.dimmer !== undefined) out[at + cell.dimmer] = cellDim;
+      const { cellDim, scale } = cellDrive(dim, top, ms, fixtureDimmer, cell.dimmer !== undefined, outFine ? exact : Math.round);
+      if (cell.dimmer !== undefined) put(out, outFine, at + cell.dimmer, cellDim);
       if (input.frozen && cell.strobe !== undefined) out[at + cell.strobe] = 0;
-      writeEmitters(out, at, cell, col, scale);
+      writeEmitters(out, at, cell, col, scale, outFine);
     }
   }
 
@@ -1244,16 +1259,16 @@ function createRenderer({ profileOf, profilesRevision = () => 0, now = performan
   };
 }
 
-function writeEmitters(dmx: Dmx, base: number, ch: ChannelMap, col: Colour, scale: number): void {
-  const v = outputEmitters(col, scale, ch);
-  if (ch.red !== undefined)       dmx[base + ch.red]       = v.r;
-  if (ch.green !== undefined)     dmx[base + ch.green]     = v.g;
-  if (ch.blue !== undefined)      dmx[base + ch.blue]      = v.b;
-  if (ch.white !== undefined)     dmx[base + ch.white]     = v.w;
-  if (ch.amber !== undefined)     dmx[base + ch.amber]     = v.a;
-  if (ch.coolWhite !== undefined) dmx[base + ch.coolWhite] = v.w;
-  if (ch.warmWhite !== undefined) dmx[base + ch.warmWhite] = v.a;
-  if (ch.uv !== undefined)        dmx[base + ch.uv]        = v.uv;
+function writeEmitters(dmx: Dmx, base: number, ch: ChannelMap, col: Colour, scale: number, fine: Fine = null): void {
+  const v = outputEmitters(col, scale, ch, fine ? exact : Math.round);
+  if (ch.red !== undefined)       put(dmx, fine, base + ch.red, v.r);
+  if (ch.green !== undefined)     put(dmx, fine, base + ch.green, v.g);
+  if (ch.blue !== undefined)      put(dmx, fine, base + ch.blue, v.b);
+  if (ch.white !== undefined)     put(dmx, fine, base + ch.white, v.w);
+  if (ch.amber !== undefined)     put(dmx, fine, base + ch.amber, v.a);
+  if (ch.coolWhite !== undefined) put(dmx, fine, base + ch.coolWhite, v.w);
+  if (ch.warmWhite !== undefined) put(dmx, fine, base + ch.warmWhite, v.a);
+  if (ch.uv !== undefined)        put(dmx, fine, base + ch.uv, v.uv);
 }
 
 export {

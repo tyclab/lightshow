@@ -62,8 +62,9 @@ of unique physical-lamp identity. Stage can draw one marker per physical lamp
 that averages its contributing units by segment length. Newly patched physical
 lamps use ordered `output.channels[]`; the array index is the fixture unit.
 Legacy channel fixtures retain their mapping during migration. Discovery returns
-both physical `lamps` and authoritative `channels` with segment membership, so
-room exporters can join devices without guessing from labels. Physical ordering
+both physical `lamps` and authoritative `channels` with segment membership and
+each light's content order (`contentOrder`, set in the Hue app), so room exporters
+can join devices without guessing from labels. Physical ordering
 and shared-channel behaviour still need device acceptance.
 
 The [private room model](stage-room.md) supplies walls, furniture and explicit

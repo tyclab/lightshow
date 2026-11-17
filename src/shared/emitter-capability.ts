@@ -17,15 +17,16 @@ export function fitEmitters(value: EmitterLevels, map: ChannelMap | null | undef
 }
 
 // Fold before the master/trim so a half-level colour remains half as bright.
-export function outputEmitters(colour: Colour, scale: number, map: ChannelMap | null | undefined): EmitterLevels {
-  const native = emitterValues(colour, scale);
+export function outputEmitters(colour: Colour, scale: number, map: ChannelMap | null | undefined,
+  round: (value: number) => number = Math.round): EmitterLevels {
+  const native = emitterValues(colour, scale, round);
   if (!map) return native;
   const missing = (map.white === undefined && map.coolWhite === undefined && (colour.w || 0) > 0)
     || (map.amber === undefined && map.warmWhite === undefined && (colour.a || 0) > 0)
     || (map.uv === undefined && (colour.uv || 0) > 0);
   if (!missing) return { ...native, r: map.red === undefined ? 0 : native.r, g: map.green === undefined ? 0 : native.g, b: map.blue === undefined ? 0 : native.b };
   const full = fitEmitters(emitterValues(colour, 1), map);
-  return { ...native, r: Math.round(full.r * scale), g: Math.round(full.g * scale), b: Math.round(full.b * scale),
+  return { ...native, r: round(full.r * scale), g: round(full.g * scale), b: round(full.b * scale),
     w: map.white !== undefined || map.coolWhite !== undefined ? native.w : 0,
     a: map.amber !== undefined || map.warmWhite !== undefined ? native.a : 0, uv: map.uv !== undefined ? native.uv : 0 };
 }

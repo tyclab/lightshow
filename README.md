@@ -296,9 +296,12 @@ where the effects sample it, its plot position scaled into the room, and stays l
 room position; with an explicit cell map it stands in a dark, see-through body spanning its
 pixels, since the room has no object for it. A fixture with no position anywhere is not drawn. The room's
 surfaces shade under a dim fill, the same whatever the outputs do. What a light gives the room
-is drawn where the light is: its own glow, the room objects that are the light, and one pool,
-where its beam lands or, for a light without an aim or a beam, on the floor under it
-([the rule](docs/stage-room.md)). **Eye level** stands 1.5 m behind the room's first listener (or at its front
+is drawn where the light is: its own glow, the room objects that are the light, and one pool
+where its light lands, drawn by the lux it throws there: a beam's where it is aimed, any other
+light's on the surface it is aimed at or on the floor under it
+([the rule](docs/stage-room.md)). A beam's haze stops at the walls, the floor and the ceiling,
+as its light does. Light on a wall shows from that wall's side only; light on the ceiling,
+which is never drawn, shows from above too. **Eye level** stands 1.5 m behind the room's first listener (or at its front
 edge) at 1.6 m; a double-click turns the view around the point under the pointer, and a
 right-drag or two fingers pan within the room.
 
@@ -1240,8 +1243,8 @@ in the byte: sRGB 75 is 7 % light and drives 18 of 255, not 75; 128 drives 55;
 (200, 120, 60) drives (147, 48, 12). Leave it off for a WLED board, which
 applies its own gamma to its realtime input: the decode on top of that made
 the room and the LED curtain far too dim. Hue lamps get the colour in the
-stream's RGB colour space (each byte times 257); the server applies no further
-curve. The Stage's screens show the picture as sent either way.
+stream's RGB colour space (each level times 257, below a byte included); the server
+applies no further curve. The Stage's screens show the picture as sent either way.
 
 An optional colour grade then works on the lifted colour, before the masters
 and trims; it is off by default. **White limit** takes that share of the white
@@ -1436,6 +1439,16 @@ Hue, WLED and OpenRGB fixtures have no DMX address. Internal rendering space sta
 at universe 60000; small devices can share it, and each transport reads only its
 fixture's pixels. It is never transmitted over Art-Net or sACN. `hue.latencyMs`
 delays the other outputs relative to Hue; use `/api/hue/sync-test` to compare them.
+
+A Hue lamp is streamed the levels the renderer computed before it rounded them into
+the lamp's internal channels: the stream carries 16 bits per primary, and the lamps
+resolve 11-bit brightness and 12-bit x/y. A slow fade near dark keeps its steps and
+a dim colour its proportions (5 % of 255/128/0 is 12.75/6.4/0, not 13/6/0). The
+rendered frame stays the authority: a channel streams its level only while the level
+rounds to the byte the frame holds, and a blackout or retirement frame streams its
+bytes, so whatever changes a byte after rendering holds on the lamp. Art-Net, sACN,
+DDP, OpenRGB and the previews keep the bytes; the Stage draws a Hue lamp at byte
+precision.
 
 Existing Hue fixtures retain their IDs, positions, geometry, hardware limits and
 channel bindings when loaded. Their compatibility profiles retain the original
@@ -2233,7 +2246,7 @@ it is doing (see [Live input](#live-input)).
 | GET | `/api/hue/discover` | Bridges Philips' cloud service has seen on this network |
 | POST | `/api/hue/pair` | Pair with `{ host, label? }` — the bridge link button must have been pressed in the last 30 seconds. Answers `409` with `pressLink: true` if it has not. A new address is added to `hue.bridges` (as `bridge-1`, `bridge-2`…, on, with no area yet); one already there gets fresh keys. Answers the bridge and its areas |
 | GET | `/api/hue/:bridge/areas` | Entertainment areas on that bridge, with their channel ids and lamp names |
-| GET | `/api/hue/:bridge/lamps` | Its chosen area's physical `lamps` (id, name, product, archetype, `lights` with each member light's product and archetype, devices, ordered `channels`, capabilities and `shows`) plus authoritative `channels` with product, archetype and device/segment membership for room exporters |
+| GET | `/api/hue/:bridge/lamps` | Its chosen area's physical `lamps` (id, name, product, archetype, `lights` with each member light's product, archetype and `contentOrder`, devices, ordered `channels`, capabilities and `shows`) plus authoritative `channels` with product, archetype and device/segment membership and each member's `contentOrder` for room exporters. `contentOrder` is the light's `content_configuration.order` as the Hue app set it (`forward` or `reversed`: which end shows segment 1), null when the light has none or the bridge is still changing it |
 | POST | `/api/hue/:bridge/add` | `{ lamps? }`: patch those lamp ids, or every unpatched lamp, with a bridge-derived profile and `output: { protocol: 'hue', bridge, channels }`. Legacy `{ channels? }` selects the lamps containing those channels |
 | POST | `/api/hue/:bridge/refresh` | Refresh existing lamp capabilities without replacing fixture IDs or channel order; returns `refreshed` fixture IDs and `skipped` entries with reasons |
 | POST | `/api/hue/:bridge/disconnect` | Forget that bridge, keys and all. `409` while its lamps are in the patch unless `{ removeFixtures: true }` takes them along |

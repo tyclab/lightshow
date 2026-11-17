@@ -100,10 +100,11 @@ test('each light\'s archetype is read off its device, else its light, and rides 
   });
   const [area] = await listEntertainmentConfigs('bridge.test', 'key');
   const spot = { product: GU10, archetype: 'spot_bulb' };
+  const read = { ...spot, contentOrder: null };
   assert.deepStrictEqual(area.lamps.map((lamp) => [lamp.channels, lamp.archetype, lamp.lights]), [
-    [[0], 'spot_bulb', [spot, spot, spot]],
-    [[1], 'pendant_round', [{ product: 'Hue white ambiance E27', archetype: 'pendant_round' }]],
-    [[2], 'wall_lantern', [{ product: 'Hue Lucca', archetype: 'wall_lantern' }]],
+    [[0], 'spot_bulb', [read, read, read]],
+    [[1], 'pendant_round', [{ product: 'Hue white ambiance E27', archetype: 'pendant_round', contentOrder: null }]],
+    [[2], 'wall_lantern', [{ product: 'Hue Lucca', archetype: 'wall_lantern', contentOrder: null }]],
   ], 'a light fills in for a device without one; the bridge\'s catch-all is no archetype; a device\'s own wins');
   assert.deepStrictEqual(area.channels.map((channel) => [channel.product, channel.archetype]),
     [[GU10, 'spot_bulb'], ['Hue white ambiance E27', 'pendant_round'], ['Hue Lucca', 'wall_lantern']]);

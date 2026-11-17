@@ -16,6 +16,10 @@ export interface SharedUniverses {
 export interface UniverseStore {
   shared: SharedUniverses;
   getBuffer(universe: number): Buffer;
+  /** For the renderer: where it keeps each level it rounded into a byte of this universe; null without a slot. */
+  getFine(universe: number): Float64Array | null;
+  /** For a sender: those levels, zero where none was kept; null when the universe has none. */
+  findFine(universe: number): Float64Array | null;
   list(): number[];
   count(): number;
   clearAll(): void;
@@ -38,6 +42,8 @@ function createUniverseStore(shared: SharedUniverses = allocateShared(), { readO
   const retiring = new Set<number>();     // universes owed a final blackout frame
   // Discard over-cap writes in an untransmitted buffer so they cannot corrupt another universe.
   const overflow = Buffer.alloc(UNIVERSE_SIZE);
+  // Made on a slot's first use and cleared with its bytes, so a value never outlives the frame it was rendered in.
+  const fine: (Float64Array | null)[] = new Array(MAX_UNIVERSES).fill(null);
   let writable = !readOnly;
 
   function slotOf(universe: number): number {
@@ -49,6 +55,7 @@ function createUniverseStore(shared: SharedUniverses = allocateShared(), { readO
     for (let i = 0; i < MAX_UNIVERSES; i++) {
       if (Atomics.load(table, i) === FREE) {
         views[i].fill(0);
+        fine[i]?.fill(0);
         Atomics.store(table, i, universe);
         return i;
       }
@@ -66,6 +73,18 @@ function createUniverseStore(shared: SharedUniverses = allocateShared(), { readO
     return views[slot];
   }
 
+  function getFine(universe: number): Float64Array | null {
+    getBuffer(universe);
+    const slot = slotOf(universe);
+    if (slot < 0) return null;
+    return fine[slot] ??= new Float64Array(UNIVERSE_SIZE);
+  }
+
+  function findFine(universe: number): Float64Array | null {
+    const slot = slotOf(universe);
+    return slot < 0 ? null : fine[slot];
+  }
+
   function list(): number[] {
     const out: number[] = [];
     for (let i = 0; i < MAX_UNIVERSES; i++) {
@@ -78,7 +97,11 @@ function createUniverseStore(shared: SharedUniverses = allocateShared(), { readO
   function count() { return list().length; }
 
   function clearAll() {
-    for (let i = 0; i < MAX_UNIVERSES; i++) if (Atomics.load(table, i) !== FREE) views[i].fill(0);
+    for (let i = 0; i < MAX_UNIVERSES; i++) {
+      if (Atomics.load(table, i) === FREE) continue;
+      views[i].fill(0);
+      fine[i]?.fill(0);
+    }
   }
 
   function sync(active: Iterable<number>): void {
@@ -112,6 +135,8 @@ function createUniverseStore(shared: SharedUniverses = allocateShared(), { readO
   return {
     shared,
     getBuffer,
+    getFine,
+    findFine,
     list,
     count,
     clearAll,
@@ -126,6 +151,8 @@ const store = createUniverseStore();
 
 export const shared = store.shared;
 export const getBuffer = store.getBuffer;
+export const getFine = store.getFine;
+export const findFine = store.findFine;
 export const list = store.list;
 export const count = store.count;
 export const clearAll = store.clearAll;

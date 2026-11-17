@@ -30,7 +30,7 @@ const HEADER_BYTES = 16;
 // 14 colour space (0 RGB, 1 xy+brightness); 15 reserved;
 // 16..51 entertainment configuration ID, 36 ASCII bytes;
 // 52.. channel ID plus 16-bit big-endian R, G, B.
-// Scale bytes by 257 so 255 reaches 65535 exactly.
+// Scale levels by 257 so 255 reaches 65535 exactly; a level between bytes keeps its fraction.
 function buildStreamMessage(configId: unknown, channels: readonly HueChannelColour[], sequence = 0): Buffer {
   const id = String(configId || '');
   const packet = Buffer.alloc(HEADER_BYTES + CONFIG_ID_BYTES + channels.length * CHANNEL_BYTES);
@@ -57,8 +57,8 @@ function buildStreamMessage(configId: unknown, channels: readonly HueChannelColo
 }
 
 function to16(value: unknown): number {
-  const v = Math.max(0, Math.min(255, Math.round(Number(value) || 0)));
-  return v * 257;
+  const v = Math.max(0, Math.min(255, Number(value) || 0));
+  return Math.round(v * 257);
 }
 
 // Keep failed sessions in backoff so render frames cannot trigger repeated handshakes.

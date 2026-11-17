@@ -31,12 +31,16 @@ export interface HueLiveStatus {
 }
 
 export type LampKind = 'color' | 'ambiance' | 'white';
+/** Which end of a gradient light shows segment 1, as set in the Hue app: `content_configuration.order`. */
+export type HueContentOrder = 'forward' | 'reversed';
 export interface HueChannelMember {
   deviceId: string | null;
   serviceId: string;
   segmentIndex: number | null;
   segmentLength: number | null;
   segmentCount: number | null;
+  /** Null when the light carries no settled order. */
+  contentOrder: HueContentOrder | null;
 }
 
 export interface AreaChannel {
@@ -84,6 +88,8 @@ interface ClipLight {
   color_temperature?: { mirek_schema?: { mirek_minimum?: unknown; mirek_maximum?: unknown } } | null;
 
   metadata?: { fixed_mired?: unknown; archetype?: unknown };
+
+  content_configuration?: { order?: { order?: unknown; status?: unknown } };
 }
 
 type PairReply = {
@@ -98,6 +104,7 @@ interface Lamp {
   device: string;
   kind: LampKind | null;
   capabilities: LampCapabilities | null;
+  contentOrder: HueContentOrder | null;
   segmentLengths?: number[];
 }
 
@@ -192,7 +199,7 @@ async function fetchLampNames(host: string, key: string): Promise<Map<string, La
       bridgeRequest(host, { path: '/clip/v2/resource/light', key }) as Promise<ClipList<ClipLight> | null>,
     ]);
 
-    const deviceById = new Map<string, Omit<Lamp, 'kind' | 'capabilities'>>();
+    const deviceById = new Map<string, Omit<Lamp, 'kind' | 'capabilities' | 'contentOrder'>>();
     for (const device of (devices && devices.data) || []) {
       deviceById.set(device.id, {
         name: (device.metadata && device.metadata.name) || '',
@@ -218,6 +225,7 @@ async function fetchLampNames(host: string, key: string): Promise<Map<string, La
       // CLIP v2 deprecates a light's archetype for its device's, so the light's only fills a gap.
       names.set(service.id, { ...device, archetype: device.archetype ?? archetypeOf(light?.metadata?.archetype),
         kind: light ? kindOf(light) : null, capabilities: light ? capabilitiesOf(light) : null,
+        contentOrder: light ? contentOrderOf(light) : null,
         segmentLengths: service.segments?.segments?.map((segment) => segment.length) });
     }
   } catch (_) {
@@ -229,6 +237,13 @@ async function fetchLampNames(host: string, key: string): Promise<Map<string, La
 // The fitting chosen in the Hue app; the bridge's catch-all value says nothing.
 function archetypeOf(value: unknown): string | null {
   return typeof value === 'string' && /^[a-z0-9_]{1,64}$/.test(value) && value !== 'unknown_archetype' ? value : null;
+}
+
+// An order the bridge is still writing to the light is not yet the one it shows.
+function contentOrderOf(light: Pick<ClipLight, 'content_configuration'>): HueContentOrder | null {
+  const order = light.content_configuration?.order;
+  if (!order || order.status !== 'set') return null;
+  return order.order === 'forward' || order.order === 'reversed' ? order.order : null;
 }
 
 function kindOf(light: Pick<ClipLight, 'color' | 'color_temperature'>): LampKind {
@@ -256,7 +271,7 @@ function channelMembers(channel: ClipChannel, lamps: Map<string, Lamp>): HueChan
     const length = index === null ? undefined : lamp?.segmentLengths?.[index];
     return { serviceId, deviceId: lamp?.device || null, segmentIndex: index,
       segmentLength: typeof length === 'number' && Number.isFinite(length) && length > 0 ? length : null,
-      segmentCount: lamp?.segmentLengths?.length || null };
+      segmentCount: lamp?.segmentLengths?.length || null, contentOrder: lamp?.contentOrder ?? null };
   });
 }
 
@@ -651,6 +666,7 @@ export {
   nameChannel,
   archetypeOf,
   kindOf,
+  contentOrderOf,
   kindOfChannel,
   capabilitiesOf,
   lampsOf,
@@ -685,6 +701,10 @@ export interface LampCapabilities {
   fixedWhite: number | null;
 }
 
+export interface AreaLight extends HueLight {
+  contentOrder: HueContentOrder | null;
+}
+
 export interface AreaLamp {
 
   id: string;
@@ -693,7 +713,7 @@ export interface AreaLamp {
   product: string;
   archetype?: string | null;
   /** Every light the lamp drives, lead first; a channel combining several lights is still one lamp. */
-  lights?: HueLight[];
+  lights?: AreaLight[];
 
   devices: string[];
 
@@ -747,7 +767,7 @@ function lampsOf(channels: readonly ClipChannel[], names: Map<string, Lamp>): Ar
       name: [...new Set(lamps.map((l) => l.name).filter(Boolean))].join(' + '),
       product: lead ? lead.product : '',
       archetype: lead?.archetype ?? null,
-      lights: lamps.map((l) => ({ product: l.product || '', archetype: l.archetype ?? null })),
+      lights: lamps.map((l) => ({ product: l.product || '', archetype: l.archetype ?? null, contentOrder: l.contentOrder ?? null })),
       devices: [...new Set(lamps.map((l) => l.device))],
       channels: group.channels.map((c) => c.id),
       kind: lead ? lead.kind : null,

@@ -68,6 +68,23 @@ cylinder by its outline, a mesh by its triangles, so a beam passes a mesh wall's
 openings. The bounds' floor, ceiling and walls stop the rest. A pool shows only on
 the surface it lands on, inside the room polygon that holds its centre, and not
 past a wall from its centre.
+A pool shows from the side its surface faces, which is the side its light comes from:
+light on a wall's face is not drawn for a view from behind that wall, whether the wall
+stands at full height, is cut away or is hidden. A pool on a ceiling shows from above as
+well: the room's ceiling is never drawn, so nothing else would show the light on it. A
+pool is on a ceiling when the surface it lies on faces down within 45° of straight down:
+the room's own ceiling, and the underside of furniture or of a wall. An object drawn
+opaque hides the pool on its underside from above, as it hides that underside; under an
+object drawn see-through (opacity below 1), under a hidden wall and under the part of a
+wall that Cutaway takes away, the pool shows from above too.
+A beam's haze, the cone drawn from its lamp to where it lands, shows only where the
+lamp's light is: inside the room's bounds, on the lamp's side of the floor and of the
+ceiling, in the room the lamp stands in and the one its pool lies in, and not past a
+wall from the lamp, hidden or not. So none shows in a gap between two room polygons, or
+in a room the beam only passes through. A lamp outside every room polygon belongs to the
+room whose edge is nearest; a wall a lamp is set into stops neither its beam nor its
+haze. A wall stops haze and clips a pool by its box, whatever its shape: where a beam
+passes a mesh wall's opening, its haze ends at that wall. Furniture does not cut haze.
 Optional `rotation` contains `x`, `y`, `z` Euler angles in radians. A cylinder's
 local axis is Y; X/Z sizes are diameters. A prism also needs a local X/Z polygon
 within its width/depth. Room polygons use world X/Z coordinates. Colours are
@@ -107,42 +124,57 @@ A binding's optional `lightTarget: { x, y, z }` aims its preview at a lit surfac
 It uses the room coordinate frame and must differ from the emitter (the path
 midpoint for strips). Optional `lightTargetConfidence` is `estimated` or
 `measured`; photo-derived directions are estimates. The target overrides fixture
-pan/tilt in this room while keeping its beam spread, with a 100° wash for lamps
-without a beam spread. The first wall, opaque furniture surface or room boundary
-receives the pool, as for any beam.
+pan/tilt in this room while keeping its beam spread; a light without a beam lights
+the surface it is aimed at in place of the floor under it. The first wall, opaque
+furniture surface or room boundary receives the pool, as for any beam.
 Physical positions, output addressing and effect sampling remain unchanged.
 
-Every light gives the room one pool. An aimed lamp's and a beam fixture's lies where the beam
-lands. Any other light's lies on the room's floor under it, whatever furniture stands between.
-It reaches 0.7 m around a light lying on the floor and 0.45 m more for each metre the light
-stands above it, up to 2.6 m:
+Every light gives the room one pool, where its light lands, drawn by the lux (lumen a square
+metre) it throws there:
 
-- A lamp throws a round pool.
-- A strip with a surveyed `path` throws a band under each section of the path: a lamp's pool at
-  that height, longer by half the section either way. An upright section throws a round pool
-  from the height of its middle.
+- A lamp with a beam (a **Light shape** of directional beam, or a Hue spot, pendant, ceiling or
+  wall fitting its bridge names) throws it where it is aimed, else by its own pan and tilt, onto
+  the first surface that meets, with its cone in the haze. Its intensity falls to half at half
+  its beam angle, so its lumen and that angle give the candela on its axis: 567 cd for Hue's
+  350 lm, 43° GU10, where its maker states 570. What lands at the pool's centre is that over
+  the square of the throw, turned by the angle the beam strikes at.
+- Any other lamp shines all round, its lumen over the sphere at that distance. Its pool lies on
+  the surface it is aimed at, else on its room's floor under it, whatever furniture stands
+  between.
+- A strip with a surveyed `path` throws a band for each section of the path, level along the
+  section. Aimed, it faces its surface with its LEDs' 120° (what Hue states for its strips) and
+  lights it by the section's lumen; without an aim it shines all round onto the floor under
+  it, where an upright section's pool is round.
 - A fixture bound pixel by pixel (a panel, a cube, a ball, a strip without a path) throws one
-  band for all those pixels, in their mean colour, under their centre. It runs along their
-  longest level extent, longer by half of it either way and wider by half their extent across.
-  A strip that turns corners needs a `path` to be lit along its run.
+  band for all those pixels, in their mean colour, on the floor under their centre, as a line
+  of light that shines all round. It is level along their longest level extent and across
+  their extent the other way. A strip that turns corners needs a `path` to be lit along its run.
 
-Such a pool is clipped like any other, to the room its light stands in; a light outside every
-room polygon, such as one hung in the line of a wall, belongs to the room whose edge is nearest.
-A light under the floor or above the ceiling throws none. Room objects drawn for a light
-(`lightBindingId`) change nothing about its pool, with one exception: a beam fixture they draw
-throws a beam only when it is aimed, and without an aim has the floor pool.
+A pool's level is the lux at its centre over 97, the lux drawn at full strength (`POOL_FULL` in
+`public-src/stage3d/world.js`). It is at half that level where half as much lands: 0.77 of its
+height to the side under a lamp, 0.34 of its throw to the side for a 43° beam. A light that
+throws more than 97 lx is drawn at full, as wide as it lights to half of full: a 900 lm a
+metre strip 5 cm off a wall lights 0.28 m to either side. From 2.45 m, Hue's spot throws 94 lx
+(level 0.97) with its half level 0.83 m out, and an 806 lm bulb 11 lx (0.11) with its half
+level 1.88 m out. A beam's cone in the haze is as strong as its pool. No light counts as
+nearer a surface than a bulb's own 3.5 cm.
+
+A pool is clipped like any other: the one under a light to the room its light stands in, where
+a light outside every room polygon, such as one hung in the line of a wall, belongs to the room
+whose edge is nearest. A light under the floor or above the ceiling throws none under it. Room
+objects drawn for a light (`lightBindingId`) change nothing about its pool or its cone.
 
 How strongly a pool is drawn follows its light's lumen at full white. A Hue lamp has the lumen
 of the product its bridge names (a GU10 spot 350 lm, a candle 470 lm, a Play bar 500 lm, a light
 strip 800 lm a metre; `HUE_LUMEN` in `src/shared/emission.ts`, the maker's figures at 4000 K,
 rounded), any other strip 484 lm a metre of surveyed run and a pixel 8 lm. A panel's pixels
 closer than a 60-per-metre strip's are smaller LEDs and count by the area each has (a 5.6 mm
-pitch gives 0.9 lm a pixel); that figure is an estimate. A pool is drawn at the lumen it spreads
-over each square metre, full strength at 97 lm/m² (a 350 lm, 36° spot on the floor 2.45 m
-below), so a wide wash from a small lamp is faint. A beam of unknown lumen (a DMX par) keeps a
-full-strength pool. Any other light of unknown lumen counts as an 806 lm bulb, except the one
-light of a fixture sent as LED data (DDP, OpenRGB) for which nobody chose a **Light shape** or
-typed a **Lumen**: it is a single LED and counts as a pixel. The generic venue is drawn as before.
+pitch gives 0.9 lm a pixel); that figure is an estimate. A beam of unknown lumen (a DMX par)
+keeps a full-strength pool, at half its level where half of its own centre's light lands; aimed
+in a room it counts as an 806 lm bulb. Any other light of unknown lumen counts as an 806 lm
+bulb too, except the one light of a fixture sent as LED data (DDP, OpenRGB) for which nobody
+chose a **Light shape** or typed a **Lumen**: it is a single LED and counts as a pixel. The
+generic venue knows no lumen: its beams land by the same rule, each pool at full strength.
 
 A fixture's own figure comes first: the **Lumen** of its light shape (`emission.lumen`, set in
 the fixture inspector) is what the whole fixture gives at full white, for any output. Its units
@@ -170,11 +202,11 @@ for a product at its own length; a run of another length is better stated as its
 The registry gives a beam angle for directional lamps only. Hue's GU10 has 43° (the 5.7 W
 colour lamp, 570 cd on its axis; EPREL 1508900 and 387862), which is the spread a spot is
 drawn with; the white ambiance GU10 has 42° (EPREL 391948) and the 4.2 W colour lamp 40°. The
-120° of a pendant, a ceiling fitting or a Centris ceiling panel, the 90° of a wall fitting, the
-55° of spots combined on one channel and the 100° wash of an aimed lamp without a spread are
-assumptions, as is the 484 lm a metre of a strip that is not Hue.
-The 97 lm/m² of a full-strength pool is what 350 lm spreads over the foot of a 36° cone 2.45 m
-long; Hue's 43° spot pointing straight down from that height is drawn at 0.68 of it.
+120° of a pendant, a ceiling fitting or a Centris ceiling panel, the 90° of a wall fitting and
+the 55° of spots combined on one channel are assumptions, as are the 484 lm a metre and the
+120° of a strip that is not Hue and the 8 lm of a pixel. The beam's shape is one too: against
+the candela the registry states for twelve of the maker's GU10 lamps, lumen and beam angle give
+0.77 to 1.44 times as much. Light that walls and ceiling throw back is not drawn.
 
 Optional `anchors` name points effects can start from, such as speakers:
 `[{ "id": "speakerLeft", "position": { "x": -1.5, "y": 1, "z": -1.5 } }]`. Optional

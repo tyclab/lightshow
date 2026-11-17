@@ -33,6 +33,8 @@ import * as universes from '../../src/server/universes.ts';
 import { startEngine, stopEngine } from '../../src/server/engine.ts';
 import { applyPatch } from '../../src/server/patch.ts';
 import { settings, defaultHueBridgeId } from '../../src/server/settings.ts';
+import { listEntertainmentConfigs } from '../../src/server/hue.ts';
+import { fakeBridge } from '../helpers/hue-fakes.js';
 
 showStore.scheduleSave = () => {};   // never the real show file
 state.artnet.enabled = false;
@@ -234,6 +236,65 @@ test('lamp discovery retains physical channel members for room exporters', async
     assert.deepStrictEqual(listed.body.lamps.find((entry) => entry.id === 'tv').channels, [3, 4, 5]);
     assert.ok(!JSON.stringify(listed.body).includes('app-key'));
   }, async () => areas);
+});
+
+// A gradient light's content order is set in the Hue app (which way it is mounted) and says which end shows
+// segment 1. Light resources shaped as a Pro bridge gives them; the strips share channel 1, as the bridge's own
+// Music area does.
+test('each light\'s content order rides on its channel members and on its lamp, not into its profile', async (t) => {
+  const order = (value, configurable) => ({ status: 'set', configurable, order: value });
+  const strip = (id, name, archetype, contentOrder, association) => ({
+    device: { id: `d-${id}`, metadata: { name, archetype }, product_data: { product_name: 'Hue gradient lightstrip' } },
+    light: { id: `l-${id}`, owner: { rid: `d-${id}`, rtype: 'device' }, type: 'light', metadata: { name, archetype }, color: { gamut_type: 'C' },
+      content_configuration: { orientation: { status: 'set', configurable: contentOrder.configurable, orientation: 'horizontal' },
+        order: contentOrder, association: { association } } },
+  });
+  const kitchen = strip('kitchen', 'Kitchen strip', 'hue_lightstrip', order('reversed', true), 'not_associated');
+  const tv = strip('tv', 'TV strip', 'hue_lightstrip_tv', order('forward', false), 'screen');
+  const shelf = {
+    device: { id: 'd-shelf', metadata: { name: 'Shelf', archetype: 'classic_bulb' }, product_data: { product_name: 'Hue color lamp' } },
+    light: { id: 'l-shelf', owner: { rid: 'd-shelf', rtype: 'device' }, type: 'light', metadata: { name: 'Shelf', archetype: 'classic_bulb' }, color: { gamut_type: 'C' } },
+  };
+  const service = (id, segments) => ({ id: `e-${id}`, owner: { rid: `d-${id}`, rtype: 'device' }, renderer: true,
+    renderer_reference: { rid: `l-${id}`, rtype: 'light' }, segments: { configurable: false, segments } });
+  const member = (id, index) => ({ service: { rid: `e-${id}`, rtype: 'entertainment' }, index });
+  const resources = {
+    device: [kitchen.device, tv.device, shelf.device],
+    light: [kitchen.light, tv.light, shelf.light],
+    entertainment: [
+      service('kitchen', [{ start: 0, length: 3 }, { start: 3, length: 4 }, { start: 7, length: 3 }]),
+      service('tv', [{ start: 0, length: 2 }, { start: 2, length: 3 }]),
+      service('shelf', [{ start: 0, length: 1 }]),
+    ],
+    entertainment_configuration: [{ id: AREA, metadata: { name: 'Music area' }, channels: [
+      { channel_id: 0, members: [member('kitchen', 0)] },
+      { channel_id: 1, members: [member('tv', 0), member('kitchen', 1)] },
+      { channel_id: 2, members: [member('kitchen', 2)] },
+      { channel_id: 3, members: [member('tv', 1)] },
+      { channel_id: 4, members: [member('shelf', 0)] },
+    ] }],
+  };
+  fakeBridge(t, { area: (call) => ({ status: 200, body: { errors: [], data: resources[call.path.split('/').pop()] || [] } }) });
+  await withApp([], async (call) => {
+    const listed = await call('GET', '/api/hue/b1/lamps');
+    assert.strictEqual(listed.body.ok, true, listed.body.error);
+    assert.deepStrictEqual(listed.body.channels.map((channel) => channel.members.map((m) => [m.deviceId, m.segmentIndex, m.contentOrder])), [
+      [['d-kitchen', 0, 'reversed']],
+      [['d-tv', 0, 'forward'], ['d-kitchen', 1, 'reversed']],
+      [['d-kitchen', 2, 'reversed']],
+      [['d-tv', 1, 'forward']],
+      [['d-shelf', 0, null]],
+    ], 'a strip set reversed, a TV strip forward, a bulb without any content configuration');
+    assert.deepStrictEqual(listed.body.lamps.map((lamp) => [lamp.name, lamp.channels, lamp.lights.map((light) => light.contentOrder)]), [
+      ['Kitchen strip', [0, 2], ['reversed']],
+      ['TV strip + Kitchen strip', [1, 3], ['forward', 'reversed']],
+      ['Shelf', [4], [null]],
+    ], 'every light of a lamp, lead first, with its own order');
+    const added = await call('POST', '/api/hue/b1/add', { lamps: ['e-kitchen'] });
+    assert.strictEqual(added.body.ok, true, added.body.error);
+    assert.deepStrictEqual(getProfile(added.body.fixtures[0]).hue.lights, [{ product: 'Hue gradient lightstrip', archetype: 'hue_lightstrip' }],
+      'the patch does not keep it');
+  }, () => listEntertainmentConfigs('bridge.test', 'app-key'));
 });
 
 test('a lamp is added from its bridge, on a profile of its own built from what it can show, with no address', async () => {

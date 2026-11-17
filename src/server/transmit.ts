@@ -15,6 +15,7 @@ import type { ArtDmxTarget } from './artnet.ts';
 import type { ArtRoutes } from './artnet-nodes.ts';
 import type { SacnTarget } from './sacn.ts';
 import type { Settings } from './settings.ts';
+import type { UniverseStore } from './universes.ts';
 
 export interface ArtnetOutput {
   enabled: boolean;
@@ -83,14 +84,19 @@ export interface ArtnetDestination {
   sync: boolean;
 }
 
+/** Beside a frame: each channel's level before it was rounded into the byte (universes.ts); read for Hue only. */
+export type FrameLevels = ArrayLike<number> | null | undefined;
+
 export interface Transmitter {
-  send(universe: number, frame: Buffer, config: TransmitConfig, options?: SendOptions): Wire[];
+  send(universe: number, frame: Buffer, config: TransmitConfig, options?: SendOptions, levels?: FrameLevels): Wire[];
   endFrame(config: TransmitConfig | null | undefined): boolean;
   /** Treat these destinations as possibly lit, so they are retired before any new light. */
   seed(destinations: readonly ArtnetDestination[]): void;
 }
 
 const SACN_ACTIVE_MS = 3000;
+
+const PROTECTIVE: SendOptions = Object.freeze({ immediate: true, terminate: true });
 
 const ZERO_FRAME = Buffer.alloc(512);
 
@@ -183,6 +189,10 @@ function createTransmitter({ wires = DEFAULT_WIRES, now = () => performance.now(
   const delayLine = new Map<number, { at: number; frame: Buffer }[]>();
   // This frame's universes as rendered, before the delay line: Hue is what the delay waits for.
   const hueFrames = new Map<number, Buffer>();
+  // Set with each universe's frame and read only beside it, so a level never outlives its frame.
+  const hueLevels = new Map<number, FrameLevels>();
+  const hueFrameOf = (universe: number) => hueFrames.get(universe);
+  const hueLevelsOf = (universe: number) => hueLevels.get(universe);
   let hueBlackout = true;
   const hueSent = new Map<string, HueStreamConfig>();
 
@@ -250,13 +260,15 @@ function createTransmitter({ wires = DEFAULT_WIRES, now = () => performance.now(
 
   // Bypass and discard delayed frames for blackout or retirement so stale light cannot follow shutdown.
   function send(universe: number, frame: Buffer, config: TransmitConfig,
-    { immediate = false, terminate = false }: SendOptions = {}): Wire[] {
+    { immediate = false, terminate = false }: SendOptions = {}, levels: FrameLevels = null): Wire[] {
     const sent: Wire[] = [];
 
     if (!syncArmed(config)) return sent;
     const routed = syncRouting(config);
     if (wires.hue && config.hue?.lamps.length) {
       hueFrames.set(universe, frame);
+      // A protective frame (blackout, retirement) goes to Hue as its bytes alone.
+      hueLevels.set(universe, immediate && terminate ? null : levels);
       if (!immediate || !terminate) hueBlackout = false;
     }
     if (!routed) { frameReady = false; return sent; }
@@ -395,6 +407,7 @@ function createTransmitter({ wires = DEFAULT_WIRES, now = () => performance.now(
       else frameReady = false;
     }
     hueFrames.clear();
+    hueLevels.clear();
     hueBlackout = true;
   }
 
@@ -433,7 +446,7 @@ function createTransmitter({ wires = DEFAULT_WIRES, now = () => performance.now(
     }
     const protective = !applied && hueBlackout && hueFrames.size > 0;
     if (wires.hue && bridges.length && (applied || protective)) {
-      const colours = hueChannelColours(hue?.lamps ?? [], (universe) => hueFrames.get(universe));
+      const colours = hueChannelColours(hue?.lamps ?? [], hueFrameOf, hueLevelsOf);
       const dark = [...colours.values()].every((list) => list.every((c) => !c.r && !c.g && !c.b));
       if (applied || dark) {
         for (const bridge of bridges) {
@@ -567,6 +580,17 @@ function createTransmitter({ wires = DEFAULT_WIRES, now = () => performance.now(
   return { send, endFrame, seed };
 }
 
+/** A render thread's frame: each universe of its store with the levels beside it, the retired ones dark, then the end. */
+function transmitStore(transmitter: Transmitter, store: Pick<UniverseStore, 'list' | 'getBuffer' | 'findFine' | 'drainRetired'>,
+  outputs: TransmitConfig, protective: boolean): boolean {
+  const hue = !!outputs.hue?.lamps.length;
+  for (const universe of store.list()) {
+    transmitter.send(universe, store.getBuffer(universe), outputs, protective ? PROTECTIVE : undefined, hue ? store.findFine(universe) : null);
+  }
+  for (const [universe, frame] of store.drainRetired()) transmitter.send(universe, frame, outputs, PROTECTIVE);
+  return transmitter.endFrame(outputs);
+}
+
 // Every physical Art-Net destination this config can light; what a sender holding it may have to retire.
 function artnetDestinations(config: TransmitConfig): ArtnetDestination[] {
   const { artnet } = config;
@@ -636,6 +660,7 @@ class ArtnetLedger {
 export {
   DEFAULT_WIRES,
   createTransmitter,
+  transmitStore,
   sacnUniverseFor,
   artnetDestinations,
   ArtnetLedger,
