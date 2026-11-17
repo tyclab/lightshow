@@ -36,9 +36,6 @@ export function PaletteStrip({ initialTarget = 'override', target: selectedTarge
   const [invalid, setInvalid] = useState(false);
   const [error, setError] = useState('');
   const [managing, setManaging] = useState(false);
-  const [size, setSize] = useState(() => {
-    try { const n = Number(localStorage.getItem('lightshow.paletteSize')); return [2, 3, 4].includes(n) ? n : 4; } catch { return 4; }
-  });
   const lib = librarySig.value;
   const builtin = s.builtinPalettes || lib.palettes?.builtin || [];
   const user = s.userPalettes || lib.palettes?.user || [];
@@ -53,7 +50,7 @@ export function PaletteStrip({ initialTarget = 'override', target: selectedTarge
     else if (colour.spec) {
       const { id: _id, name: _name, app: _app, ...body } = p;
       send(colour.patch(body));
-    } else send({ palette: p.id, paletteSize: size });
+    } else send({ palette: p.id });
   };
   const apply = async () => {
     if (draftTarget !== editKey) return;
@@ -67,11 +64,6 @@ export function PaletteStrip({ initialTarget = 'override', target: selectedTarge
         {['base', 'override'].map((t) => <button key={t} type="button" class={`segmented-btn ${target === t ? 'active' : ''}`}
           aria-pressed={target === t} onClick={() => { setTarget(t); setDraft(null); setError(''); }}>{t === 'base' ? 'Main effect' : 'Global override'}</button>)}
       </div>
-      {!override && !colour.spec && <select aria-label="Classic palette size" value={size} onChange={(e) => {
-        const n = Number(e.target.value); setSize(n);
-        try { localStorage.setItem('lightshow.paletteSize', String(n)); } catch { /* private mode */ }
-        if (builtin.some((p) => p.id === active && p.app === 'look')) send({ paletteSize: n });
-      }}><option value="2">Classic duo</option><option value="3">Classic triad</option><option value="4">Classic tetrad</option></select>}
       <button type="button" class="btn sm" onClick={() => { setDraftTarget(editKey); setDraft(JSON.parse(JSON.stringify(current))); }}>Edit palette</button>
       <button type="button" class="btn sm" onClick={() => setManaging(true)}>Manage palettes</button>
     </div>

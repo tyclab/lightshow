@@ -719,7 +719,7 @@ The version-2 saved-effect library keeps authored legacy parameters through
 compatibility adapters; those engines remain for exact legacy playback. Selected
 old preset ids intentionally map to modern 2D looks. The alias frame-diff script
 (`node scripts/effects-v2-alias-diff.js [id=preset …]`) records those changes, and
-those of classic ids moved onto v2 presets, without rewriting the golden fixtures. The colour strip offers the stage palettes, TycStation and a hue-pair
+those of classic ids moved onto v2 presets, without rewriting the golden fixtures. The colour strip offers TycStation, the saved palettes and a hue-pair
 generator; every historical palette id still resolves.
 Visualizer Flow and Visualizer Drift left with the Colour + motion picture source
 (2026-11-15). Saved data naming them or their kind is migrated as its file loads, one
@@ -1513,10 +1513,9 @@ the effect's normal parameter-change behaviour. A global override still takes pr
 `paletteOverride` and `paletteOverrideId` remain compatible with existing
 clients. Old indexed palettes retain their curated 2/3/4-colour variants;
 old palette files, presets and cues load without losing colours or Random.
-The lists offer the stage palettes and **TycStation**, with the palettes saved
-here. The two- and three-colour tables the party effects came with are what
-those effects draw from and are not offered; their ids still work through REST
-and Home Assistant. A palette's strip draws each of its colours as its own
+The lists offer **TycStation** and the palettes saved here. The tables the
+effects came with and the indexed looks are what the engine draws from and are
+not offered; their ids still work through REST and Home Assistant. A palette's strip draws each of its colours as its own
 block. The **TycStation** palette (`tycStation`) holds the
 product mark's colours: blue `#5AA2FF`, violet `#8B6CF0`, red `#FF4A3D` and
 violet again, so an effect that runs round the palette comes back to blue
