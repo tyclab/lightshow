@@ -6,7 +6,7 @@ import path from 'node:path';
 import esbuild from 'esbuild';
 import { PerspectiveCamera, Vector3 } from 'three';
 import { buildRig } from '../../src/shared/rig.ts';
-import { placeRig, roomRig, roomViews, hasBeams, meanLightRGB, TRUSS_H, STAGE_FOV, ROOM_BULB, ROOM_LIGHTS, roomLightClusters, roomLightAt, eyeView } from '../../public-src/stage3d/world.js';
+import { placeRig, roomRig, roomViews, hasBeams, meanLightRGB, TRUSS_H, STAGE_FOV, ROOM_BULB, eyeView } from '../../public-src/stage3d/world.js';
 import { buildUnitSpace } from '../../src/shared/space.ts';
 
 const profiles = { lamp: { channelMap: { red: 0 } }, bar: { cells: [{ channelMap: { red: 0 } }, { channelMap: { red: 1 } }] } };
@@ -81,25 +81,14 @@ test('a room draws bulbs at their physical size and the generic venue at its own
   assert.equal(venue.lamps[0].body, undefined);
 });
 
-test('the room\'s lights stand at clusters of its emitters, the same every time, at most ROOM_LIGHTS', () => {
-  const group = (x) => Array.from({ length: 5 }, (_, k) => ({ position: { x: x + k * 0.01, y: 2, z: 0 } }));
-  const emitters = [...group(-2), ...group(2)];
-  const centres = roomLightClusters(emitters, 2);
-  assert.equal(centres.length, 2);
-  assert.deepEqual(centres.map((c) => Math.round(c.x * 100) / 100).sort((a, b) => a - b), [-1.98, 2.02]);
-  assert.ok(emitters.every((e, k) => e.cluster === emitters[k < 5 ? 0 : 5].cluster && e.weight === 1));
-  assert.deepEqual(roomLightClusters(group(0).map((e) => ({ ...e })), 2).length, 2);
-  const many = Array.from({ length: 40 }, (_, k) => ({ position: { x: k % 7, y: 1, z: Math.floor(k / 7) } }));
-  assert.equal(roomLightClusters(many).length, ROOM_LIGHTS);
-  assert.deepEqual(roomLightClusters(many.map(({ position }) => ({ position }))), roomLightClusters(many.map(({ position }) => ({ position }))));
-  const pixels = [{ position: { x: 0, y: 1, z: 0 }, size: 0.01 }, { position: { x: 1, y: 1, z: 0 }, length: 2, size: 0.01 }];
-  roomLightClusters(pixels);
-  assert.deepEqual(pixels.map((e) => e.weight), [0.01, 1.2], 'a pixel adds a hundredth of a bulb, a strip by its metres');
-});
-
-test('a room light stands a little into the room and off its floor and ceiling', () => {
-  assert.deepEqual(roomLightAt({ x: 2, y: 2.59, z: 0 }, { height: 2.6 }), { x: 1.7, y: 2.45, z: 0 });
-  assert.deepEqual(roomLightAt({ x: 0.1, y: 0, z: 0 }, { height: 2.6 }), { x: 0, y: 0.25, z: 0 });
+test('a fixture drawn partly as room objects sizes its pixels by the pitch of all of them', () => {
+  const bar = { id: 1, label: 'Bar', profileId: 'bar' }, profile = { id: 'bar', channelMap: {}, cells: Array.from({ length: 8 }, () => ({})) };
+  // Units 0 to 3 are pixels 10 cm apart; room objects draw units 4 to 7, 1 cm apart.
+  const bindings = profile.cells.map((_, unit) => ({ id: `b${unit}`, fixtureId: 1, unit, position: { x: unit < 4 ? unit * 0.1 : 1 + unit * 0.01, y: 1, z: 0 } }));
+  const objects = [4, 5, 6, 7].map((unit) => ({ id: `o${unit}`, kind: 'box', role: 'furniture', position: bindings[unit].position, size: { x: 0.01, y: 0.01, z: 0.01 }, lightBindingId: `b${unit}` }));
+  const placed = roomRig([bar], buildRig([bar], () => profile), { bounds: { width: 6, depth: 6, height: 2.6 }, objects, bindings }, { bar: profile });
+  assert.equal(placed.cells.length, 4);
+  for (const cell of placed.cells) assert.ok(Math.abs(cell.size - 0.004) < 1e-9, `0.4 of the 1 cm pitch, not of the 10 cm one: ${cell.size}`);
 });
 
 test('eye level stands behind the first listener inside the room, or at its front edge', () => {

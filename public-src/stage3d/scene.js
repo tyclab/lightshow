@@ -2,7 +2,7 @@ import { performanceReport } from '../performance.js';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { roomObjectGeometry } from './room-geometry.js';
-import { insidePolygon, meanLightRGB, ROOM_LIGHTS, roomViews, STAGE_FOV } from './world.js';
+import { meanLightRGB, roomViews, STAGE_FOV } from './world.js';
 
 /**
  * The 3D stage: the rig in a dark, hazy room, drawn with three.js.
@@ -16,14 +16,9 @@ import { insidePolygon, meanLightRGB, ROOM_LIGHTS, roomViews, STAGE_FOV } from '
  * meets the floor, the ceiling or a wall it leaves a pool lying on that
  * surface. The haze setting thickens the beams and the fog.
  *
- * An imported room is lit: its surfaces shade under a dim fill and take the
- * colour of the lights near them from ROOM_LIGHTS point lights, each standing
- * in its room where a cluster of its emitters is (world.roomLights) and mixing
- * their live colours. A fixed number of lights keeps every frame and every
- * patch on the same shader programs. The walls, floors and ceilings as built
- * shadow those lights, drawn full height, cut away or hidden: a mesh of them
- * that only the lights' shadow cameras see, whose maps render again only when
- * the room, the rig or a light's place changes.
+ * An imported room's surfaces shade under a dim fill, the same whatever the
+ * outputs do; what a light gives the room is drawn where the light is: its own
+ * glow, the room objects that are the light, and its pool.
  *
  * Loaded on its own (three.js is most of it), the first time a stage
  * opens. `createStageScene` throws when the browser has no WebGL.
@@ -36,15 +31,8 @@ import { insidePolygon, meanLightRGB, ROOM_LIGHTS, roomViews, STAGE_FOV } from '
 const BG = 0x050507;
 const OFF = 0.035;      // what an unlit lens or cell shows: its shape, not a light
 const DAMPING = 0.08;
-// A cluster's summed linear RGB times this is its point light's intensity (candela at decay 2).
-const ROOM_LIGHT_GAIN = 0.9;
 const GLOW = { lamp: 1.1, cell: 0.5 };
 const ROOM_GLOW = { lamp: 0.45, cell: 0.09 };
-// Room light's shadows: 256² maps whose near plane takes in a wall beside a lamp, the receiver moved off a
-// surface the blockers share; planes just under the floor and over the ceiling; the layer only shadow cameras render.
-const SHADOW = { size: 256, near: 0.05, normalBias: 0.03 };
-const SLAB_GAP = 0.01;
-const BLOCKERS = 1;
 
 const BEAM_VERTEX = /* glsl */`
   varying vec3 vColor;
@@ -181,51 +169,6 @@ function poolClipTexture(pars) {
   return texture;
 }
 
-/** The parts as one position-only geometry: the shadow pass needs nothing else. */
-function merged(parts) {
-  let count = 0;
-  for (const part of parts) count += part.index ? part.index.count : part.attributes.position.count;
-  const positions = new Float32Array(count * 3);
-  let at = 0;
-  for (const part of parts) {
-    const source = part.attributes.position;
-    const n = part.index ? part.index.count : source.count;
-    for (let i = 0; i < n; i++, at += 3) {
-      const k = part.index ? part.index.getX(i) : i;
-      positions[at] = source.getX(k); positions[at + 1] = source.getY(k); positions[at + 2] = source.getZ(k);
-    }
-    part.dispose();
-  }
-  const geometry = new THREE.BufferGeometry();
-  geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-  geometry.computeBoundingSphere();
-  return geometry;
-}
-
-/**
- * Everything that stops room light, in world space at full height: every wall as built, its openings
- * open, and a plane just under each room's floor and over its ceiling (the room box's without polygons).
- * One geometry per room, holding the walls whose centre it holds, so each face of a light's shadow cube
- * draws only the rooms it sees; walls outside every room make one more.
- */
-function blockerGeometries(model) {
-  const { width, depth, height } = model.bounds;
-  const outlines = model.rooms?.length ? model.rooms.map((area) => area.polygon)
-    : [[[-width / 2, -depth / 2], [width / 2, -depth / 2], [width / 2, depth / 2], [-width / 2, depth / 2]]];
-  const groups = outlines.map((outline) => [-SLAB_GAP, height + SLAB_GAP].map((y) =>
-    new THREE.ShapeGeometry(new THREE.Shape(outline.map(([x, z]) => new THREE.Vector2(x, -z)))).rotateX(-Math.PI / 2).translate(0, y, 0)));
-  const outside = [];
-  const matrix = new THREE.Matrix4(), turn = new THREE.Quaternion(), one = new THREE.Vector3(1, 1, 1);
-  for (const object of model.objects) {
-    if (object.role !== 'wall') continue;
-    const r = object.rotation || { x: 0, y: 0, z: 0 }, { x, y, z } = object.position;
-    turn.setFromEuler(new THREE.Euler(r.x, r.y, r.z));
-    const room = outlines.findIndex((outline) => insidePolygon(outline, x, z));
-    (room >= 0 ? groups[room] : outside).push(roomObjectGeometry(object).applyMatrix4(matrix.compose(new THREE.Vector3(x, y, z), turn, one)));
-  }
-  return [...groups, outside].filter((parts) => parts.length).map(merged);
-}
-
 /** A soft round dot, for the glow around lenses, bulbs and cells. */
 function glowTexture() {
   const size = 64;
@@ -263,14 +206,6 @@ export function createStageScene(canvas, { haze = 0.6, room, lightRGB }) {
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
   renderer.setPixelRatio(Math.min(2, window.devicePixelRatio || 1));
   renderer.setClearColor(BG, 1);
-  renderer.shadowMap.enabled = true;
-  renderer.shadowMap.autoUpdate = false;
-  // One lookup a light: filtered lookups (PCF) take twice the frame time of these on a software renderer.
-  renderer.shadowMap.type = THREE.BasicShadowMap;
-  // A map holds the blockers seen from one place: it renders again when its light moves or the room changes,
-  // one light's six faces a frame, and a light shines only while its map shows the room from where it stands.
-  let roomBuilt = 0;
-  let unmapped = [];
 
   const scene = new THREE.Scene();
   let dirty = true;
@@ -312,21 +247,6 @@ export function createStageScene(canvas, { haze = 0.6, room, lightRGB }) {
   );
   wall.position.set(0, (TRUSS_H + 3) / 2, -STAGE_D / 2 - 0.6);
   scene.add(floor, deck, wall);
-  // The room's lights, made once: the same count in every room and frame keeps the lit materials' programs.
-  const roomLights = Array.from({ length: ROOM_LIGHTS }, () => {
-    const light = new THREE.PointLight(0xffffff, 0, 0, 2);
-    light.visible = false;
-    light.castShadow = true;
-    light.shadow.mapSize.set(SHADOW.size, SHADOW.size);
-    light.shadow.camera.near = SHADOW.near;
-    light.shadow.camera.layers.set(BLOCKERS);
-    light.shadow.normalBias = SHADOW.normalBias;
-    light.shadow.autoUpdate = false;
-    scene.add(light);
-    return light;
-  });
-  let roomLightOn = true;
-  let clusters = [];
   let roomGroup = null;
   let roomDisposables = [];
   // The room replaced, freed once the new one has drawn: its materials' programs pass to the new room's.
@@ -335,7 +255,6 @@ export function createStageScene(canvas, { haze = 0.6, room, lightRGB }) {
   let roomWalls = [];
   let roomLightMaterials = new Map();
   let objectLights = [];
-  let objectClusters = [];
   let screens = [];
   let screenTexture = null;
   let roomBounds = null;
@@ -363,7 +282,6 @@ export function createStageScene(canvas, { haze = 0.6, room, lightRGB }) {
     // The room this scene already shows: a view that mounts again keeps it, and its materials' programs.
     if (model === roomModel) return;
     roomModel = model;
-    roomBuilt++;
     invalidate();
     if (roomGroup) { scene.remove(roomGroup); roomGroup.clear(); }
     retired.push(...roomDisposables);
@@ -385,7 +303,6 @@ export function createStageScene(canvas, { haze = 0.6, room, lightRGB }) {
         keepRoom(new THREE.MeshStandardMaterial({ color: 0x2a2d35, roughness: 0.95, side: THREE.DoubleSide })),
       );
       ground.rotation.x = -Math.PI / 2;
-      ground.receiveShadow = true;
       roomGroup.add(ground);
       for (const area of model.rooms) {
         const shape = new THREE.Shape(area.polygon.map(([x, z]) => new THREE.Vector2(x, -z)));
@@ -393,18 +310,9 @@ export function createStageScene(canvas, { haze = 0.6, room, lightRGB }) {
         const material = keepRoom(new THREE.MeshStandardMaterial({ color: area.color || 0x3a3e48, roughness: 0.9, side: THREE.DoubleSide }));
         const mesh = new THREE.Mesh(geometry, material);
         mesh.position.y = 0.003;
-        mesh.receiveShadow = true;
         roomGroup.add(mesh);
       }
-      // Seen by the shadow cameras only, never drawn; kept visible, since the shadow pass skips what is not.
-      const blocking = keepRoom(new THREE.MeshBasicMaterial({ colorWrite: false, depthWrite: false, shadowSide: THREE.DoubleSide }));
-      for (const geometry of blockerGeometries(model)) {
-        const blockers = new THREE.Mesh(keepRoom(geometry), blocking);
-        blockers.layers.set(BLOCKERS);
-        blockers.castShadow = true;
-        roomGroup.add(blockers);
-      }
-      // A dim fill, so the room reads with its lights off; its lights colour it from there.
+      // A dim fill, so the room reads whatever the outputs do.
       roomGroup.add(keepRoom(new THREE.HemisphereLight(0xc8d0e0, 0x30323a, 0.75)));
       const key = keepRoom(new THREE.DirectionalLight(0xffffff, 0.45));
       key.position.set(-3, 6, 4);
@@ -421,7 +329,6 @@ export function createStageScene(canvas, { haze = 0.6, room, lightRGB }) {
         mesh.position.set(object.position.x, object.position.y, object.position.z);
         mesh.rotation.set(object.rotation?.x || 0, object.rotation?.y || 0, object.rotation?.z || 0);
         mesh.userData.roomObject = object.id;
-        mesh.receiveShadow = true;
         if (object.kind !== 'mesh' && !object.lightBindingId) {
           const outline = new THREE.LineSegments(keepRoom(new THREE.EdgesGeometry(geometry)),
             keepRoom(new THREE.LineBasicMaterial({ color: 0x171a21, transparent: true, opacity: 0.3 * material.opacity, depthWrite: material.depthWrite })));
@@ -444,7 +351,6 @@ export function createStageScene(canvas, { haze = 0.6, room, lightRGB }) {
     }
     lampGlowMaterial.size = model ? ROOM_GLOW.lamp : GLOW.lamp;
     cellGlowMaterial.size = model ? ROOM_GLOW.cell : GLOW.cell;
-    placeRoomLights();
     view(activeView);
   }
 
@@ -534,9 +440,6 @@ export function createStageScene(canvas, { haze = 0.6, room, lightRGB }) {
     invalidate();
     lastLights = null;
     objectLights = placed.objectLights || [];
-    objectClusters = placed.objectClusters || [];
-    clusters = placed.clusters || [];
-    placeRoomLights();
     for (const { material, baseColor } of roomLightMaterials.values()) {
       material.emissive.setRGB(0, 0, 0);
       material.color.copy(baseColor);
@@ -641,12 +544,6 @@ export function createStageScene(canvas, { haze = 0.6, room, lightRGB }) {
     const glow = (attr, k, level) => {
       write(attr, k, rgb[0] * level, rgb[1] * level, rgb[2] * level);
     };
-    const lit = clusters.length ? new Float32Array(clusters.length * 3) : null;
-    const add = (emitter) => {
-      if (!lit || emitter.cluster === undefined) return;
-      const at = emitter.cluster * 3, weight = emitter.weight;
-      lit[at] += rgb[0] * weight; lit[at + 1] += rgb[1] * weight; lit[at + 2] += rgb[2] * weight;
-    };
     pars.forEach((par, k) => {
       if (par.sources) meanLightRGB(par.sources, frame, rgb, sourceRGB);
       else lightRGB(frame[par.unit], rgb);
@@ -654,29 +551,25 @@ export function createStageScene(canvas, { haze = 0.6, room, lightRGB }) {
       glow(beams.instanceColor, k, 1);
       glow(pools.instanceColor, k, par.pool?.level ?? 1);
       glow(lampGlow.geometry.attributes.color, k, par.body === 0 ? 0 : 0.9);
-      add(par);
     });
     bulbs.forEach((bulb, k) => {
       if (bulb.sources) meanLightRGB(bulb.sources, frame, rgb, sourceRGB);
       else lightRGB(frame[bulb.unit], rgb);
       put(bulbMesh.instanceColor, k, 1);
       glow(lampGlow.geometry.attributes.color, pars.length + k, 1);
-      add(bulb);
     });
     cells.forEach((cell, k) => {
       if (cell.sources) meanLightRGB(cell.sources, frame, rgb, sourceRGB);
       else lightRGB(frame[cell.unit], rgb);
       put(cellMesh.instanceColor, k, 1);
       glow(cellGlow.geometry.attributes.color, k, cell.length ? 0 : 0.8);
-      add(cell);
     });
-    objectLights.forEach((light, k) => {
+    objectLights.forEach((light) => {
       const surface = roomLightMaterials.get(light.objectId);
       if (!surface) return;
       const { material, baseColor, tint } = surface;
       meanLightRGB(light.sources, frame, rgb, sourceRGB);
       rgb[0] *= tint.r; rgb[1] *= tint.g; rgb[2] *= tint.b;
-      if (objectClusters[k]) add(objectClusters[k]);
       if (material.emissive.r === rgb[0] && material.emissive.g === rgb[1] && material.emissive.b === rgb[2]) return;
       material.emissive.setRGB(rgb[0], rgb[1], rgb[2]);
       const neutral = 1 - Math.max(rgb[0], rgb[1], rgb[2]);
@@ -685,45 +578,6 @@ export function createStageScene(canvas, { haze = 0.6, room, lightRGB }) {
     });
     for (const attr of changed) attr.needsUpdate = true;
     if (changed.size) invalidate();
-    if (lit) roomLights.forEach((light, c) => {
-      if (c >= clusters.length) return;
-      const r = lit[c * 3] * ROOM_LIGHT_GAIN, g = lit[c * 3 + 1] * ROOM_LIGHT_GAIN, b = lit[c * 3 + 2] * ROOM_LIGHT_GAIN;
-      const peak = Math.max(r, g, b), was = light.userData.rgb;
-      if (was && was[0] === r && was[1] === g && was[2] === b) return;
-      light.userData.rgb = [r, g, b];
-      light.intensity = peak;
-      if (peak > 0) light.color.setRGB(r / peak, g / peak, b / peak);
-      invalidate();
-    });
-  }
-
-  /** The room's lights where the clusters of the rig it shows stand. All of them are on whenever a room is
-   * (unused ones dark), so a patch with fewer clusters never changes the light count the programs were built for. */
-  function placeRoomLights() {
-    invalidate();
-    roomLights.forEach((light, c) => {
-      const at = clusters[c];
-      light.visible = !!roomModel && roomLightOn;
-      light.intensity = 0;
-      light.userData.rgb = null;
-      if (at && roomBounds) light.position.set(at.x, at.y, at.z);
-      // A light no cluster uses stays dark, so its map is never read.
-      const mapped = at && light.visible ? `${roomBuilt} ${at.x} ${at.y} ${at.z}` : light.userData.mapped;
-      if (mapped === light.userData.mapped) return;
-      light.userData.mapped = mapped;
-      // Out to the room box's farthest corner, a metre past its walls where objects may stand.
-      const { width, depth, height } = roomBounds, p = light.position;
-      light.shadow.camera.far = Math.hypot(width / 2 + 1 + Math.abs(p.x), Math.max(Math.abs(p.y + 1), Math.abs(height + 1 - p.y)), depth / 2 + 1 + Math.abs(p.z));
-      light.shadow.camera.updateProjectionMatrix();
-      if (!unmapped.includes(light)) unmapped.push(light);
-    });
-    lastLights = null;
-  }
-
-  function setRoomLight(on) {
-    if (roomLightOn === !!on) return;
-    roomLightOn = !!on;
-    placeRoomLights();
   }
 
   function setHaze(value) {
@@ -835,20 +689,9 @@ export function createStageScene(canvas, { haze = 0.6, room, lightRGB }) {
     if (!dirty) return false;
     dirty = false;
     const started = performanceReport ? performance.now() : 0;
-    // three draws the maps before the room, so this frame's map already serves its light; the others wait dark.
-    const next = unmapped.find((light) => light.visible);
-    if (next) { next.shadow.needsUpdate = true; renderer.shadowMap.needsUpdate = true; }
-    const waiting = unmapped.filter((light) => light !== next).map((light) => [light, light.intensity]);
-    for (const [light] of waiting) light.intensity = 0;
     renderer.render(scene, camera);
-    for (const [light, intensity] of waiting) light.intensity = intensity;
     for (const resource of retired) resource.dispose();
     retired = [];
-    if (next && !next.shadow.needsUpdate) {
-      unmapped = unmapped.filter((light) => light !== next);
-      if (unmapped.some((light) => light.visible)) dirty = true;
-      if (performanceReport) performanceReport.count('scene.shadowMaps');
-    }
     if (performanceReport) {
       performanceReport.count('scene.draws');
       performanceReport.sample('scene.renderSubmit', performance.now() - started);
@@ -874,11 +717,10 @@ export function createStageScene(canvas, { haze = 0.6, room, lightRGB }) {
   }
 
   return {
-    setRig, setLights, setHaze, setRoom, setCutaway, setRoomLight, setPicture, view, nudge, focusAt, resize, render, dispose,
+    setRig, setLights, setHaze, setRoom, setCutaway, setPicture, view, nudge, focusAt, resize, render, dispose,
     /** The browser took the context away: this scene draws nothing more. */
     lost: () => renderer.getContext().isContextLost(),
     /** What is drawn, for tests and the page's description. */
-    info: () => ({ units, pars: parts ? parts.pars.length : 0, bulbs: parts ? parts.bulbs.length : 0, cells: parts ? parts.cells.length : 0,
-      roomLights: roomLights.filter((light) => light.visible).map((light) => ({ intensity: light.intensity, color: light.color.getHex(), at: light.position.toArray() })) }),
+    info: () => ({ units, pars: parts ? parts.pars.length : 0, bulbs: parts ? parts.bulbs.length : 0, cells: parts ? parts.cells.length : 0 }),
   };
 }
