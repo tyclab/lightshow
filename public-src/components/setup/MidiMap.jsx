@@ -20,8 +20,7 @@ function paramOptions(kind, s) {
     case 'color': return (s.colorPresets || []).map((c, i) => ({ value: i, label: c.name }));
     case 'energy': return (s.energyEffects || []).map((e) => ({ value: e.id, label: e.name }));
     case 'cue': return (s.cues || []).map((c) => ({ value: c.id, label: c.name }));
-    case 'palette': return (s.palettes || []).map((p) => ({ value: p.id, label: p.name }));
-    case 'overridePalette': return [...(s.builtinPalettes || []), ...(s.userPalettes || [])].map((p) => ({ value: p.id, label: paletteName(p) }));
+    case 'palette': case 'overridePalette': return [...(s.builtinPalettes || []), ...(s.userPalettes || [])].map((p) => ({ value: p.id, label: paletteName(p) }));
     case 'colorSlot': return ['A', 'B', 'C', 'D'].map((l) => ({ value: `color${l}`, label: `Colour ${l}` }));
     case 'lookKind': return [{ value: 'pattern', label: 'Patterns' }, { value: 'effect', label: 'Effects' }];
     case 'bpmFactor': return [{ value: 2, label: '×2' }, { value: 0.5, label: '÷2' }];
@@ -41,7 +40,7 @@ function controlLabel(kind, number, binding, input) {
 }
 
 export function MidiMap() {
-  const s = pick(['patterns', 'colorPresets', 'energyEffects', 'cues', 'palettes', 'builtinPalettes', 'userPalettes', 'fixtures']);
+  const s = pick(['patterns', 'colorPresets', 'energyEffects', 'cues', 'builtinPalettes', 'userPalettes', 'fixtures']);
   const [data, setData] = useState(null);      // { map, customised, actions }
   const [learning, setLearning] = useState(null);   // banner text
   const [actionId, setActionId] = useState('');

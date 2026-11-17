@@ -64,11 +64,10 @@ function Toggle({ label, checked, onChange }) {
   </label>;
 }
 
-/** A palette's colours as one strip, each its own block: what the palette holds, whether an effect steps or blends them. */
+/** A palette's colours as one strip, as the list and Show's selected palette draw it. */
 function strip(p) {
   const colours = p.colours.filter((c) => typeof c === 'string').map((c) => c.slice(0, 7));
-  const edge = (i) => `${(100 * i / colours.length).toFixed(2)}%`;
-  return colours.length > 1 ? `linear-gradient(90deg, ${colours.map((c, i) => `${c} ${edge(i)} ${edge(i + 1)}`).join(', ')})` : colours[0] || '#808080';
+  return colours.length > 1 ? `linear-gradient(in oklch 90deg, ${colours.join(', ')})` : colours[0] || '#808080';
 }
 
 /** The palette list: searchable, each row with its colours as a strip, the one in play marked; saved palettes are managed from here too. */

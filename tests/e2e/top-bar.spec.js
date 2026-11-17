@@ -426,7 +426,7 @@ test('while the visualizer picture arrives the Colours card says the picture set
   const socket = io(baseURL, { auth: { protocol: 2 }, transports: ['websocket'] });
   await new Promise((resolve, reject) => { socket.once('connect', resolve); socket.once('connect_error', reject); });
   const ask = (event, payload) => (payload === undefined ? socket.timeout(5000).emitWithAck(event) : socket.timeout(5000).emitWithAck(event, payload));
-  let timer = null;
+  let timer = null, sending = Promise.resolve();
   try {
     expect((await request.put('/api/settings', { data: { safety: { photosensitivityAcknowledged: true } } })).ok()).toBe(true);
     await control(request, 'arm');
@@ -436,7 +436,8 @@ test('while the visualizer picture arrives the Colours card says the picture set
     expect(lease.ok, JSON.stringify(lease)).toBe(true);
     const send = () => ask('picture:frame', { leaseId: lease.leaseId, data: new Uint8Array(units.units * 3).fill(200) });
     await send();
-    timer = setInterval(send, 250);
+    // A later frame only keeps the picture arriving: its answer is awaited before the socket closes, so none is cut off mid-air.
+    timer = setInterval(() => { sending = send().catch(() => {}); }, 250);
     // G7: Colours left Effect settings; Show's card gives way to the same line.
     await open(page, 'show');
     const card = page.getByRole('region', { name: 'Colours', exact: true });
@@ -449,6 +450,7 @@ test('while the visualizer picture arrives the Colours card says the picture set
     expect((await state(request)).control.blackout).toBe(false);
   } finally {
     clearInterval(timer);
+    await sending;
     socket.close();
     await control(request, 'disarm');
     await request.put('/api/settings', { data: { safety: { photosensitivityAcknowledged: !!settings.safety.photosensitivityAcknowledged } } });
