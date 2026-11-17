@@ -10,7 +10,7 @@ import { isArmed, setArmedFlag } from './armed.ts';
 import { defaultHueBridgeId } from './settings.ts';
 import { ddpRoutes } from './ddp-routes.ts';
 import { openrgbRoutes } from './openrgb-routes.ts';
-import type { ArtnetDestination, SacnOutput, SendOptions, TransmitConfig, Wire } from './transmit.ts';
+import type { ArtnetDestination, FrameLevels, SacnOutput, SendOptions, TransmitConfig, Wire } from './transmit.ts';
 import type { Settings } from './settings.ts';
 
 let sacn: SacnOutput = {
@@ -112,9 +112,9 @@ function sacnUniverseFor(universe: number, offset = sacn.universeOffset): number
   return mapSacnUniverse(universe, offset);
 }
 
-function sendUniverse(universe: number, frame: Buffer, { immediate = false, terminate = false }: SendOptions = {}):
-  Wire[] {
-  return transmitter.send(universe, frame, transmitConfig(), { immediate, terminate });
+function sendUniverse(universe: number, frame: Buffer, { immediate = false, terminate = false }: SendOptions = {},
+  levels: FrameLevels = null): Wire[] {
+  return transmitter.send(universe, frame, transmitConfig(), { immediate, terminate }, levels);
 }
 
 function endFrame(): boolean {

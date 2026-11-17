@@ -4,7 +4,7 @@ import { format } from 'node:util';
 
 import { createRenderer } from './renderer.ts';
 import { allocateShared, createUniverseStore } from './universes.ts';
-import { DEFAULT_WIRES, createTransmitter } from './transmit.ts';
+import { DEFAULT_WIRES, createTransmitter, transmitStore } from './transmit.ts';
 import { createHueWire } from './hue-wire.ts';
 import { createTicker, hrtimeMs, FRAME_MS } from './frame-clock.ts';
 import { createClockFollower } from './clock-follow.ts';
@@ -132,13 +132,7 @@ function publish(): void {
 }
 
 function transmit(outputs: TransmitConfig): boolean {
-  const protective = snapshot?.input.masterBlackout || !outputs.armed;
-  for (const universe of store.list()) transmitter.send(universe, store.getBuffer(universe), outputs,
-    protective ? { immediate: true, terminate: true } : undefined);
-  for (const [universe, frame] of store.drainRetired()) {
-    transmitter.send(universe, frame, outputs, { immediate: true, terminate: true });
-  }
-  return transmitter.endFrame(outputs);
+  return transmitStore(transmitter, store, outputs, !!snapshot?.input.masterBlackout || !outputs.armed);
 }
 
 let ticker: Ticker | null = null;
@@ -179,14 +173,7 @@ function blackout(): boolean {
   if (snapshot) {
     store.sync(snapshot.input.universes);
     store.clearAll();
-    const outputs = snapshot.outputs;
-    for (const universe of store.list()) {
-      transmitter.send(universe, store.getBuffer(universe), outputs, { immediate: true, terminate: true });
-    }
-    for (const [universe, frame] of store.drainRetired()) {
-      transmitter.send(universe, frame, outputs, { immediate: true, terminate: true });
-    }
-    applied = transmitter.endFrame(outputs);
+    applied = transmitStore(transmitter, store, snapshot.outputs, true);
   } else {
     store.clearAll();
   }

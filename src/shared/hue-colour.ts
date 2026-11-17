@@ -3,6 +3,7 @@ import { EMITTERS } from './rig.ts';
 import type { ChannelMap, EmitterLevels, HueLampTraits } from '../types/rig.ts';
 
 type ChannelReader = (offset: number | undefined) => number;
+type Rounding = (value: number) => number;
 type RGB = { r: number; g: number; b: number };
 
 const DEFAULT_WARM = { r: 1, g: 0.66, b: 0.34 };
@@ -25,19 +26,20 @@ function tonesOf(traits: HueLampTraits | null) {
   return cached;
 }
 
-function normalizeMix(r: number, g: number, b: number): RGB {
+function normalizeMix(r: number, g: number, b: number, round: Rounding): RGB {
   const peak = Math.max(r, g, b);
   const scale = peak > 255 ? 255 / peak : 1;
-  const clamp = (value: number) => Math.max(0, Math.min(255, Math.round(value * scale)));
+  const clamp = (value: number) => Math.max(0, Math.min(255, round(value * scale)));
   return { r: clamp(r), g: clamp(g), b: clamp(b) };
 }
 
 // Hue emitters already include dimmer, master and hardware limits in the rendered frame.
-export function hueSectionColour(ch: ChannelMap, at: ChannelReader, traits: HueLampTraits | null): RGB {
+// Bytes for the previews; the stream passes `exact` and keeps what its channels carry below a byte.
+export function hueSectionColour(ch: ChannelMap, at: ChannelReader, traits: HueLampTraits | null, round: Rounding = Math.round): RGB {
   const { warm, cool, fixed } = tonesOf(traits);
   if (!EMITTERS.some((name) => ch[name] !== undefined)) {
     const level = at(ch.dimmer);
-    return normalizeMix(level * fixed.r, level * fixed.g, level * fixed.b);
+    return normalizeMix(level * fixed.r, level * fixed.g, level * fixed.b, round);
   }
   const ww = at(ch.warmWhite);
   const cw = at(ch.coolWhite);
@@ -46,6 +48,7 @@ export function hueSectionColour(ch: ChannelMap, at: ChannelReader, traits: HueL
     at(ch.red) + ww * warm.r + cw * cool.r + uv * UV_RED,
     at(ch.green) + ww * warm.g + cw * cool.g,
     at(ch.blue) + ww * warm.b + cw * cool.b + uv * UV_BLUE,
+    round,
   );
 }
 

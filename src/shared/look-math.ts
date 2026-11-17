@@ -108,25 +108,29 @@ function blendExpression(current: Expression, target: ShowDynamics | null | unde
   return next;
 }
 
+/** Leaves a level as computed: the renderer rounds it into a byte and keeps it beside the byte for Hue. */
+const exact = (value: number): number => value;
+
 // Round and boost emitters here so rig output and the stage preview use the same bytes.
-function emitterValues(col: Colour, scale: number): EmitterLevels {
+function emitterValues(col: Colour, scale: number, round: (value: number) => number = Math.round): EmitterLevels {
   return {
-    r: Math.round((col.r || 0) * scale),
-    g: Math.round((col.g || 0) * scale),
-    b: Math.round((col.b || 0) * scale),
-    w: Math.round((col.w || 0) * scale),
-    a: Math.round((col.a || 0) * scale),
-    uv: Math.min(255, Math.round((col.uv || 0) * scale * UV_BOOST)),
+    r: round((col.r || 0) * scale),
+    g: round((col.g || 0) * scale),
+    b: round((col.b || 0) * scale),
+    w: round((col.w || 0) * scale),
+    a: round((col.a || 0) * scale),
+    uv: Math.min(255, round((col.uv || 0) * scale * UV_BOOST)),
   };
 }
 
 // Split squared brightness between fixture and cell dimmers so bars match pars at equal levels.
-function cellDrive(dim: number, top: number, ms: number, fixtureDimmer: boolean, cellDimmer: boolean): { cellDim: number; scale: number } {
+function cellDrive(dim: number, top: number, ms: number, fixtureDimmer: boolean, cellDimmer: boolean,
+  round: (value: number) => number = Math.round): { cellDim: number; scale: number } {
   const scale = ms * dim / 255;
-  if (!fixtureDimmer) return { cellDim: Math.round(dim * ms), scale };
+  if (!fixtureDimmer) return { cellDim: round(dim * ms), scale };
   if (top <= 0) return { cellDim: 0, scale: 0 };
   return {
-    cellDim: Math.round((255 * dim) / top),
+    cellDim: round((255 * dim) / top),
     scale: cellDimmer || dim === top ? scale : (scale * dim) / top,
   };
 }
@@ -175,5 +179,6 @@ export {
   hitBrightness,
   blendExpression,
   emitterValues,
+  exact,
   cellDrive,
 };
