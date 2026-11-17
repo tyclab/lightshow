@@ -69,7 +69,7 @@ test('what is the same over a whole beam reaches its fragments flat: only a frag
   const varyings = (glsl) => Object.fromEntries([...glsl.matchAll(/^\s*(flat )?varying \w+ (\w+);/gm)].map(([, flat, name]) => [name, !!flat]));
   assert.deepEqual(varyings(vertex), varyings(fragment), 'both stages declare the same');
   const flat = Object.entries(varyings(fragment)).filter(([, isFlat]) => isFlat).map(([name]) => name).sort();
-  assert.deepEqual(flat, ['vApex', 'vLevel', 'vWhere'], 'the lamp\'s place and the beam\'s clip');
+  assert.deepEqual(flat, ['vApex', 'vLeast', 'vMost', 'vWhere'], 'the lamp\'s place and the beam\'s clip');
   assert.equal(varyings(fragment).vWorld, false, 'the fragment\'s place in the room is its own');
 });
 

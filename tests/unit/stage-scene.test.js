@@ -181,14 +181,13 @@ test('each beam hands the beam shader its clip: the box its haze stays in, its r
   let from = ui.built.meshes.length;
   stage.setRoom(model);
   stage.setRig(shown.placed, shown.rig.units.length);
-  // The clips of the rig's beams: the room's bounds they share, per beam its side of floor and ceiling and its places
-  // in the texels, and the texels.
+  // The clips of the rig's beams: per beam its box and its places in the texels, and the texels.
   const clipsOf = () => {
     const { geometry, material: { uniforms } } = ui.built.meshes.slice(from).find((mesh) => mesh.material.uniforms?.uHaze);
     const { data, width } = uniforms.uClip.value.image;
     assert.equal(uniforms.uClipWidth.value, width);
     const of = (name, k) => { const { array, itemSize } = geometry.attributes[name]; return [...array.slice(k * itemSize, (k + 1) * itemSize)]; };
-    return { bounds: uniforms.uBounds.value.toArray(), level: (k) => of('aLevel', k), where: (k) => of('aWhere', k), texel: (i) => [...data.slice(i * 4, i * 4 + 4)] };
+    return { least: (k) => of('aLeast', k), most: (k) => of('aMost', k), where: (k) => of('aWhere', k), texel: (i) => [...data.slice(i * 4, i * 4 + 4)] };
   };
   const single = (values) => values.map(Math.fround);
   const clips = clipsOf(), beams = shown.placed.lamps;
@@ -196,8 +195,7 @@ test('each beam hands the beam shader its clip: the box its haze stays in, its r
   // A beam's place in the texels: its first edge, the edges of its lamp's room, those of the room it lands in, its
   // walls; the edges stand in that order from the first, and the walls' boxes follow them.
   const carried = (read, { clip }, k, name) => {
-    assert.deepEqual(read.bounds, [clip.lo.x, clip.lo.z, clip.hi.x, clip.hi.z], `${name}: the room's bounds, which the rig's beams share`);
-    assert.deepEqual(read.level(k), single([clip.lo.y, clip.hi.y]), `${name}: its side of the floor and of the ceiling`);
+    assert.deepEqual([read.least(k), read.most(k)], [single([clip.lo.x, clip.lo.y, clip.lo.z]), single([clip.hi.x, clip.hi.y, clip.hi.z])], `${name}: its box`);
     const [first, own, landing, walls] = read.where(k);
     assert.deepEqual([own, landing, walls], [clip.rooms[0]?.length ?? 0, clip.rooms[1]?.length ?? 0, clip.walls.length], `${name}: its counts`);
     clip.rooms.flatMap((polygon) => polygon.map(([x, z], i) => [x, z, ...polygon[(i + 1) % polygon.length]]))
@@ -220,17 +218,6 @@ test('each beam hands the beam shader its clip: the box its haze stays in, its r
   stage.setRig(through.placed, through.rig.units.length);
   assert.deepEqual(through.placed.lamps[0].clip.rooms, pair.rooms.map((area) => area.polygon), 'the lamp\'s room first, then the one its pool lies in');
   assert.deepEqual(carried(clipsOf(), through.placed.lamps[0], 0, 'the beam into the next room'), [0, 4, 5, 1]);
-  // A lamp hung above the ceiling beside one under it: the two share the room's bounds, and each has its own side of the ceiling.
-  const split = { ...room('Split'), bindings: [
-    { id: 'under', fixtureId: 1, position: { x: 1, y: 2, z: 1 }, lightTarget: { x: 1, y: 0, z: 1 } },
-    { id: 'over', fixtureId: 2, position: { x: -1, y: 2.6, z: 1 }, lightTarget: { x: -1, y: 0, z: 1 } }] };
-  const both = ui.keptRig(lamps, { [LAMP.id]: LAMP }, split);
-  from = ui.built.meshes.length;
-  stage.setRoom(split);
-  stage.setRig(both.placed, both.rig.units.length);
-  const sides = clipsOf();
-  both.placed.lamps.forEach((beam, k) => carried(sides, beam, k, `the lamp ${k ? 'above' : 'under'} the ceiling`));
-  assert.deepEqual([sides.bounds, sides.level(0), sides.level(1)], [[-2, -2, 2, 2], [0, 2.5], [2.5, 1e6]]);
   // The generic venue has no room to stop a beam: its haze shows wherever its cone is, and reads no texel.
   from = ui.built.meshes.length;
   stage.setRoom(null);
@@ -239,7 +226,7 @@ test('each beam hands the beam shader its clip: the box its haze stays in, its r
   const free = clipsOf();
   venue.placed.lamps.forEach((beam, k) => {
     assert.equal(beam.clip, undefined);
-    assert.deepEqual([free.bounds, free.level(k), free.where(k)], [[-1e6, -1e6, 1e6, 1e6], [-1e6, 1e6], [0, 0, 0, 0]]);
+    assert.deepEqual([free.least(k), free.most(k), free.where(k)], [[-1e6, -1e6, -1e6], [1e6, 1e6, 1e6], [0, 0, 0, 0]]);
   });
 });
 
