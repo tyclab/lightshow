@@ -26,9 +26,9 @@ const script = buildSync({
     const copy = document.createElement('canvas');
     window.stage = {
       // turned: the named view from the opposite side of the room, half a turn round its centre.
-      room(next, { cutaway = true, name = 'above', turned: half = false } = {}) {
+      room(next, { cutaway = true, name = 'above', turned: half = false, haze = 0 } = {}) {
         model = next; view = name; turned = half;
-        scene.setRoom(next); scene.setCutaway(cutaway); scene.view(name);
+        scene.setRoom(next); scene.setCutaway(cutaway); scene.setHaze(haze); scene.view(name);
         if (half) scene.nudge({ turn: Math.PI });
       },
       rig(bindings) {
@@ -68,8 +68,10 @@ const script = buildSync({
 }).outputFiles[0].text;
 
 const floor = (x0, x1, z0, z1) => ({ from: { x: x0, y: 0.003, z: z0 }, u: { x: x1 - x0, y: 0, z: 0 }, w: { x: 0, y: 0, z: z1 - z0 } });
-// An upright patch in the plane of a wall's face that looks along x.
+// An upright patch in the plane of a wall's face that looks along x; one across it, in a plane of constant z; a level one.
 const face = (x, y0, y1, z0, z1) => ({ from: { x, y: y0, z: z0 }, u: { x: 0, y: 0, z: z1 - z0 }, w: { x: 0, y: y1 - y0, z: 0 } });
+const across = (z, x0, x1, y0, y1) => ({ from: { x: x0, y: y0, z }, u: { x: x1 - x0, y: 0, z: 0 }, w: { x: 0, y: y1 - y0, z: 0 } });
+const level = (y, x0, x1, z0, z1) => ({ from: { x: x0, y, z: z0 }, u: { x: x1 - x0, y: 0, z: 0 }, w: { x: 0, y: 0, z: z1 - z0 } });
 // Behind the box wall, out of line with the doorway; and the near room's own floor.
 const REGIONS = { far: floor(0.4, 2.6, -1.8, -0.4), near: floor(-2.6, -0.4, -1.8, -0.4) };
 const changed = (a, b) => a.filter((value, i) => Math.abs(value - b[i]) > 1).length;
@@ -141,4 +143,28 @@ test('light on a wall\'s face shows from the side its lamp is on and not from be
       expect(changed(behind.off.wall, behind.on.wall), `${name}, the ${side} lamp from behind the wall: nothing of it shows there`).toBe(0);
     }
   }
+});
+
+test('a lamp\'s haze stops at the wall beside it: none of it shows in the room behind, with the wall at full height, cut away or hidden', async ({ page }) => {
+  test.fail(true, 'A cone of haze is cut nowhere on this source: it stands through the wall. The change that cuts it lifts this mark.');
+  // The lamp hangs 8 cm from the wall's near face, 0.7 m up, aimed at the floor under it: a cone 1.7 m wide there,
+  // which reaches 0.65 m past the wall's far face. Read where that part would stand, in the far room and inside
+  // the cone, from the camera on that side; and on the wall's near face, which the cone stands before, from the other.
+  const lamp = { x: -0.13, y: 0.7, z: -1 }, binding = { lightTarget: { x: -0.13, y: 0, z: -1 } };
+  const regions = { behind: across(-1, 0.1, 0.35, 0.02, 0.22), before: face(-0.05, 0.1, 0.5, -1.25, -0.75) };
+  for (const [name, model, cutaway] of [['full height', TWO_ROOMS, false], ['cut away', TWO_ROOMS, true], ['hidden', withWall({ opacity: 0 }), false]]) {
+    const view = { regions, cutaway, name: 'audience', haze: 1, binding };
+    const far = await lampFrames(page, model, lamp, view);
+    expect(changed(far.off.behind, far.on.behind), `${name}: no haze past the wall`).toBe(0);
+    const near = await lampFrames(page, model, lamp, { ...view, turned: true });
+    expect(changed(near.off.before, near.on.before), `${name}: the haze before the wall still shows`).toBeGreaterThan(60);
+  }
+});
+
+test('light on the ceiling shows from above, where the ceiling is never drawn', async ({ page }) => {
+  test.fail(true, 'A pool shows the side its surface faces only, so one on the ceiling is drawn from below alone on this source. The change that draws it from both sides lifts this mark.');
+  // A lamp 0.9 m under the ceiling, aimed straight up: a pool 2.9 m across on the ceiling at full strength.
+  const regions = { ceiling: level(2.5, -2.2, -0.8, -1.6, -0.4) };
+  const { off, on } = await lampFrames(page, TWO_ROOMS, { x: -1.5, y: 1.6, z: -1 }, { regions, cutaway: false, name: 'above', binding: { lightTarget: { x: -1.5, y: 2.4, z: -1 } } });
+  expect(changed(off.ceiling, on.ceiling), 'the Above view shows the light on the ceiling').toBeGreaterThan(60);
 });
