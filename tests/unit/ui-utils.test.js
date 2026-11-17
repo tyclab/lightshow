@@ -68,38 +68,38 @@ test('a par reads exactly as it always did', () => {
   assert.equal(utils.fixtureOutputColor({ profileId: 'par', address: 1, universe: 0 }, state), 'rgb(100,50,25)');
 });
 
-// The operator, 2026-11-14: "so to preview i need to klick look an preview? why? also preview runs local in browser right?"
-// What a stage draws, in the order of the Show v3 table (G6): nothing is dark for want of a click.
+// The operator, 2026-11-17: "the stage shows start on side load, so it runs without play beeing active, toglleing play
+// turns it of. exspected would be to not start stage show on side load, except play is active?" A stage draws the
+// server's feed, which moves only while the header's Play has something playing; nothing a page did before counts.
 const STOPPED = { connected: true, armed: false, blackout: false, playing: false, layers: false, frozen: false, paused: false };
+const STOPPED_NOTE = 'Stopped: the stage shows the show as it stands. Play, in the header, starts it.';
 const modeOf = (patch) => {
-  const { tag, lit, demo, note } = utils.stageMode({ ...STOPPED, ...patch });
-  return { tag, lit, demo, ...(note ? { note } : {}) };
+  const { tag, lit, note } = utils.stageMode({ ...STOPPED, ...patch });
+  return { tag, lit, ...(note ? { note } : {}) };
 };
+const ROWS = [{}, { playing: true }, { layers: true }, { frozen: true }, { armed: true }, { armed: true, playing: true },
+  { blackout: true }, { paused: true }, { connected: false }];
 
-test('stopped and disarmed, a stage draws the selected look on the demo beat; anything playing shows the feed', () => {
-  assert.deepEqual(modeOf({}), { tag: 'Preview · demo beat', lit: true, demo: true }, 'no click, no dark stage');
+test('disarmed and stopped, a stage draws the stopped show and says Play starts it; anything playing shows the feed', () => {
+  assert.deepEqual(modeOf({}), { tag: 'Preview (disarmed)', lit: true, note: STOPPED_NOTE }, 'a page loaded stopped');
   for (const patch of [{ playing: true }, { layers: true }, { frozen: true }, { playing: true, layers: true, frozen: true }]) {
-    assert.deepEqual(modeOf(patch), { tag: 'Preview (disarmed)', lit: true, demo: false }, `${JSON.stringify(patch)}: what arming would send`);
+    assert.deepEqual(modeOf(patch), { tag: 'Preview (disarmed)', lit: true }, `${JSON.stringify(patch)}: what arming would send`);
   }
-  assert.notEqual(modeOf({}).tag, modeOf({ playing: true }).tag, 'the demo beat is never tagged as the feed');
-});
-
-// The operator, 2026-11-17, asked "should the header's Stop also halt the preview animation?": "1".
-test('after Stop on this page the stopped stage draws the feed with a note, not the demo beat; nothing else is held', () => {
-  const note = 'Stopped: the stage shows the show as it stands. Choose an effect to preview it, or Play.';
-  assert.deepEqual(modeOf({ halted: true }), { tag: 'Preview (disarmed)', lit: true, demo: false, note });
-  assert.equal(utils.stageMode({ ...STOPPED, halted: true }).pausable, true, 'Pause preview stays');
-  for (const patch of [{ playing: true }, { layers: true }, { frozen: true }]) {
-    assert.deepEqual(modeOf({ halted: true, ...patch }), modeOf(patch), `${JSON.stringify(patch)}: what plays is shown as ever`);
-  }
-  for (const patch of [{ armed: true }, { blackout: true }, { connected: false }, { paused: { cause: 'button' } }]) {
-    assert.deepEqual(modeOf({ halted: true, ...patch }), modeOf(patch), `${JSON.stringify(patch)} outranks it`);
+  for (const patch of ROWS) {
+    const mode = utils.stageMode({ ...STOPPED, ...patch });
+    assert.ok(!mode.demo && mode.tag !== 'Preview · demo beat', `${JSON.stringify(patch)}: no stage plays the demo beat by itself`);
   }
 });
 
-test('armed, a stage shows only the feed, whatever plays: the demo beat never draws', () => {
+test('the stage follows the control state alone: a hold of a page\'s own, as its Stop once made, changes nothing', () => {
+  for (const patch of ROWS) {
+    assert.deepEqual(utils.stageMode({ ...STOPPED, ...patch, halted: true }), utils.stageMode({ ...STOPPED, ...patch }), JSON.stringify(patch));
+  }
+});
+
+test('armed, a stage shows only the feed, whatever plays', () => {
   for (const patch of [{}, { playing: true }, { layers: true }, { frozen: true }]) {
-    assert.deepEqual(modeOf({ armed: true, ...patch }), { tag: 'Live output', lit: true, demo: false }, JSON.stringify(patch));
+    assert.deepEqual(modeOf({ armed: true, ...patch }), { tag: 'Live output', lit: true }, JSON.stringify(patch));
   }
 });
 
@@ -107,26 +107,25 @@ test('Blackout outranks the outputs and playback: the feed, dark, says why', () 
   for (const patch of [{}, { armed: true }, { playing: true }, { layers: true }, { frozen: true }]) {
     const mode = modeOf({ blackout: true, ...patch });
     assert.equal(mode.tag, 'Blackout', JSON.stringify(patch));
-    assert.equal(mode.demo, false, 'Blackout never draws the demo beat');
     assert.equal(mode.lit, true, 'the feed already carries the Blackout');
     assert.match(mode.note, /^Blackout is on: .*Restore/);
   }
-  for (const patch of [{}, { playing: true }, { armed: true }]) assert.equal(modeOf(patch).note, undefined, 'a lit stage has nothing to explain');
+  for (const patch of [{ playing: true }, { armed: true }, { armed: true, playing: true }]) assert.equal(modeOf(patch).note, undefined, 'a lit stage has nothing to explain');
 });
 
-test('an idle page draws nothing, the demo beat included, until Resume preview; offline is as before', () => {
+test('an idle page draws nothing until Resume preview; offline is as before', () => {
   for (const patch of [{}, { playing: true }, { blackout: true }, { frozen: true }]) {
-    assert.deepEqual(modeOf({ paused: true, ...patch }), { tag: 'Preview paused', lit: false, demo: false, note: 'Preview paused.' }, JSON.stringify(patch));
+    assert.deepEqual(modeOf({ paused: true, ...patch }), { tag: 'Preview paused', lit: false, note: 'Preview paused.' }, JSON.stringify(patch));
   }
   // PR 9 ("fix all bugs", 2026-11-15): the pause's note lies over the stage as the Blackout note does, so it is the mode's note.
   assert.equal(modeOf({ paused: { cause: 'button' } }).note, 'Preview paused.');
   assert.equal(modeOf({ paused: { cause: 'idle', minutes: 60 } }).note, 'Preview paused after 60 minutes without input.');
   assert.equal(modeOf({ paused: { cause: 'idle', minutes: 1 } }).note, 'Preview paused after 1 minute without input.');
-  assert.deepEqual(modeOf({ connected: false }), { tag: 'Offline', lit: true, demo: false });
+  assert.deepEqual(modeOf({ connected: false }), { tag: 'Offline', lit: true });
 });
 
 // The operator, 2026-11-15: "explain to me why the button top stop preview is removed." (Show v3 fixes, G1)
-test('only the two disarmed preview rows offer Pause preview', () => {
+test('the disarmed preview offers Pause preview, stopped or playing', () => {
   for (const patch of [{}, { playing: true }, { layers: true }, { frozen: true }]) {
     assert.equal(utils.stageMode({ ...STOPPED, ...patch }).pausable, true, JSON.stringify(patch));
   }

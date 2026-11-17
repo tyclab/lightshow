@@ -35,7 +35,7 @@ export const dmxShapeSig = computed(() => {
 // Shared by the stage preview in both views so they never disagree; a drag stays in the component.
 export const stagePreviewSig = signal({ edit: false });
 
-// A stage previews by itself now (Show v3, G6): the old Preview look choice is dropped and read by nothing.
+// The Preview look choice of before Show v3 is dropped and read by nothing.
 try { localStorage.removeItem('lightshow.previewLook'); } catch { /* private mode */ }
 
 // From public/auth.js, loaded first; guarded in case it is not.
@@ -135,12 +135,6 @@ socket.on('picture-image', (message) => {
     ? { width: message.width, height: message.height, data: new Uint8Array(message.data) } : null;
   if (performanceReport) performanceReport.count('picture.received');
 });
-
-// Stop pressed on this page halts its demo preview too (the operator, 2026-11-17): the effect that was selected then,
-// or null. Choosing another effect, or Play, shows motion again; another page, or a reload, is not held.
-export const previewHaltedSig = signal(null);
-/** Whether this page's Stop still holds the demo preview: until the selected effect changes or Play. */
-export const previewHalted = () => previewHaltedSig.value !== null && previewHaltedSig.value === String(field('pattern').value ?? '');
 
 // After the idle-stop minutes without input while disarmed, the page lets its feeds go until Resume preview (idle-pause.js).
 export const idlePause = createIdlePause({

@@ -66,32 +66,35 @@ history. The rulings below stay.
   the page adds no reason of its own. While the show plays, the units the source owns are dark, never
   the main effect as a stand-in: the dark takes the picture's place, the Background does not fill it,
   voices, pads, overrides, Identify, Freeze and Blackout stay above it, and it goes through the outputs'
-  transitions. The chosen segment turns amber with the line as its tooltip, Show's card and the stage
-  say it, and the demo beat draws the owned units dark. Squid without an LED panel is refused (409);
-  every other source is accepted while unmet. Home Assistant's party start never sets the source.
+  transitions. The chosen segment turns amber with the line as its tooltip, and Show's card and the stage
+  say it. Squid without an LED panel is refused (409); every other source is accepted while unmet. Home
+  Assistant's party start never sets the source.
 - One Play/Stop button and one Auto show switch (2026-11-14). Switching the programme never starts
   or stops playback, and keeps pads, Freeze, Blackout and Arm. Stop is offered whenever it would
   clear something: a programme playing or paused, or pads over a stopped programme (the control's
   `layers`). Play's name says what it starts. A sequence is selected on Perform; no Look button,
   no programme menu.
-- A stage previews by itself (2026-11-14): "also what is the reasdon to have the preview look bnutton
-  and the look play button?" and "so to preview i need to klick look an preview? why? also preview runs
-  local in browser right?". No view has a Preview look button. Disarmed and stopped, with no layer and
-  no Freeze, the stage draws the selected look in the browser on the built-in demo beat, tagged
-  "Preview · demo beat", with the look's own flash limit; it sends nothing and never gives the
-  photosensitivity acknowledgement. Playing, a layer or Freeze shows the server's feed as "Preview
-  (disarmed)"; armed, only the feed, and arming drops the demo beat at once, in 3D and 2D. Blackout
-  outranks both; an idle page draws nothing until Resume preview.
+- A stage follows Play (2026-11-17, replacing "a stage previews by itself" of 2026-11-14): "the stage shows
+  start on side load, so it runs without play beeing active, toglleing play turns it of. exspected would be
+  to not start stage show on side load, except play is active?". Every stage draws the server's feed, so it
+  moves only while the show plays, on every page, after a reload and whichever client pressed Play or Stop.
+  Disarmed it is tagged "Preview (disarmed)", what arming would send; with nothing playing, no layer and no
+  Freeze it says "Stopped: the stage shows the show as it stands. Play, in the header, starts it.", and
+  choosing an effect starts nothing. Armed it says "Live output"; Blackout outranks both; an idle page draws
+  nothing until Resume preview. No view has a Preview look button (2026-11-14: "also what is the reasdon to have
+  the preview look bnutton and the look play button?"): Play while disarmed is the preview. Only the
+  effect editor's stage draws in the browser, its open draft on the built-in demo beat (G7), with the
+  look's flash limit; it sends nothing and never gives the photosensitivity acknowledgement.
 - A preview can be paused (2026-11-15): "explain to me why the button top stop preview is removed." While
-  disarmed and drawing either preview, the stage toolbar in 3D and 2D shows one "Pause preview". It is the
-  idle pause entered by hand: this page lets its own `dmx` and `picture` feeds go and says "Preview
-  paused."; Resume or Arm ends it. It sends nothing, leaves the show and other pages as they are, works
-  with `outputs.idleStopMin` 0 and is not stored, so a reload previews again. Paused, by the button or by
-  idleness, the toolbar shows "Resume preview" in Pause preview's box, and the note lies over the stage as
-  the Blackout note does, so neither the toolbar nor the stage moves ("fix all bugs", 2026-11-15). The
-  preview's three tags share one box for the same reason. The Rig view's plan, which has no such toolbar,
-  carries the note and its Resume over the plan; a view without a stage (the DMX monitor's fallback) keeps
-  its line and its own Resume.
+  disarmed and drawing the preview, stopped or playing, the stage toolbar in 3D and 2D shows one "Pause
+  preview". It is the idle pause entered by hand: this page lets its own `dmx` and `picture` feeds go and
+  says "Preview paused."; Resume or Arm ends it. It sends nothing, leaves the show and other pages as they
+  are, works with `outputs.idleStopMin` 0 and is not stored, so a reload draws the preview again. Paused,
+  by the button or by idleness, the toolbar shows "Resume preview" in Pause preview's box, and the note lies
+  over the stage as the Blackout note does, so neither the toolbar nor the stage moves ("fix all bugs",
+  2026-11-15). The preview's two tags share one box for the same reason. The Rig view's plan, which has no
+  such toolbar, carries the note and its Resume over the plan; a view without a stage (the DMX monitor's
+  fallback) keeps its line and its own Resume.
 - A disarmed show nobody attends stops after 60 minutes (2026-11-14): "if not we should make sure it
   stops automatically, lets say 60min or somethign?? i mean if show is not arm and page is idel or
   closed". `outputs.idleStopMin` (60, 0 never) without a control action or page input ends it with the

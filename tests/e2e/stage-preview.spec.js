@@ -1,10 +1,11 @@
-// The stage previews by itself (Show v3, G6). The operator, 2026-11-14: "so to preview i need to klick
-// look an preview? why? also preview runs local in browser right?" Stopped and disarmed, a stage draws the
-// selected look on the built-in demo beat, in the browser; anything playing shows the server's feed;
-// arming leaves the feed alone. Puts back the look, Background, the flash limit and the acknowledgement.
+// The stage follows Play. The operator, 2026-11-17: "the stage shows start on side load, so it runs without play beeing
+// active, toglleing play turns it of. exspected would be to not start stage show on side load, except play is active?"
+// A stage draws the server's feed, so it moves only while the header's Play has the show playing, on every page and after
+// a reload; the effect editor's own stage draws its draft on the demo beat. Puts back the look, Background, the flash
+// limit and the acknowledgement.
 
 import { test, expect } from '@playwright/test';
-import { control, open, reset, set, state, until } from './helpers.js';
+import { control, open, playButton, reset, set, state, until } from './helpers.js';
 import { stageImage, stageMotion } from './stage-image.js';
 import { watchControlWrites } from './audition-isolation.js';
 import { VIEW_IDS } from '../../public-src/views.js';
@@ -13,7 +14,8 @@ import { DARKER, FLASHES_PER_SECOND, SWING } from '../../src/shared/flash-limit.
 const BLACK = { r: 0, g: 0, b: 0, w: 0, a: 0, uv: 0 };
 const BACKGROUND_OFF = { version: 1, mode: 'off', level: 1, colour: BLACK };
 const BLUE_BACKGROUND = { version: 1, mode: 'fixed', level: 1, colour: { ...BLACK, b: 255 } };
-const DEMO = 'Preview · demo beat';
+const FEED = 'Preview (disarmed)';
+const STOPPED_NOTE = 'Stopped: the stage shows the show as it stands. Play, in the header, starts it.';
 
 const safetySettings = async (request) => (await (await request.get('/api/settings')).json()).settings.safety;
 /** The flash limit and the acknowledgement are settings, not look keys. */
@@ -79,12 +81,12 @@ function mostChangesInASecond(frames) {
 }
 
 const STEP_MS = 25;
-/** The plot through `ms` of the demo beat, stepped on the page's own clock: the same frames however busy the host is. */
-async function steppedFrames(page, ms) {
+/** The plot in `where` through `ms` of the demo beat, stepped on the page's own clock: the same frames however busy the host is. */
+async function steppedFrames(page, ms, where = page) {
   const out = [];
   for (let t = 0; t < ms; t += STEP_MS) {
     await page.clock.runFor(STEP_MS);
-    out.push({ t, lights: await plotLights(page) });
+    out.push({ t, lights: await plotLights(where) });
   }
   return out;
 }
@@ -102,121 +104,115 @@ async function plotFormat(page) {
   await expect(page.getByRole('group', { name: 'Stage layout, viewed from the audience' })).toBeVisible();
 }
 
-test('stopped and disarmed, the stage shows the selected look without a click', async ({ page, request }) => {
-  await set(request, { pattern: 'v2.grooveWave', basePalette: { colours: ['#FF0000000000', '#0000FF000000'] } });
-  const writes = watchControlWrites(page);
-  await open(page, 'show');
-  await expect(tag(page)).toHaveText(DEMO);
-  await expect(page.getByRole('img', { name: /The rig in 3D/ })).toHaveAttribute('aria-label', /demo beat/);
-  await stageImage(page, { remember: 'demo' });
-  expect(await stageMotion(page, 'demo'), 'the look moves on the demo beat').toBeGreaterThanOrEqual(50);
+/** Whether the stage of `page` in `format` moves: the canvas in 3D, the plot's lamps in 2D. */
+async function moves(page, format, name) {
+  if (format === '3D') {
+    await stageImage(page, { remember: name });
+    return (await stageMotion(page, name, { timeout: 4000 })) >= 50;
+  }
+  return new Set(await lampFrames(page, 2000, true)).size > 1;
+}
 
-  await plotFormat(page);
-  await expect(plotTag(page)).toHaveText(DEMO);
-  // The wave lights one lamp at a time and leaves every lamp dark for 2 to 3 s between its laps (about 6.5 s each on the
-  // demo beat), its crests between 78 and 194: sampled until a crest has passed, not for a window that can fall between.
-  const frames = [];
-  await expect.poll(async () => {
-    frames.push(...await lampFrames(page, 1500, true));
-    return new Set(frames).size > 3 && frames.some((light) => level(light) > 100);
-  }, { timeout: 15_000 }).toBe(true);
-  expect(new Set(frames).size, 'the plot moves too').toBeGreaterThan(3);
-  expect(frames.some((light) => level(light) > 100), 'and is lit').toBe(true);
+/** Whether the stage of `page` in `format` has come to rest. */
+async function rests(page, format) {
+  if (format === '3D') {
+    await stageImage(page, { remember: 'rest' });
+    return (await stageMotion(page, 'rest', { timeout: 1500 })) < 50;
+  }
+  return new Set(await lampFrames(page, 1500, true)).size === 1;
+}
 
-  const after = await state(request);
-  expect(after.running, 'the preview starts nothing').toBe(false);
-  expect(after.control.playing).toBe(false);
-  expect(after.armed).toBe(false);
-  expect(writes, 'nothing goes to the server: no POST, no control event').toEqual([]);
-});
+async function reload(page, format) {
+  await page.reload();
+  await page.locator('.offline-veil').waitFor({ state: 'detached' });
+  if (format === '2D') await plotFormat(page);
+}
 
-test('the stopped preview follows an edit of the effect, the palette, a band colour, the master and Background', async ({ page, context, request }) => {
-  await set(request, { pattern: 'solid', basePalette: { colours: ['#FF0000'] } });
-  await open(page, 'stage');
-  const plot = await context.newPage();
-  await open(plot, 'stage');
-  await plotFormat(plot);
-  for (const p of [page, plot]) await expect(tag(p)).toHaveText(DEMO);
-  const colourOf = async () => stageImage(page);
-  const allLamps = (light) => expect.poll(() => plotLights(plot)).toEqual(Array(4).fill(light));
+for (const format of ['3D', '2D']) {
+  test(`${format}: the stage moves only while Play has the show playing, on every page and after a reload`, async ({ page, context, request }) => {
+    // Two pages read for motion or rest at eight points: a few seconds of screenshots each.
+    test.setTimeout(90_000);
+    await set(request, { pattern: 'chase', basePalette: { colours: ['#FF0000'] } });
+    await open(page, 'show');
+    if (format === '2D') await plotFormat(page);
+    const other = await context.newPage();
+    await open(other, 'stage');
+    if (format === '2D') await plotFormat(other);
+    const pages = [page, other];
+    const note = (p) => p.getByRole('status').filter({ hasText: STOPPED_NOTE });
+    const stopped = async (why) => {
+      for (const [i, p] of pages.entries()) {
+        await expect(playButton(p, 'Play'), `${why}, page ${i + 1}: the header offers Play`).toBeVisible();
+        await expect(tag(p), `${why}, page ${i + 1}`).toHaveText(FEED);
+        await expect(note(p), `${why}, page ${i + 1}: the stage says so`).toBeVisible();
+        await expect.poll(() => rests(p, format), { message: `${why}, page ${i + 1}: still`, timeout: 15_000 }).toBe(true);
+      }
+      expect((await state(request)).control.playing, why).toBe(false);
+    };
+    const playing = async (why) => {
+      for (const [i, p] of pages.entries()) {
+        await expect(playButton(p, 'Stop'), `${why}, page ${i + 1}: the header offers Stop`).toBeVisible();
+        await expect(tag(p), `${why}, page ${i + 1}`).toHaveText(FEED);
+        await expect(note(p), `${why}, page ${i + 1}`).toHaveCount(0);
+        expect(await moves(p, format, `${why} ${i}`), `${why}, page ${i + 1}: the show moves`).toBe(true);
+      }
+    };
 
-  await allLamps('rgb(255,0,0)');
-  await expect.poll(async () => { const c = await colourOf(); return c.r - c.g; }, { message: '3D: the red look' }).toBeGreaterThan(5);
+    await stopped('loaded while stopped');
+    await playButton(page, 'Play').click();
+    await playing('Play on the first page');
+    await playButton(other, 'Stop').click();
+    await stopped('Stop on the second page');
+    await page.locator('.contained-effects [data-effect="ping-pong"]').first().click();
+    await until(request, (s) => s.pattern === 'ping-pong');
+    await stopped('another effect chosen while stopped');
+    await reload(page, format);
+    await stopped('a reload while stopped');
 
-  await set(request, { basePalette: { colours: ['#00FF00'] } });
-  await allLamps('rgb(0,255,0)');
-  await expect.poll(async () => { const c = await colourOf(); return c.g - c.r; }, { message: '3D: the palette edit' }).toBeGreaterThan(5);
+    await set(request, { pattern: 'chase' });
+    await control(request, 'start', 'look');
+    await playing('a start from another client');
+    await reload(page, format);
+    await playing('a reload while playing');
+    await control(request, 'stop');
+    await stopped('a stop from another client');
+  });
+}
 
-  await set(request, { pattern: 'chase' });
-  await expect.poll(async () => new Set(await lampFrames(plot, 1500)).size, { message: '2D: the effect edit moves the lamps' }).toBeGreaterThan(1);
-  await stageImage(page, { remember: 'chase' });
-  expect(await stageMotion(page, 'chase'), '3D: the chase moves').toBeGreaterThanOrEqual(50);
-
-  // A band's colour is its hue range: 21845 of 65536 is green, 0 red.
-  const bands = (minHue, maxHue) => ({ pattern: 'hd.disco.ambient', effectColours: { pattern: 'hd.disco.ambient', bands: Array(5).fill({ minHue, maxHue }) } });
-  await set(request, bands(21500, 22200));
-  await expect.poll(async () => (await lampFrames(plot, 2000)).some((light) => { const [r, g] = channels(light); return g > 60 && g > 2 * r; }),
-    { message: '2D: green band colours' }).toBe(true);
-  await set(request, bands(0, 400));
-  await expect.poll(async () => (await lampFrames(plot, 2000)).some((light) => { const [r, g] = channels(light); return r > 60 && r > 2 * g; }),
-    { message: '2D: red band colours' }).toBe(true);
-  await expect.poll(async () => { const c = await colourOf(); return c.r - c.g; }, { message: '3D: red band colours' }).toBeGreaterThan(0.5);
-
-  await set(request, { pattern: 'solid', effectColours: null, basePalette: { colours: ['#00FF00'] }, masterDimmer: 0 });
-  await allLamps('rgb(0,0,0)');
-  await expect.poll(async () => (await colourOf()).litShare, { message: '3D: the master at 0' }).toBeLessThan(0.001);
-  // Half the master is what the rig sends: these pars dim by their dimmer channel and their emitters.
-  await set(request, { masterDimmer: 128 });
-  await expect.poll(async () => new Set(await plotLights(plot)).size).toBe(1);
-  const [half] = await plotLights(plot);
-  expect(level(half), 'dimmed, not dark').toBeGreaterThan(0);
-  expect(level(half)).toBeLessThan(255);
-  await control(request, 'start', 'look');
-  await expect(plotTag(plot)).toHaveText('Preview (disarmed)');
-  await allLamps(half);
-  await control(request, 'stop');
-  await expect(plotTag(plot)).toHaveText(DEMO);
-
-  // Background fills the gaps of an effect: a chase lights one of the four pars at a time.
-  await set(request, { masterDimmer: 255, pattern: 'chase', basePalette: { colours: ['#FF0000'] } });
-  await expect.poll(async () => (await lampFrames(plot, 1500)).some((light) => light === 'rgb(0,0,255)')).toBe(false);
-  await set(request, { background: BLUE_BACKGROUND });
-  await expect.poll(async () => (await lampFrames(plot, 1500)).some((light) => light === 'rgb(0,0,255)'), { message: '2D: Background' }).toBe(true);
-  await expect.poll(async () => { const c = await colourOf(); return c.b - c.r; }, { message: '3D: Background' }).toBeGreaterThan(5);
-
-  const after = await state(request);
-  expect(after.running, 'the edits leave playback stopped').toBe(false);
-  expect(after.control.playing).toBe(false);
-});
-
-// Disarmed, nothing waits for the photosensitivity acknowledgement (README, /api/safety), so the preview draws a
-// strobe as the audition does; what it must never do is give the acknowledgement, which an arm would inherit.
-test('a rapid effect is limited in the stopped preview as on the rig, and the preview never acknowledges for the operator', async ({ page, request }) => {
+// Disarmed, nothing waits for the photosensitivity acknowledgement (README, /api/safety), so the editor's stage draws a
+// strobe on the demo beat as the audition does; what it must never do is give the acknowledgement, which an arm would inherit.
+test('a rapid draft is limited on the editor\'s stage as on the rig, and the editor never acknowledges for the operator', async ({ page, request }) => {
   await safetySet(request, { photosensitivityAcknowledged: false });
-  await set(request, { pattern: 'ldj.TrueStrobe', basePalette: { colours: ['#00FF00'] } });
+  await set(request, { basePalette: { colours: ['#00FF00'] } });
   const writes = watchControlWrites(page);
   await page.clock.install();
-  await open(page, 'stage');
-  await plotFormat(page);
-  await expect(plotTag(page)).toHaveText(DEMO);
+  await open(page, 'effects');
+  await page.getByLabel('Search effects').fill('All Strobe');
+  await page.getByRole('button', { name: 'Edit All Strobe', exact: true }).first().click();
+  const stage = page.getByRole('dialog', { name: 'Edit effect' }).locator('.effect-inspector-stage');
+  await plotFormat(stage);
+  await expect(plotTag(stage)).toHaveText('Draft · demo beat');
   await page.clock.pauseAt(await page.evaluate(() => Date.now() + 1000));
-  const free = mostChangesInASecond(await steppedFrames(page, 3000));
+  const free = mostChangesInASecond(await steppedFrames(page, 3000, stage));
   expect(free, 'without the limit the strobe changes the room\'s light more often than the rig allows').toBeGreaterThan(LIMIT);
 
   await safetySet(request, { flashLimit: true });
   await until(request, (s) => s.flashLimit === true);
   await page.waitForTimeout(500);
-  const limited = mostChangesInASecond(await steppedFrames(page, 3000));
-  expect(limited, 'the look\'s flash limit, as the rig counts it').toBeLessThanOrEqual(LIMIT);
-  expect((await safetySettings(request)).photosensitivityAcknowledged, 'the preview gave no acknowledgement').toBe(false);
+  const limited = mostChangesInASecond(await steppedFrames(page, 3000, stage));
+  expect(limited, 'the room\'s flash limit, as the rig counts it').toBeLessThanOrEqual(LIMIT);
+  expect((await safetySettings(request)).photosensitivityAcknowledged, 'the editor gave no acknowledgement').toBe(false);
   expect(writes, 'and sent nothing').toEqual([]);
+});
 
-  // The engine's half has its own positive control (Show v3 fixes, G1b): an upper bound alone passes a black feed.
-  await page.clock.resume();
-  await safetySet(request, { flashLimit: false });
-  await until(request, (s) => s.flashLimit === false);
+// The engine's half has its own positive control (Show v3 fixes, G1b): an upper bound alone passes a black feed.
+test('a rapid effect is limited on the disarmed feed as on the rig, and armed after it the acknowledgement is still the operator\'s', async ({ page, request }) => {
+  await safetySet(request, { photosensitivityAcknowledged: false });
+  await set(request, { pattern: 'ldj.TrueStrobe', basePalette: { colours: ['#00FF00'] } });
+  await open(page, 'stage');
+  await plotFormat(page);
   await control(request, 'start', 'look');
-  await expect(plotTag(page)).toHaveText('Preview (disarmed)');
+  await expect(plotTag(page)).toHaveText(FEED);
   expect(mostChangesInASecond(await timedFrames(page, 3000)), 'the engine without the limit changes the room\'s light more often than the rig allows')
     .toBeGreaterThan(LIMIT);
   await safetySet(request, { flashLimit: true });
@@ -231,29 +227,12 @@ test('a rapid effect is limited in the stopped preview as on the rig, and the pr
   await expect.poll(() => plotLights(page), { message: 'so the armed rig holds the strobe dark' }).toEqual(Array(4).fill('rgb(0,0,0)'));
 });
 
-test('arming during the stopped preview and during an audition leaves only the feed', async ({ page, context, request }) => {
+test('arming during an audition leaves only the feed', async ({ page, context, request }) => {
   await set(request, { pattern: 'solid', basePalette: { colours: ['#FF0000'] } });
   await open(page, 'stage');
   const plot = await context.newPage();
   await open(plot, 'stage');
   await plotFormat(plot);
-  const dark = async () => {
-    for (const p of [page, plot]) await expect(tag(p)).toHaveText('Live output');
-    await expect.poll(() => plotLights(plot), { message: '2D: only the feed, which is dark' }).toEqual(Array(4).fill('rgb(0,0,0)'));
-    await expect.poll(async () => (await stageImage(page)).litShare, { message: '3D: only the feed, which is dark' }).toBeLessThan(0.001);
-    await page.waitForTimeout(500);
-    expect((await stageImage(page)).litShare, 'no browser frame comes back').toBeLessThan(0.001);
-    expect(await plotLights(plot)).toEqual(Array(4).fill('rgb(0,0,0)'));
-  };
-
-  await expect.poll(() => plotLights(plot)).toEqual(Array(4).fill('rgb(255,0,0)'));
-  await expect.poll(async () => (await stageImage(page)).litShare).toBeGreaterThan(0.01);
-  await control(request, 'arm');
-  await dark();
-  await control(request, 'disarm');
-  await expect(tag(page)).toHaveText(DEMO);
-  await expect.poll(() => plotLights(plot)).toEqual(Array(4).fill('rgb(255,0,0)'));
-
   for (const p of [page, plot]) {
     await p.getByRole('button', { name: 'Audition effects', exact: true }).click();
     await p.getByLabel('Audition effect', { exact: true }).selectOption('v2.wash');
@@ -262,7 +241,12 @@ test('arming during the stopped preview and during an audition leaves only the f
   await expect.poll(async () => (await stageImage(page)).litShare).toBeGreaterThan(0.01);
   await expect.poll(async () => (await plotLights(plot)).some((light) => level(light) > 40)).toBe(true);
   await control(request, 'arm');
-  await dark();
+  for (const p of [page, plot]) await expect(tag(p)).toHaveText('Live output');
+  await expect.poll(() => plotLights(plot), { message: '2D: only the feed, which is dark' }).toEqual(Array(4).fill('rgb(0,0,0)'));
+  await expect.poll(async () => (await stageImage(page)).litShare, { message: '3D: only the feed, which is dark' }).toBeLessThan(0.001);
+  await page.waitForTimeout(500);
+  expect((await stageImage(page)).litShare, 'no browser frame comes back').toBeLessThan(0.001);
+  expect(await plotLights(plot)).toEqual(Array(4).fill('rgb(0,0,0)'));
 });
 
 test('armed and stopped, with Background off and no layer, the stage is dark, and with Background on it shows Background', async ({ page, request }) => {
@@ -301,9 +285,9 @@ test('a stored lightshow.previewLook is removed and changes nothing', async ({ p
     }, stored);
     await open(page, 'show');
     expect(await page.evaluate(() => localStorage.getItem('lightshow.previewLook')), `${stored}: removed on load`).toBeNull();
-    await expect(tag(page), `${stored}: stopped, the demo beat`).toHaveText(DEMO);
+    await expect(tag(page), `${stored}: stopped, the feed`).toHaveText(FEED);
     await control(request, 'start', 'look');
-    await expect(tag(page), `${stored}: playing, the feed`).toHaveText('Preview (disarmed)');
+    await expect(tag(page), `${stored}: playing, the feed`).toHaveText(FEED);
     await control(request, 'stop');
   }
 });
