@@ -96,7 +96,13 @@ with no setting here, when it:
 - passes WebSocket upgrades for `socket.io/`;
 - opens the app with the trailing slash (`/tools/lightshow/`, not `/tools/lightshow`);
 - sends a `Host` the server answers to (its own address or the **Public URL**'s
-  host) and either no `Origin` or one that matches that `Host`.
+  host);
+- passes the browser's `Origin` unchanged. A proxy that sets `Host` to the
+  server's own address reports the host the browser reached in
+  `X-Forwarded-Host` (its first value counts), and the cross-origin check then
+  takes an `Origin` naming either. A proxy that overwrites `Origin` switches that
+  check off for everything it forwards. `X-Forwarded-Host` never satisfies the
+  `Host` check, which guards against DNS rebinding.
 
 The service worker's scope is then the prefix, so it never answers for the page
 that frames the app. Served at the root, every address is the same as before.

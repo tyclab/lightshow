@@ -44,6 +44,35 @@ test('origin check rejects other websites but allows same-origin and extensions'
   assert.strictEqual(originAllowed(req('garbage')), false);
 });
 
+// A path-stripping proxy (a sidebar ingress) sets Host to this server and reports the browser's host
+// in X-Forwarded-Host. The Origin is checked against that host; the Host check never reads it.
+test('behind a proxy that rewrites Host, the Origin must name the host the proxy reports', async () => {
+  const req = (origin, forwarded) => ({ headers: { host: '127.0.0.1:3000', origin, 'x-forwarded-host': forwarded } });
+  assert.strictEqual(originAllowed(req('https://home.example', 'home.example')), true, 'the page the proxy serves');
+  assert.strictEqual(originAllowed(req('http://home.example:8123', 'home.example:8123')), true, 'with its port');
+  assert.strictEqual(originAllowed(req('https://home.example', 'home.example:443')), true, 'default port written out');
+  assert.strictEqual(originAllowed(req('https://home.example', 'home.example, inner.proxy')), true, 'the first value');
+  assert.strictEqual(originAllowed(req(undefined, 'home.example')), true, 'no Origin');
+
+  assert.strictEqual(originAllowed(req('https://evil.example', 'home.example')), false, 'another site through the proxy');
+  assert.strictEqual(originAllowed(req('https://other.home.example', 'home.example')), false, 'another origin of the same site');
+  assert.strictEqual(originAllowed(req('http://home.example:8124', 'home.example:8123')), false, 'another port');
+  assert.strictEqual(originAllowed(req('https://home.example', 'inner.proxy, home.example')), false, 'only the first value');
+  assert.strictEqual(originAllowed(req('https://evil.example', 'home.example@evil.example')), false, 'a host, not a URL');
+  assert.strictEqual(originAllowed(req('https://home.example', '')), false);
+
+  const auth = createAuth({ token: 'sesame' });
+  const allow = (headers) => new Promise((resolve) => auth.allowSocketRequest({ headers }, (_err, ok) => resolve(ok)));
+  assert.strictEqual(await allow({ host: '127.0.0.1:3000', origin: 'https://home.example', 'x-forwarded-host': 'home.example' }), true);
+  assert.strictEqual(await allow({ host: '127.0.0.1:3000', origin: 'https://evil.example', 'x-forwarded-host': 'home.example' }), false);
+  // DNS rebinding: the page is same-origin to the browser and may set any header, so the Host still decides.
+  const rebound = { host: 'rebound.example:3000', origin: 'http://rebound.example:3000', 'x-forwarded-host': '127.0.0.1:3000' };
+  assert.strictEqual(await allow(rebound), false);
+  let status = null;
+  auth.hostMiddleware({ headers: rebound }, { status(c) { status = c; return this; }, type() { return this; }, send() { return this; } }, () => {});
+  assert.strictEqual(status, 403);
+});
+
 test('token middleware accepts header or query, rejects wrong and missing', () => {
   const auth = createAuth({ token: 'sesame' });
   const run = (req) => {
