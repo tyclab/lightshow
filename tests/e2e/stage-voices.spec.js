@@ -36,6 +36,7 @@ test('voices appear over the stage look and disappear when stopped', async ({ pa
   const { layout } = await (await request.get('/api/pads')).json();
   const { bank: _b, slot: _s, ...original } = layout.find((p) => p.bank === BANK && p.slot === SLOT);
   const acknowledged = start.safety.photosensitivityAcknowledged;
+  const strobePalette = (await (await request.get('/api/strobe')).json()).settings.palette;
   const put = await request.put(`/api/pads/${BANK}/${SLOT}`, { data: { ...original, content: { kind: 'preset', id: preset.id } } });
   expect(put.ok(), await put.text()).toBe(true);
 
@@ -75,6 +76,8 @@ test('voices appear over the stage look and disappear when stopped', async ({ pa
     await expect.poll(async () => fromLook(await stageSample(page)), { message: 'the dim look reaches the stage', timeout: 5000 }).toBeGreaterThan(0.5);
     const lookLum = Math.max(...(await samples(page, 6)).map((s) => s.lum));
     expect((await request.post('/api/safety/acknowledge', { data: {} })).ok()).toBe(true);
+    // The strobe's colours picked white (its default is the fresh look's colours), so a flash is a frame at full on all three.
+    expect((await request.put('/api/strobe', { data: { palette: ['#FFFFFF'] } })).ok()).toBe(true);
     const fixture = start.fixtures[0];
     const channels = start.profiles[fixture.profileId].channelMap;
     latch.holdWhen((frame) => ['red', 'green', 'blue'].every((colour) =>
@@ -94,6 +97,7 @@ test('voices appear over the stage look and disappear when stopped', async ({ pa
     await preview.close();
     latch.release();
     await request.post('/api/strobe/off', { data: {} });
+    await request.put('/api/strobe', { data: { palette: strobePalette } });
     await request.delete('/api/voices');
     await request.put(`/api/pads/${BANK}/${SLOT}`, { data: original });
     await request.put('/api/settings', { data: { safety: { photosensitivityAcknowledged: acknowledged } } });

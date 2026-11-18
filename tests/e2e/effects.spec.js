@@ -183,7 +183,7 @@ test.describe('on a touch screen', () => {
 });
 
 test('the tag chips filter the deck and the list: any chip within an axis, every axis with one, live counts and Clear', async ({ page, request }) => {
-  const rows = (await state(request)).patterns.filter((row) => !row.retired && row.id !== 'energy.colorStrobe');
+  const rows = (await state(request)).patterns.filter((row) => !row.retired && row.id !== 'energy.whiteStrobe');
   const has = (row, tags) => tags.some((tag) => row.tags.includes(tag));
   const REACTIVE = ['bands', 'level', 'sections'];
   await open(page, 'effects');

@@ -24,8 +24,8 @@ const BASS_ACCENT = { mode: 'beatAccent', band: 'bass', beatInterval: 1, thresho
 
 type Raw = [id: string, name: string, desc: string, kind: string, params: Record<string, unknown>, extra?: Partial<EffectSpec>];
 const RAW: Raw[] = [
-  ['scatterStrobe', 'Scatter Strobe', 'White flashes on random lights every sixteenth, in small clusters round the room',
-    'v2.scatter', { density: 0.2, stepBeats: 0.25, envelope: FLASH, clusterM: 0.35, colour: 'solid' }, { palette: ['#FFFFFF'] }],
+  ['scatterStrobe', 'Scatter Strobe', 'Flashes in the look\'s first colour on random lights every sixteenth, in small clusters round the room',
+    'v2.scatter', { density: 0.2, stepBeats: 0.25, envelope: FLASH, clusterM: 0.35, colour: 'solid' }],
   ['scatterFade', 'Scatter Fade', 'Random clusters light in the look\'s colours on every half beat and fade over a bar',
     'v2.scatter', { density: 0.12, stepBeats: 0.5, envelope: { curve: 'easeOut', attack: 0, hold: 0.25, release: 1.75 }, clusterM: 0.25 }],
   ['scatterGrow', 'Scatter Grow', 'Random clusters swell in, hold and let go, a new set every half beat',

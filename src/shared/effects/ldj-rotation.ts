@@ -4,6 +4,7 @@
 
 import { z } from 'zod';
 import type { Colour } from '../../types/rig.ts';
+import { unlessPale } from '../color.ts';
 import { hash01 } from './hash.ts';
 import { LDJ_FRAME_MS } from './ldj-engine.ts';
 import { hsbToColour, LDJ_RANDOM_HUES } from './palette.ts';
@@ -34,10 +35,10 @@ function randomInput(frame: EffectFrame, index: number): boolean {
   return typeof entry === 'object' && entry.random === true;
 }
 
-/** RGB interpolation is kept separate from external effect and fixture brightness. */
+/** RGB interpolation is kept separate from external effect and fixture brightness; two colours meet in no pale one (color.ts). */
 export function mixColours(a: Colour, b: Colour, weightA: number): Colour {
   const mix = (key: keyof Colour) => Math.round((a[key] ?? 0) * weightA + (b[key] ?? 0) * (1 - weightA));
-  return { r: mix('r'), g: mix('g'), b: mix('b'), w: mix('w'), a: mix('a'), uv: mix('uv') };
+  return unlessPale({ r: mix('r'), g: mix('g'), b: mix('b'), w: mix('w'), a: mix('a'), uv: mix('uv') }, a, b, 1 - weightA);
 }
 
 /** A repeatable gradient field, with both edges of the requested 300-unit extent included: rows are x, columns y. */

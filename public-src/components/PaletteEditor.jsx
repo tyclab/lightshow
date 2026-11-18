@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'preact/hooks';
-import { HEX_COLOUR, parseHex, toHex, paletteBodySchema } from '../../src/shared/palette-model.ts';
+import { HEX_COLOUR, START_COLOURS, parseHex, toHex, paletteBodySchema } from '../../src/shared/palette-model.ts';
 import { ColourSliders, HuePair } from './ColourSliders.jsx';
 import { GradientEditor, gradientSettings } from './GradientEditor.jsx';
 import { api, patchLibrary } from '../state.js';
@@ -31,7 +31,7 @@ export function sameColours(a, b) {
 }
 
 // The built-in palettes have ids, not names; the id reads as words.
-const PALETTE_NAMES = { hdDefault: 'Party default', hdStrobe: 'Party strobe', randomRandom: 'Random, Random' };
+const PALETTE_NAMES = { hdDefault: 'Party default', hdStrobe: 'White strobe', randomRandom: 'Random, Random' };
 export function paletteName(palette) {
   if (palette.name) return palette.name;
   if (PALETTE_NAMES[palette.id]) return PALETTE_NAMES[palette.id];
@@ -173,7 +173,7 @@ export function PaletteEditor({ colours, onChange, body, onBodyChange, onInvalid
         gradients: palette.gradients.map((g) => ({ ...g, stops: g.stops.map((stop) => 'slot' in stop ? { ...stop, slot: Math.min(1, stop.slot) } : stop) })) }); }} />
       {list.length < MAX_COLOURS && (
         <div class="palette-add">
-          <button type="button" class="btn sm" onClick={() => add('#FFFFFF')}>+ Colour</button>
+          <button type="button" class="btn sm" onClick={() => add(START_COLOURS[list.length % START_COLOURS.length])}>+ Colour</button>
           <button type="button" class="btn sm" title={randomTitle} onClick={() => add({ random: true })}>+ Random</button>
         </div>
       )}

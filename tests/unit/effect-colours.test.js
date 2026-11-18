@@ -31,7 +31,7 @@ test('an active colour edit reaches engine and preview without changing the libr
   assert.equal(effectContentKey(input.effect), effectContentKey(original));
   assert.equal(renderInput().effect, input.effect, 'unchanged edits retain identity between frames');
   assert.deepEqual(previewOptions(getLiveState()).resolveEffect(pattern), input.effect);
-  assert.deepEqual(original.palette, ['#FFFFFF']);
+  assert.equal(original.palette, undefined, 'Scatter Strobe flashes the look\'s colours, no white of its own');
   assert.equal(withEffectColours('another-effect', original, state.effectColours), original);
   applyPatch({ effectColours: { pattern, palette, mode: 'along' } });
   assert.equal(renderInput().effectRevision, revision + 1);
@@ -98,7 +98,7 @@ test('separate palette and distribution edits compose without waiting for a brow
   applyPatch({ effectColours: { pattern, mode: 'along' } });
   assert.deepEqual(state.effectColours, { pattern, palette, mode: 'along' });
   applyPatch({ effectColours: { pattern, palette: null } });
-  assert.deepEqual(renderInput().effect.palette, ['#FFFFFF']);
+  assert.equal(renderInput().effect.palette, undefined);
   assert.equal(renderInput().effect.params.colour, 'along');
   applyPatch({ pattern, effectColours: { pattern, mode: 'time' } });
   assert.deepEqual(state.effectColours, { pattern, mode: 'time' });

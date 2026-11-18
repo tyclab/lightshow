@@ -157,7 +157,7 @@ test('continueBetween false holds black between flashes', () => {
 });
 
 test("Hue strobe output follows the selected flash or pulse mode", () => {
-  const inst = strobe({ params: { clock: 'wall', flashesPerSecond: 2 } });
+  const inst = strobe({ palette: ['#FFFFFF'], params: { clock: 'wall', flashesPerSecond: 2 } });
   const flash = sampler(inst, MIXED, { hueStrobe: 'flash' });
   assert.deepStrictEqual(flash(0).map(state), ['lit', 'lit']);
   assert.deepStrictEqual(flash(100).map(state), ['black', 'black'], 'the Hue lamp goes black as any lamp');
@@ -409,11 +409,12 @@ test('renders nothing unacknowledged', () => {
 
 test("strobe palette follows effect, look and override precedence", () => {
   const spec = validateSpec({ kind: 'strobe' });
-  assert.deepStrictEqual(spec.palette, ['#FFFFFF']);
+  assert.strictEqual(spec.palette, null, 'no palette of its own: the look\'s colours, white only where picked');
   assert.deepStrictEqual(spec.params, STROBE_DEFAULTS);
   assert.ok(!('palette' in spec.params), 'no palette among the params');
   assert.deepStrictEqual(validateSpec(spec), spec, 'idempotent');
-  assert.deepStrictEqual(draw(strobe(), frame(), PAR, new EffectStepper())[0].colour, WHITE);
+  assert.deepStrictEqual(draw(strobe(), frame(), PAR, new EffectStepper())[0].colour, RED);
+  assert.deepStrictEqual(draw(strobe({ palette: ['#FFFFFF'] }), frame(), PAR, new EffectStepper())[0].colour, WHITE, 'white when picked');
   const look = sampler(strobe({ params: { flashesPerSecond: 5 }, palette: null }), PAR);
   assert.deepStrictEqual([0, 250, 500].map((t) => look(t)[0].colour), [RED, BLUE, RED], 'the look\'s colours in turn');
   assert.deepStrictEqual(draw(strobe(), frame({ paletteOverride: [GREEN] }), PAR, new EffectStepper())[0].colour, GREEN);

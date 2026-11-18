@@ -324,6 +324,20 @@ test('random loop palettes exclude the named random override', () => {
   }
 });
 
+test('a random loop palette is never one with white in it', () => {
+  const white = new Set(['whiteOff', 'hdStrobe']);
+  for (let seed = 1; seed <= 40; seed++) {
+    const r = rig({ seed: [seed, 2, 3, 4] });
+    r.s.load(sequence({ clips: [clip('A', 'a', 0, 2)], loop: { on: true, startBeat: 0, endBeat: 2 }, options: { randomPaletteOnLoop: true } }));
+    r.s.play();
+    r.at(0);
+    for (let k = 0; k < 12; k++) {
+      r.at(2.5 + 2 * k);
+      assert.ok(r.live.paletteOverrideId && !white.has(r.live.paletteOverrideId), `seed ${seed}, wrap ${k}: ${r.live.paletteOverrideId}`);
+    }
+  }
+});
+
 const PALETTE_COMMAND = { id: 'pal', atBeat: 2, type: 'palette', value: 'redCyan' };
 const paletteState = (r) => [r.live.paletteOverride, r.live.paletteOverrideId];
 function paletteRun({ options = {}, before = [null, null], commands = [PALETTE_COMMAND] } = {}) {

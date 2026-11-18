@@ -1,6 +1,7 @@
 import { ambient, gap } from '../background.ts';
 import type { BackgroundField } from '../background.ts';
 import { HEX_COLOUR } from '../palette-model.ts';
+import { unlessPale } from '../color.ts';
 // Disco: lamps answer the hits in three bands (Spectrum), the loudest peaks
 // (Peak) or a running reading of pitch and level (Neural), with idle washes
 // between hits and an automatic strobe. Disco streams to its lamps on a wall
@@ -133,9 +134,9 @@ function discoDefaults(): DiscoParams {
       channel({ fade: false }),
       channel({ minHue: 38000, maxHue: 52000 }),
       channel({ allowPulse: true, idleFadeBrightness: 140, sequenceLength: 16 }),
-      channel({ allowPulse: true, minHue: 24800, maxHue: 65534, idleFadeBrightness: 140, sequenceLength: 16, modulateSaturation: true }),
+      channel({ allowPulse: true, minHue: 24800, maxHue: 65534, idleFadeBrightness: 140, sequenceLength: 16 }),
     ],
-    allowStrobe: false, strobe: { palette: ['#FFFFFF'], flashesPerSecond: 2 }, assign: {}, smoothness: 500, maxLightsPerBatch: 10,
+    allowStrobe: false, strobe: { palette: ['#FF00FF', '#00FFFF'], flashesPerSecond: 2 }, assign: {}, smoothness: 500, maxLightsPerBatch: 10,
     bands: { ...edges, floorDb: floorsFor(edges, 2) },
     globals: { sensitivity: 50, advancedDecay: 25, smoothness: 500, minimumThreshold: 2, simpleSensitivity: 44, simpleDecay: 20,
       simpleMinimumThreshold: 30, analyserSensitivity: 50, smoothnessAnalyser: 3 },
@@ -149,34 +150,32 @@ interface Recipe {
   id: string; name: string; decay: number; sensitivity: number; smoothness: number; relaxed: boolean; sequence: number; autoStrobe: boolean;
   rate: number; strobe: [hue: number, saturation: number][]; bands: [BandRecipe, BandRecipe, BandRecipe];
 }
-// White: no saturation, so the hue does not matter.
-const WHITE_HSB: [number, number] = [49000, 0];
 // The eleven genre presets. Dance, Drum and Bass, Trance and Ambient are
 // written to 12–14 kHz; this service hears up to 11 025 Hz, so their treble
 // ends at that edge and its floors are recounted over the bins it keeps.
 const RECIPES: Recipe[] = [
   { id: 'hd.disco.pop', name: 'Pop', decay: 24, sensitivity: 60, smoothness: 500, relaxed: false, sequence: 8, autoStrobe: false, rate: 2,
-    strobe: [[54613, 255], [32768, 255], WHITE_HSB], bands: [[40, 250, 52000, 62000, true], [300, 3000, 0, 11000, false], [4000, 11000, 10000, 24000, false]] },
+    strobe: [[54613, 255], [32768, 255]], bands: [[40, 250, 52000, 62000, true], [300, 3000, 0, 11000, false], [4000, 11000, 10000, 24000, false]] },
   { id: 'hd.disco.rock', name: 'Rock', decay: 28, sensitivity: 55, smoothness: 400, relaxed: false, sequence: 8, autoStrobe: false, rate: 3,
-    strobe: [[0, 255], WHITE_HSB], bands: [[40, 215, 58000, 65534, true], [250, 2500, 3000, 8500, false], [3000, 9000, 8000, 14000, false]] },
+    strobe: [[0, 255]], bands: [[40, 215, 58000, 65534, true], [250, 2500, 3000, 8500, false], [3000, 9000, 8000, 14000, false]] },
   { id: 'hd.disco.hipHop', name: 'Hip Hop', decay: 18, sensitivity: 62, smoothness: 550, relaxed: false, sequence: 8, autoStrobe: false, rate: 2,
     strobe: [[0, 255], [9000, 255], [49151, 255]], bands: [[40, 250, 61000, 65534, true], [300, 3500, 3000, 11000, false], [4500, 10000, 50000, 58000, false]] },
   { id: 'hd.disco.rAndB', name: 'R&B', decay: 10, sensitivity: 65, smoothness: 850, relaxed: true, sequence: 8, autoStrobe: false, rate: 1,
-    strobe: [[60000, 150], [49151, 100]], bands: [[40, 250, 60000, 65534, false], [300, 4000, 52000, 60000, false], [4500, 10000, 5000, 12000, false]] },
+    strobe: [[60000, 150], [49151, 255]], bands: [[40, 250, 60000, 65534, false], [300, 4000, 52000, 60000, false], [4500, 10000, 5000, 12000, false]] },
   { id: 'hd.disco.dance', name: 'Dance', decay: 30, sensitivity: 58, smoothness: 400, relaxed: false, sequence: 8, autoStrobe: false, rate: 4,
-    strobe: [[32768, 255], [54613, 255], WHITE_HSB], bands: [[40, 200, 60000, 65534, true], [250, 3200, 16000, 26000, false], [4000, 11025, 38000, 50000, false]] },
+    strobe: [[32768, 255], [54613, 255]], bands: [[40, 200, 60000, 65534, true], [250, 3200, 16000, 26000, false], [4000, 11025, 38000, 50000, false]] },
   { id: 'hd.disco.classical', name: 'Classical', decay: 7, sensitivity: 65, smoothness: 950, relaxed: true, sequence: 8, autoStrobe: false, rate: 1,
-    strobe: [[8000, 60]], bands: [[40, 350, 42000, 48000, false], [400, 3000, 47000, 54000, false], [3500, 10000, 7000, 14000, false]] },
+    strobe: [[8000, 255]], bands: [[40, 350, 42000, 48000, false], [400, 3000, 47000, 54000, false], [3500, 10000, 7000, 14000, false]] },
   { id: 'hd.disco.jazz', name: 'Jazz', decay: 16, sensitivity: 60, smoothness: 650, relaxed: true, sequence: 8, autoStrobe: false, rate: 1,
     strobe: [[43690, 255], [49151, 255]], bands: [[40, 300, 3000, 9000, false], [350, 2500, 56000, 65534, false], [3000, 9000, 38000, 46000, false]] },
   { id: 'hd.disco.acoustic', name: 'Acoustic', decay: 14, sensitivity: 66, smoothness: 750, relaxed: true, sequence: 8, autoStrobe: false, rate: 1,
-    strobe: [[8000, 60], [6000, 220]], bands: [[70, 300, 59000, 65534, false], [350, 3000, 5000, 12000, false], [3500, 10000, 38000, 46000, false]] },
+    strobe: [[8000, 255], [6000, 220]], bands: [[70, 300, 59000, 65534, false], [350, 3000, 5000, 12000, false], [3500, 10000, 38000, 46000, false]] },
   { id: 'hd.disco.drumAndBass', name: 'Drum and Bass', decay: 40, sensitivity: 60, smoothness: 400, relaxed: false, sequence: 4, autoStrobe: true, rate: 5,
-    strobe: [[32768, 255], [54613, 255], WHITE_HSB], bands: [[40, 200, 60000, 65534, true], [250, 2500, 26000, 38000, false], [3000, 11025, 50000, 62000, true]] },
+    strobe: [[32768, 255], [54613, 255]], bands: [[40, 200, 60000, 65534, true], [250, 2500, 26000, 38000, false], [3000, 11025, 50000, 62000, true]] },
   { id: 'hd.disco.trance', name: 'Trance', decay: 38, sensitivity: 60, smoothness: 400, relaxed: false, sequence: 4, autoStrobe: true, rate: 4,
-    strobe: [[43690, 255], [32768, 255], WHITE_HSB], bands: [[40, 180, 52000, 62000, true], [220, 2000, 40000, 52000, false], [3000, 11025, 27000, 38000, true]] },
+    strobe: [[43690, 255], [32768, 255]], bands: [[40, 180, 52000, 62000, true], [220, 2000, 40000, 52000, false], [3000, 11025, 27000, 38000, true]] },
   { id: 'hd.disco.ambient', name: 'Ambient', decay: 5, sensitivity: 70, smoothness: 1000, relaxed: true, sequence: 8, autoStrobe: false, rate: 1,
-    strobe: [[43690, 80], [49151, 100]], bands: [[40, 400, 43000, 50000, false], [450, 4000, 35000, 44000, false], [4500, 11025, 28000, 36000, false]] },
+    strobe: [[43690, 255], [49151, 255]], bands: [[40, 400, 43000, 50000, false], [450, 4000, 35000, 44000, false], [4500, 11025, 28000, 36000, false]] },
 ];
 
 function fromRecipe(r: Recipe): DiscoParams {
@@ -270,7 +269,7 @@ function sample(lamp: Lamp, t: number): { colour: Colour; level: number; backgro
   const k = t <= lamp.start ? 0 : (t - lamp.start) / (lamp.end - lamp.start);
   const mix = (a: number | undefined, b: number | undefined) => Math.round((a ?? 0) + ((b ?? 0) - (a ?? 0)) * k);
   const { from, to } = lamp;
-  const colour = { r: mix(from.r, to.r), g: mix(from.g, to.g), b: mix(from.b, to.b), w: mix(from.w, to.w), a: mix(from.a, to.a), uv: mix(from.uv, to.uv) };
+  const colour = unlessPale({ r: mix(from.r, to.r), g: mix(from.g, to.g), b: mix(from.b, to.b), w: mix(from.w, to.w), a: mix(from.a, to.a), uv: mix(from.uv, to.uv) }, from, to, k);
   const level = lamp.fromLevel + (lamp.toLevel - lamp.fromLevel) * k;
   const coverage = lamp.fromBackground + (lamp.toBackground - lamp.fromBackground) * k;
   return { colour, level, background: ambient(colour, level * coverage, coverage) };

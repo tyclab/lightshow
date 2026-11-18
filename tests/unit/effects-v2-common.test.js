@@ -10,7 +10,7 @@ const common = (patch = {}) => v2CommonSchema.parse(patch);
 test('the shared modifiers default to the room, the timeline and a short linear envelope', () => {
   assert.deepEqual(common(), {
     space: 'room', trigger: { mode: 'timeline', band: 'full', beatInterval: 1, threshold: 0.15, reactiveDepth: 1 },
-    envelope: { curve: 'linear', attack: 0, hold: 0.25, release: 0.5 }, colour: 'along', background: 0, backgroundColour: '#FFFFFF',
+    envelope: { curve: 'linear', attack: 0, hold: 0.25, release: 0.5 }, colour: 'along', background: 0, backgroundColour: '#FF0096',
   });
   assert.equal(v2CommonSchema.safeParse({ space: 'floor' }).success, false);
   assert.equal(v2CommonSchema.safeParse({ background: 2 }).success, false);

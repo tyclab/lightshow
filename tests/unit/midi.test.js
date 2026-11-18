@@ -152,10 +152,25 @@ test('note-on with velocity 0 releases a held energy button', () => {
   const h = harness({ cc: {}, notes: { 7: { action: 'energyHold' } } });
 
   h.input.emit('noteon', { note: 7, velocity: 127, channel: 0 });
-  assert.strictEqual(h.state.energyOverride, 'white-strobe');
+  assert.strictEqual(h.state.energyOverride, 'color-strobe');
 
   h.input.emit('noteon', { note: 7, velocity: 0, channel: 0 });
   assert.strictEqual(h.state.energyOverride, null);
+});
+
+// White plays only when picked: an energy button bound to no effect steps through the ones not in white.
+test('an unbound energy button starts on the colour strobe and its cycle never reaches White Strobe or Blinder', () => {
+  const h = harness({ cc: {}, notes: { 2: { action: 'cycleEnergyEffect' }, 7: { action: 'energyHold' } } });
+  const held = [];
+  for (let i = 0; i < 14; i++) {
+    h.input.emit('noteon', { note: 7, velocity: 127, channel: 0 });
+    held.push(h.state.energyOverride);
+    h.input.emit('noteoff', { note: 7, channel: 0 });
+    h.input.emit('noteon', { note: 2, velocity: 127, channel: 0 });
+    h.input.emit('noteoff', { note: 2, channel: 0 });
+  }
+  assert.equal(held[0], 'color-strobe');
+  assert.deepStrictEqual([...new Set(held)].sort(), ['color-strobe', 'glow', 'kill', 'palette-strobe', 'uv-wash']);
 });
 
 test('refused MIDI energy presses warn and release cleanly', (t) => {
@@ -1083,9 +1098,9 @@ test('a palette button puts its palette over the show, and takes it off again', 
 test('the optional show-control map picks the energy effect on EN3\'s push, not play/stop', () => {
   const h = harness(MIDI_PRESETS.find((p) => p.id === 'performance').map);
   const press = (note) => h.input.emit('noteon', { note, velocity: 127, channel: 0 });
-  press(2);                       // EN3 push: the next effect
+  press(2);                       // EN3 push: the next effect after the colour strobe it starts on
   press(7);                       // EN8 push: hold it
-  assert.deepStrictEqual(h.patches.at(-1), { energyOverride: 'color-strobe' });
+  assert.deepStrictEqual(h.patches.at(-1), { energyOverride: 'uv-wash' });
   assert.ok(!h.patches.some((p) => 'running' in p), 'the show is never stopped');
 });
 

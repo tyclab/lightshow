@@ -1,3 +1,4 @@
+import { DIE_RGB } from './color.ts';
 import { emitterValues } from './look-math.ts';
 import type { ChannelMap, Colour, EmitterLevels } from '../types/rig.ts';
 
@@ -8,9 +9,9 @@ export function fitEmitters(value: EmitterLevels, map: ChannelMap | null | undef
   const amber = map.amber !== undefined || map.warmWhite !== undefined;
   const uv = map.uv !== undefined;
   const w = white ? 0 : value.w, a = amber ? 0 : value.a, v = uv ? 0 : value.uv;
-  const r = value.r + w + a + v * .45;
-  const g = value.g + w * .98 + a * .66;
-  const b = value.b + w * .99 + a * .34 + v * .85;
+  const r = value.r + w * DIE_RGB.w[0] + a * DIE_RGB.a[0] + v * DIE_RGB.uv[0];
+  const g = value.g + w * DIE_RGB.w[1] + a * DIE_RGB.a[1] + v * DIE_RGB.uv[1];
+  const b = value.b + w * DIE_RGB.w[2] + a * DIE_RGB.a[2] + v * DIE_RGB.uv[2];
   const scale = Math.max(r, g, b) > 255 ? 255 / Math.max(r, g, b) : 1;
   return { r: map.red === undefined ? 0 : Math.round(r * scale), g: map.green === undefined ? 0 : Math.round(g * scale),
     b: map.blue === undefined ? 0 : Math.round(b * scale), w: white ? value.w : 0, a: amber ? value.a : 0, uv: uv ? value.uv : 0 };

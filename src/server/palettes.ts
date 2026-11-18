@@ -2,40 +2,41 @@ import { COLOR_PRESETS } from './presets.ts';
 
 // Preset indices: 0 Red, 1 Amber, 2 Lime, 3 Green, 4 Cyan, 5 Blue, 6 Congo Blue, 7 Violet,
 // 8 Magenta, 9 Warm White, 10 Cool White, 11 Lavender, 12 Moonlight, 13 UV, 14 Blackout.
-// Tetrad slots: A dominant, B contrast, C accent, D lift.
+// Tetrad slots: A dominant, B contrast, C accent, D the bed the classic looks rest on.
 // Separate saturated hues by about 30° so each slot remains visible across the room.
+// White and the pale presets (9-12) belong only to the looks whose name says white (WHITE_LOOKS).
 
 export type PaletteBank = Record<string, number[]>;
 
 const TETRADS: PaletteBank = {
-  synthwave:   [8, 4, 6, 12],  // Magenta / Cyan / Congo / Moonlight — the neon pair, cooled off
-  sunsetDrive: [1, 6, 8, 9],   // Amber / Congo / Magenta / Warm White — last light against night sky
-  solarPunch:  [0, 5, 2, 10],  // Red / Blue / Lime / Cool White — a primary triad, maximum separation
-  deepOcean:   [4, 6, 3, 12],  // Cyan / Congo / Green / Moonlight — cool analogous with depth
-  emeraldCity: [3, 8, 1, 9],   // Green / Magenta / Amber / Warm White — complements plus gold
+  synthwave:   [8, 4, 6, 5],   // Magenta / Cyan / Congo / Blue — the neon pair, cooled off
+  sunsetDrive: [1, 6, 8, 0],   // Amber / Congo / Magenta / Red — last light against night sky
+  solarPunch:  [0, 5, 2, 4],   // Red / Blue / Lime / Cyan — a primary triad, maximum separation
+  deepOcean:   [4, 6, 3, 5],   // Cyan / Congo / Green / Blue — cool analogous with depth
+  emeraldCity: [3, 8, 1, 0],   // Green / Magenta / Amber / Red — complements plus gold
   arctic:      [10, 6, 4, 12], // Cool White / Congo / Cyan / Moonlight — ice, anchored on white
-  violetDream: [7, 4, 1, 11],  // Violet / Cyan / Amber / Lavender — near-triad, purple over its own tint
-  volcanic:    [0, 6, 1, 9],   // Red / Congo / Amber / Warm White — fire against a cold sky
-  candyPop:    [8, 2, 4, 10],  // Magenta / Lime / Cyan / Cool White — evenly spaced, nothing subtle
+  violetDream: [7, 4, 1, 6],   // Violet / Cyan / Amber / Congo — near-triad, purple over its deeper neighbour
+  volcanic:    [0, 6, 1, 7],   // Red / Congo / Amber / Violet — fire against a cold sky
+  candyPop:    [8, 2, 4, 6],   // Magenta / Lime / Cyan / Congo — evenly spaced, nothing subtle
   halloween:   [1, 7, 2, 13],  // Amber / Violet / Lime / UV — pumpkin, purple, toxic green
-  noirUv:      [13, 10, 6, 12],// UV / Cool White / Congo / Moonlight — dark room, hard white slash
-  desert:      [1, 12, 0, 9],  // Amber / Moonlight / Red / Warm White — heat under a bleached sky
-  royal:       [7, 1, 5, 9],   // Violet / Amber / Blue / Warm White — purple and gold
-  tropical:    [4, 1, 2, 10],  // Cyan / Amber / Lime / Cool White — sea, sun, palms
-  aurora:      [3, 7, 4, 12],  // Green / Violet / Cyan / Moonlight — the actual northern-lights hues
+  noirUv:      [13, 4, 6, 5],  // UV / Cyan / Congo / Blue — dark room, hard cyan slash
+  desert:      [1, 5, 0, 8],   // Amber / Blue / Red / Magenta — heat under a clear sky
+  royal:       [7, 1, 5, 0],   // Violet / Amber / Blue / Red — purple and gold
+  tropical:    [4, 1, 2, 5],   // Cyan / Amber / Lime / Blue — sea, sun, palms
+  aurora:      [3, 7, 4, 5],   // Green / Violet / Cyan / Blue — the actual northern-lights hues
   lunar:       [12, 9, 11, 10],// Moonlight / Warm White / Lavender / Cool White — the pale look
 
   whiteout:    [10, 6, 8, 12], // Cool White / Congo / Magenta / Moonlight — white room, neon cuts
-  strobeLab:   [10, 4, 0, 9],  // Cool White / Cyan / Red / Warm White — clinical white, hot and cold
-  hardTechno:  [10, 0, 5, 12], // Cool White / Red / Blue / Moonlight — warehouse: white, siren, blue
-  ultraviolet: [13, 10, 8, 12],// UV / Cool White / Magenta / Moonlight — blacklight under a white slash
-  acidRave:    [2, 8, 6, 10],  // Lime / Magenta / Congo / Cool White — acid green against hot pink
-  iceFire:     [4, 0, 8, 10],  // Cyan / Red / Magenta / Cool White — the cold/hot split, hard edge
+  strobeLab:   [5, 4, 0, 1],   // Blue / Cyan / Red / Amber — clinical blue, hot and cold
+  hardTechno:  [6, 0, 5, 4],   // Congo / Red / Blue / Cyan — warehouse: deep blue, siren, blue, a cold edge
+  ultraviolet: [13, 4, 8, 5],  // UV / Cyan / Magenta / Blue — blacklight under a cyan slash
+  acidRave:    [2, 8, 6, 5],   // Lime / Magenta / Congo / Blue — acid green against hot pink
+  iceFire:     [4, 0, 8, 5],   // Cyan / Red / Magenta / Blue — the cold/hot split, hard edge
 
-  midnight:    [5, 8, 2, 12],  // Blue / Magenta / Lime / Moonlight — deep blue with two sharp cuts
-  peppermint:  [0, 3, 4, 10],  // Red / Green / Cyan / Cool White — primary and bright, nothing muddy
-  mint:        [3, 0, 7, 10],  // Green / Red / Violet / Cool White — fresh green over a red contrast
-  nightDrive:  [6, 1, 4, 12],  // Congo / Amber / Cyan / Moonlight — headlights on a deep blue road
+  midnight:    [5, 8, 2, 4],   // Blue / Magenta / Lime / Cyan — deep blue with two sharp cuts
+  peppermint:  [0, 3, 4, 5],   // Red / Green / Cyan / Blue — primary and bright, nothing muddy
+  mint:        [3, 0, 7, 5],   // Green / Red / Violet / Blue — fresh green over a red contrast
+  nightDrive:  [6, 1, 4, 5],   // Congo / Amber / Cyan / Blue — headlights on a deep blue road
 };
 
 // Triads usually omit the lift so a third lamp still contributes a distinct hue.
@@ -50,16 +51,16 @@ const TRIADS: PaletteBank = {
   volcanic:    [0, 6, 1],     // Red / Congo / Amber
   candyPop:    [8, 2, 4],     // Magenta / Lime / Cyan
   halloween:   [1, 7, 2],     // Amber / Violet / Lime
-  noirUv:      [13, 10, 6],   // UV / Cool White / Congo
-  desert:      [1, 12, 0],    // Amber / Moonlight / Red
+  noirUv:      [13, 4, 6],    // UV / Cyan / Congo
+  desert:      [1, 5, 0],     // Amber / Blue / Red
   royal:       [7, 1, 5],     // Violet / Amber / Blue
   tropical:    [4, 1, 2],     // Cyan / Amber / Lime
   aurora:      [3, 7, 4],     // Green / Violet / Cyan
   lunar:       [12, 9, 11],   // Moonlight / Warm White / Lavender
   whiteout:    [10, 6, 8],    // Cool White / Congo / Magenta
-  strobeLab:   [10, 4, 0],    // Cool White / Cyan / Red
-  hardTechno:  [10, 0, 5],    // Cool White / Red / Blue
-  ultraviolet: [13, 10, 8],   // UV / Cool White / Magenta
+  strobeLab:   [5, 4, 0],     // Blue / Cyan / Red
+  hardTechno:  [6, 0, 5],     // Congo / Red / Blue
+  ultraviolet: [13, 4, 8],    // UV / Cyan / Magenta
   acidRave:    [2, 8, 6],     // Lime / Magenta / Congo
   iceFire:     [4, 0, 8],     // Cyan / Red / Magenta
   midnight:    [5, 8, 2],     // Blue / Magenta / Lime
@@ -80,22 +81,22 @@ const DUOS: PaletteBank = {
   volcanic:    [0, 6],        // Red / Congo
   candyPop:    [8, 2],        // Magenta / Lime
   halloween:   [1, 7],        // Amber / Violet
-  noirUv:      [13, 10],      // UV / Cool White
+  noirUv:      [13, 4],       // UV / Cyan
   desert:      [1, 5],        // Amber / Blue
-  royal:       [7, 9],        // Violet / Warm White
+  royal:       [7, 0],        // Violet / Red
   tropical:    [4, 1],        // Cyan / Amber
   aurora:      [3, 7],        // Green / Violet
   lunar:       [12, 9],       // Moonlight / Warm White
   whiteout:    [10, 8],       // Cool White / Magenta — tier contrast
-  strobeLab:   [10, 0],       // Cool White / Red — tier contrast
-  hardTechno:  [10, 5],       // Cool White / Blue — tier contrast
+  strobeLab:   [5, 2],        // Blue / Lime — clinical
+  hardTechno:  [6, 3],        // Congo / Green — deep blue, laser green
   ultraviolet: [13, 8],       // UV / Magenta
   acidRave:    [2, 6],        // Lime / Congo
   iceFire:     [4, 0],        // Cyan / Red
   midnight:    [5, 8],        // Blue / Magenta
   peppermint:  [0, 3],        // Red / Green
-  mint:        [3, 10],       // Green / Cool White — tier contrast
-  nightDrive:  [6, 12],       // Congo / Moonlight — tier contrast
+  mint:        [3, 5],        // Green / Blue
+  nightDrive:  [1, 8],        // Amber / Magenta — headlights and neon
 };
 
 function paletteBankForSize(size: number): PaletteBank {
@@ -133,6 +134,9 @@ const PALETTE_NAMES: Record<string, string> = {
   nightDrive:  'Night Drive',
 };
 
+/** The looks whose name says white: the only ones with white or pale presets in them. */
+const WHITE_LOOKS: ReadonlySet<string> = new Set(['arctic', 'lunar', 'whiteout']);
+
 const PALETTES = Object.keys(TETRADS).map((id) => ({
   id,
   name: PALETTE_NAMES[id] || id,
@@ -167,6 +171,7 @@ export {
   PALETTES,
   PALETTE_IDS,
   PALETTE_NAMES,
+  WHITE_LOOKS,
   paletteBankForSize,
   paletteColors,
   paletteSlots,

@@ -15,12 +15,15 @@ const burst = (over) => look.burstFor({
   character: { energy: 0.8, texture: 0.6, hats: 0.6 }, drive: 0.9, score: null, ...over,
 });
 
-test('the two loudest gestures belong to drops and nowhere else', () => {
-  const loud = new Set(['blinder', 'white-strobe']);
-  assert.ok(loud.has(burst({ moment: 'drop' })));
+test('a drop bursts in the look\'s colour: a strobe when the music drives, a glow when it does not, never white', () => {
+  assert.equal(burst({ moment: 'drop' }), 'color-strobe');
+  assert.equal(burst({ moment: 'drop', drive: 0.6 }), 'color-strobe');
+  assert.equal(burst({ moment: 'drop', drive: 0.3 }), 'glow');
   for (const drive of [0.4, 0.6, 0.8, 1]) {
-    const chosen = burst({ moment: 'accent', drive });
-    assert.ok(!loud.has(chosen), `an accent reached ${chosen}`);
+    for (const moment of ['drop', 'accent']) {
+      const chosen = burst({ moment, drive });
+      assert.ok(!['blinder', 'white-strobe'].includes(chosen), `a ${moment} reached ${chosen}`);
+    }
   }
 });
 

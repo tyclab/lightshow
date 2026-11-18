@@ -82,18 +82,20 @@ test('ENERGY_EFFECTS keeps its seven ids', () => {
 const env = (attack, hold, decay, sustain, release, peak) => ({ attack, hold, decay, sustain, release, peak });
 const CHANNEL = env(0.1, 0.1, 0.2, 0.5, 0.2, 1);
 const BRIGHTNESS = env(0.04, 0.08, 0.16, 0.16, 0.62, 1);
-const rgb = (r, g, b) => ({ colourMode: 'all', singleColour: '#FFFFFF', r, g, b, brightness: BRIGHTNESS });
+const rgb = (r, g, b) => ({ colourMode: 'all', singleColour: '#FF0000', r, g, b, brightness: BRIGHTNESS });
 const SIMPLE = {
-  'Ice Strike': { palette: ['#D9FFFF'], curve: 'easeOut',
-    envelope: rgb(env(0.01, 0.02, 0.08, 0, 0, 0.85), env(0.01, 0.02, 0.18, 0, 0, 1), env(0.01, 0.02, 0.29, 0, 0, 1)) },
+  // Its red peaks at 0.4, so that at its peak the flash is an icy cyan, not white.
+  'Ice Strike': { palette: ['#66FFFF'], curve: 'easeOut',
+    envelope: rgb(env(0.01, 0.02, 0.08, 0, 0, 0.4), env(0.01, 0.02, 0.18, 0, 0, 1), env(0.01, 0.02, 0.29, 0, 0, 1)) },
   'Neon Pulse': { palette: ['#FF00FF'], curve: 'easeInOut',
     envelope: rgb(env(0.12, 0, 0.38, 0, 0, 1), env(0, 0, 0, 0, 0, 0), env(0.12, 0, 0.58, 0, 0, 1)) },
   'Colour Pop': { palette: ['#FF7050'], curve: 'linear',
     envelope: { colourMode: 'singleColour', singleColour: '#FF7050', r: CHANNEL, g: CHANNEL, b: CHANNEL, brightness: env(0.01, 0.5, 0.25, 0.25, 0, 1) } },
   'Velvet Bloom': { palette: ['#CC1F59'], curve: 'easeInOut',
     envelope: rgb(env(0.4, 0.05, 0.1, 0.8, 0.45, 0.8), env(0.4, 0.05, 0.1, 0.12, 0.45, 0.12), env(0.2, 0.05, 0.3, 0.35, 0.45, 0.55)) },
-  'Solar Flare': { palette: ['#FFD9A6'], curve: 'easeOut',
-    envelope: rgb(env(0.01, 0.03, 0.5, 0.18, 0.46, 1), env(0.01, 0.03, 0.32, 0, 0, 0.85), env(0.01, 0.03, 0.09, 0, 0, 0.65)) },
+  // Its blue peaks at 0.3, so that at its peak the flash is gold, not near white.
+  'Solar Flare': { palette: ['#FFD94D'], curve: 'easeOut',
+    envelope: rgb(env(0.01, 0.03, 0.5, 0.18, 0.46, 1), env(0.01, 0.03, 0.32, 0, 0, 0.85), env(0.01, 0.03, 0.09, 0, 0, 0.3)) },
   'Rainbow Drop': { palette: ['#FF0000', '#00CC00', '#000099'], curve: 'easeInOut',
     envelope: rgb(env(0.02, 0.03, 0.24, 0.045, 0.08, 1), env(0.3, 0, 0.32, 0, 0, 0.8), env(0.65, 0, 0.25, 0.07, 0.1, 0.6)) },
   // Not the family's single-colour recommendation: this preset carries
@@ -105,9 +107,9 @@ const FAMILY_ROWS = {
   'Neon Domino': ['hd.positionChase', ['#FF2BD6', '#7C3AED', '#22D3EE']],
   'Bass Bloom': ['hd.radialPulse', ['#FF006E', '#FB5607', '#FFBE0B']],
   'Aurora Drift': ['hd.spatialWash', ['#06B6D4', '#22C55E', '#6366F1']],
-  'Prism Ricochet': ['hd.bouncingScan', ['#F8FAFC', '#A855F7', '#06B6D4', '#F43F5E']],
-  'Meteor Shower': ['hd.streak', ['#FFFFFF', '#38BDF8', '#8B5CF6']],
-  'Starlight Scatter': ['hd.twinkle', ['#E0F2FE', '#C4B5FD', '#FDF4FF']],
+  'Prism Ricochet': ['hd.bouncingScan', ['#6366F1', '#A855F7', '#06B6D4', '#F43F5E']],
+  'Meteor Shower': ['hd.streak', ['#FACC15', '#38BDF8', '#8B5CF6']],
+  'Starlight Scatter': ['hd.twinkle', ['#38BDF8', '#8B5CF6', '#D946EF']],
   'Velvet Breath': ['hd.breathingFade', ['#581C87', '#BE185D', '#7E22CE']],
   'Afterglow Gate': ['hd.volumeGateWash', ['#FB7185', '#F97316', '#FACC15']],
   'Voltage Confetti': ['hd.frequencyBurst', ['#FDE047', '#22D3EE', '#F472B6', '#A3E635']],
@@ -169,7 +171,7 @@ test("built-in settings are independent of family defaults", () => {
   assert.ok(!Object.isFrozen(HD_DEFAULTS['hd.simpleAdsr'].params.rgbEnvelope.brightness));
   assert.notStrictEqual(presetById('hd.iceStrike').spec.params.rgbEnvelope.brightness, HD_DEFAULTS['hd.simpleAdsr'].params.rgbEnvelope.brightness);
   assert.ok(!Object.isFrozen(DISCO_PRESETS[0].params.channels[0]));
-  assert.ok(!Object.isFrozen(kindOf('strobe').defaults.palette));
+  assert.ok(!Object.isFrozen(kindOf('ldj.matrixBoard').defaults.params.colours));
   assert.throws(() => { presetById('hd.iceStrike').spec.params.rgbEnvelope.r.peak = 1; }, TypeError);
 });
 
@@ -288,8 +290,8 @@ test("control presets resolve to energy and strobe kinds", () => {
     kind: 'strobe', palette: null, brightness: 1, background: { version: 1, level: 1 },
     params: { colourMode: 'palette', selection: 'all', space: 'plan', density: 0.25, segmentM: 0.5, placeM: 1.5, zone: 'width', function: 'palette', speed: 128, flashesPerSecond: 5, continueBetween: true, clock: 'beat', brightness: 1, onMs: 100, blackMs: 100 },
   });
-  // The manual strobe keeps its own white at two a second.
-  assert.deepStrictEqual(validateSpec({ kind: 'strobe' }).palette, ['#FFFFFF']);
+  // A strobe of no palette of its own flashes the look's colours, two a second: white only where it is picked.
+  assert.strictEqual(validateSpec({ kind: 'strobe' }).palette, null);
   assert.strictEqual(STROBE_DEFAULTS.flashesPerSecond, 2);
   // `strobe` is the upstream pattern's id; no control may take it.
   assert.strictEqual(presetById('strobe'), null);

@@ -122,7 +122,8 @@ test("noise sampling preserves field coordinates and interpolation", () => {
   perlin.draw(at(1)); perlin.draw(at(2));
   assert.strictEqual(perlin.state().noise, table, 'the artifact is generated once');
   const northern = harness('ldj.NorthernLights', row(1), { seed: 'review-waves' });
-  assert.deepEqual(northern.draw(at(0))[0].colour, parseHex('#817E7E'));
+  // Its two colours meet round the wheel, not in the straight mix's grey #817E7E.
+  assert.deepEqual(northern.draw(at(0))[0].colour, parseHex('#84FF00'));
   for (const name of ['Perlin', 'NorthernLights']) {
     const random = harness(`ldj.${name}`, row(1), { seed: 'review-waves', spec: { palette: [{ random: true }] } });
     const fixed = harness(`ldj.${name}`, row(1), { seed: 'review-waves', palette: [0, 36, 60, 120, 195, 250, 280, 325].map((h) => hsbToColour(h / 360, 1, 1)) });
@@ -203,7 +204,8 @@ test('transition fronts use real RGB interpolation and own black', () => {
   const room = { ...row(5), waveLength: () => 1, waveDistance: () => [0, .375, .75, 1, 1.125] };
   const h = harness('ldj.BigRoomWave', room, { params: { once: true } });
   const start = h.draw(at(0));
-  assert.deepEqual(start.map((s) => s.colour), [CYAN, parseHex('#808080'), RED, RED, RED]);
+  // The front between cyan and red meets round the wheel, not in the straight mix's grey #808080.
+  assert.deepEqual(start.map((s) => s.colour), [CYAN, parseHex('#80FF00'), RED, RED, RED]);
   assert.ok(start.every((s) => s.level === 1 && s.strength === 1));
   const after = h.draw(at(11));
   assert.deepEqual(after[3].colour, CYAN);

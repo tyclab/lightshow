@@ -103,7 +103,7 @@ const PATTERNS = [
   { id: 'ramp-scatter',    name: 'Random Ramps',    desc: 'Every zone swells up and cuts at its own random moment', pixel: true },
   { id: 'decay-scatter',   name: 'Random Hits',     desc: 'Every zone hits full at its own random moment and dies away', pixel: true },
   { id: 'flash-burst',     name: 'Flash Burst',     desc: 'A burst of flashes every four steps, odd and even zones in turn, then a break', pixel: true },
-  { id: 'core',            name: 'Strobe Core',     desc: 'A colour wash with a white core striking on the beat', pixel: true },
+  { id: 'core',            name: 'Strobe Core',     desc: 'A wash in the first colour with a core striking in the second on the beat', pixel: true },
   ...CATALOGUE.filter((p) => p.legacy).map(({ id, name, desc, party, preset }) => ({ id, name, desc, party, ...(preset ? { preset } : {}) })),
 ].filter((row) => !Object.hasOwn(CLASSIC_REDIRECTS, row.id)).map((row) => ({ ...row, legacy: true as const, ...(RAPID_PATTERNS.has(row.id) ? { rapidFlash: true } : {}), ...tagFields(legacyTags(row.id)) }));
 

@@ -260,11 +260,11 @@ test('effect safety and Hue settings validate and persist', () => {
 
 // The manual strobe's settings, which a cue keeps beside its look: two
 // flashes a second on the beat clock, the look between them, 100 ms on and
-// 100 ms black, in white. Its colours are a palette of
+// 100 ms black, in the fresh look's colours (white only where picked). Its colours are a palette of
 // their own, never a parameter of the kind.
 test('strobe settings enforce flash-rate and palette bounds', () => {
   assert.deepStrictEqual(DEFAULTS.strobe, {
-    colourMode: 'palette', selection: 'all', space: 'plan', density: 0.25, segmentM: 0.5, placeM: 1.5, zone: 'width', function: 'palette', speed: 128, flashesPerSecond: 2, continueBetween: true, clock: 'beat', brightness: 1, onMs: 100, blackMs: 100, palette: ['#FFFFFF'],
+    colourMode: 'palette', selection: 'all', space: 'plan', density: 0.25, segmentM: 0.5, placeM: 1.5, zone: 'width', function: 'palette', speed: 128, flashesPerSecond: 2, continueBetween: true, clock: 'beat', brightness: 1, onMs: 100, blackMs: 100, palette: ['#FF0000', '#4B00FF', '#00E1FF', '#FF0096'],
   });
   const older = store();
   fs.writeFileSync(older.file, JSON.stringify({ artnet: { host: '10.0.0.9' } }));

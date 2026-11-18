@@ -1,3 +1,5 @@
+import { START_COLOURS } from '../../src/shared/palette-model.ts';
+
 export const gradientSettings = (p) => ({ gradients: p.gradients ?? [], sets: p.sets ?? [],
   gradient: p.gradient ?? null, gradientSet: p.gradientSet ?? null, gradientRole: p.gradientRole ?? 0 });
 
@@ -39,7 +41,7 @@ export function GradientEditor({ body, onChange }) {
           <label>Position <input type="number" min="0" max="1" step="0.01" value={s.at}
             aria-label={`Gradient ${i + 1} stop ${k + 1} position`} onInput={(e) => stop({ ...s, at: Number(e.target.value) })} /></label>
           <label>Colour <select value={'slot' in s ? String(s.slot) : 'fixed'} onChange={(e) => stop(e.target.value === 'fixed'
-            ? { at: s.at, colour: '#FFFFFF' } : { at: s.at, slot: Number(e.target.value) })}>
+            ? { at: s.at, colour: START_COLOURS[0] } : { at: s.at, slot: Number(e.target.value) })}>
             {body.colours.map((_, n) => <option key={n} value={n}>Slot {n + 1}</option>)}<option value="fixed">Fixed colour</option>
           </select></label>
           {'colour' in s && <input aria-label={`Gradient ${i + 1} stop ${k + 1} colour`} value={s.colour} maxLength={13}

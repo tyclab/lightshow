@@ -1,4 +1,4 @@
-import { HEX_COLOUR } from '../palette-model.ts';
+import { HEX_COLOUR, START_COLOURS } from '../palette-model.ts';
 // Matrix loops run on wall deadlines while each lamp keeps its own quantized
 // transition. A new selection never discards another lamp's unfinished tail.
 
@@ -69,7 +69,7 @@ const rapidMode = (params: BoardParams) => ['fireworks', 'flashes', 'pulses'].in
 
 registerKind<BoardParams, BoardState>({
   kind: 'ldj.matrixBoard', level: 'lamp', app: 'ldj', schema: boardSchema,
-  defaults: { params: { colours: ['#FFFFFF'], mode: 'solid' } }, stateful: true,
+  defaults: { params: { colours: [...START_COLOURS], mode: 'solid' } }, stateful: true,
   rapidFlashWhen: rapidMode, rollOf: (state) => state.child?.roll ?? 0,
   gapsApply: (params, spec) => params.mode === 'cycle' && !strobeRests(spec),
   init: (params, _room, frame) => ({ key: JSON.stringify(params), mode: params.mode, colours: params.colours.map(parseHex),

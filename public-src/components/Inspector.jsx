@@ -6,7 +6,7 @@ import { gradientSettings } from './GradientEditor.jsx';
 import { useLayoutEffect, useMemo, useState } from 'preact/hooks';
 import { api, librarySig, patchLibrary, pick } from '../state.js';
 import { PaletteEditor, isHexColour, normaliseHex, pickerValue } from './PaletteEditor.jsx';
-import { parseHex, toHex, HEX_COLOUR } from '../../src/shared/palette-model.ts';
+import { parseHex, toHex, HEX_COLOUR, START_COLOURS } from '../../src/shared/palette-model.ts';
 import { FieldInput } from './setup/FieldInput.jsx';
 import { useVoicePads } from '../voice-pad.js';
 import { useSafetyGate } from './Photosensitivity.jsx';
@@ -216,7 +216,7 @@ function CheckField({ label, path, value, onChange }) {
 
 const Section = ({ title }) => <div class="insp-section-title">{title}</div>;
 
-export function SingleColourField({ value = '#FFFFFF', onChange }) {
+export function SingleColourField({ value = START_COLOURS[0], onChange }) {
   const colour = parseHex(value);
   return <Field label="Single colour" path="rgbEnvelope.singleColour">
     <div class="palette-entry">
@@ -293,7 +293,7 @@ function RgbEnvelope({ env, setParam }) {
       <SelectField label="Colour mode" path="rgbEnvelope.colourMode" value={env.colourMode} options={{ all: 'All channels', singleColour: 'Single colour' }}
         onChange={(v) => setParam('rgbEnvelope.colourMode', v)} />
       {env.colourMode === 'singleColour' && (
-        <SingleColourField value={env.singleColour || '#FFFFFF'} onChange={(value) => setParam('rgbEnvelope.singleColour', value)} />
+        <SingleColourField value={env.singleColour || START_COLOURS[0]} onChange={(value) => setParam('rgbEnvelope.singleColour', value)} />
       )}
     </div>
     <div class="insp-table-wrap">
@@ -651,7 +651,7 @@ export function Inspector({ id, onSelect, onPlay, onClose, inline = null, onAppl
 
       <Section title="Palette" />
       <label class="insp-check">
-        <input type="checkbox" checked={spec.palette == null} onChange={(e) => setSpec('palette', e.target.checked ? null : (def?.defaults?.palette || ['#FFFFFF']))} />
+        <input type="checkbox" checked={spec.palette == null} onChange={(e) => setSpec('palette', e.target.checked ? null : (def?.defaults?.palette || [...START_COLOURS]))} />
         <span>The look's own colours</span>
       </label>
       {spec.palette != null && (

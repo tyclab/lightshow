@@ -12,7 +12,8 @@ import { BUILTIN_PALETTES, FAMILIES, deepFreeze, presetById } from '../shared/ef
 import { pacesOwnFlashes, requiresAcknowledgement, validateSpec } from '../shared/effects/registry.ts';
 import { canonical } from '../shared/effects/layer.ts';
 import { hash01, pickNotLast, seedFrom } from '../shared/effects/hash.ts';
-import { resolvePalette, toHex } from '../shared/effects/palette.ts';
+import { parseHex, resolvePalette, toHex } from '../shared/effects/palette.ts';
+import { isPale } from '../shared/color.ts';
 import { barBeats, playingClips, resyncPosition, selectClips, sequenceEnd } from '../shared/effects/sequence.ts';
 import { validate, ValidationError } from './validation.ts';
 import { safety } from './safety.ts';
@@ -621,6 +622,9 @@ export interface SequencerOptions {
 
 const EPS = 1e-9;
 
+// A random draw never puts white on: only a palette picked by name or command does.
+const withoutWhite = (colours: readonly string[] | null | undefined): boolean => !colours?.some((hex) => isPale(parseHex(hex)));
+
 function builtinPalette(id: string): string[] | null {
   const p = BUILTIN_PALETTES.find((b) => b.id === id);
   return p ? resolvePalette({ palette: [...p.colours] }, null, [], seedFrom(`palette:${id}`), 0).map(toHex) : null;
@@ -1085,7 +1089,8 @@ export class Sequencer {
   _startSettings(): void {
     const seq = this._loaded!;
     if (seq.options.randomizeInitialPalette) {
-      const choices = this._paletteIds().map((id) => ({ id, colours: this._paletteOf(id) })).filter((entry) => entry.colours?.length);
+      const choices = this._paletteIds().map((id) => ({ id, colours: this._paletteOf(id) }))
+        .filter((entry) => entry.colours?.length && withoutWhite(entry.colours));
       if (choices.length) {
         const current = this._current().paletteOverrideId ?? this._palette;
         const choice = choices[pickNotLast(this._rng.seed, this._rng.iter++, choices.length, choices.findIndex((entry) => entry.id === current), PALETTE_KEY)];
@@ -1497,7 +1502,7 @@ export class Sequencer {
 
   // Exclude the live override so a manual palette change also affects the next draw.
   _randomPalette(): void {
-    const ids = BUILTIN_PALETTES.map((p) => p.id);
+    const ids = BUILTIN_PALETTES.filter((p) => withoutWhite(p.colours.filter((c) => typeof c === 'string'))).map((p) => p.id);
     const current = this._current();
     const live = current.paletteOverride;
     const on = live === undefined ? this._palette : live === null ? null

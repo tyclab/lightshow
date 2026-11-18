@@ -1,4 +1,4 @@
-import { HEX_COLOUR } from '../palette-model.ts';
+import { HEX_COLOUR, START_COLOURS } from '../palette-model.ts';
 // The ten Party families share timing and colours, while each keeps
 // its own spatial kernel, recommended controls and audio response. All times
 // here are beats, so the worker and the stage preview use the same clock.
@@ -50,7 +50,7 @@ export const HD_BASE: HdParams = {
 // short attack and long release. An explicit null envelope uses these defaults.
 const CHANNEL: Ahdsr = { attack: 0.1, hold: 0.1, decay: 0.2, sustain: 0.5, release: 0.2, peak: 1 };
 const RGB_BASE: RgbEnvelope = {
-  colourMode: 'all', singleColour: '#FFFFFF', r: { ...CHANNEL }, g: { ...CHANNEL }, b: { ...CHANNEL },
+  colourMode: 'all', singleColour: START_COLOURS[0], r: { ...CHANNEL }, g: { ...CHANNEL }, b: { ...CHANNEL },
   brightness: { attack: 0.04, hold: 0.08, decay: 0.16, sustain: 0.16, release: 0.62, peak: 1 },
 };
 

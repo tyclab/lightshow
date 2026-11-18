@@ -5,6 +5,7 @@ import type { Room } from '../room.ts';
 import { HOLD_BLACK_MS, HOLD_FLASH_MS, HOLD_STROBE_MAX_HZ, HUE_PULSE_FLOOR, HUE_PULSE_MS, holdStrobeDivision, holdStrobeFlash, huePulseLevel } from '../look-math.ts';
 import { DRAWN_STROBE_FUNCTIONS, strobeLevel } from '../strobe-fx.ts';
 import { hash01 } from './hash.ts';
+import { NO_PALETTE } from './palette.ts';
 import { positionsOf } from './v2/common.ts';
 import { pickSegments, selectionOf as segmentsOf } from './v2/selection.ts';
 import { registerKind } from './registry.ts';
@@ -103,7 +104,7 @@ function permits(s: StrobeState, dueMs: number, frameIndex: number, fps: number)
 }
 
 function gridFlash(p: StrobeParams, s: StrobeState, frame: EffectFrame, fps: number, atMs: number): Flash | null {
-  const palette = p.colourMode === 'white' ? [{ ...WHITE, w: 255 }] : !frame.palette.length ? [WHITE]
+  const palette = p.colourMode === 'white' ? [{ ...WHITE, w: 255 }] : !frame.palette.length ? [NO_PALETTE]
     : p.colourMode === 'first' ? [frame.palette[0]] : frame.palette;
   if (p.clock === 'wall') {
     const periodMs = Math.ceil(1000 / fps);
@@ -129,7 +130,7 @@ const PROGRAM_MIN_MS = 1000 / HOLD_STROBE_MAX_HZ;
 function renderProgram(p: StrobeParams, s: StrobeState, room: Room, frame: EffectFrame, out: EffectSlot[]): void {
   if (!Number.isFinite(frame.beatPos))
     return;
-  const palette = p.colourMode === 'white' ? [{ ...WHITE, w: 255 }] : !frame.palette.length ? [WHITE]
+  const palette = p.colourMode === 'white' ? [{ ...WHITE, w: 255 }] : !frame.palette.length ? [NO_PALETTE]
     : p.colourMode === 'first' ? [frame.palette[0]] : frame.palette;
   const cycle = Math.floor((frame.nowMs - s.originMs) * rateOf(p.flashesPerSecond) / 1000);
   const selected = selectionOf(p, room, frame, cycle);
@@ -215,7 +216,7 @@ function renderStrobe(p: StrobeParams, s: StrobeState, room: Room, frame: Effect
 }
 
 registerKind<StrobeParams, StrobeState>({
-  kind: 'strobe', app: 'own', schema, defaults: { params: STROBE_DEFAULTS, palette: ['#FFFFFF'], brightness: 1 },
+  kind: 'strobe', app: 'own', schema, defaults: { params: STROBE_DEFAULTS, palette: null, brightness: 1 },
   rapidFlash: true, stateful: true,
   pacesOwnFlashes: () => true,
   init: (_params, _room, frame) => ({ originMs: Number.isFinite(frame.nowMs) ? frame.nowMs : 0, rises: [], seen: null, shown: null, ceiling: [], selected: null, selectionCycle: 0 }),

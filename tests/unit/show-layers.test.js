@@ -70,11 +70,12 @@ test('a strobe panel is laid out in rows, but draws with the bars, not the scree
   assert.strictEqual(rig.layout(null, 'bar', 'strips').units.list.length, 40 + 8, 'both are strips to the look');
   assert.strictEqual(rig.layout(null, 'bar', 'panels').units.list.length, 0);
 
-  // A screen's picture goes nowhere; the bars' strobe core strikes its white line.
+  // A screen's picture goes nowhere; the bars' strobe core strikes the panel's middle in the look's second colour,
+  // which its white line cannot show: white only where it is picked (White Strobe, Blinder; below).
   const out = paint(rig, { pattern: 'solid', pixelPattern: 'core', panelPattern: 'fire', pixelMap: 'bar' }, 0.01);
   const whites = STROBE_PANEL.cells.flatMap((cell, c) => (cell.channelMap.red === undefined ? [c] : []));
   assert.deepStrictEqual(whites, [16, 17, 18, 19, 20, 21, 22, 23]);
-  for (const c of whites) assert.ok(out[c].colour.w === 255 && out[c].dim === 255, `white zone ${c} strikes`);
+  for (const c of whites) assert.ok(out[c].colour === BLUE && !out[c].colour.w && out[c].dim === 255, `zone ${c} strikes in blue, no white`);
   for (const c of [0, 8, 24, 39]) assert.ok(out[c].colour === RED && out[c].dim > 100, `colour zone ${c} holds the wash`);
 });
 

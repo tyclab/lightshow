@@ -1,4 +1,5 @@
-import { parseHex } from '../palette-model.ts';
+import { parseHex, START_COLOURS } from '../palette-model.ts';
+import { mixColours } from '../color.ts';
 export { parseHex, toHex } from '../palette-model.ts';
 import type { Colour } from '../../types/rig.ts';
 import { hash01 } from './hash.ts';
@@ -8,7 +9,8 @@ import type { EffectSpec, ParsedPaletteEntry, Seed } from './types.ts';
 export const LDJ_RANDOM_HUES = [0, 36, 60, 120, 195, 250, 280, 325];
 
 const colour = (r: number, g: number, b: number, w = 0): Colour => ({ r, g, b, w, a: 0, uv: 0 });
-const WHITE = colour(255, 255, 255);
+/** What an empty palette plays: the fresh look's first colour, never white. */
+export const NO_PALETTE: Readonly<Colour> = Object.freeze(parseHex(START_COLOURS[0]));
 
 // Float32 HSV arithmetic and floor(x + 0.5) preserve the preset colour bytes.
 const f32 = Math.fround;
@@ -39,16 +41,14 @@ export function hsbToColour(h01: number, s01: number, b01: number): Colour {
 
 export function samplePalette(pal: readonly Colour[], position: number): Colour {
   const n = pal.length;
-  // An empty palette is white; never an undefined colour mid-frame.
-  if (n === 0) return { ...WHITE };
+  // Never an undefined colour mid-frame.
+  if (n === 0) return { ...NO_PALETTE };
   if (n === 1) return pal[0];
   const pos = Number.isFinite(position) ? position - Math.floor(position) : 0;
   const p = pos * n;
   const i = Math.floor(p) % n;
   const t = p - Math.floor(p);
-  const A = pal[i], B = pal[(i + 1) % n];
-  const mix = (a: number | undefined, b: number | undefined) => Math.round((a ?? 0) + ((b ?? 0) - (a ?? 0)) * t);
-  return { r: mix(A.r, B.r), g: mix(A.g, B.g), b: mix(A.b, B.b), w: mix(A.w, B.w), a: mix(A.a, B.a), uv: mix(A.uv, B.uv) };
+  return mixColours(pal[i], pal[(i + 1) % n], t);
 }
 
 const isRandom = (e: ParsedPaletteEntry): e is { random: true } => 'random' in e && e.random === true;
@@ -132,7 +132,7 @@ export function createPaletteAccess(spec: EffectSpec, override: Colour[] | null,
   // Consume each refresh once so repeated keys work without growing checkpoint history.
   for (const key of state.pending.splice(0)) refresh(key);
   const entries: readonly ParsedPaletteEntry[] = override?.length ? override
-    : state.entries?.length ? state.entries : look.length ? look : [WHITE];
+    : state.entries?.length ? state.entries : look.length ? look : [NO_PALETTE];
   const wrap = (index: number) => ((Math.trunc(index) % entries.length) + entries.length) % entries.length;
   const colourAt = (index: number, cacheKey?: number): Colour => {
     const wrapped = wrap(index);

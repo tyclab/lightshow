@@ -81,9 +81,9 @@ issue tracker. No firmware or wiring experiment is part of the effects work.
   coarse couch zones and palette brightness changes can make the onset look
   stepped. Tune against the real rig in a separate operator session; do not change
   saved looks or claim a hardware fix from preview smoothness.
-- **Pale colour step:** the current palette's cyan-to-magenta RGB blend passes
-  through pale lavender. This is not an explicit white flash. Palette tuning is
-  separate from the isolated curtain blip.
+- **Pale colour step:** two colours that are not pale never meet in a pale one
+  (`mixColours` in `src/shared/color.ts`): cyan to magenta goes round the wheel
+  through blue and violet, not through a pale lavender. Not yet looked at on the rig.
 
 ## Target
 

@@ -93,13 +93,14 @@ test("CrossFade blends explicit colours over four beats", () => {
   assert.deepEqual(cross[0][0].colour, RED);
   assert.deepEqual(cross[2][0].colour, CYAN);
   assert.deepEqual(cross[4][0].colour, RED);
-  assert.deepEqual(cross[1][0].colour, parseHex('#808080'));
+  // Red into cyan: halfway the two meet round the wheel, not in the straight mix's grey #808080.
+  assert.deepEqual(cross[1][0].colour, parseHex('#80FF00'));
 });
 
 test("Blur blends explicit colours over four beats", () => {
   const blur = run('ldj.Blur', square(), [0, 2, 4, 8, 12]);
   assert.deepEqual(colors(blur[0]), ['s', 'p', 's', 'p']);
-  assert.ok(blur[1].every((s) => s.colour.r === 128 && s.colour.g === 128));
+  assert.ok(blur[1].every((s) => s.colour.r === 128 && s.colour.g === 255 && s.colour.b === 0), 'halfway round the wheel, not grey');
   assert.deepEqual(colors(blur[2]), ['p', 's', 'p', 's']);
   assert.deepEqual(colors(blur[3]), colors(blur[0]));
   assert.deepEqual(colors(blur[4]), colors(blur[2]));
@@ -173,7 +174,8 @@ test('Trance and America slow to four beats above twenty lamps', () => {
     assert.deepEqual(large[2][0].colour, small[1][0].colour);
   }
   const america = run('ldj.America', row(1), [0, 2, 4]);
-  assert.deepEqual(america.map((out) => out[0].colour), [RED, parseHex('#FFFFFF'), parseHex('#2A00FF')]);
+  // The flag's white stripe plays in the named sky blue: white only where it is picked.
+  assert.deepEqual(america.map((out) => out[0].colour), [RED, parseHex('#00BFFF'), parseHex('#2A00FF')]);
 });
 
 test("Beat Pulse durations use fixed matrix literals", () => {

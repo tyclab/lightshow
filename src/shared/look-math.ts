@@ -1,4 +1,4 @@
-import { colourMixer } from './color.ts';
+import { colourMixer, UV_BOOST } from './color.ts';
 import type { Colour, EmitterLevels, Expression, FullColour, ShowDynamics } from '../types/rig.ts';
 
 export interface EnergyLook {
@@ -12,8 +12,6 @@ export interface UnitLight extends Colour {
   strobe: number;
 }
 
-// Boost UV because equal channel values look dimmer than the primary emitters.
-const UV_BOOST = 1.8;
 
 // Freeze the fallback expression because callers reuse it by reference.
 const EXPRESSION_REST: Readonly<Expression> = Object.freeze({

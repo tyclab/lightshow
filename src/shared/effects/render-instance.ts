@@ -1,5 +1,6 @@
 import { baseGap, composeBackground, DEFAULT_BACKGROUND } from '../background.ts';
 import { resolveGradient } from '../palette-model.ts';
+import { unlessPale } from '../color.ts';
 // Containers import this module to avoid validating the catalogue before all kinds register.
 
 import type { Colour } from '../../types/rig.ts';
@@ -63,7 +64,9 @@ function renderCore(inst: EffectInstance, frame: FrameBase & { roll?: number }, 
         const level = foreground.level * brightness + background.level;
         const mix = (key: keyof Colour) => level > 0 ? ((foreground.colour[key] ?? 0) * foreground.level * brightness
           + (background.colour[key] ?? 0) * background.level) / level : 0;
-        out[i] = { ...slot, colour: { r: mix('r'), g: mix('g'), b: mix('b'), w: mix('w'), a: mix('a'), uv: mix('uv') }, level, background };
+        const colour = level > 0 ? unlessPale({ r: mix('r'), g: mix('g'), b: mix('b'), w: mix('w'), a: mix('a'), uv: mix('uv') },
+          foreground.colour, background.colour, background.level / level, (v) => v) : { r: 0, g: 0, b: 0, w: 0, a: 0, uv: 0 };
+        out[i] = { ...slot, colour, level, background };
       } else {
         out[i] = { ...slot, level: slot.level * brightness };
         const field = background ?? (fills && slot.strength > 0 && !((slot.strobe ?? 0) > 0) ? baseGap(out[i].level, frame.dimmedAbove) : undefined);
