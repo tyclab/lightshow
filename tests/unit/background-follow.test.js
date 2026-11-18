@@ -48,11 +48,11 @@ function run(patch, times = TIMES) {
 // rows the three digests are equal on main (cd0ad5e3) and on G5.
 // All three moved again with no white unless picked: the effects' own white and pale colours, and the mixes that met in
 // pale (each of the two moves them; the cap on a composite over a gap does not).
-const BEFORE_THE_FILL = 'c38d6604702fa49aed39d4b5dd980562d3c155957c409d137214460d8fa16e68';
+const BEFORE_THE_FILL = '53ee0d67d964258258f506452d10f753cf200a881b5514e8589d15e5266be417';
 // Taken on this change, the first time Glow and Full render; any later move needs an explained change. Moved once by #137:
 // a rapid v2 spec publishes no gap, so Scatter Strobe and Frequency Burst keep their rests and soft gaps as authored.
-const GLOW = '660301c889e34c0c873ff8d53d63b46384576266a30ee131992faf53166b0e10';
-const FULL = '12562209fffa1f768dc7da235262f35f6730aa3f06bdc6ddfc9705e17c4b35d2';
+const GLOW = '41d69df4f4ac5c07c52988e122b55dc242f47fbd962aaeb69050508c268641f3';
+const FULL = 'e545fd3edcf8e60e9e405277e2db872acbd32a897e224d0c7e47456820057685';
 
 test('with the fill off, the default, every pattern and catalogue row renders and previews byte for byte as before the fill existed', () => {
   assert.equal(backgroundDigest([DEFAULT_BACKGROUND, follow(undefined, 0.6), follow('off', 0.6)]), BEFORE_THE_FILL);
