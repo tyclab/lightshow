@@ -107,7 +107,7 @@ export function useVoicePads({ onLongPress } = {}) {
     };
   };
 
-  const tap = (entry) => api(`/api/pads/${entry.bank}/${entry.slot}/${entry.launch === 'loop' ? 'toggle' : 'once'}`, { method: 'POST' });
+  const tap = (entry) => api(`api/pads/${entry.bank}/${entry.slot}/${entry.launch === 'loop' ? 'toggle' : 'once'}`, { method: 'POST' });
 
   const padProps = (entry) => {
     const { bank, slot } = entry;

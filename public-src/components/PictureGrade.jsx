@@ -13,7 +13,7 @@ const BLACK_POINT_PCT = Math.round(PICTURE_BLACK_POINT_DEFAULT * 100);
 
 // Ten saves a second while a slider moves: each one is a settings write and a state broadcast.
 const settleEvery = (fn) => setTimeout(fn, 100);
-const save = (patch) => api('/api/picture/grade', { method: 'POST', body: JSON.stringify(patch) });
+const save = (patch) => api('api/picture/grade', { method: 'POST', body: JSON.stringify(patch) });
 const savePicture = (patch) => saveSettings({ picture: patch });
 
 function LevelSlider({ id, label, min, max, hint, value, disabled, onSave, marks }) {

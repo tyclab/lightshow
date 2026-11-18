@@ -60,7 +60,7 @@ export function AudioMeters({ latencyMs } = {}) {
   useAudioFeed();
   useEffect(() => {
     if (latencyMs !== undefined) return;
-    api('/api/settings').then((res) => {
+    api('api/settings').then((res) => {
       const ms = res.ok && res.settings && res.settings.live ? res.settings.live.latencyMs : undefined;
       setLatency(ms);
     });
@@ -70,7 +70,7 @@ export function AudioMeters({ latencyMs } = {}) {
   const spl = feed ? feed.spl : audio.spl;
   const gates = gateDots(feed && feed.disco);
   const chip = splClass(spl);
-  const setMode = (mode) => api('/api/audio', { method: 'PUT', body: JSON.stringify({ mode }) });
+  const setMode = (mode) => api('api/audio', { method: 'PUT', body: JSON.stringify({ mode }) });
 
   return (
     <section class="perform-audio" aria-label="Audio">

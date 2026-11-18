@@ -24,7 +24,7 @@ export function PaletteLibrary({ builtin, user, onClose }) {
   const save = async () => {
     setBusy(true); setError('');
     const submitted = JSON.stringify(draft);
-    const result = await api(`/api/palettes/${encodeURIComponent(id)}`, {
+    const result = await api(`api/palettes/${encodeURIComponent(id)}`, {
       method: 'PUT', body: JSON.stringify({ ...draft, name: draft.name.trim() }),
     });
     setBusy(false);
@@ -37,7 +37,7 @@ export function PaletteLibrary({ builtin, user, onClose }) {
   };
   const remove = async () => {
     setBusy(true); setError('');
-    const result = await api(`/api/palettes/${encodeURIComponent(id)}`, { method: 'DELETE' });
+    const result = await api(`api/palettes/${encodeURIComponent(id)}`, { method: 'DELETE' });
     setBusy(false);
     if (!result.ok) { setError(result.error || 'Could not delete palette'); setDeleting(false); return; }
     patchLibrary((lib) => ({ ...lib, palettes: { ...lib.palettes, user: lib.palettes.user.filter((p) => p.id !== id) } }));

@@ -13,10 +13,10 @@ export function toggleSelected(id) {
 }
 
 export async function identify(body, seconds) {
-  const res = await post('/api/identify', seconds === undefined ? body : { ...body, seconds });
+  const res = await post('api/identify', seconds === undefined ? body : { ...body, seconds });
   if (res.ok && !res.ids.length && seconds !== 0) toast.info('Nothing is patched there to identify');
   return res;
 }
 
 export const identifyFixtures = (ids, seconds) => identify({ fixtures: ids }, seconds);
-export const stopIdentify = () => post('/api/identify/stop', {});
+export const stopIdentify = () => post('api/identify/stop', {});

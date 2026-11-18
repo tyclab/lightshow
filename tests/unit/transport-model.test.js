@@ -79,7 +79,7 @@ test('sequence transport offers timeline operations and a Pause that turns into 
   const playing = transportButtons('sequence', { sequence: { ...loaded, playing: true, paused: false } });
   assert.deepEqual(playing.map((b) => b.id), ['pause', 'prev', 'next', 'shuffle', 'loop']);
   assert.deepEqual([playing[0].label, playing[0].enabled, playing[0].control], ['Pause timeline', true, undefined]);
-  assert.deepEqual(playing[0].request, { path: '/api/sequence/pause', method: 'POST' });
+  assert.deepEqual(playing[0].request, { path: 'api/sequence/pause', method: 'POST' });
   const paused = transportButtons('sequence', { sequence: { ...loaded, playing: false, paused: true } })[0];
   assert.deepEqual([paused.id, paused.label, paused.enabled, paused.control, paused.request], ['pause', 'Resume timeline', true, 'start', null]);
   assert.equal(transportButtons('sequence', { sequence: loaded })[0].enabled, false);
@@ -100,12 +100,12 @@ test('secondary transport names the timeline\'s and the auto show\'s state witho
 });
 
 test('loading a sequence does not select or start a programme', () => {
-  assert.deepEqual(chooseDriver('set'), [{ path: '/api/sequence', method: 'PUT', body: { id: 'set' } }]);
+  assert.deepEqual(chooseDriver('set'), [{ path: 'api/sequence', method: 'PUT', body: { id: 'set' } }]);
   assert.equal(driverOf({ control: { programme: 'auto' }, sequence: { loaded: { id: 'set' } } }), 'auto');
 });
 
 test('unloading a sequence only unloads its document', () => {
-  assert.deepEqual(chooseDriver(''), [{ path: '/api/sequence', method: 'DELETE' }]);
+  assert.deepEqual(chooseDriver(''), [{ path: 'api/sequence', method: 'DELETE' }]);
 });
 
 test('sequence looping keeps its saved bounds', () => {
@@ -118,13 +118,13 @@ test('sequence looping keeps its saved bounds', () => {
 test('previous sequence navigation calls the existing previous endpoint', () => {
   const previous = transportButtons('sequence', { sequence: { loaded: { id: 'set' } } }).find((b) => b.id === 'prev');
   assert.equal(previous.enabled, true);
-  assert.deepEqual(previous.request, { path: '/api/sequence/prev', method: 'POST' });
+  assert.deepEqual(previous.request, { path: 'api/sequence/prev', method: 'POST' });
 });
 
 test('selecting an inactive playlist row jumps without starting playback', () => {
-  assert.deepEqual(playlistRowRequests('row/2', false), [{ path: '/api/sequence/jump/row%2F2', method: 'POST' }]);
+  assert.deepEqual(playlistRowRequests('row/2', false), [{ path: 'api/sequence/jump/row%2F2', method: 'POST' }]);
 });
 
 test('selecting an active playlist row still only navigates', () => {
-  assert.deepEqual(playlistRowRequests('row2', true), [{ path: '/api/sequence/jump/row2', method: 'POST' }]);
+  assert.deepEqual(playlistRowRequests('row2', true), [{ path: 'api/sequence/jump/row2', method: 'POST' }]);
 });

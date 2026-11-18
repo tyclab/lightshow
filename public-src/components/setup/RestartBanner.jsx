@@ -25,7 +25,7 @@ export function RestartBanner() {
   const restart = async () => {
     setAsking(false);
     setStatus('Restarting…');
-    const res = await api('/api/server/restart', { method: 'POST', body: '{}' });
+    const res = await api('api/server/restart', { method: 'POST', body: '{}' });
     setStatus(res.ok ? 'Restarting — the page reconnects when the server is back.' : res.error);
   };
 

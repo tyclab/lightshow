@@ -20,7 +20,7 @@ export function BpmCapture({ onApply, destination = 'show tempo' }) {
       if (pending || !live) return;
       pending = true;
       try {
-        const input = await api('/api/performance/input');
+        const input = await api('api/performance/input');
         if (!live) return;
         const ms = performance.now() - started;
         session.add(input, ms); setElapsed(Math.min(ms, CAPTURE_MS));

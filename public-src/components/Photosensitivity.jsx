@@ -15,7 +15,7 @@ export function guardRapid(acknowledged, name, run, ask) {
 }
 
 export async function acknowledgeThen(run) {
-  const res = await api('/api/safety/acknowledge', { method: 'POST' });
+  const res = await api('api/safety/acknowledge', { method: 'POST' });
   if (!res.ok) return false;
   if (run) run();
   return true;

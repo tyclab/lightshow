@@ -138,7 +138,7 @@ export function Pads({ initialBank }) {
 export function PadEditor({ entry, onClose, initial = {} }) {
   const s = pick(['patterns', 'effects', 'fixtures']);
   const [shelf, setShelf] = useState(initial.patterns || []);
-  useEffect(() => { api('/api/sequence/patterns').then((r) => r.ok && setShelf(r.patterns || [])); }, []);
+  useEffect(() => { api('api/sequence/patterns').then((r) => r.ok && setShelf(r.patterns || [])); }, []);
   const box = useRef(null);
   useFocusTrap(box, true, onClose);
   const current = entry.content ? `${entry.content.kind}:${entry.content.id}` : '';
@@ -156,7 +156,7 @@ export function PadEditor({ entry, onClose, initial = {} }) {
   const toggleFixture = (id, on) => set({ targets: on ? [...draft.targets, id] : draft.targets.filter((t) => t !== id) });
 
   const save = async () => {
-    const res = await api(`/api/pads/${entry.bank}/${entry.slot}`, { method: 'PUT', body: JSON.stringify(padBody(draft)) });
+    const res = await api(`api/pads/${entry.bank}/${entry.slot}`, { method: 'PUT', body: JSON.stringify(padBody(draft)) });
     if (res.ok) onClose();
   };
 

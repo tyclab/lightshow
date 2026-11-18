@@ -2,21 +2,21 @@
   "name": "TycStation Lightshow",
   "short_name": "TycStation",
   "description": "Music-driven control for Art-Net, sACN, WLED, OpenRGB and Philips Hue.",
-  "start_url": "/",
-  "scope": "/",
+  "start_url": "./",
+  "scope": "./",
   "display": "standalone",
   "orientation": "any",
   "background_color": "#07070e",
   "theme_color": "#07070e",
   "icons": [
-    { "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
-    { "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png" },
-    { "src": "/icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" },
-    { "src": "/favicon.svg", "sizes": "any", "type": "image/svg+xml" }
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" },
+    { "src": "favicon.svg", "sizes": "any", "type": "image/svg+xml" }
   ],
   "shortcuts": [
-    { "name": "Show", "short_name": "Show", "url": "/#show", "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }] },
-    { "name": "Perform", "short_name": "Perform", "url": "/#perform", "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }] },
-    { "name": "Auto show", "short_name": "Auto", "url": "/#auto", "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }] }
+    { "name": "Show", "short_name": "Show", "url": "./#show", "icons": [{ "src": "icons/icon-192.png", "sizes": "192x192" }] },
+    { "name": "Perform", "short_name": "Perform", "url": "./#perform", "icons": [{ "src": "icons/icon-192.png", "sizes": "192x192" }] },
+    { "name": "Auto show", "short_name": "Auto", "url": "./#auto", "icons": [{ "src": "icons/icon-192.png", "sizes": "192x192" }] }
   ]
 }

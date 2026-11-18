@@ -64,7 +64,7 @@ function BarMaker() {
     clearTimeout(timer.current);
     timer.current = setTimeout(async () => {
       try {
-        const res = await fetch('/api/profiles/bar?dryRun=1', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body()) });
+        const res = await fetch('api/profiles/bar?dryRun=1', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body()) });
         const data = await res.json();
         if (data.ok) { setPreview(data.profile); setStatus({ ok: true, text: `${data.profile.channelCount} channels` }); }
         else { setPreview(null); setStatus({ ok: false, text: data.error }); }
@@ -76,7 +76,7 @@ function BarMaker() {
   }, [open, spec]);
   const set = (key) => (e) => setSpec({ ...spec, [key]: e.target.value });
   const add = async () => {
-    const res = await post('/api/profiles/bar', body());
+    const res = await post('api/profiles/bar', body());
     if (res.ok) setStatus({ ok: true, text: `Added "${res.profile.name}" — pick it for a fixture in the patch.` });
     else setStatus({ ok: false, text: res.error });
   };
@@ -112,10 +112,10 @@ function ProfileList() {
   const builtin = new Set(s.builtinProfileIds || []);
   const inUse = new Set((s.fixtures || []).map((f) => f.profileId));
   const remove = async (profile) => {
-    const res = await api(`/api/profiles/${encodeURIComponent(profile.id)}`, { method: 'DELETE' });
+    const res = await api(`api/profiles/${encodeURIComponent(profile.id)}`, { method: 'DELETE' });
     if (!res.ok) return;
     // Undo is re-posting it.
-    toast.push({ message: `Removed "${profile.name}"`, action: { label: 'Undo', onClick: () => post('/api/profiles', profile) } });
+    toast.push({ message: `Removed "${profile.name}"`, action: { label: 'Undo', onClick: () => post('api/profiles', profile) } });
   };
   return (
     <div class="profiles-list">

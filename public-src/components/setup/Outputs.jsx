@@ -38,7 +38,7 @@ function ArtnetNodes({ nodes, setNodes }) {
   const [status, setStatus] = useState('');
   const load = async (scan) => {
     if (scan) setStatus('Asking the network…');
-    const data = await getJson(`/api/artnet/nodes${scan ? '?scan=1' : ''}`);
+    const data = await getJson(`api/artnet/nodes${scan ? '?scan=1' : ''}`);
     if (!data.ok) { setStatus(`Could not ask: ${data.error}`); return; }
     setNodes(data.nodes || []);
     const found = (data.nodes || []).length;
@@ -56,7 +56,7 @@ function ArtnetNodes({ nodes, setNodes }) {
     toast.push({ message: `Art-Net now goes to ${address} only`, action: before ? { label: 'Undo', onClick: () => sendTo(before) } : undefined });
   };
   const locate = async (node) => {
-    const res = await post('/api/artnet/identify', { address: node.address, universes: node.outputs || [] });
+    const res = await post('api/artnet/identify', { address: node.address, universes: node.outputs || [] });
     if (!res.ok) return;
     const parts = [];
     parts.push(res.located ? `${node.shortName || node.address} flashes its locate LEDs if it can` : `Could not reach ${node.address}: ${res.locateError}`);
@@ -112,7 +112,7 @@ function SacnSources() {
   const [data, setData] = useState(null);
   const timer = useRef(null);
   const poll = async (listen) => {
-    const res = await getJson(`/api/sacn/sources${listen ? '?listen=1&seconds=12' : ''}`);
+    const res = await getJson(`api/sacn/sources${listen ? '?listen=1&seconds=12' : ''}`);
     setData(res);
     clearTimeout(timer.current);
     if (res.ok && res.listening) timer.current = setTimeout(() => poll(false), 1500);
@@ -271,7 +271,7 @@ function PatchedWleds() {
   const refresh = async (fixture, confirm = null) => {
     setPending(null);
     setStatus(`Asking ${fixture.output.host}…`);
-    const res = await post('/api/wled/refresh', { fixtureId: fixture.id, ...(confirm ? { confirm } : {}) });
+    const res = await post('api/wled/refresh', { fixtureId: fixture.id, ...(confirm ? { confirm } : {}) });
     if (!res.ok) { setStatus(res.error); return; }
     if (!res.applied) {
       const grid = res.grid?.before;
@@ -321,7 +321,7 @@ function Wled() {
   const [zones, setZones] = useState(8);
   const find = async () => {
     setStatus('Asking the network…');
-    const data = await getJson('/api/wled/discover');
+    const data = await getJson('api/wled/discover');
     if (!data.ok) { setStatus(data.error); return; }
     setDevices(data.devices || []);
     setStatus(data.devices.length ? `${plural(data.devices.length, 'WLED')} answered.`
@@ -330,7 +330,7 @@ function Wled() {
   const add = async (address, segments = false) => {
     setStatus(`Asking ${address}…`);
     const look = mode === 'zones' || mode === 'strobe' ? { mode, zones } : { mode };
-    const res = await post('/api/wled/add', { host: address, ...(segments ? { segments: true } : {}), ...look });
+    const res = await post('api/wled/add', { host: address, ...(segments ? { segments: true } : {}), ...look });
     if (!res.ok) { setStatus(res.error); return; }
     const added = segments ? res.fixtures : [res.fixture];
     const labels = added.map((f) => f.label).join(', ');
@@ -341,7 +341,7 @@ function Wled() {
     toast.info(segments ? `Added ${plural(added.length, 'segment')} of ${res.info.name} to the patch` : `Added ${res.fixture.label} to the patch`);
   };
   const flash = async (address) => {
-    const res = await post('/api/wled/identify', { host: address });
+    const res = await post('api/wled/identify', { host: address });
     if (res.ok) toast.info(res.via === 'patch' ? 'It shows itself through the patch: a wash blinks white, zones and pixels light green to red' : `Its ${res.leds} LEDs flash: the first green, the last red`);
   };
   return (
@@ -420,7 +420,7 @@ function DdpDevice() {
   const size = (set) => (e) => set(Math.max(1, Math.min(4096, Math.round(Number(e.target.value)) || 1)));
   const add = async () => {
     setStatus(`Adding ${host.trim()}…`);
-    const res = await post('/api/ddp/add', { host: host.trim(), ...(label.trim() ? { label: label.trim() } : {}), columns, rows });
+    const res = await post('api/ddp/add', { host: host.trim(), ...(label.trim() ? { label: label.trim() } : {}), columns, rows });
     if (!res.ok) { setStatus(res.error); return; }
     setStatus(`Added "${res.fixture.label}": ${res.profile.modeName}. Place it on the plan.`);
     toast.info(`Added ${res.fixture.label} to the patch`);
@@ -470,7 +470,7 @@ function OpenRgb() {
   const find = async () => {
     if (!host.trim()) return;
     setStatus(`Asking ${host.trim()}…`);
-    const data = await getJson(`/api/openrgb/discover?host=${encodeURIComponent(host.trim())}&port=${port}`);
+    const data = await getJson(`api/openrgb/discover?host=${encodeURIComponent(host.trim())}&port=${port}`);
     if (!data.ok) { setStatus(data.error); setFound(null); return; }
     setFound(data);
     const lit = data.devices.filter((d) => d.leds > 0).length;
@@ -478,14 +478,14 @@ function OpenRgb() {
   };
   const add = async (devices) => {
     setStatus(devices ? `Adding device #${devices[0]}…` : 'Adding every device…');
-    const res = await post('/api/openrgb/add', { ...where(), ...(devices ? { devices } : {}) });
+    const res = await post('api/openrgb/add', { ...where(), ...(devices ? { devices } : {}) });
     if (!res.ok) { setStatus(res.error); return; }
     const labels = res.fixtures.map((f) => f.label).join(', ');
     setStatus(`Added ${plural(res.fixtures.length, 'fixture')}: ${labels}. Place ${res.fixtures.length === 1 ? 'it' : 'them'} on the plan.`);
     toast.info(`Added ${plural(res.fixtures.length, 'OpenRGB device')} to the patch`);
   };
   const flash = async (device) => {
-    const res = await post('/api/openrgb/identify', { ...where(), device });
+    const res = await post('api/openrgb/identify', { ...where(), device });
     if (!res.ok) { setStatus(res.error); return; }
     toast.info(res.via === 'patch' ? 'It shows itself through the patch: a bar lights green to red, one LED blinks white'
       : `Its ${res.leds} LEDs flash: the first green, the last red`);
@@ -570,12 +570,12 @@ function HueBridge({ bridge, live, patched, onChanged, onPair, notify }) {
   useEffect(() => { setLabel(bridge.label); }, [bridge.label]);
   useEffect(() => {
     if (!bridge.paired) { setAreas(null); return; }
-    getJson(`/api/hue/${bridge.id}/areas`).then((res) => setAreas(res.ok ? res.areas || [] : { error: res.error }));
+    getJson(`api/hue/${bridge.id}/areas`).then((res) => setAreas(res.ok ? res.areas || [] : { error: res.error }));
   }, [bridge.id, bridge.paired]);
   // The lamps of the area being streamed to: read again when another is picked.
   useEffect(() => {
     if (!bridge.paired || !bridge.area) { setLamps(null); return; }
-    getJson(`/api/hue/${bridge.id}/lamps`).then((res) => setLamps(res.ok ? res : { error: res.error }));
+    getJson(`api/hue/${bridge.id}/lamps`).then((res) => setLamps(res.ok ? res : { error: res.error }));
   }, [bridge.id, bridge.paired, bridge.area]);
 
   const save = async (patch) => {
@@ -589,20 +589,20 @@ function HueBridge({ bridge, live, patched, onChanged, onPair, notify }) {
   const forget = async () => {
     const mine = patched.map((f) => f.label);
     if (mine.length && !window.confirm(`Forget "${bridge.label}" and remove its ${plural(mine.length, 'lamp')} from the patch?\n\n${mine.join(', ')}`)) return;
-    const res = await post(`/api/hue/${bridge.id}/disconnect`, mine.length ? { removeFixtures: true } : {});
+    const res = await post(`api/hue/${bridge.id}/disconnect`, mine.length ? { removeFixtures: true } : {});
     if (!res.ok) return;
     notify({ ok: true, text: `"${bridge.label}" forgotten. Remove this integration in the Hue app under linked devices.` });
     await onChanged();
   };
   const flash = async (lamp) => {
-    const res = await post(`/api/hue/${bridge.id}/identify`, { lamp });
+    const res = await post(`api/hue/${bridge.id}/identify`, { lamp });
     if (res.ok) toast.info(res.via === 'fixture' ? 'The lamp flashes through the patch' : `The bridge asks ${plural(res.lamps, 'lamp')} to breathe`);
   };
   // A lamp is added as a WLED is: a fixture of its own, on a profile built
   // from what the bridge says it can show — a section for each of its
   // channels — with no DMX address.
   const add = async (ids) => {
-    const res = await post(`/api/hue/${bridge.id}/add`, ids ? { lamps: ids } : {});
+    const res = await post(`api/hue/${bridge.id}/add`, ids ? { lamps: ids } : {});
     if (!res.ok) { notify({ ok: false, text: res.error }); return; }
     const labels = res.fixtures.map((f) => f.label).join(', ');
     notify({ ok: true, text: `Added ${labels} from "${bridge.label}". Place ${res.fixtures.length === 1 ? 'it' : 'them'} on the plan.` });
@@ -613,7 +613,7 @@ function HueBridge({ bridge, live, patched, onChanged, onPair, notify }) {
   const patchedAs = (lamp) => patched.find((f) => f.profileId === `hue-${lamp.id}`
     || hueChannels(f.output).some((ch) => lamp.channels.includes(ch)));
   const refreshProfiles = async () => {
-    const result = await post(`/api/hue/${bridge.id}/refresh`, {});
+    const result = await post(`api/hue/${bridge.id}/refresh`, {});
     if (!result.ok) { notify({ ok: false, text: result.error }); return; }
     notify({ ok: true, text: `Refreshed ${result.refreshed.length} fixtures.${result.skipped.length ? ` Preserved: ${result.skipped.map((entry) => `${entry.label}: ${entry.reason}`).join('; ')}` : ''}` });
     await onChanged();
@@ -709,7 +709,7 @@ function Hue() {
   const [notice, setNotice] = useState(null);       // { ok, text }
 
   const refresh = async () => {
-    const status = await getJson('/api/hue/status');
+    const status = await getJson('api/hue/status');
     if (status.ok) setInfo(status);
   };
   useEffect(() => { refresh(); }, []);
@@ -717,7 +717,7 @@ function Hue() {
 
   const find = async () => {
     setNotice({ ok: true, text: 'Looking for bridges…' });
-    const res = await getJson('/api/hue/discover');
+    const res = await getJson('api/hue/discover');
     if (!res.ok) { setNotice({ ok: false, text: res.error }); return; }
     setFound(res.bridges || []);
     setNotice(res.bridges.length ? { ok: true, text: `Found ${plural(res.bridges.length, 'bridge')}: ${res.bridges.map((b) => b.host).join(', ')}` }
@@ -729,7 +729,7 @@ function Hue() {
     const target = (address || host).trim();
     if (!target) { setNotice({ ok: false, text: 'Enter the bridge address first, or press Find bridges.' }); return; }
     setNotice({ ok: true, text: `Press the round button on the bridge at ${target} now…` });
-    const res = await post('/api/hue/pair', { host: target, ...(label.trim() ? { label: label.trim() } : {}) });
+    const res = await post('api/hue/pair', { host: target, ...(label.trim() ? { label: label.trim() } : {}) });
     if (!res.ok) { setNotice({ ok: false, text: res.error }); return; }
     setNotice(res.areasError ? { ok: false, text: `Paired "${res.bridge.label}", but its areas could not be read — ${res.areasError}` }
       : { ok: true, text: `Paired "${res.bridge.label}". Pick its entertainment area and apply, then add its lamps.` });
@@ -738,7 +738,7 @@ function Hue() {
     await changed();
   };
   const syncTest = async () => {
-    const res = await post('/api/hue/sync-test', {});
+    const res = await post('api/hue/sync-test', {});
     if (res.ok) setNotice({ ok: true, text: `Every fixture flashes once a second for ${res.seconds} s. Apply the delay first if you changed it.` });
   };
 
@@ -803,7 +803,7 @@ export function ShowFile() {
   const [status, setStatus] = useState(null);
   const save = async () => {
     try {
-      const data = await (await fetch('/api/show')).json();
+      const data = await (await fetch('api/show')).json();
       const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
@@ -825,7 +825,7 @@ export function ShowFile() {
     if (!window.confirm(`Load "${file.name}"?\n\nIt replaces the patch, the fixture profiles and the look on stage now. `
       + 'Save the current show first if you want to keep it.')) return;
     try {
-      const res = await post('/api/show', JSON.parse(await file.text()));
+      const res = await post('api/show', JSON.parse(await file.text()));
       setStatus(res.ok ? { ok: true, text: 'Loaded' } : { ok: false, text: res.error || 'Could not load it' });
     } catch {
       setStatus({ ok: false, text: 'That is not a show file' });

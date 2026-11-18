@@ -67,7 +67,7 @@ export function LogView() {
     let timer = 0;
     const poll = async () => {
       try {
-        const data = await (await fetch(`/api/logs?after=${last.current}&limit=500`)).json();
+        const data = await (await fetch(`api/logs?after=${last.current}&limit=500`)).json();
         if (data.ok && !stopped) {
           if (data.last < last.current) {
             // Started again: its entries count from one, and its first ones are
@@ -92,7 +92,7 @@ export function LogView() {
     let timer = 0;
     const poll = async () => {
       try {
-        const data = await (await fetch('/api/health')).json();
+        const data = await (await fetch('api/health')).json();
         if (!stopped && data && data.status) setHealth(data);
       } catch { /* next time */ }
       if (!stopped) timer = setTimeout(poll, 5000);

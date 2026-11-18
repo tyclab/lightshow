@@ -7,11 +7,11 @@ export function driverOf(s, context = null) {
 }
 
 export function chooseDriver(id) {
-  return [{ path: '/api/sequence', method: id ? 'PUT' : 'DELETE', ...(id ? { body: { id } } : {}) }];
+  return [{ path: 'api/sequence', method: id ? 'PUT' : 'DELETE', ...(id ? { body: { id } } : {}) }];
 }
 
 export function playlistRowRequests(clipId) {
-  return [post(`/api/sequence/jump/${encodeURIComponent(clipId)}`)];
+  return [post(`api/sequence/jump/${encodeURIComponent(clipId)}`)];
 }
 
 export function transportButtons(driver, s) {
@@ -24,7 +24,7 @@ export function transportButtons(driver, s) {
     { id: 'next', label: 'Next row', enabled: loaded },
     { id: 'shuffle', label: 'Shuffle rows', enabled: loaded },
     { id: 'loop', label: 'Loop region', enabled: loaded && !!loop, pressed: !!loop?.on },
-  ].map((button) => ({ ...button, request: button.control ? null : post(`/api/sequence/${button.id}`,
+  ].map((button) => ({ ...button, request: button.control ? null : post(`api/sequence/${button.id}`,
     button.id === 'loop' && loop ? { ...loop, on: !loop.on } : null) }));
 }
 

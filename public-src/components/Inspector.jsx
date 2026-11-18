@@ -139,14 +139,14 @@ const upsertUser = (preset) => patchLibrary((lib) => ({ ...lib, user: [...lib.us
 export async function savePreset(target, { name, spec }) {
   const body = JSON.stringify({ name, spec });
   const res = target.source === 'user'
-    ? await api(`/api/effects/${encodeURIComponent(target.id)}`, { method: 'PUT', body })
-    : await api('/api/effects', { method: 'POST', body });
+    ? await api(`api/effects/${encodeURIComponent(target.id)}`, { method: 'PUT', body })
+    : await api('api/effects', { method: 'POST', body });
   if (res.ok && res.preset) upsertUser(res.preset);
   return res;
 }
 
 export async function deletePreset(id) {
-  const res = await api(`/api/effects/${encodeURIComponent(id)}`, { method: 'DELETE' });
+  const res = await api(`api/effects/${encodeURIComponent(id)}`, { method: 'DELETE' });
   if (res.ok) patchLibrary((lib) => ({ ...lib, user: lib.user.filter((p) => p.id !== id) }));
   return res;
 }

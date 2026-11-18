@@ -43,7 +43,7 @@ export function HardwareFit({ spec = null }) {
   useEffect(() => {
     if (!id) return;
     let live = true;
-    api('/api/sequence').then((r) => { if (live) setLoaded(r?.ok ? { id: r.status?.loaded?.id, revision: r.status?.revision, table: r.table } : null); });
+    api('api/sequence').then((r) => { if (live) setLoaded(r?.ok ? { id: r.status?.loaded?.id, revision: r.status?.revision, table: r.table } : null); });
     return () => { live = false; };
   }, [id, revision]);
   if (!s.hardware || !s.fixtures?.length) return null;

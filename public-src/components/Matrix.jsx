@@ -87,9 +87,9 @@ export function matrixModeKey(event, choose) {
 function postMatrix(verb, body, action) {
   const init = { method: 'POST', body: JSON.stringify(body) };
   if (action === 'renew') {
-    return fetch(`/api/matrix/${verb}`, { ...init, headers: { 'Content-Type': 'application/json' } }).catch(() => {});
+    return fetch(`api/matrix/${verb}`, { ...init, headers: { 'Content-Type': 'application/json' } }).catch(() => {});
   }
-  return api(`/api/matrix/${verb}`, init);
+  return api(`api/matrix/${verb}`, init);
 }
 
 export function Matrix() {
@@ -141,7 +141,7 @@ export function Matrix() {
   };
   const release = (e) => letGo(e.pointerId);
   const chooseMode = (next) => {
-    const apply = () => api('/api/matrix', { method: 'PUT', body: JSON.stringify({ mode: next }) });
+    const apply = () => api('api/matrix', { method: 'PUT', body: JSON.stringify({ mode: next }) });
     if (selection.cells.length && matrixAsks(next, gate.acknowledged)) gate.guard(`Matrix ${next}`, apply);
     else apply();
   };

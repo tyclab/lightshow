@@ -184,7 +184,7 @@ test('the view unloads the sequence: back to the look without leaving it', async
   const request = async (url, init) => { calls.push([url, init && init.method]); return { ok: true, status: { ...STATUS, loaded: null, revision: 4 } }; };
   const sync = ui.createSequenceSync(request, (v) => shown.push(v));
   await sync.unload();
-  assert.deepStrictEqual(calls, [['/api/sequence', 'DELETE']]);
+  assert.deepStrictEqual(calls, [['api/sequence', 'DELETE']]);
   assert.deepStrictEqual(shown, [null]);
   sync.reload(4);
   assert.strictEqual(calls.length, 1, 'its own revision is not fetched again');
@@ -195,18 +195,18 @@ test('undo waits for a pending field save and replays at the revision that save 
   let saved;
   const request = (url, init) => {
     calls.push([url, init && init.method, init && init.body && JSON.parse(init.body).revision]);
-    if (url === '/api/sequence' && init?.method === 'PUT') return new Promise((resolve) => { saved = resolve; });
+    if (url === 'api/sequence' && init?.method === 'PUT') return new Promise((resolve) => { saved = resolve; });
     return Promise.resolve({ ok: true, sequence: SEQ, status: { ...STATUS, revision: 8 } });
   };
   const sync = ui.createSequenceSync(request, () => {});
   const save = sync.commit({ ...SEQ, name: 'Renamed' });
   const undo = sync.replay('undo', 6);
   await new Promise((resolve) => setTimeout(resolve, 0));
-  assert.deepStrictEqual(calls.map(([url, method]) => [url, method]), [['/api/sequence', 'PUT']], 'undo waits for the save');
+  assert.deepStrictEqual(calls.map(([url, method]) => [url, method]), [['api/sequence', 'PUT']], 'undo waits for the save');
   saved({ ok: true, sequence: SEQ, status: { ...STATUS, revision: 7 } });
   await save;
   await undo;
-  assert.deepStrictEqual(calls[1], ['/api/sequence/undo', 'POST', 7]);
+  assert.deepStrictEqual(calls[1], ['api/sequence/undo', 'POST', 7]);
 });
 
 test('ended arrangements display their endpoint', () => {
@@ -358,7 +358,7 @@ test('a sequence edit the server refuses is replaced by the sequence the server 
   };
   const edited = { ...SEQ, name: 'Refused' };
   await ui.putSequence(request, edited, (s) => shown.push(s));
-  assert.deepStrictEqual(calls, [['/api/sequence', 'PUT'], ['/api/sequence', undefined]]);
+  assert.deepStrictEqual(calls, [['api/sequence', 'PUT'], ['api/sequence', undefined]]);
   assert.deepStrictEqual(shown, [edited, SEQ]);
 });
 

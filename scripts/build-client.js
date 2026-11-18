@@ -13,7 +13,7 @@ const chunkList = {
     build.onEnd(() => {
       const dir = path.join(outdir, 'chunks');
       if (!fs.existsSync(dir)) return;
-      const files = fs.readdirSync(dir).filter((f) => f.endsWith('.js')).sort().map((f) => `/chunks/${f}`);
+      const files = fs.readdirSync(dir).filter((f) => f.endsWith('.js')).sort().map((f) => `chunks/${f}`);
       fs.writeFileSync(path.join(dir, 'index.json'), `${JSON.stringify(files, null, 1)}\n`);
     });
   },

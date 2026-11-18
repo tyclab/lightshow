@@ -21,11 +21,11 @@ function PatternEditor({ pattern, fixtures, lanes, onClose }) {
   useFocusTrap(box, true, close);
   const shared = lanes.filter((l) => l.kind === 'shared');
   const save = async () => {
-    const result = await api(`/api/sequence/patterns/${encodeURIComponent(pattern.id)}`, { method: 'PUT', body: JSON.stringify(draft) });
+    const result = await api(`api/sequence/patterns/${encodeURIComponent(pattern.id)}`, { method: 'PUT', body: JSON.stringify(draft) });
     if (result.ok) onClose();
   };
   const remove = async () => {
-    const result = await api(`/api/sequence/patterns/${encodeURIComponent(pattern.id)}`, { method: 'DELETE' });
+    const result = await api(`api/sequence/patterns/${encodeURIComponent(pattern.id)}`, { method: 'DELETE' });
     if (result.ok) onClose();
   };
   return <div class="confirm-veil" onClick={(e) => { if (e.target === e.currentTarget) close(); }}>
@@ -65,7 +65,7 @@ function PatternEditor({ pattern, fixtures, lanes, onClose }) {
 export function SequencePatterns({ patterns, fixtures, lanes, beat, onInsert }) {
   const [editing, setEditing] = useState(null);
   const edit = async (id) => {
-    const result = await api(`/api/sequence/patterns/${encodeURIComponent(id)}`);
+    const result = await api(`api/sequence/patterns/${encodeURIComponent(id)}`);
     if (result.ok) setEditing(result.pattern);
   };
   return <>

@@ -32,14 +32,15 @@
   // unconditionally, and reading `token` at call time, so a token typed into
   // the prompt applies to requests already written against window.fetch.
   const nativeFetch = window.fetch.bind(window);
+  const API = new URL('api/', document.baseURI).href;
   window.fetch = function (input, init) {
     init = init || {};
     if (!token) return nativeFetch(input, init);
 
     const target = typeof input === 'string' ? input : (input && input.url) || '';
-    // Only same-origin API traffic — never leak the token to a third party.
-    const isApi = target.indexOf('/api') === 0
-      || target.indexOf(window.location.origin + '/api') === 0;
+    // Only this server's API, beside the page — never leak the token to a third party.
+    let isApi = false;
+    try { isApi = new URL(target, document.baseURI).href.indexOf(API) === 0; } catch (_) { /* not a URL */ }
     if (!isApi) return nativeFetch(input, init);
 
     const headers = new Headers(init.headers || (input instanceof Request ? input.headers : undefined));

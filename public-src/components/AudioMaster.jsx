@@ -31,7 +31,7 @@ export function AudioMaster({ audio }) {
     if (Object.keys(master).length) patch.master = Object.fromEntries(Object.entries(master).map(([key, value]) => [key, Number(value)]));
     if (ldjTrigger !== undefined) patch.ldjTrigger = Number(ldjTrigger);
     setBusy(true);
-    const result = await api('/api/audio', { method: 'PUT', body: JSON.stringify(patch) });
+    const result = await api('api/audio', { method: 'PUT', body: JSON.stringify(patch) });
     setBusy(false);
     if (result.ok) { setDraft({}); setMessage('Audio response saved.'); }
     else setMessage(result.error || 'Audio response could not be saved.');

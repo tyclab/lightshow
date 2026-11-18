@@ -5,7 +5,7 @@ export const controlPending = signal(0);
 
 /** The server's controls, merged unless this page already holds a newer revision. */
 export async function refreshControl() {
-  const fresh = await api('/api/control', undefined, { quiet: true });
+  const fresh = await api('api/control', undefined, { quiet: true });
   const current = field('control').peek();
   if (fresh.ok && current?.session === fresh.control.session && current.revision <= fresh.control.revision) {
     store.merge({ control: fresh.control });
@@ -48,7 +48,7 @@ export async function takeControl(action, programme) {
   }
   controlPending.value++;
   try {
-    const reply = await api('/api/control', { method: 'POST', body: JSON.stringify({
+    const reply = await api('api/control', { method: 'POST', body: JSON.stringify({
       version: 1, session: control.session, revision: control.revision, action,
       ...(programme ? { programme } : {}),
     }) }, { quiet: true });

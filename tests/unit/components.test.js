@@ -202,7 +202,7 @@ test('the Hue pill says when another app holds a bridge, and leads to the bridge
     { id: 'b2', label: 'Party', status: 'streaming', occupiedBy: null, problem: null },
   ] });
   const held = pill();
-  assert.match(held, /^<a class="stat-pill alert" href="\/#rig\/outputs" data-hue="held"/);
+  assert.match(held, /^<a class="stat-pill alert" href="\.\/#rig\/outputs" data-hue="held"/);
   assert.match(held, /<span>busy<\/span>/);
   assert.ok(held.includes('area &quot;TV Couch&quot; is streaming from another app'), 'the title and name carry the problem');
   assert.match(held, /aria-label="Hue busy: /);
@@ -285,7 +285,7 @@ test('following the music again is POST /api/tempo/auto', async () => {
   };
   try {
     assert.strictEqual((await ui.followMusic()).ok, true);
-    assert.deepStrictEqual(calls.map((c) => [c.path, c.init.method]), [['/api/tempo/auto', 'POST']]);
+    assert.deepStrictEqual(calls.map((c) => [c.path, c.init.method]), [['api/tempo/auto', 'POST']]);
   } finally {
     globalThis.fetch = realFetch;
   }
@@ -679,7 +679,7 @@ test('saving a built-in posts a copy; saving a preset of your own puts it in pla
   globalThis.fetch = async (path, init) => {
     calls.push({ path, init });
     const body = JSON.parse(init.body);
-    const preset = { id: path === '/api/effects' ? 'u2' : path.split('/').pop(), name: body.name, spec: body.spec, createdAt: 'now', updatedAt: 'now' };
+    const preset = { id: path === 'api/effects' ? 'u2' : path.split('/').pop(), name: body.name, spec: body.spec, createdAt: 'now', updatedAt: 'now' };
     const palette = { id: 'p2', name: body.name, colours: body.colours };
     return { ok: true, status: 201, json: async () => ({ ok: true, ...(body.spec ? { preset } : { palette }) }) };
   };
@@ -688,16 +688,16 @@ test('saving a built-in posts a copy; saving a preset of your own puts it in pla
     const copy = await ui.savePreset({ source: 'builtin', id: 'hd.neonDomino' }, draft);
     assert.strictEqual(copy.ok, true);
     assert.strictEqual(copy.preset.id, 'u2');
-    assert.deepStrictEqual([calls[0].path, calls[0].init.method], ['/api/effects', 'POST']);
+    assert.deepStrictEqual([calls[0].path, calls[0].init.method], ['api/effects', 'POST']);
     assert.deepStrictEqual(JSON.parse(calls[0].init.body), draft);
     assert.ok(ui.librarySig.value.user.some((p) => p.id === 'u2'), 'the copy is in the library at once');
 
     await ui.savePreset({ source: 'user', id: 'u1' }, { name: 'My Domino', spec: USER_PRESET.spec });
-    assert.deepStrictEqual([calls[1].path, calls[1].init.method], ['/api/effects/u1', 'PUT']);
+    assert.deepStrictEqual([calls[1].path, calls[1].init.method], ['api/effects/u1', 'PUT']);
 
     const saved = await ui.savePalette('Sunset', ['#FF8800', { random: true }]);
     assert.strictEqual(saved.palette.id, 'p2');
-    assert.deepStrictEqual([calls[2].path, calls[2].init.method], ['/api/palettes', 'POST']);
+    assert.deepStrictEqual([calls[2].path, calls[2].init.method], ['api/palettes', 'POST']);
     assert.deepStrictEqual(JSON.parse(calls[2].init.body), { name: 'Sunset', colours: ['#FF8800', { random: true }] });
     assert.ok(ui.librarySig.value.palettes.user.some((p) => p.id === 'p2'));
   } finally {
@@ -1540,7 +1540,7 @@ test('voice stop uses the visible voice identifier', async () => {
   globalThis.fetch = async (path, init) => { calls.push([path, init.method]); return { ok: true, json: async () => ({ ok: true }) }; };
   try {
     await stop.props.onClick();
-    assert.deepStrictEqual(calls, [['/api/voices/api%3A1%2F2', 'DELETE']]);
+    assert.deepStrictEqual(calls, [['api/voices/api%3A1%2F2', 'DELETE']]);
   } finally { globalThis.fetch = realFetch; }
 });
 

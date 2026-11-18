@@ -9,7 +9,7 @@ export function ShowSetup({ seq, onSetup }) {
   const run = async (action) => {
     setBusy(true); setError('');
     await settleSequenceEdits();
-    const setup = await api('/api/show-setup');
+    const setup = await api('api/show-setup');
     const result = !setup.ok ? setup
       : setup.expected.id !== seq.id ? { ok: false, error: 'The show changed while its setup was being captured.' }
         : await onSetup(action, setup.expected);
@@ -32,7 +32,7 @@ export function ShowSetup({ seq, onSetup }) {
 }
 
 export async function withCurrentShowSetup(sequence, request = api) {
-  const result = await request('/api/show-setup');
+  const result = await request('api/show-setup');
   if (!result.ok) return null;
   return { ...sequence, performance: result.performance };
 }

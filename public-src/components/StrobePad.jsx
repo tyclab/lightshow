@@ -49,7 +49,7 @@ export function StrobePad() {
         <span class="strobe-hint">{hint}</span>
       </button>
       <button type="button" class="strobe-burst"
-        onClick={() => gate.guard('Strobe', () => api(`/api/strobe/burst/${BURST_MS}`, { method: 'POST' }))}>Burst 2 s</button>
+        onClick={() => gate.guard('Strobe', () => api(`api/strobe/burst/${BURST_MS}`, { method: 'POST' }))}>Burst 2 s</button>
       <button type="button" class="strobe-gear" aria-label="Strobe settings" onClick={() => setOpen(true)}>⚙</button>
       {open && <StrobeSettings onClose={() => setOpen(false)} />}
       {gate.dialog}
@@ -75,7 +75,7 @@ export function StrobeSettings({ onClose }) {
   const apply = (patch) => {
     const next = { ...draft, ...patch };
     setDraft(next);
-    api('/api/strobe', { method: 'PUT', body: JSON.stringify(strobeBody(next)) });
+    api('api/strobe', { method: 'PUT', body: JSON.stringify(strobeBody(next)) });
   };
 
   return (

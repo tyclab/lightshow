@@ -130,7 +130,7 @@ test('confirming posts the acknowledgement and runs only once the server took it
   const ran = [];
   try {
     assert.strictEqual(await ui.acknowledgeThen(() => ran.push('go')), true);
-    assert.strictEqual(f.calls[0][0], '/api/safety/acknowledge');
+    assert.strictEqual(f.calls[0][0], 'api/safety/acknowledge');
     assert.strictEqual(f.calls[0][1].method, 'POST');
     assert.deepStrictEqual(ran, ['go']);
   } finally { f.restore(); }
@@ -347,7 +347,7 @@ test('Perform\'s Freeze pad posts freeze, and while frozen reads Resume and post
       pad({ frozen });
       f.calls.length = 0;
       await ui.toggleFreeze();
-      assert.deepStrictEqual(f.calls.map(([p, init]) => [p, init.method, JSON.parse(init.body).action]), [['/api/control', 'POST', action]]);
+      assert.deepStrictEqual(f.calls.map(([p, init]) => [p, init.method, JSON.parse(init.body).action]), [['api/control', 'POST', action]]);
     }
   } finally {
     f.restore();
@@ -359,7 +359,7 @@ test('stop all voices sends DELETE /api/voices', async () => {
   const f = fakeFetch({ ok: true, stopped: 2 });
   try {
     await ui.stopAllVoices();
-    assert.deepStrictEqual(f.calls.map(([p, init]) => [p, init.method]), [['/api/voices', 'DELETE']]);
+    assert.deepStrictEqual(f.calls.map(([p, init]) => [p, init.method]), [['api/voices', 'DELETE']]);
   } finally { f.restore(); }
 });
 

@@ -55,7 +55,15 @@ function configError({ host, token, configFile = 'config/settings.json' }: {
   ].join('\n');
 }
 
+// The host a proxy in front was reached by, as it reports it: the first X-Forwarded-Host.
+function forwardedHost(headers: IncomingHttpHeaders): string {
+  const raw = headers['x-forwarded-host'];
+  return String((Array.isArray(raw) ? raw[0] : raw) || '').split(',')[0].trim();
+}
+
 // Allow clients without Origin while checking browser-supplied origins for cross-site requests.
+// A proxy that sets Host to this server may name the browser's host in X-Forwarded-Host; a page
+// cannot add that header to a cross-origin request (no preflight is granted), and hostAllowed never reads it.
 function originAllowed(req: { headers: IncomingHttpHeaders }): boolean {
   const origin = req.headers.origin;
   if (!origin) return true;                       // not a browser-initiated cross-origin request
@@ -66,7 +74,10 @@ function originAllowed(req: { headers: IncomingHttpHeaders }): boolean {
     const url = new URL(origin);
     const host = req.headers.host;
     if (!host) return false;
-    return url.host === host;                     // same-origin (host includes the port)
+    if (url.host === host) return true;           // same-origin (host includes the port)
+    const forwarded = forwardedHost(req.headers);
+    if (!/^[\w.:[\]-]+$/.test(forwarded)) return false;
+    return url.host === hostOfUrl(`${url.protocol}//${forwarded}`);
   } catch (_) {
     return false;
   }
