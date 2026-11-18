@@ -631,8 +631,10 @@ test("automatic colours follow quiet and loud timing rules", () => {
 });
 
 test('automatic colours never put white on: a palette with white in it is not among their draws', () => {
-  for (const seed of ['white-a', 'white-b', 'white-c', 'white-d']) {
-    const h = vis(row(4), { autoColours: true }, { seed });
+  // Some 1,600 draws: White Off, one table in 26 and white in half its draws, would come up about thirty times.
+  let draws = 0;
+  for (let n = 0; n < 40; n++) {
+    const seed = `white-${n}`, h = vis(row(4), { autoColours: true }, { seed });
     hear(h, ms(0), audio(0, null, 'soft'));
     for (let k = 1; k <= 60; k++) {
       hear(h, ms(k * 7500), audio(k, 'soft', k % 3 ? 'soft' : 'loud'));
@@ -640,8 +642,9 @@ test('automatic colours never put white on: a palette with white in it is not am
         if (typeof entry === 'string') assert.equal(isPale(parseHex(entry)), false, `${seed}, draw ${k}: ${entry}`);
       }
     }
-    assert.ok(h.state().auto.draws >= 30, `${seed}: ${h.state().auto.draws} draws`);
+    draws += h.state().auto.draws;
   }
+  assert.ok(draws >= 1200, `${draws} draws`);
 });
 
 test("manual palettes take precedence over automatic colours", () => {
