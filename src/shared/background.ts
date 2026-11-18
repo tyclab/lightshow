@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { colourMixer } from './color.ts';
+import { colourMixer, unlessPale } from './color.ts';
 import { FADE_FLOOR } from './look-math.ts';
 import { parseHex } from './palette-model.ts';
 import type { Colour } from '../types/rig.ts';
@@ -118,11 +118,17 @@ export function composeBackground(colour: Colour, level: number, field?: Backgro
   if (stopped) return backgroundLight(field, settings, true);
   if (!field || (settings.mode === 'follow' && settings.level === 1 && !followFills(field, settings))) return { colour, level };
   const below = backgroundLight(field, settings);
-  const combined = Math.max(0, level - field.level) + below.level;
+  const above = Math.max(0, level - field.level), combined = above + below.level;
   if (!(combined > 0)) return { colour: DARK_BACKGROUND, level: 0 };
   const mix = (channel: keyof Colour) => Math.max(0, Math.min(255,
     ((colour[channel] ?? 0) * level - (field.colour[channel] ?? 0) * field.level + (below.colour[channel] ?? 0) * below.level) / combined));
-  return { colour: { r: mix('r'), g: mix('g'), b: mix('b'), w: mix('w'), a: mix('a'), uv: mix('uv') }, level: combined };
+  const plain = { r: mix('r'), g: mix('g'), b: mix('b'), w: mix('w'), a: mix('a'), uv: mix('uv') };
+  if (!(above > 0 && below.level > 0)) return { colour: plain, level: combined };
+  // The light above the field and the background's meet in no pale colour (color.ts mixColours), and together they
+  // are at most full: over it a lamp would clip each emitter on its own and turn pale.
+  const lit = (channel: keyof Colour) => Math.max(0, Math.min(255, ((colour[channel] ?? 0) * level - (field.colour[channel] ?? 0) * field.level) / above));
+  const top = { r: lit('r'), g: lit('g'), b: lit('b'), w: lit('w'), a: lit('a'), uv: lit('uv') };
+  return { colour: unlessPale(plain, top, below.colour, below.level / combined, (v) => v), level: Math.min(1, combined) };
 }
 
 /** A picture's colour (the visualizer room picture, a pixel stream) over the Fixed colour, which fills the share its peak leaves dark. */

@@ -91,8 +91,9 @@ test('native bitmap blends preserve endpoints and their integer hue quantization
   const A = parseHex('#2479C3'), B = parseHex('#D64A35');
   for (const [a, b, t, expected] of [[RED, BLUE, 0, '#FF0000'], [RED, BLUE, .2, '#CC0033'],
     [RED, BLUE, .5, '#7F007F'], [RED, BLUE, .735, '#4100BB'], [RED, BLUE, 1, '#0000FF'],
-    [A, B, 0, '#2479C3'], [A, B, .2, '#4770A6'], [A, B, .5, '#7D617C'],
-    [A, B, .735, '#A6565A'], [A, B, 1, '#D64A35']]) {
+    // A blue and a red-orange: their straight mix turns pale (#7D617C halfway), so they meet round the wheel.
+    [A, B, 0, '#2479C3'], [A, B, .2, '#2727C7'], [A, B, .5, '#AC2CCD'],
+    [A, B, .735, '#D1308D'], [A, B, 1, '#D64A35']]) {
     assert.equal(bitmapBlend(pack(a), pack(b), t), pack(parseHex(expected)), `${t}: ${JSON.stringify(a)}`);
   }
   assert.equal(bitmapBlend(pack(RED), pack(RED), .24), 0xFE0000, 'equal colours still pass through intermediate float weights');

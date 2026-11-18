@@ -11,6 +11,7 @@ import { HUE_BRIDGE_ID_RE } from '../shared/placement.ts';
 import { HD_MASTER_DEFAULTS } from '../shared/effects/types.ts';
 import { STROBE_DEFAULTS, STROBE_PARAMS_SCHEMA } from '../shared/effects/strobe.ts';
 import { hexColour } from './validation.ts';
+import { START_COLOURS } from '../shared/palette-model.ts';
 import { PICTURE_BLACK_POINT_DEFAULT, PICTURE_GRADE_DEFAULTS, pictureBlackPointSchema, pictureGradeSchema } from '../shared/picture-grade.ts';
 
 // Store secrets with mode 0600; configuration must not be committed or sourced from legacy environment variables.
@@ -90,7 +91,7 @@ const DEFAULTS: Settings = {
   },
   strobe: {
     ...STROBE_DEFAULTS,
-    palette: ['#FFFFFF'],
+    palette: [...START_COLOURS],
   },
   outputs: {
     armed: false,

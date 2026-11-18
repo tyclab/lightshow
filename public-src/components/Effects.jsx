@@ -85,9 +85,10 @@ export function byName(rows) {
   return [...rows].sort((a, b) => BY_NAME.compare(a.name || a.id, b.name || b.id));
 }
 
-const mainEffectRow = (row) => row.id === 'energy.whiteStrobe'
-  ? { ...row, name: 'Strobe', desc: 'All fixtures flash on the beat. Choose White emitters, First colour or Cycle palette in Colours.' }
-  : row.id === 'energy.colorStrobe' ? { ...row, retired: true, variantOf: 'energy.whiteStrobe' }
+// The one Strobe starts in the look's first colour: white only where White emitters is chosen in Colours.
+const mainEffectRow = (row) => row.id === 'energy.colorStrobe'
+  ? { ...row, name: 'Strobe', desc: 'All fixtures flash on the beat in the first colour. Choose First colour, Cycle palette or White emitters in Colours.' }
+  : row.id === 'energy.whiteStrobe' ? { ...row, retired: true, variantOf: 'energy.colorStrobe' }
     : row.id === 'strobe' ? { ...row, name: 'Fixture strobe' } : row;
 
 /** One card per look, retaining the playing or pinned variant's playback id. */

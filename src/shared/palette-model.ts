@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { colourMixer } from './color.ts';
+import { colourMixer, mixColours } from './color.ts';
 import type { Colour } from '../types/rig.ts';
 
 export type PaletteEntry = string | { random: true };
@@ -18,6 +18,8 @@ export interface PaletteBody extends GradientSettings { colours: PaletteEntry[] 
 export interface ResolvedGradient { sample(position: number): Colour }
 
 export const HEX_COLOUR = /^#(?:[0-9a-f]{3}|[0-9a-f]{6}|[0-9a-f]{8}|[0-9a-f]{10}|[0-9a-f]{12})$/i;
+/** The look a fresh start plays (Red, Congo Blue, Cyan, Magenta): where a colour or palette starts when nothing gives one. */
+export const START_COLOURS: readonly string[] = Object.freeze(['#FF0000', '#4B00FF', '#00E1FF', '#FF0096']);
 export const DIES = ['r', 'g', 'b', 'w', 'a', 'uv'] as const;
 
 export function parseHex(hex: string): Colour {
@@ -120,8 +122,7 @@ export function resolveGradient(settings: GradientSettings | null | undefined, c
     const t = end > start ? Math.max(0, Math.min(1, (p - start) / (end - start))) : 0;
     if (gradient.space === 'step') return pair.from.colour;
     if (pair.mix) return pair.mix(t);
-    const mix = (die: typeof DIES[number]) => Math.round((pair.from.colour[die] ?? 0) + ((pair.to.colour[die] ?? 0) - (pair.from.colour[die] ?? 0)) * t);
-    return { r: mix('r'), g: mix('g'), b: mix('b'), w: mix('w'), a: mix('a'), uv: mix('uv') };
+    return mixColours(pair.from.colour, pair.to.colour, t);
   };
   // Perceptual conversion is expensive; the authored gradient shares a bounded LUT.
   const table = gradient.space === 'oklch' ? Array.from({ length: 1025 }, (_, i) => sample(i / 1024)) : null;

@@ -11,7 +11,8 @@ import type { LdjEnvelope } from './ldj-engine.ts';
 import { LDJ_PALETTES } from './ldj-palettes.ts';
 import { advanceStudio, configureBackground, initStudio, readStudio, studioCommand } from './ldj-studio.ts';
 import type { StudioState } from './ldj-studio.ts';
-import { createPaletteAccess, preparePalette } from './palette.ts';
+import { createPaletteAccess, parseHex, preparePalette } from './palette.ts';
+import { isPale, unlessPale } from '../color.ts';
 import type { PaletteAccess, PreparedPalette } from './palette.ts';
 import { registerKind } from './registry.ts';
 import type { EffectFrame, EffectSlot, PaletteEntry } from './types.ts';
@@ -29,7 +30,9 @@ const HANDOFF_FRAMES = 22;
 const QUIET_BEATS = 16, SOFT_BEATS = 20;
 const MIN_CHANGE_MS = 7500, FORCE_CHANGE_MS = 20000;
 const COLOUR_STREAM = 73, HOLD_STREAM = 79, MIX_STREAM = 83, BED_STREAM = 89, LOUD_STREAM = 97, SOFT_STREAM = 101, ENTRY_STREAM = 103;
-const LOUD_ROWS = LDJ_PALETTES.flatMap((palette, i) => palette.colours.length > 2 ? [i] : []);
+// Automatic colours never draw a palette with white in it: only picking one puts white on.
+const AUTO_ROWS = LDJ_PALETTES.flatMap((palette, i) => palette.colours.some((c) => typeof c === 'string' && isPale(parseHex(c))) ? [] : [i]);
+const LOUD_ROWS = AUTO_ROWS.filter((i) => LDJ_PALETTES[i].colours.length > 2);
 const period = (mellow: VisualizerMellow) => mellow === 'wave' ? 8 : 1;
 
 export const VISUALIZER_DEFAULTS: VisualizerParams = { active: 'firework', mellow: 'swirl', trigger: .3, autoColours: false };
@@ -63,7 +66,10 @@ export function blendRendered(a: Colour, aLevel: number, b: Colour, bLevel: numb
   // Pass a sole lit layer through to avoid quotient rounding and division by zero.
   const lone = wx === 0 ? y : wy === 0 ? x : null;
   const mean = (i: number) => lone ? lone[i] : Math.trunc(f32(f32(f32(x[i] * wx) + f32(y[i] * wy)) / sum));
-  return { r: mean(0), g: mean(1), b: mean(2), w: mean(3), a: mean(4), uv: mean(5) };
+  const blend = { r: mean(0), g: mean(1), b: mean(2), w: mean(3), a: mean(4), uv: mean(5) };
+  if (lone) return blend;
+  const of = (v: number[]): Colour => ({ r: v[0], g: v[1], b: v[2], w: v[3], a: v[4], uv: v[5] });
+  return unlessPale(blend, of(x), of(y), f32(wy / sum), Math.trunc);
 }
 
 function renderedBackground(bed: { colour: Colour; bri: number }, top: { colour: Colour; bri: number }, topBackground?: BackgroundField) {
@@ -72,7 +78,8 @@ function renderedBackground(bed: { colour: Colour; bri: number }, top: { colour:
   const sum = a + b, x = sum > 0 ? a / sum : 1, y = sum > 0 ? b / sum : 0;
   const left = bed.bri * x, right = (topBackground?.level ?? 0) * y, level = left + right;
   const mix = (key: keyof Colour) => level > 0 ? ((bed.colour[key] ?? 0) * left + (topBackground?.colour[key] ?? 0) * right) / level : 0;
-  return ambient({ r: mix('r'), g: mix('g'), b: mix('b'), w: mix('w'), a: mix('a'), uv: mix('uv') }, level,
+  const plain = { r: mix('r'), g: mix('g'), b: mix('b'), w: mix('w'), a: mix('a'), uv: mix('uv') };
+  return ambient(level > 0 && topBackground ? unlessPale(plain, bed.colour, topBackground.colour, right / level, (v) => v) : plain, level,
     x + (topBackground?.coverage ?? 0) * y, bed.bri);
 }
 
@@ -215,8 +222,8 @@ function changeColours(c: Ctx, kind: 'loud' | 'soft', t: number): void {
     a.lastLoud = pickNotLast(f.seed, event, LOUD_ROWS.length, a.lastLoud, LOUD_STREAM);
     entries = LDJ_PALETTES[LOUD_ROWS[a.lastLoud]].colours;
   } else {
-    a.lastSoft = pickNotLast(f.seed, event, LDJ_PALETTES.length, a.lastSoft, SOFT_STREAM);
-    const colours = LDJ_PALETTES[a.lastSoft].colours;
+    a.lastSoft = pickNotLast(f.seed, event, AUTO_ROWS.length, a.lastSoft, SOFT_STREAM);
+    const colours = LDJ_PALETTES[AUTO_ROWS[a.lastSoft]].colours;
     entries = [colours[Math.floor(hash01(f.seed, ENTRY_STREAM, event) * colours.length)]];
   }
   // Copies, so instance state never holds the frozen seed objects.
@@ -273,7 +280,7 @@ function hear(s: VisualizerState, f: EffectFrame): AudioFrame | null {
 function handoffSample(handoff: Handoff): { colour: Colour; bri: number } {
   const t = handoff.tick / HANDOFF_FRAMES;
   const mix = (key: keyof Colour) => Math.round((handoff.from[key] ?? 0) * (1 - t) + (handoff.to[key] ?? 0) * t);
-  return { colour: { r: mix('r'), g: mix('g'), b: mix('b'), w: mix('w'), a: mix('a'), uv: mix('uv') }, bri: BASELINE };
+  return { colour: unlessPale({ r: mix('r'), g: mix('g'), b: mix('b'), w: mix('w'), a: mix('a'), uv: mix('uv') }, handoff.from, handoff.to, t), bri: BASELINE };
 }
 
 // Nanosecond rounding prevents float steps from crossing byte boundaries.

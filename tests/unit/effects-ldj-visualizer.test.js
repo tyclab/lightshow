@@ -7,6 +7,7 @@ import { VISUALIZER_PRESETS, blendRendered, mixSpike } from '../../src/shared/ef
 import { LDJ_PALETTES } from '../../src/shared/effects/ldj-palettes.ts';
 import { hash01, pickNotLast, seedFrom } from '../../src/shared/effects/hash.ts';
 import { parseHex } from '../../src/shared/effects/palette.ts';
+import { isPale, meetsPale, mixColours, unlessPale } from '../../src/shared/color.ts';
 import { buildRoom } from '../../src/shared/room.ts';
 import { harness, row, RED, CYAN } from '../helpers/ldj-harness.js';
 
@@ -36,7 +37,9 @@ function expectedBlend(a, aLevel, b, bLevel) {
   const wx = f32(Math.max(...KEYS.map((k) => x[k])) / 255), wy = f32(Math.max(...KEYS.map((k) => y[k])) / 255), sum = f32(wx + wy);
   if (wx === 0) return y;
   if (wy === 0) return x;
-  return Object.fromEntries(KEYS.map((k) => [k, Math.trunc(f32(f32(f32(x[k] * wx) + f32(y[k] * wy)) / sum))]));
+  const plain = Object.fromEntries(KEYS.map((k) => [k, Math.trunc(f32(f32(f32(x[k] * wx) + f32(y[k] * wy)) / sum))]));
+  // Two lights that would meet in a pale colour meet round the wheel instead (color.ts mixColours).
+  return meetsPale(x, y) ? mixColours(x, y, f32(wy / sum), Math.trunc) : plain;
 }
 
 // Live audio after a launch without it: the bed starts at once and a held soft section never stops it.
@@ -83,7 +86,7 @@ test('the 26 built-in entertainment palettes are one frozen table, random entrie
   assert.ok(LDJ_PALETTES.every((p) => p.app === 'ldj' && Object.isFrozen(p) && Object.isFrozen(p.colours)));
   assert.deepEqual(LDJ_PALETTES.find((p) => p.id === 'randomRandom').colours, [{ random: true }, { random: true }]);
   assert.equal(LDJ_PALETTES.find((p) => p.id === 'rainbow').colours.length, 8);
-  assert.deepEqual(LDJ_PALETTES.find((p) => p.id === 'rocketPop').colours, ['#D60210', '#F0F1FF', '#0814FF']);
+  assert.deepEqual(LDJ_PALETTES.find((p) => p.id === 'rocketPop').colours, ['#D60210', '#00BFFF', '#0814FF']);
   assert.deepEqual(LDJ_PALETTES.find((p) => p.id === 'blueDream').colours, ['#0B1066', '#0A108C', '#0E4EAD', '#0E7BC9']);
   assert.equal(LDJ_PALETTES.find((p) => p.id === 'northernLights'), undefined);
   assert.deepEqual(LDJ_PALETTES.map((p) => p.colours.length).sort(), [...Array(8).fill(2), ...Array(12).fill(3), ...Array(5).fill(4), 8].sort());
@@ -361,7 +364,8 @@ test("spikes return their lamps to the bed at their prescribed rate", () => {
   const to = s.handoffs[slot].to;
   out = hear(h, at(36), audio(1, 'loud', 'soft'));
   assert.equal(s.handoffs[slot].tick, 1);
-  const mixed = Object.fromEntries(KEYS.map((k) => [k, Math.round((colour[k] ?? 0) * (1 - 1 / 22) + (to[k] ?? 0) * (1 / 22))]));
+  const mixed = unlessPale(Object.fromEntries(KEYS.map((k) => [k, Math.round((colour[k] ?? 0) * (1 - 1 / 22) + (to[k] ?? 0) * (1 / 22))])),
+    colour, to, 1 / 22);
   bed = readStudio(s.bed, slot);
   assert.deepEqual(out[slot].colour, expectedBlend(bed.colour, bed.bri, mixed, FLOOR));
   hear(h, at(56), audio(1, 'loud', 'soft'));
@@ -624,6 +628,20 @@ test("automatic colours follow quiet and loud timing rules", () => {
     if (k % 2) louds.push(JSON.stringify(seen.state().auto.palette));
   }
   for (let i = 1; i < louds.length; i++) assert.notEqual(louds[i], louds[i - 1]);
+});
+
+test('automatic colours never put white on: a palette with white in it is not among their draws', () => {
+  for (const seed of ['white-a', 'white-b', 'white-c', 'white-d']) {
+    const h = vis(row(4), { autoColours: true }, { seed });
+    hear(h, ms(0), audio(0, null, 'soft'));
+    for (let k = 1; k <= 60; k++) {
+      hear(h, ms(k * 7500), audio(k, 'soft', k % 3 ? 'soft' : 'loud'));
+      for (const entry of h.state().auto.palette ?? []) {
+        if (typeof entry === 'string') assert.equal(isPale(parseHex(entry)), false, `${seed}, draw ${k}: ${entry}`);
+      }
+    }
+    assert.ok(h.state().auto.draws >= 30, `${seed}: ${h.state().auto.draws} draws`);
+  }
 });
 
 test("manual palettes take precedence over automatic colours", () => {

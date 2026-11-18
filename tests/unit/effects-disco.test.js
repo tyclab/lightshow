@@ -47,7 +47,7 @@ test("Disco defaults include channels and band floors", () => {
     { fade: false, allowPulse: false, minHue: 0, maxHue: 60000, idleFadeBrightness: 254, sequenceLength: 8, modulateSaturation: false },
     { fade: true, allowPulse: false, minHue: 38000, maxHue: 52000, idleFadeBrightness: 254, sequenceLength: 8, modulateSaturation: false },
     { fade: true, allowPulse: true, minHue: 0, maxHue: 60000, idleFadeBrightness: 140, sequenceLength: 16, modulateSaturation: false },
-    { fade: true, allowPulse: true, minHue: 24800, maxHue: 65534, idleFadeBrightness: 140, sequenceLength: 16, modulateSaturation: true },
+    { fade: true, allowPulse: true, minHue: 24800, maxHue: 65534, idleFadeBrightness: 140, sequenceLength: 16, modulateSaturation: false },
   ].map((c) => ({ ...shared, ...c })));
   assert.deepEqual(DISCO_DEFAULTS.globals, { sensitivity: 50, advancedDecay: 25, smoothness: 500, minimumThreshold: 2, simpleSensitivity: 44,
     simpleDecay: 20, simpleMinimumThreshold: 30, analyserSensitivity: 50, smoothnessAnalyser: 3 });
@@ -57,7 +57,7 @@ test("Disco defaults include channels and band floors", () => {
   [-59.03089986991944, -67.70852011642144, -74.45604203273598].forEach((db, i) => close(floorDb[i], db, `band ${i}`));
   assert.equal(DISCO_DEFAULTS.style, 'spectrum');
   assert.equal(DISCO_DEFAULTS.allowStrobe, false);
-  assert.deepEqual(DISCO_DEFAULTS.strobe, { palette: ['#FFFFFF'], flashesPerSecond: 2 });
+  assert.deepEqual(DISCO_DEFAULTS.strobe, { palette: ['#FF00FF', '#00FFFF'], flashesPerSecond: 2 });
   assert.deepEqual(DISCO_DEFAULTS.assign, {});
   assert.equal(DISCO_DEFAULTS.smoothness, 500);
   assert.equal(DISCO_DEFAULTS.maxLightsPerBatch, 10);
@@ -114,7 +114,7 @@ test('the schema rejects what Disco cannot play', () => {
   assert.doesNotThrow(() => validateSpec({ kind: 'hd.disco', params: { channels: channels({ 0: { minHue: 60000, maxHue: 5000, mix: 'steps' } }) } }));
   const ok = validateSpec({ kind: 'hd.disco', params: { assign: { 7: 'treble' }, strobe: { flashesPerSecond: 5 } } }).params;
   assert.deepEqual(ok.assign, { 7: 'treble' });
-  assert.deepEqual(ok.strobe, { palette: ['#FFFFFF'], flashesPerSecond: 5 });
+  assert.deepEqual(ok.strobe, { palette: ['#FF00FF', '#00FFFF'], flashesPerSecond: 5 }, 'magenta and cyan unless picked: white only where it is');
 });
 
 test("Disco balances lamps across enabled bands", () => {
@@ -398,7 +398,8 @@ test("peak hits postpone whole-group idle", () => {
 });
 
 test("neural readings drive channel 4 colour and brightness", () => {
-  const h = disco(row(3), { style: 'neural' });
+  // Saturation follows the amplitude only where the channel is set to (modulateSaturation, off by default).
+  const h = disco(row(3), { style: 'neural', channels: channels({ 4: { modulateSaturation: true } }) });
   h.draw(quiet(0));
   const reading = (t, mainFrequency, amplitude) => h.draw(live(t, hop(t, { mainFrequency, amplitude })));
   const check = (out, colour, level, message) => out.forEach((s) => { assert.deepEqual(s.colour, colour, message); close(s.level, level, message); });
@@ -416,7 +417,7 @@ test("neural readings drive channel 4 colour and brightness", () => {
   assert.deepEqual(h.draw(live(90, hop(NaN, { mainFrequency: 1, amplitude: 1 }))), before, 'a hop without a valid time changes nothing');
 
   // A fixed hue: the amplitude sets saturation and level separately.
-  const fixed = disco(row(1), { style: 'neural', channels: channels({ 4: { minHue: 32768, maxHue: 32768 } }) });
+  const fixed = disco(row(1), { style: 'neural', channels: channels({ 4: { minHue: 32768, maxHue: 32768, modulateSaturation: true } }) });
   fixed.draw(quiet(0));
   check(fixed.draw(live(10, hop(1, { mainFrequency: 0.3, amplitude: 0.5 }))), C(127, 255, 255), 0.5);
   const flat = disco(row(1), { style: 'neural', channels: channels({ 4: { minHue: 32768, maxHue: 32768, modulateSaturation: false } }) });
@@ -462,8 +463,11 @@ test("coincident bass and treble trigger automatic strobe", () => {
   }
 });
 
+// A strobe palette picked white tells the automatic flashes from the hits, which are saturated.
+const WHITE_FLASHES = { palette: ['#FFFFFF'], flashesPerSecond: 2 };
+
 test("automatic strobe caps flashes at five per second", () => {
-  const h = disco(row(3), { allowStrobe: true });
+  const h = disco(row(3), { allowStrobe: true, strobe: WHITE_FLASHES });
   h.draw(quiet(0));
   assert.deepEqual(h.draw(live(100, hop(1, { hit: BASS_TREBLE }))).map((s) => s.colour), [WHITE, WHITE, WHITE]);
   let out = h.draw(live(250, hop(2, { hit: BASS_TREBLE })));
@@ -483,7 +487,7 @@ test("automatic strobe caps flashes at five per second", () => {
 });
 
 test('a flash no channel can take does not use up the permit', () => {
-  const h = disco(row(3), { allowStrobe: true });
+  const h = disco(row(3), { allowStrobe: true, strobe: WHITE_FLASHES });
   h.draw(quiet(0));
   h.draw(live(100, hop(1, { hit: BASS_TREBLE })));
   h.draw(live(250, hop(2, { hit: ALL })));
@@ -492,7 +496,7 @@ test('a flash no channel can take does not use up the permit', () => {
 });
 
 test("peak strobe uses one lamp per accepted flash", () => {
-  const h = disco(row(4), { style: 'peak', channels: channels({ 3: { strobeOn: true, linkLights: true } }) });
+  const h = disco(row(4), { style: 'peak', strobe: WHITE_FLASHES, channels: channels({ 3: { strobeOn: true, linkLights: true } }) });
   h.draw(quiet(0));
   let out = h.draw(live(100, hop(1, { peakHit: true })));
   assert.equal(lit(out).length, 1);
@@ -602,17 +606,17 @@ test('the eleven genre presets carry the catalogue values', () => {
   // bass [lo, hi, minHue, maxHue, pulse], voice [lo, hi, minHue, maxHue], treble [lo, hi, minHue, maxHue, pulse].
   // Dance, Drum and Bass, Trance and Ambient end their treble at the service's 11025 Hz.
   const rows = [
-    ['hd.disco.pop', 'Pop', 24, 60, 500, false, 8, false, 2, ['#FF00FF', '#00FFFF', '#FFFFFF'], [40, 250, 52000, 62000, true], [300, 3000, 0, 11000], [4000, 11000, 10000, 24000, false]],
-    ['hd.disco.rock', 'Rock', 28, 55, 400, false, 8, false, 3, ['#FF0000', '#FFFFFF'], [40, 215, 58000, 65534, true], [250, 2500, 3000, 8500], [3000, 9000, 8000, 14000, false]],
+    ['hd.disco.pop', 'Pop', 24, 60, 500, false, 8, false, 2, ['#FF00FF', '#00FFFF'], [40, 250, 52000, 62000, true], [300, 3000, 0, 11000], [4000, 11000, 10000, 24000, false]],
+    ['hd.disco.rock', 'Rock', 28, 55, 400, false, 8, false, 3, ['#FF0000'], [40, 215, 58000, 65534, true], [250, 2500, 3000, 8500], [3000, 9000, 8000, 14000, false]],
     ['hd.disco.hipHop', 'Hip Hop', 18, 62, 550, false, 8, false, 2, ['#FF0000', '#FFD000', '#7F00FF'], [40, 250, 61000, 65534, true], [300, 3500, 3000, 11000], [4500, 10000, 50000, 58000, false]],
-    ['hd.disco.rAndB', 'R&B', 10, 65, 850, true, 8, false, 1, ['#FF68B6', '#CC9AFF'], [40, 250, 60000, 65534, false], [300, 4000, 52000, 60000], [4500, 10000, 5000, 12000, false]],
-    ['hd.disco.dance', 'Dance', 30, 58, 400, false, 8, false, 4, ['#00FFFF', '#FF00FF', '#FFFFFF'], [40, 200, 60000, 65534, true], [250, 3200, 16000, 26000], [4000, 11025, 38000, 50000, false]],
-    ['hd.disco.classical', 'Classical', 7, 65, 950, true, 8, false, 1, ['#FFEDC2'], [40, 350, 42000, 48000, false], [400, 3000, 47000, 54000], [3500, 10000, 7000, 14000, false]],
+    ['hd.disco.rAndB', 'R&B', 10, 65, 850, true, 8, false, 1, ['#FF68B6', '#7F00FF'], [40, 250, 60000, 65534, false], [300, 4000, 52000, 60000], [4500, 10000, 5000, 12000, false]],
+    ['hd.disco.dance', 'Dance', 30, 58, 400, false, 8, false, 4, ['#00FFFF', '#FF00FF'], [40, 200, 60000, 65534, true], [250, 3200, 16000, 26000], [4000, 11025, 38000, 50000, false]],
+    ['hd.disco.classical', 'Classical', 7, 65, 950, true, 8, false, 1, ['#FFB600'], [40, 350, 42000, 48000, false], [400, 3000, 47000, 54000], [3500, 10000, 7000, 14000, false]],
     ['hd.disco.jazz', 'Jazz', 16, 60, 650, true, 8, false, 1, ['#0000FF', '#7F00FF'], [40, 300, 3000, 9000, false], [350, 2500, 56000, 65534], [3000, 9000, 38000, 46000, false]],
-    ['hd.disco.acoustic', 'Acoustic', 14, 66, 750, true, 8, false, 1, ['#FFEDC2', '#FF9722'], [70, 300, 59000, 65534, false], [350, 3000, 5000, 12000], [3500, 10000, 38000, 46000, false]],
-    ['hd.disco.drumAndBass', 'Drum and Bass', 40, 60, 400, false, 4, true, 5, ['#00FFFF', '#FF00FF', '#FFFFFF'], [40, 200, 60000, 65534, true], [250, 2500, 26000, 38000], [3000, 11025, 50000, 62000, true]],
-    ['hd.disco.trance', 'Trance', 38, 60, 400, false, 4, true, 4, ['#0000FF', '#00FFFF', '#FFFFFF'], [40, 180, 52000, 62000, true], [220, 2000, 40000, 52000], [3000, 11025, 27000, 38000, true]],
-    ['hd.disco.ambient', 'Ambient', 5, 70, 1000, true, 8, false, 1, ['#AEAEFF', '#CC9AFF'], [40, 400, 43000, 50000, false], [450, 4000, 35000, 44000], [4500, 11025, 28000, 36000, false]],
+    ['hd.disco.acoustic', 'Acoustic', 14, 66, 750, true, 8, false, 1, ['#FFB600', '#FF9722'], [70, 300, 59000, 65534, false], [350, 3000, 5000, 12000], [3500, 10000, 38000, 46000, false]],
+    ['hd.disco.drumAndBass', 'Drum and Bass', 40, 60, 400, false, 4, true, 5, ['#00FFFF', '#FF00FF'], [40, 200, 60000, 65534, true], [250, 2500, 26000, 38000], [3000, 11025, 50000, 62000, true]],
+    ['hd.disco.trance', 'Trance', 38, 60, 400, false, 4, true, 4, ['#0000FF', '#00FFFF'], [40, 180, 52000, 62000, true], [220, 2000, 40000, 52000], [3000, 11025, 27000, 38000, true]],
+    ['hd.disco.ambient', 'Ambient', 5, 70, 1000, true, 8, false, 1, ['#0000FF', '#7F00FF'], [40, 400, 43000, 50000, false], [450, 4000, 35000, 44000], [4500, 11025, 28000, 36000, false]],
   ];
   assert.deepEqual(DISCO_PRESETS.map((p) => [p.id, p.name]), rows.map(([id, name]) => [id, name]));
   rows.forEach(([id, , decay, sensitivity, smoothness, relaxed, sequenceLength, allowStrobe, rate, palette, bass, voice, treble], n) => {

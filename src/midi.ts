@@ -9,6 +9,7 @@ import { existsSync } from 'node:fs';
 import { COLOR_PRESETS, ENERGY_EFFECT_IDS, STROBE_FUNCTION_IDS } from './server/presets.ts';
 import { messageOf } from './errors.ts';
 import { browseListOf } from './shared/effects/tags.ts';
+import { WHITE_ENERGY } from './shared/effects/energy.ts';
 import type { BrowseList } from './shared/effects/tags.ts';
 import type { MidiBinding, MidiMap } from './server/midi-map.ts';
 import type { ShowState } from './server/state.ts';
@@ -66,7 +67,8 @@ try {
   console.warn('[MIDI] easymidi not available — run `npm install easymidi` to enable MIDI support.');
 }
 
-const ENERGY_IDS = ENERGY_EFFECT_IDS;
+// The energy hold button steps through the effects not in white; a white one plays only when bound by name.
+const ENERGY_IDS = ENERGY_EFFECT_IDS.filter((id) => !WHITE_ENERGY.has(id));
 const PAD_RENEW_MS = 400;
 export const MIDI_HOLD_MAX_MS = 5 * 60 * 1000;
 

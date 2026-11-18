@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { registerKind } from '../registry.ts';
+import { mixColours } from '../../color.ts';
 import { accentStrobes, azimuthAround, centreOf, gapsWithoutFloor, paint, positionsOf, soft, triggerLevel, v2CommonSchema } from './common.ts';
 import type { EffectFrame, EffectSlot } from '../types.ts';
 import type { Room } from '../../room.ts';
@@ -51,9 +52,7 @@ function renderOrbit(p: OrbitParams, room: Room, f: EffectFrame, out: EffectSlot
         const next = { ...out[i] };
         paint(p, f, (((k + 1) % p.sectors) % palette) / palette, trigger, next);
         const a = out[i].colour, b = next.colour;
-        const blend = (x = 0, y = 0) => x + (y - x) * mix;
-        out[i].colour = { r: blend(a.r, b.r), g: blend(a.g, b.g), b: blend(a.b, b.b),
-          w: blend(a.w, b.w), a: blend(a.a, b.a), uv: blend(a.uv, b.uv) };
+        out[i].colour = mixColours(a, b, mix, (v) => v);
       }
     } else {
       paint(p, f, frac(offset / 360), trigger, out[i]);

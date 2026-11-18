@@ -32,7 +32,7 @@ const rows: [string, PaletteEntry[]][] = [
   ['redYellowBlue', ['#FF0000', '#FFFF00', '#2A00FF']],
   ['yellowPurplePink', ['#FFFF00', '#AA00FF', '#FF0095']],
   ['greenCyanPink', ['#00FF00', '#00BFFF', '#FF0095']],
-  ['rocketPop', ['#D60210', '#F0F1FF', '#0814FF']],
+  ['rocketPop', ['#D60210', '#00BFFF', '#0814FF']],
   ['blueDream', ['#0B1066', '#0A108C', '#0E4EAD', '#0E7BC9']],
   ['strawberryDaiquiri', ['#8A0700', '#F75C78', '#F53659', '#F20A34']],
   ['screwdriver', ['#FC530A', '#FFA929', '#F7822F', '#FC6F0A']],

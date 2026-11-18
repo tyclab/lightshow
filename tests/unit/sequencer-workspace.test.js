@@ -199,6 +199,18 @@ test('random initial palettes include user palettes and do not reroll on resume'
   assert.equal(patches.filter((patch) => patch.paletteOverrideId === 'user-red').length, 2);
 });
 
+test('a random initial palette is never one with white or a pale colour in it', () => {
+  const colours = { white: ['#FF0000', '#FFFFFF'], red: ['#FF0000'], pale: ['#E0F2FE'] };
+  for (let seed = 1; seed <= 40; seed++) {
+    const patches = [];
+    const s = rig({ seed: [seed, 2, 3, 4], paletteIds: () => Object.keys(colours), palette: (id) => colours[id] ?? null,
+      apply: (patch) => patches.push(patch) });
+    s.load({ ...show(), options: { randomizeInitialPalette: true } });
+    s.play(); s.frame({ beatPos: 0, bpm: 120, source: 'tap', epoch: 0 });
+    assert.deepEqual(patches.flatMap((patch) => patch.paletteOverrideId ? [patch.paletteOverrideId] : []), ['red'], `seed ${seed}`);
+  }
+});
+
 test('immediate commands apply without starting playback or changing the take', () => {
   const patches = [];
   const s = rig({ apply: (patch) => patches.push(patch) });

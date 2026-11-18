@@ -8,8 +8,8 @@ import type { Reading, Score } from './score.ts';
 
 export type Character = Partial<Reading>;
 
-/** The energy effect a burst plays (presets.ts ENERGY_EFFECTS). */
-export type BurstKind = 'blinder' | 'white-strobe' | 'color-strobe' | 'uv-wash' | 'kill' | 'glow';
+/** The energy effect a burst plays (presets.ts ENERGY_EFFECTS): never one in white, which plays only when picked. */
+export type BurstKind = 'color-strobe' | 'uv-wash' | 'kill' | 'glow';
 
 const SUBGENRE_PATTERNS: Record<string, string[]> = {
   edm:       ['pairs', 'runner', 'ensemble', 'split', 'stack-up', 'random-flash', 'hit', 'sections', 'comet', 'burst', 'drums'],
@@ -161,17 +161,10 @@ function burstFor({ moment = 'accent', character, score, drive,
   const c: Character = character || {};
   const semantic: Record<string, number> = (score && score.semantic) || {};
   const energy = unit(c.energy);
-  const air = unit(c.texture) * 0.6 + unit(c.hats) * 0.4;
   const articulation = unit(score && score.articulation, 0.5);
-  const triumphant = Math.max(unit(semantic.triumphant), unit(semantic.euphoric));
   const aggressive = Math.max(unit(semantic.aggressive), unit(semantic.dark));
 
-  if (moment === 'drop') {
-    if (drive < 0.45 || energy < 0.3) return 'glow';
-    if (drive < 0.72) return 'color-strobe';
-    const cold = (air > 0.5 || aggressive > 0.55) && triumphant <= aggressive;
-    return cold ? 'white-strobe' : 'blinder';
-  }
+  if (moment === 'drop') return drive < 0.45 || energy < 0.3 ? 'glow' : 'color-strobe';
 
   if (drive < 0.32 || energy < 0.3) return 'glow';
   if (vocal) return drive >= 0.75 && energy > 0.65 ? 'kill' : 'glow';

@@ -11,6 +11,9 @@ export const ENERGY_KIND_BY_ID = {
   glow: 'energy.glow',
 } as const;
 
+/** The energy effects in white: played only where they are picked by name, never by a default, a cycle or a director. */
+export const WHITE_ENERGY: ReadonlySet<string> = new Set(['white-strobe', 'blinder']);
+
 // Hardware strobe requests require acknowledgement.
 const RAPID = new Set(['white-strobe', 'color-strobe']);
 const schema = z.object({}).strict();

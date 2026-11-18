@@ -4,7 +4,7 @@ import test from 'node:test';
 import assert from 'node:assert';
 
 import { COLOR_PRESETS } from '../../src/server/presets.ts';
-import { TETRADS, TRIADS, DUOS, PALETTE_IDS } from '../../src/server/palettes.ts';
+import { TETRADS, TRIADS, DUOS, PALETTE_IDS, WHITE_LOOKS } from '../../src/server/palettes.ts';
 
 /**
  * What a preset looks like once the emitters mix, rather than what its r/g/b
@@ -133,15 +133,12 @@ test('every duo is a real split rather than two shades of one colour', () => {
   }
 });
 
-test('the fourth slot of every look is a lift, not a fourth hue', () => {
-  // Slot D exists to break up the brightness of a four-colour chase. If it is
-  // another saturated hue the pattern reads as a rainbow instead of as a look.
+test('the fourth slot is white or pale only in the looks whose name says white', () => {
+  // No white except where white is what was picked (the operator, 2026-11-18): slot D, the bed the classic
+  // looks rest on, is a saturated hue or UV everywhere else.
   for (const [id, colors] of Object.entries(TETRADS)) {
-    const lift = mixed(colors[3]);
-    assert.ok(
-      !isHue(lift),
-      `${id} ends on ${lift.name}, a saturated hue — slot D should be a white, a pale wash or UV`,
-    );
+    const bed = mixed(colors[3]);
+    assert.equal(isPale(bed), WHITE_LOOKS.has(id), `${id} ends on ${bed.name}`);
   }
 });
 

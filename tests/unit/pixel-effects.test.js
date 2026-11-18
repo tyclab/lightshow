@@ -206,12 +206,14 @@ test('a ramp swells from the middle and is cut on the beat', () => {
   assert.ok(ramp(0.99).every((d) => d > 230), 'full just before the next beat');
 });
 
-test('the strobe core strikes white in the middle, over a wash in the look\'s colour', () => {
+// White only where it is picked: the core strikes in the look's second colour.
+test('the strobe core strikes in the look\'s second colour in the middle, over a wash in its first', () => {
   const struck = draw('core', { n: 9, ...at(10) });
-  assert.ok(WHITE(struck[4][0]) && struck[4][1] === 255, 'the core strikes');
+  assert.ok(struck[4][0] === BLUE && struck[4][1] === 255, 'the core strikes');
+  assert.ok(!WHITE(struck[4][0]));
   assert.ok(struck[0][0] === RED && struck[0][1] > 100, 'the edges hold the wash');
   const between = draw('core', { n: 9, ...at(250) });
-  assert.ok(!WHITE(between[4][0]) && between[4][1] < between[0][1], 'between strikes the core only glows');
+  assert.ok(between[4][0] === RED && between[4][1] < between[0][1], 'between strikes the core only glows');
 });
 
 test('the random ramps swell every zone at a moment of its own, and are cut', () => {

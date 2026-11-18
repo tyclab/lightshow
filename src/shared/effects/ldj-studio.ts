@@ -1,4 +1,5 @@
 import { ambient } from '../background.ts';
+import { unlessPale } from '../color.ts';
 // Studio keeps note brightness separate from colour ownership. Commands can
 // change the background without stealing an active note or its queued start.
 
@@ -114,7 +115,7 @@ function colourTick(lamp: StudioLamp): void {
   if (lamp.rgbTick < count) {
     const t = lamp.rgbTick / count, from = lamp.rgbFrom!, to = lamp.rgbTo!;
     const mix = (key: keyof Colour) => Math.round((from[key] ?? 0) * (1 - t) + (to[key] ?? 0) * t);
-    lamp.colour = { r: mix('r'), g: mix('g'), b: mix('b'), w: mix('w'), a: mix('a'), uv: mix('uv') };
+    lamp.colour = unlessPale({ r: mix('r'), g: mix('g'), b: mix('b'), w: mix('w'), a: mix('a'), uv: mix('uv') }, from, to, t);
     lamp.binding = undefined; lamp.rgbTick++;
   } else {
     lamp.colour = colourCopy(lamp.rgbTo!); lamp.binding = undefined;

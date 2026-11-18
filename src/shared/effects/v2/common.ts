@@ -3,6 +3,8 @@ import type { Colour } from '../../../types/rig.ts';
 import { requiresAcknowledgement, strobeRests } from '../registry.ts';
 import { sampleEnvelope } from '../envelope.ts';
 import { parseHex, samplePalette } from '../palette.ts';
+import { START_COLOURS } from '../../palette-model.ts';
+import { mixColours } from '../../color.ts';
 import type { Room } from '../../room.ts';
 import type { EffectFrame, EffectSlot, EffectSpec } from '../types.ts';
 
@@ -36,7 +38,8 @@ export const v2CommonSchema = z.object({
   // 'step' takes the next palette colour every trigger interval, as the classic looks did on every step.
   colour: z.enum(['along', 'time', 'solid', 'step']).default('along'),
   background: unit.default(0),
-  backgroundColour: z.string().regex(/^#[0-9a-fA-F]{6}$/).default('#FFFFFF'),
+  // The floor colour starts as the fresh look's last, the colour the classic looks rest on.
+  backgroundColour: z.string().regex(/^#[0-9a-fA-F]{6}$/).default(START_COLOURS[3]),
 });
 export type V2Common = z.output<typeof v2CommonSchema>;
 
@@ -196,9 +199,7 @@ export function paint(common: V2Common, frame: EffectFrame, position01: number, 
   const colour = frame.gradient?.sample(pos) ?? samplePalette(frame.palette, pos);
   if (background > 0) {
     const base = backgroundColour(common);
-    const mix = (a = 0, b = 0) => (a * foreground + b * background) / lit;
-    out.colour = { r: mix(colour.r, base.r), g: mix(colour.g, base.g), b: mix(colour.b, base.b),
-      w: mix(colour.w, base.w), a: mix(colour.a, base.a), uv: mix(colour.uv, base.uv) };
+    out.colour = mixColours(colour, base, background / lit, (v) => v);
   } else out.colour = colour;
   out.level = lit;
   out.strength = lit > 0 ? 1 : 0;

@@ -54,7 +54,8 @@ function randomLamp(ctx: LdjCtx): number | null {
   return pick;
 }
 
-const AMERICA = [hsbToColour(0, 1, 1), hsbToColour(0, 0, 1), hsbToColour(250 / 360, 1, 1)];
+// Red, sky blue and blue: the flag's white stripe plays in the named sky blue, as no white is picked.
+const AMERICA = [hsbToColour(0, 1, 1), hsbToColour(195 / 360, 1, 1), hsbToColour(250 / 360, 1, 1)];
 const studioFill = (beats: number): LdjRow => ({ cadence: beats, channels: 1, step(ctx) {
   all(ctx, primary(ctx), { kind: 'fade', beats }); ctx.refresh(0);
 } });

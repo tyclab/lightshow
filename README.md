@@ -501,7 +501,7 @@ flowchart LR
 | Zones | alternating, filling, covering in the next colour or swapping colours between sides, height bands, distances, stem regions, odd and even lamps, palette blocks, diagonals, corners, or halves that turn every other step | Zones, Surround Answer, Near and Far, Stems in Space |
 | Noise | continuous clouds, aurora or flames sampled in space | Drifting Clouds, Aurora, Fire |
 | Particles | soft objects and ballistic sparks, trails, falling drops and floor splashes | Light Orbs, Orb Collision, Fireworks, Rain |
-| Globe | each light's own sphere: rings carry the spectrum (bass at the equator, highs at the poles) or the beat leaving the equator, lobes turn a quarter-beat step on every beat, and a white spot marks where they face | Globe Spectrum, Globe Pulse |
+| Globe | each light's own sphere: rings carry the spectrum (bass at the equator, highs at the poles) or the beat leaving the equator, lobes turn a quarter-beat step on every beat, and a bright spot in the ring's colour marks where they face | Globe Spectrum, Globe Pulse |
 
 Globe reads each light as a sphere. Through the room, a light the Stage room places
 as a solid (see [Room picture](#room-picture)) takes each bound cell's latitude from
@@ -1533,8 +1533,8 @@ a temporary colour edit; their saved preset, pads and sequence clips remain unch
 **Colour distribution** chooses the first colour, colours across the effect, or colours
 over time where the effect supports it. **Reset effect colours** restores the preset.
 Selecting an effect again clears this edit; cues capture and restore it.
-Strobe has one catalogue entry with White emitters, First colour and Cycle palette
-settings. White and Colour Strobe pads and historical IDs retain their behaviour. Fixed white, UV
+Strobe has one catalogue entry, starting on First colour, with First colour, Cycle palette
+and White emitters settings. White and Colour Strobe pads and historical IDs retain their behaviour. Fixed white, UV
 and blackout energy effects retain their dedicated output.
 
 A palette contains 1–8 `colours`: `#RGB`, `#RRGGBB`, `#RRGGBBWW`,
@@ -1543,6 +1543,20 @@ A palette contains 1–8 `colours`: `#RGB`, `#RRGGBB`, `#RRGGBBWW`,
 `oklch` or `step` interpolation, and optional wrapping. Named `sets` contain
 up to four gradient roles; `gradientSet` and `gradientRole` select the active
 role. Without authored gradients, effects keep their existing interpolation.
+
+White and pale colours play only where they are picked: a white preset (Warm White, Cool
+White, Lavender, Moonlight) in a colour slot, White Strobe, Blinder, Strobe's White emitters,
+and the palettes whose name says white (Arctic, Lunar and Whiteout among the looks, White Off
+and White strobe among the party tables). Pale is what an RGB lamp shows with its red, green
+and blue sharing half its peak or more (HSV saturation 0.5 or less, the white, amber and UV
+dies folded in): the white presets fold to 0.23–0.50, every saturated one to 0.81 or more.
+The other looks, the effects' own colours, the defaults new colours start from, random
+palette draws, the auto show and the energy hold button carry none. Two colours that are not
+pale never meet in a pale one, in a gradient, a fade or a layer over the background: where
+their straight mix would (cyan and magenta in lavender, red and cyan in grey, amber's die over
+a teal), they go round the hue wheel the short way, and the white, amber and UV dies give only
+as much of that light as it has room for. An effect over a Fixed or filled background is at
+most full.
 
 `POST /api/set` accepts `basePalette` and `overridePalette` bodies, or null.
 `POST /api/set` accepts `effectColours: { pattern, palette?, mode?, bands? }` for the selected
@@ -1701,7 +1715,7 @@ Locked colours are not restored after a restart.
 
 | Field | Values/default |
 |-------|----------------|
-| `palette` | 1–6 RGBWAUV hex colours; white |
+| `palette` | 1–6 RGBWAUV hex colours; the fresh look's red, Congo blue, cyan and magenta |
 | `function` | `palette` default; `ramp-up-down`, `ramp-up`, `ramp-down`, their `-rnd` variants, `random`, `break` |
 | `speed` | Program speed 1–255; 128 |
 | `flashesPerSecond` | Integer 1–5; 2 |
@@ -1902,7 +1916,7 @@ beyond those 1024 samples (Linux's holds 64 KiB; the Windows pipe was not measur
 The auto show is the live director (`src/show/live-director.ts`). It plays while
 Auto is the programme and the live input listens, and answers what it hears: a new look on a section change, cut when the
 music rises and faded when it falls; Rising Wall, or the pattern at double pace,
-over a build-up; a burst on a drop; now and then an accent on a spike; dark in a
+over a build-up; a burst in the look's colour on a drop (never White Strobe or Blinder); now and then an accent on a spike; dark in a
 silence, with a new look when the music returns; and a new look after sixteen bars
 without a change. It picks only looks the rig shows (see
 [Spatial effects](#spatial-effects)). A look picked by hand holds as described under

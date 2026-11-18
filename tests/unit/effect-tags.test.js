@@ -92,7 +92,7 @@ const PINNED = {
   'overlay.step': 'beat room energy rapid',
   'overlay.scatter': 'beat room energy rapid',
   'overlay.zone': 'beat room energy rapid',
-  'v2.scatterStrobe': 'beat room ownColours rapid',
+  'v2.scatterStrobe': 'beat room rapid',
   'v2.scatterFade': 'beat room',
   'v2.scatterGrow': 'beat room',
   'v2.grooveWave': 'beat room',
@@ -166,7 +166,7 @@ test('the eleven tags and their counts over the 111 looks', () => {
   const counts = Object.fromEntries(Object.keys(TAGS).map((tag) => [tag, count(VISIBLE, tag)]));
   assert.deepEqual(counts, {
     beat: 90, static: 8, bands: 8, level: 2, sections: 3,
-    rig: 17, room: 39, bars: 21, ownColours: 8, energy: 11, rapid: 16,
+    rig: 17, room: 39, bars: 21, ownColours: 7, energy: 11, rapid: 16,
   });
   const reactive = VISIBLE.filter((row) => row.tags.some((tag) => REACTIVE_TAGS.has(tag)));
   assert.equal(reactive.length, 13);
@@ -207,7 +207,8 @@ test('a saved preset is tagged from its kind and params, so an edited copy gets 
   const strobe = { clock: 'beat', flashesPerSecond: 5, continueBetween: true };
   assert.deepEqual(of({ kind: 'strobe', palette: null, params: { ...strobe, selection: 'scatter', space: 'room' } }),
     { tags: ['beat', 'room', 'energy', 'rapid'], via: [] });
-  assert.deepEqual(of({ kind: 'strobe', params: strobe }), { tags: ['beat', 'rig', 'ownColours', 'energy', 'rapid'], via: [] }, 'the kind\'s own white palette');
+  assert.deepEqual(of({ kind: 'strobe', params: strobe }), { tags: ['beat', 'rig', 'energy', 'rapid'], via: [] }, 'no palette of its own: the look\'s');
+  assert.deepEqual(of({ kind: 'strobe', palette: ['#FFFFFF'], params: strobe }), { tags: ['beat', 'rig', 'ownColours', 'energy', 'rapid'], via: [] }, 'a palette of its own');
   assert.deepEqual(of({ kind: 'strobe', palette: null, params: { ...strobe, colourMode: 'white', clock: 'wall' } }),
     { tags: ['static', 'rig', 'ownColours', 'energy', 'rapid'], via: [] }, 'a wall-clock strobe follows its own rate, not the beat');
   // A saved copy of an older party preset keeps its own palette and its timeline; its trigger can make it react.

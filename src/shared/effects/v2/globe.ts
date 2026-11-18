@@ -153,12 +153,8 @@ function render(p: GlobeParams, s: GlobeState, room: Room, f: EffectFrame, out: 
       const gap = Math.acos(clamp(Math.cos((globe.lat[i] * Math.PI) / 2) * Math.cos(2 * Math.PI * (globe.lon[i] - turn)), -1, 1));
       marked = gap < spot ? 0.5 * (1 + Math.cos((Math.PI * gap) / spot)) : 0;
     }
+    // The spot lifts the ring to full in its own colour.
     paint(p, f, at, Math.max(ring * lobe, marked) * gate, out[i]);
-    // The spot is white light over the rings' colours.
-    if (marked > 0 && out[i].level > 0) {
-      const c = out[i].colour;
-      out[i].colour = { ...c, r: c.r + (255 - c.r) * marked, g: c.g + (255 - c.g) * marked, b: c.b + (255 - c.b) * marked };
-    }
   }
 }
 

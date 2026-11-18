@@ -4,12 +4,13 @@ import type { BackgroundField } from '../background.ts';
 // latest output; fractional frame time and pending changes belong to the instance.
 
 import { z } from 'zod';
+import { mixColours } from '../color.ts';
 import { huePulseLevel, tempoOf } from '../look-math.ts';
 import type { Colour } from '../../types/rig.ts';
 import type { Room } from '../room.ts';
 import type { AudioFrame } from './audio-frame.ts';
 import type { EffectKindDef, Seed } from './types.ts';
-import { paletteBinding } from './palette.ts';
+import { NO_PALETTE, paletteBinding } from './palette.ts';
 import type { PaletteAccess, PaletteBinding } from './palette.ts';
 import { strobeRests } from './registry.ts';
 
@@ -19,7 +20,6 @@ export type LdjEnvelope = { kind: 'instant' } | { kind: 'fade'; beats: number; b
   | { kind: 'matrix'; fadeIn: number; peak: number; fadeOut: number; baseline?: number; peakColour?: Colour };
 
 const BLACK: Colour = { r: 0, g: 0, b: 0, w: 0, a: 0, uv: 0 };
-const WHITE: Colour = { ...BLACK, r: 255, g: 255, b: 255 };
 const f32 = Math.fround;
 const level = (n: number) => f32(Number.isFinite(n) ? Math.max(0, Math.min(1, n)) : 0);
 const frameCount = (n: number) => Number.isFinite(n) ? Math.max(0, Math.floor(n / 22)) : 0;
@@ -106,8 +106,7 @@ function tickLamp(state: LampTransition): void {
   } else if (env.kind === 'blend') {
     const steps = Math.max(1, Math.floor((state.seconds ?? 0) * 22));
     const t = Math.min(1, (state.tick + 1) / steps);
-    const mix = (channel: keyof Colour) => Math.round((state.fromColour[channel] ?? 0) * (1 - t) + (state.toColour[channel] ?? 0) * t);
-    state.colour = { r: mix('r'), g: mix('g'), b: mix('b'), w: mix('w'), a: mix('a'), uv: mix('uv') };
+    state.colour = mixColours(state.fromColour, state.toColour, t);
   } else if (env.kind !== 'instant') {
     const duration = state.seconds ?? 0;
     toward(state, state.to, duration > 0 ? f32(1 / f32(f32(duration) * 22)) : 1);
@@ -320,7 +319,7 @@ export function wallClock(nowMs: number, periodMs: number, lastIter: number | nu
 }
 
 export function roles(palette: Colour[]): { p: Colour; s: Colour; at(i: number): Colour } {
-  const pal = palette.length ? palette : [WHITE];
+  const pal = palette.length ? palette : [NO_PALETTE];
   const at = (i: number) => pal[((Math.trunc(i) % pal.length) + pal.length) % pal.length];
   return { p: pal[1] ?? pal[0], s: pal[0], at };
 }
@@ -457,7 +456,7 @@ export function makeLdjKind(name: string, row: LdjRow): EffectKindDef<LdjParams,
         state.lamps.advance(Math.max(0, nowMs - cursorMs), frame.bpm);
         cursorMs = nowMs;
       };
-      const pal = frame.palette.length ? frame.palette : [WHITE];
+      const pal = frame.palette.length ? frame.palette : [NO_PALETTE];
       const { p, s } = roles(pal);
       const ctx: LdjCtx = {
         room, lamps: state.lamps, pal, p, s, n: room.n, seed: frame.seed, state,

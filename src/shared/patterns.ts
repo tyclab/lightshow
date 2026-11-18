@@ -521,7 +521,6 @@ Object.assign(PATTERN_FUNCS, {
 // Bound replay cost for sparse flashes, including direct preview seeks.
 const SCATTER_LOOKBACK = 32;
 const DEFAULT_STEP_MS = 500;
-const STROBE_WHITE: Colour = { r: 255, g: 255, b: 255, w: 255, a: 0, uv: 0 };
 
 function stepMsOf(ctx: PatternContext): number {
   return ctx.stepMs && ctx.stepMs > 0 ? ctx.stepMs : DEFAULT_STEP_MS;
@@ -677,13 +676,15 @@ Object.assign(PATTERN_FUNCS, {
     const rows = heightsOf(ctx);
     const inCore = rows ? (i: number) => Math.abs(rows(i) - 0.5) < 0.17 : (i: number) => fromMiddle(ctx, i) < 0.34;
     const glow = Math.round(aura * 0.3);
+    // The core strikes in the look's second colour over the first.
+    const core = pal[1 % pal.length];
     for (let i = 0; i < ctx.fixtureCount; i++) {
       if (inCore(i) && isHueSlot(ctx, i)) {
         // Keep the core's native glow beneath the softened strike.
         const level = huePulse(grid.phase * grid.slotMs, glow);
-        ctx.write(i, level > glow ? STROBE_WHITE : pal[0], level, 0);
+        ctx.write(i, level > glow ? core : pal[0], level, 0);
       } else if (inCore(i)) {
-        if (strike) ctx.write(i, STROBE_WHITE, 255, 0);
+        if (strike) ctx.write(i, core, 255, 0);
         else ctx.write(i, pal[0], glow, 0);
       } else {
         ctx.write(i, pal[0], aura, 0);

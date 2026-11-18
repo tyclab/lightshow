@@ -333,7 +333,7 @@ test("built-in palettes preserve app order and colours", () => {
     ['cyanBluePurple', 'ldj', ['#00BFFF', '#2A00FF', '#AA00FF']], ['bluePurplePink', 'ldj', ['#2A00FF', '#AA00FF', '#FF0095']],
     ['purplePinkRed', 'ldj', ['#AA00FF', '#FF0095', '#FF0000']], ['pinkRedOrange', 'ldj', ['#FF0095', '#FF0000', '#FF9900']],
     ['redYellowBlue', 'ldj', ['#FF0000', '#FFFF00', '#2A00FF']], ['yellowPurplePink', 'ldj', ['#FFFF00', '#AA00FF', '#FF0095']],
-    ['greenCyanPink', 'ldj', ['#00FF00', '#00BFFF', '#FF0095']], ['rocketPop', 'ldj', ['#D60210', '#F0F1FF', '#0814FF']],
+    ['greenCyanPink', 'ldj', ['#00FF00', '#00BFFF', '#FF0095']], ['rocketPop', 'ldj', ['#D60210', '#00BFFF', '#0814FF']],
     ['blueDream', 'ldj', ['#0B1066', '#0A108C', '#0E4EAD', '#0E7BC9']], ['strawberryDaiquiri', 'ldj', ['#8A0700', '#F75C78', '#F53659', '#F20A34']],
     ['screwdriver', 'ldj', ['#FC530A', '#FFA929', '#F7822F', '#FC6F0A']], ['goodVibes', 'ldj', ['#226987', '#FFF203', '#FFA600', '#3890B5']],
     ['electricSummer', 'ldj', ['#00DBBE', '#BEF711', '#F1FF33', '#FC235A']],

@@ -359,7 +359,8 @@ test('Effects lists every look once, A to Z, each with the tags its code states'
   assert.deepStrictEqual(badgesOf(rowOf(html, 'volume-gate')), ['Beat only'], 'no level reaches the classic patterns since the planned show went');
   assert.deepStrictEqual(badgesOf(rowOf(html, 'gradient')), ['Beat only', 'Bars & panels']);
   assert.deepStrictEqual(badgesOf(rowOf(html, 'chase')), ['Beat only']);
-  assert.deepStrictEqual(badgesOf(rowOf(html, 'energy.whiteStrobe')), ['Beat only', 'Whole rig', 'Own colours', 'Energy', 'Rapid ⚡']);
+  assert.deepStrictEqual(badgesOf(rowOf(html, 'energy.colorStrobe')), ['Beat only', 'Whole rig', 'Energy', 'Rapid ⚡']);
+  assert.equal(rowOf(html, 'energy.whiteStrobe'), null, 'the one Strobe is the one in the look\'s colour; White Strobe is its variant');
   assert.match(rowOf(html, 'v2.impact'), /title="Follows stems, drum hits or frequency bands\. Reacts in the reactive audio mode with live input"/);
   assert.match(rowOf(html, 'v2.stemsSpace'), /title="[^"]*the rig sends none, only a look(?:'|&#39;)s own build-up span sets the progress, and otherwise it runs on its clock/);
   // A rapid flash carries its warning, its ⚡ hidden from screen readers; a slow one does not.

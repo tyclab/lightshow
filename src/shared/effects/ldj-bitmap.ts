@@ -1,6 +1,7 @@
 import { ambient, gap } from '../background.ts';
 import { z } from 'zod';
 import type { Colour } from '../../types/rig.ts';
+import { meetsPale, mixColours } from '../color.ts';
 import type { ResolvedGradient } from '../palette-model.ts';
 import { tempoOf } from '../look-math.ts';
 import { MAX_LAMP_FLASH_HZ } from '../patterns.ts';
@@ -47,6 +48,8 @@ export function bitmapBlend(a: number, b: number, t: number): number {
   const [wa, wb] = blendWeights(t);
   if (wa <= 0) return b;
   if (wb <= 0) return a;
+  const from = unpack(a), to = unpack(b);
+  if (meetsPale(from, to)) return pack(mixColours(from, to, wb));
   const byte = (shift: number) => Math.trunc(((((a >>> shift) & 255) / 255) * wa + (((b >>> shift) & 255) / 255) * wb) * 255);
   const r = byte(16), g = byte(8), blue = byte(0);
   const low = Math.min(r, g, blue), high = Math.max(r, g, blue), delta = high - low;
