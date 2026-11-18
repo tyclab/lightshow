@@ -32,8 +32,8 @@ export function PlayingVoices({ stopAll = false }) {
     {voices.map((voice) => <span key={voice.id} class="playing-voice" data-voice={voice.id}>
       <span>{voice.label}</span>
       <span class="muted">{voice.mode} · {voice.targets === 'shared' ? 'whole rig' : `${voice.targets?.length || 0} fixtures`}</span>
-      <button type="button" class="btn sm" aria-label={`Stop ${voice.label}`} onClick={() => api(`/api/voices/${encodeURIComponent(voice.id)}`, { method: 'DELETE' })}>Stop</button>
+      <button type="button" class="btn sm" aria-label={`Stop ${voice.label}`} onClick={() => api(`api/voices/${encodeURIComponent(voice.id)}`, { method: 'DELETE' })}>Stop</button>
     </span>)}
-    {stopAll && <button type="button" class="btn sm" onClick={() => api('/api/voices', { method: 'DELETE' })}>Stop all voices</button>}
+    {stopAll && <button type="button" class="btn sm" onClick={() => api('api/voices', { method: 'DELETE' })}>Stop all voices</button>}
   </section>;
 }

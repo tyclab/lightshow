@@ -38,9 +38,9 @@ export function laneStack(lanes) {
 /** Show the edit at once; refused (400, 409), show the sequence the server kept. */
 export async function putSequence(request, next, setSeq) {
   setSeq(next);
-  const r = await request('/api/sequence', json('PUT', next));
+  const r = await request('api/sequence', json('PUT', next));
   if (!r.ok) {
-    const kept = await request('/api/sequence');
+    const kept = await request('api/sequence');
     if (kept.ok) setSeq(kept.sequence || null);
   }
   return r;
@@ -61,7 +61,7 @@ export function createSequenceSync(request, setSeq) {
   let latest = null;
   const get = () => {
     const n = ++loads;
-    return request('/api/sequence').then((r) => { if (n === loads && r && r.ok) setSeq(r.sequence || null); });
+    return request('api/sequence').then((r) => { if (n === loads && r && r.ok) setSeq(r.sequence || null); });
   };
   const mine = (r) => {
     if (!r || !r.ok || !r.status) return;
@@ -94,25 +94,25 @@ export function createSequenceSync(request, setSeq) {
     replay: async (direction, revision) => {
       await settleSequenceEdits();
       return edit(async (show) => {
-        const r = await request(`/api/sequence/${direction}`, json('POST', { revision: Math.max(revision ?? -Infinity, latest ?? -Infinity) }));
+        const r = await request(`api/sequence/${direction}`, json('POST', { revision: Math.max(revision ?? -Infinity, latest ?? -Infinity) }));
         if (r.ok) show(r.sequence);
         return r;
       }, setSeq);
     },
     commit: (next) => edit((show) => putSequence(request, next, show), setSeq),
     setup: (action, expected) => edit(async (show) => {
-      const r = await request('/api/sequence/setup', json('POST', { action, expected }));
+      const r = await request('api/sequence/setup', json('POST', { action, expected }));
       if (r.ok) show(r.sequence);
       return r;
     }, setSeq),
     load: (id) => edit(async (show) => {
-      const r = await request('/api/sequence', json('PUT', { id }));
+      const r = await request('api/sequence', json('PUT', { id }));
       if (r.ok) show(r.sequence);
       return r;
     }, setSeq),
     // Nothing loaded: a stopped sequence lets go of its picture and the look comes back.
     unload: () => edit(async (show) => {
-      const r = await request('/api/sequence', { method: 'DELETE' });
+      const r = await request('api/sequence', { method: 'DELETE' });
       if (r.ok) show(null);
       return r;
     }, setSeq),
@@ -445,7 +445,7 @@ function SequenceSettings({ seq, palettes, onChange }) {
 
 function SequenceNavigation({ seq, nameOf }) {
   const [seek, setSeek] = useState(0);
-  const move = (path) => api(`/api/sequence/${path}`, { method: 'POST' });
+  const move = (path) => api(`api/sequence/${path}`, { method: 'POST' });
   return <details>
     <summary>Move playhead</summary>
     <div class="seq-toolbar">
@@ -471,7 +471,7 @@ function WorkspaceNotice({ status }) {
     {status.recovered && <span>Recovered workspace. Playback is stopped; review any pending take before recording again. </span>}
     {status.error && <span>Workspace recovery: {status.error}. Your last saved file is preserved. </span>}
     {status.blocked && <button type="button" onClick={() => {
-      if (window.confirm('Archive the preserved workspace file and start recovery autosave from the current show?')) api('/api/sequence/workspace/start-fresh', { method: 'POST' });
+      if (window.confirm('Archive the preserved workspace file and start recovery autosave from the current show?')) api('api/sequence/workspace/start-fresh', { method: 'POST' });
     }}>Archive recovery file and use current show</button>}
   </div>;
 }
@@ -512,7 +512,7 @@ export function Sequence({ initial = {} }) {
   useEffect(() => {
     let live = true;
     if (!seq || !shelf.some((s) => s.id === seq.id)) { setSavedSequence(null); return; }
-    api(`/api/sequences/${encodeURIComponent(seq.id)}`).then((r) => {
+    api(`api/sequences/${encodeURIComponent(seq.id)}`).then((r) => {
       if (live && r.ok) setSavedSequence(r.sequence);
     });
     return () => { live = false; };
@@ -593,21 +593,21 @@ export function Sequence({ initial = {} }) {
   // The shelf follows by broadcast; a refused save, copy or delete shows as a toast.
   const save = async () => {
     const r = await (saved
-      ? api(`/api/sequences/${encodeURIComponent(seq.id)}`, json('PUT', seq))
-      : api('/api/sequences', json('POST', seq)));
+      ? api(`api/sequences/${encodeURIComponent(seq.id)}`, json('PUT', seq))
+      : api('api/sequences', json('POST', seq)));
     if (r.ok) setSavedSequence(r.sequence);
   };
   const duplicate = () => {
     const copy = { ...seq, name: `${seq.name} copy` };
     delete copy.id;
-    api('/api/sequences', json('POST', copy));
+    api('api/sequences', json('POST', copy));
   };
   const remove = (id) => {
     setAsking(null);
-    return api(`/api/sequences/${encodeURIComponent(id)}`, json('DELETE', {}));
+    return api(`api/sequences/${encodeURIComponent(id)}`, json('DELETE', {}));
   };
-  const startRecord = () => api('/api/sequence/record', json('POST', rec));
-  const stopRecord = (keep) => api('/api/sequence/record/stop', json('POST', { keep }))
+  const startRecord = () => api('api/sequence/record', json('POST', rec));
+  const stopRecord = (keep) => api('api/sequence/record/stop', json('POST', { keep }))
     .then((r) => setBeyond(r && r.ok ? beyondRangeNotice(r.beyondRange, seq.lanes, beatsPerBar) : null));
 
   return (
@@ -632,7 +632,7 @@ export function Sequence({ initial = {} }) {
       {shortMove && <p class="seq-beyond" role="status">{shortMove} <button type="button" class="btn sm" onClick={() => setShortMove(null)}>Dismiss</button></p>}
       <div class="seq-record" role="group" aria-label="Record">
         {recording && <span role="status">{status.recording.phase === 'review' ? 'Review take' : 'Recording'} · {status.recording.hits} hits</span>}
-        {recording && status.recording.phase !== 'review' && <button type="button" onClick={() => api('/api/sequence/record/review', { method: 'POST' })}>Review take</button>}
+        {recording && status.recording.phase !== 'review' && <button type="button" onClick={() => api('api/sequence/record/review', { method: 'POST' })}>Review take</button>}
         <select aria-label="Count-in beats" value={rec.countInBeats} onChange={(e) => setRec({ ...rec, countInBeats: Number(e.currentTarget.value) })}>
           {[0, 1, 2, 4, 8].map((n) => <option key={n} value={n}>{n ? `${n} beat count-in` : 'No count-in'}</option>)}
         </select>
@@ -649,7 +649,7 @@ export function Sequence({ initial = {} }) {
       </div>
 
       {editing && patterns.length > 0 && <SequencePatterns patterns={patterns} fixtures={fixtures} lanes={lanes} beat={beat}
-        onInsert={(id) => trackSequenceEdit(() => api('/api/sequence/insert-pattern', json('POST', { id, atBeat: Math.floor(beat) })))} />}
+        onInsert={(id) => trackSequenceEdit(() => api('api/sequence/insert-pattern', json('POST', { id, atBeat: Math.floor(beat) })))} />}
 
       <p class="seq-note">Shared lanes stack top to bottom: where clips overlap, the last shared lane wins. A track plays on its one fixture.</p>
       <div class="seq-arrangement">
@@ -778,7 +778,7 @@ export function Sequence({ initial = {} }) {
                   </select>
                   : <Field type="number" aria-label="Value" value={k.value} parse={parseNumber}
                     onCommit={(v) => setCommand({ ...k, value: k.type === 'brightness' ? Math.round(v) : v })} />}
-                <button type="button" onClick={async () => { await settleSequenceEdits(); await api(`/api/sequence/command/${encodeURIComponent(k.id)}/run`, { method: 'POST' }); }}>Run now</button>
+                <button type="button" onClick={async () => { await settleSequenceEdits(); await api(`api/sequence/command/${encodeURIComponent(k.id)}/run`, { method: 'POST' }); }}>Run now</button>
                 <button type="button" class="seq-mini" aria-label="Remove command" onClick={() => commit({ ...seq, commands: seq.commands.filter((x) => x.id !== k.id) })}>×</button>
               </div>
             ))}
@@ -794,7 +794,7 @@ export function Sequence({ initial = {} }) {
             <Field type="number" aria-label="To beat" value={capture.toBeat} parse={parseNumber} onCommit={(v) => setCapture({ ...capture, toBeat: v })} />
             <input type="text" aria-label="Pattern name" placeholder="Pattern name" value={capture.name} onInput={(e) => setCapture({ ...capture, name: e.currentTarget.value })} />
             <button type="button" disabled={!capture.name || capture.toBeat <= capture.fromBeat}
-              onClick={() => api('/api/sequence/capture-pattern', json('POST', { ...capture, laneIds: seq.lanes.map((l) => l.id) }))}>Capture</button>
+              onClick={() => api('api/sequence/capture-pattern', json('POST', { ...capture, laneIds: seq.lanes.map((l) => l.id) }))}>Capture</button>
           </div>
         </div>
       )}

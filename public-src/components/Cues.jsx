@@ -6,7 +6,7 @@ import { colorToCss, formatBpm } from '../utils.js';
 // draw a swatch. Recall, save and edit all go through the REST endpoints, which
 // broadcast the new list back; api() reports any refusal as a toast. Show recalls
 // and saves (ShowCues.jsx); Effect settings' Cues panel renames, overwrites and deletes (G7).
-const cueApi = (path, init) => api(`/api/cues${path}`, init);
+const cueApi = (path, init) => api(`api/cues${path}`, init);
 
 /** Saves the look on stage as a new cue; an empty name leaves the naming to the server. */
 export const saveCue = (name) => cueApi('', { method: 'POST', body: JSON.stringify({ name: name.trim() || undefined }) });

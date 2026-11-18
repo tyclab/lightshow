@@ -33,7 +33,7 @@ export async function settleSequenceEdits() {
 export async function confirmSequenceReplacement(request, confirm = (message) => window.confirm(message)) {
   // A blurred field may still be saving when the operator chooses another transport.
   await settleSequenceEdits();
-  const [loaded, shelf] = await Promise.all([request('/api/sequence'), request('/api/sequences')]);
+  const [loaded, shelf] = await Promise.all([request('api/sequence'), request('api/sequences')]);
   if (!loaded?.ok || !shelf?.ok) return false;
   const current = loaded.sequence;
   if (!current) return true;

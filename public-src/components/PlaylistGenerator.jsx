@@ -10,13 +10,13 @@ export function PlaylistGenerator({ onCreate }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   useEffect(() => { let active = true;
-    api('/api/sequence/generator').then((r) => { if (active && r.ok) setTemplates(r.templates); });
+    api('api/sequence/generator').then((r) => { if (active && r.ok) setTemplates(r.templates); });
     return () => { active = false; };
   }, []);
   const generate = async () => {
     setBusy(true); setError('');
     try {
-      const r = await api('/api/sequence/generator', { method: 'POST', body: JSON.stringify({ template, lengthBeats: Number(lengthBeats), includeRapid }) });
+      const r = await api('api/sequence/generator', { method: 'POST', body: JSON.stringify({ template, lengthBeats: Number(lengthBeats), includeRapid }) });
       if (r.ok) setPreview(r); else setError(r.error || 'Could not generate playlist');
     } finally { setBusy(false); }
   };

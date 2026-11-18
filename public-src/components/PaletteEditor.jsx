@@ -41,7 +41,7 @@ export function paletteName(palette) {
 /** Save colours as a palette of your own; the page's library takes it at once. */
 export async function savePalette(name, colours) {
   const body = Array.isArray(colours) ? { colours } : colours;
-  const res = await api('/api/palettes', { method: 'POST', body: JSON.stringify({ name, ...body }) });
+  const res = await api('api/palettes', { method: 'POST', body: JSON.stringify({ name, ...body }) });
   if (res.ok && res.palette) {
     patchLibrary((lib) => ({
       ...lib, palettes: { ...lib.palettes, user: [...lib.palettes.user.filter((p) => p.id !== res.palette.id), res.palette] },

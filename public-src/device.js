@@ -46,7 +46,7 @@ export function setUpDevice() {
 
   if ('serviceWorker' in navigator && window.isSecureContext) {
     window.addEventListener('load', () => {
-      navigator.serviceWorker.register('/sw.js').catch(() => { /* the page works without it */ });
+      navigator.serviceWorker.register('sw.js').catch(() => { /* the page works without it */ });
     });
   }
 

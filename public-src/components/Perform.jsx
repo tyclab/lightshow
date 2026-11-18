@@ -68,7 +68,7 @@ function SyncHealth() {
 }
 
 /** Every voice off, hidden and waiting ones too (DELETE /api/voices); the look and the patterns play on. */
-export const stopAllVoices = () => api('/api/voices', { method: 'DELETE' });
+export const stopAllVoices = () => api('api/voices', { method: 'DELETE' });
 
 /** Freeze holds the whole picture and Resume releases it: the global control's freeze and resume (POST /api/control). */
 export const toggleFreeze = () => takeControl(field('control').peek()?.frozen ? 'resume' : 'freeze');
@@ -130,7 +130,7 @@ export function Perform() {
         </div>
         <div class="perform-side">
           <AudioMeters />
-          <BpmCapture destination="global tempo" onApply={(bpm) => api('/api/set', { method: 'POST', body: JSON.stringify({ bpm }) })} />
+          <BpmCapture destination="global tempo" onApply={(bpm) => api('api/set', { method: 'POST', body: JSON.stringify({ bpm }) })} />
           <LiveAutomation />
         </div>
       </div>

@@ -79,7 +79,7 @@ export function HuePill({ bridges }) {
   if (held.length) {
     const what = held.map((b) => b.problem).join('\n');
     return (
-      <a class="stat-pill alert" href="/#rig/outputs" data-hue="held" title={what} aria-label={`Hue busy: ${what}`}>
+      <a class="stat-pill alert" href="./#rig/outputs" data-hue="held" title={what} aria-label={`Hue busy: ${what}`}>
         <span class="label">Hue</span>
         <span>busy</span>
       </a>
@@ -186,7 +186,7 @@ export function Header() {
   return (
     <header class="app-header">
       <h1>
-        <a class="site-wordmark" href="/#show" title={`${BRAND} ${PRODUCT}`}>
+        <a class="site-wordmark" href="./#show" title={`${BRAND} ${PRODUCT}`}>
           <svg class="site-mark" aria-hidden="true" focusable="false"><use href="#krake" stroke="url(#poles)" /></svg>
           <span class="sr-only">{BRAND} {PRODUCT}</span>
         </a>

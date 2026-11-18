@@ -9,7 +9,7 @@ function LiveAxis({ axis, active, blocked }) {
   const apply = async (settings) => {
     setBusy(true); setMessage('');
     try {
-      const r = await api('/api/performance/automation', { method: 'PUT', body: JSON.stringify({ axis, settings }) });
+      const r = await api('api/performance/automation', { method: 'PUT', body: JSON.stringify({ axis, settings }) });
       setMessage(r.ok ? settings ? 'Automation started.' : 'Automation stopped.' : r.error || 'Could not change automation');
     } finally { setBusy(false); }
   };

@@ -50,7 +50,7 @@ export function MidiMap() {
 
   useEffect(() => {
     let live = true;
-    fetch('/api/midi/map').then((r) => r.json()).then((res) => { if (live && res.ok) setData(res); }).catch(() => {});
+    fetch('api/midi/map').then((r) => r.json()).then((res) => { if (live && res.ok) setData(res); }).catch(() => {});
     const onMap = ({ map, customised }) => setData((d) => (d ? { ...d, map, customised } : d));
     const onLearn = (event) => setLearning(event.status === 'armed' ? 'Press or move the control you want…' : null);
     socket.on('midi-map', onMap);
@@ -80,7 +80,7 @@ export function MidiMap() {
     // is called off answers ok:false, and that is an outcome, not an error.
     let res;
     try {
-      res = await (await fetch('/api/midi/learn', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(binding) })).json();
+      res = await (await fetch('api/midi/learn', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(binding) })).json();
     } catch (err) {
       res = { ok: false, error: err.message };
     }
@@ -107,7 +107,7 @@ export function MidiMap() {
   };
 
   const putBinding = async (kind, number, binding) => {
-    const res = await post('/api/midi/map/binding', { kind, number, binding }, 'PUT');
+    const res = await post('api/midi/map/binding', { kind, number, binding }, 'PUT');
     if (res.ok) setData((d) => ({ ...d, map: res.map, customised: res.customised }));
     return res;
   };
@@ -120,22 +120,22 @@ export function MidiMap() {
     // A mapping built one control at a time is worth an undo, and the whole
     // map it replaces is right here.
     const before = data.map;
-    const res = await post('/api/midi/map/reset', {});
+    const res = await post('api/midi/map/reset', {});
     if (!res.ok) return;
     setData((d) => ({ ...d, map: res.map, customised: res.customised }));
     toast.push({
       message: 'Reset to the built-in X-Touch mapping',
-      action: { label: 'Undo', onClick: async () => { const back = await post('/api/midi/map', before, 'PUT'); if (back.ok) setData((d) => ({ ...d, map: back.map, customised: back.customised })); } },
+      action: { label: 'Undo', onClick: async () => { const back = await post('api/midi/map', before, 'PUT'); if (back.ok) setData((d) => ({ ...d, map: back.map, customised: back.customised })); } },
     });
   };
 
   const applyPreset = async () => {
     const before = data.map;
-    const res = await post(`/api/midi/map/preset/${encodeURIComponent(preset)}`, {});
+    const res = await post(`api/midi/map/preset/${encodeURIComponent(preset)}`, {});
     if (!res.ok) return;
     setData((d) => ({ ...d, map: res.map, customised: res.customised }));
     toast.push({ message: 'MIDI layout applied', action: { label: 'Undo', onClick: async () => {
-      const back = await post('/api/midi/map', before, 'PUT');
+      const back = await post('api/midi/map', before, 'PUT');
       if (back.ok) setData((d) => ({ ...d, map: back.map, customised: back.customised }));
     } } });
   };
@@ -170,7 +170,7 @@ export function MidiMap() {
       {learning && (
         <div class="midi-learn-banner" role="status">
           <span>{learning}</span>
-          <button type="button" class="btn sm" onClick={() => { post('/api/midi/learn/cancel', {}); setLearning(null); }}>Cancel</button>
+          <button type="button" class="btn sm" onClick={() => { post('api/midi/learn/cancel', {}); setLearning(null); }}>Cancel</button>
         </div>
       )}
       <div class="midi-add-row">

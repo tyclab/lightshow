@@ -28,13 +28,13 @@ function rangeOf(fix, profile) {
     return parts.length > 1 ? `${fix.address}–${last.last} on ${last.universe}` : `${fix.address}–${last.last}`;
 }
 async function removeFixture(fix) {
-    const res = await api(`/api/fixtures/${fix.id}`, { method: 'DELETE' });
+    const res = await api(`api/fixtures/${fix.id}`, { method: 'DELETE' });
     if (!res.ok)
         return;
     rigSelectionSig.value = rigSelectionSig.value.filter((id) => id !== fix.id);
     toast.push({
         message: `Removed "${res.fixture.label}"`,
-        action: { label: 'Undo', onClick: () => post('/api/fixtures/restore', { index: res.index, fixture: res.fixture }) },
+        action: { label: 'Undo', onClick: () => post('api/fixtures/restore', { index: res.index, fixture: res.fixture }) },
     });
 }
 export function AddFixtures({ onAdded }) {
@@ -57,7 +57,7 @@ export function AddFixtures({ onAdded }) {
             body.address = parseInt(address, 10);
         if (label.trim())
             body.label = label.trim();
-        const res = await post('/api/fixtures', body);
+        const res = await post('api/fixtures', body);
         setBusy(false);
         if (!res.ok)
             return;

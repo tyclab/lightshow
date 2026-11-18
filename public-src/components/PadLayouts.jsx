@@ -21,7 +21,7 @@ export function PadLayouts({ onClose }) {
   const [dirty, setDirty] = useState(false);
   const requests = useRef(0);
   const refresh = async () => {
-    const result = await api('/api/show-setup');
+    const result = await api('api/show-setup');
     if (result.ok) setSetup(result);
     else setError(result.error || 'Could not read the current setup');
     return result;
@@ -35,7 +35,7 @@ export function PadLayouts({ onClose }) {
     setError(''); setNotice(''); setDeleting(false); setAllowMissing(false);
     if (!next) { setId(''); setName(''); setPreview(null); setDirty(false); return; }
     setBusy(true);
-    const result = await api(`/api/pad-layouts/${encodeURIComponent(next)}/preview`, json('POST', { mapping }));
+    const result = await api(`api/pad-layouts/${encodeURIComponent(next)}/preview`, json('POST', { mapping }));
     if (generation !== requests.current) return;
     setBusy(false);
     if (!result.ok) { setError(result.error || 'Could not open layout'); return; }
@@ -53,22 +53,22 @@ export function PadLayouts({ onClose }) {
     return result;
   };
   const save = async (copy) => {
-    const result = await mutate(copy || !id ? '/api/pad-layouts' : `/api/pad-layouts/${encodeURIComponent(id)}`,
+    const result = await mutate(copy || !id ? 'api/pad-layouts' : `api/pad-layouts/${encodeURIComponent(id)}`,
       copy || !id ? 'POST' : 'PUT', { name: name.trim(), expected: setup.expected, ...(!copy && id ? { capture: true } : {}) }, 'Current pads saved as a reusable layout.');
     if (result) { setId(result.layout.id); setName(result.layout.name); setPreview(null); }
   };
   const apply = async () => {
-    const result = await mutate(`/api/pad-layouts/${encodeURIComponent(id)}/apply`, 'POST', {
+    const result = await mutate(`api/pad-layouts/${encodeURIComponent(id)}/apply`, 'POST', {
       expected: setup.expected, mapping: preview.preview.mapping, allowMissingContent: allowMissing,
     }, 'Pad layout applied.');
     if (result) { setPreview(null); setAllowMissing(false); }
   };
   const rename = async () => {
-    const result = await mutate(`/api/pad-layouts/${encodeURIComponent(id)}`, 'PUT', { name: name.trim(), expected: setup.expected }, 'Layout renamed.');
+    const result = await mutate(`api/pad-layouts/${encodeURIComponent(id)}`, 'PUT', { name: name.trim(), expected: setup.expected }, 'Layout renamed.');
     if (result) setPreview(null);
   };
   const remove = async () => {
-    const result = await mutate(`/api/pad-layouts/${encodeURIComponent(id)}`, 'DELETE', { expected: setup.expected }, 'Layout deleted; current pad assignments are retained.');
+    const result = await mutate(`api/pad-layouts/${encodeURIComponent(id)}`, 'DELETE', { expected: setup.expected }, 'Layout deleted; current pad assignments are retained.');
     if (result) { setId(''); setName(''); setPreview(null); }
   };
   const active = setup?.layouts.find((layout) => layout.id === setup.performance.activePadLayoutId);

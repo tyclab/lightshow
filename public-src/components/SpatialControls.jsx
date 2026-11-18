@@ -76,7 +76,7 @@ export function SpatialControls({ spec, setParam, advancedControls }) {
   const [anchors, setAnchors] = useState([]);
   useEffect(() => {
     let current = true;
-    api('/api/stage/room').then((result) => { if (current && result.ok) setAnchors((result.room?.anchors || []).map((anchor) => anchor.id)); });
+    api('api/stage/room').then((result) => { if (current && result.ok) setAnchors((result.room?.anchors || []).map((anchor) => anchor.id)); });
     return () => { current = false; };
   }, []);
   const schema = useMemo(() => {

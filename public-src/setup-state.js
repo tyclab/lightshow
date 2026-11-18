@@ -12,7 +12,7 @@ let loading = null;
 
 export function loadSettings() {
   if (loading) return loading;
-  loading = fetch('/api/settings')
+  loading = fetch('api/settings')
     .then((res) => res.json())
     .then((data) => {
       if (!data.ok) throw new Error(data.error || 'The server did not send its settings');
@@ -29,7 +29,7 @@ export function loadSettings() {
 }
 
 export async function saveSettings(patch) {
-  const res = await api('/api/settings', { method: 'PUT', body: JSON.stringify(patch) });
+  const res = await api('api/settings', { method: 'PUT', body: JSON.stringify(patch) });
   if (res.ok || res.saved) {
     settingsSig.value = { ...(settingsSig.value || {}), ...res };
   }
@@ -62,8 +62,8 @@ function lister(path, pick, empty) {
   return { sig, refresh, use };
 }
 
-export const networkInterfaces = lister('/api/network/interfaces', (d) => d.interfaces || [], []);
-export const liveDevices = lister('/api/live/devices', (d) => ({
+export const networkInterfaces = lister('api/network/interfaces', (d) => d.interfaces || [], []);
+export const liveDevices = lister('api/live/devices', (d) => ({
   outputs: d.outputs || [], inputs: d.inputs || [], outputIds: d.outputIds || [], inputIds: d.inputIds || [],
 }), { outputs: [], inputs: [], outputIds: [], inputIds: [] });
 

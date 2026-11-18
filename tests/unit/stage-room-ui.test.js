@@ -193,7 +193,7 @@ test('room replacement uses the loaded revision without patch writes', async (t)
     return { ok: true, json: async () => ({ room: model, revision: 'next' }) };
   });
   await ui.replaceStageRoom(model, 'current');
-  assert.deepEqual(calls.map(({ url, options }) => [url, options.method, options.headers['If-Match']]), [['/api/stage/room', 'PUT', 'current']]);
+  assert.deepEqual(calls.map(({ url, options }) => [url, options.method, options.headers['If-Match']]), [['api/stage/room', 'PUT', 'current']]);
 });
 
 test('clearing a room also requires the loaded revision', async (t) => {

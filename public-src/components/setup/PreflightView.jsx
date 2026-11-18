@@ -19,7 +19,7 @@ const WORD = { ok: 'Passed', warn: 'Warning', fail: 'Problem', info: 'Note' };
 
 export async function runPreflight() {
   preflightSig.value = { ...preflightSig.value, running: true, error: null };
-  const res = await post('/api/preflight', {});
+  const res = await post('api/preflight', {});
   preflightSig.value = res.ok
     ? { running: false, report: res.report, error: null, at: new Date() }
     : { running: false, report: null, error: res.error || 'The check failed', at: null };

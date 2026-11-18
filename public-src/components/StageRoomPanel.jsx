@@ -4,7 +4,7 @@ import { api } from '../state.js';
 import { loadRoom, rememberRoom } from '../stage-room.js';
 import { bindingSources } from '../stage3d/world.js';
 
-export const replaceStageRoom = (room, revision) => api('/api/stage/room', {
+export const replaceStageRoom = (room, revision) => api('api/stage/room', {
   method: room === null ? 'DELETE' : 'PUT',
   headers: { 'If-Match': revision },
   ...(room === null ? {} : { body: JSON.stringify(room) }),

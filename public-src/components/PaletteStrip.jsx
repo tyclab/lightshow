@@ -47,12 +47,12 @@ export function PaletteStrip({ initialTarget = 'override', target: selectedTarge
   const reason = !override && s.paletteOverride?.length ? 'Global override is masking the main effect’s palette. Switch to Global override and choose Off to see this colour choice.' : null;
   const current = colour.current;
   const choose = async (p) => {
-    if (override) await api('/api/palette-override', { method: 'PUT', body: JSON.stringify(overrideBody(p)) });
+    if (override) await api('api/palette-override', { method: 'PUT', body: JSON.stringify(overrideBody(p)) });
     else send(mainPalettePatch(colour, p, size));
   };
   const apply = async () => {
     if (draftTarget !== editKey) return;
-    const result = await api('/api/set', { method: 'POST', body: JSON.stringify(colour.patch(draft)) });
+    const result = await api('api/set', { method: 'POST', body: JSON.stringify(colour.patch(draft)) });
     if (result.ok) { setDraft(null); setError(''); } else setError(result.error || 'Could not apply palette');
   };
   return <section class="palette-strip" aria-label={override ? 'Palette override' : 'Main effect palette'}>
@@ -84,7 +84,7 @@ export function PaletteStrip({ initialTarget = 'override', target: selectedTarge
     {reason && <p class="muted" role="status">{reason}</p>}
     <div class="perform-override">
       {override && <button type="button" class={`override-pad${active === 'off' ? ' active' : ''}`} aria-pressed={active === 'off'} data-override="off"
-        onClick={() => api('/api/palette-override', { method: 'DELETE' })}><span class="override-name">Off</span></button>}
+        onClick={() => api('api/palette-override', { method: 'DELETE' })}><span class="override-name">Off</span></button>}
       {all.map((p) => <button key={p.id} type="button" class={`override-pad${active === p.id ? ' active' : ''}`}
         aria-pressed={active === p.id} data-override={override ? p.id : undefined} data-palette={p.id} onClick={() => choose(p)}>
         <span class="override-swatches" aria-hidden="true">{(override && active === p.id ? s.paletteOverride : p.colours).map((c, i) =>

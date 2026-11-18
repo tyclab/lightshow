@@ -8,7 +8,7 @@ export const PICTURE_SOURCES = [
   { id: 'squid', label: 'Squid', short: 'Squid' },
 ];
 
-export const chooseSource = (source) => api('/api/picture/source', { method: 'POST', body: JSON.stringify({ source }) });
+export const chooseSource = (source) => api('api/picture/source', { method: 'POST', body: JSON.stringify({ source }) });
 
 /** One line on what the chosen source paints the room with while it is met. */
 export function pictureHint(source, input) {

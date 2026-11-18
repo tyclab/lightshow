@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { clipAuditionTargets, confirmSequenceReplacement, sequenceChanged, trackSequenceEdit } from '../../public-src/sequence-workspace.js';
 
 const sequence = { id: 'set', name: 'Set', clips: [] };
-const request = (current, saved, status = {}) => async (path) => path === '/api/sequence'
+const request = (current, saved, status = {}) => async (path) => path === 'api/sequence'
   ? { ok: true, sequence: current, status } : { ok: true, sequences: saved };
 
 test('saved content compares independently of object key order', () => {

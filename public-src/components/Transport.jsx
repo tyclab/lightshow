@@ -24,7 +24,7 @@ export function laneRows(status, sequence, nameOf = (id) => id) {
 const GLYPHS = { play: '▶', pause: '❚❚', stop: '■', prev: '⏮', next: '⏭', shuffle: '⤨', loop: '↻' };
 
 export async function runTransport(requests) {
-  if (requests.some((r) => r.path === '/api/sequence' && ['PUT', 'DELETE'].includes(r.method))
+  if (requests.some((r) => r.path === 'api/sequence' && ['PUT', 'DELETE'].includes(r.method))
     && !await confirmSequenceReplacement(api)) return false;
   for (const request of requests) {
     const result = await api(request.path, { method: request.method,
@@ -104,7 +104,7 @@ export function Transport({ initial, compact = false, prefer = null } = {}) {
     if (initial?.sequence || compact || driver !== 'sequence') return;
     if (!loadedId) { setSequence(null); return; }
     let live = true;
-    api('/api/sequence').then((res) => { if (live && res.ok) setSequence(res.sequence || null); });
+    api('api/sequence').then((res) => { if (live && res.ok) setSequence(res.sequence || null); });
     return () => { live = false; };
   }, [loadedId, revision, driver]);
 

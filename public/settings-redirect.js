@@ -9,5 +9,5 @@
     server: 'settings/system',
   };
   const tab = window.location.hash.slice(1);
-  window.location.replace(`/${window.location.search}#${moved[tab] || 'rig'}`);
+  window.location.replace(`./${window.location.search}#${moved[tab] || 'rig'}`);
 })();

@@ -11,7 +11,7 @@ test('the page names its manifest and icons, and they are there', async ({ page,
   const manifest = await (await request.get(href)).json();
   expect(manifest.display).toBe('standalone');
   for (const icon of manifest.icons) expect((await request.get(icon.src)).ok(), icon.src).toBe(true);
-  expect(manifest.shortcuts.map((s) => s.url)).toContain('/#perform');
+  expect(manifest.shortcuts.map((s) => s.url)).toContain('./#perform');
 });
 
 test('on a secure page the service worker takes over, and keeps out of the API', async ({ page, request }) => {
@@ -19,19 +19,19 @@ test('on a secure page the service worker takes over, and keeps out of the API',
   const scope = await page.evaluate(async () => (await navigator.serviceWorker.ready).scope);
   expect(scope).toMatch(/\/$/);
   const text = await (await request.get('/sw.js')).text();
-  expect(text).toContain("url.pathname.startsWith('/api/')");
+  expect(text).toContain("path.startsWith('api/')");
 });
 
 test('the shell the service worker keeps has the page\'s chunks, three.js with them', async ({ page, request }) => {
   await open(page, 'effects');
   await page.evaluate(async () => { await navigator.serviceWorker.ready; });
   const listed = await (await request.get('/chunks/index.json')).json();
-  expect(listed.some((p) => /^\/chunks\/scene-/.test(p))).toBe(true);
+  expect(listed.some((p) => /^chunks\/scene-/.test(p))).toBe(true);
   await expect.poll(() => page.evaluate(async () => {
     const name = (await caches.keys()).find((k) => k.startsWith('lightshow-shell'));
     const cache = name ? await caches.open(name) : null;
     return cache ? (await cache.keys()).map((r) => new URL(r.url).pathname) : [];
-  })).toEqual(expect.arrayContaining(['/app.bundle.js', ...listed]));
+  })).toEqual(expect.arrayContaining(['/app.bundle.js', ...listed.map((p) => `/${p}`)]));
 });
 
 test('a theme picked is the theme after a reload, set before the page draws', async ({ page }) => {

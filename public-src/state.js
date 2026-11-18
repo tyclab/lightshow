@@ -43,7 +43,9 @@ const auth = (typeof window !== 'undefined' && window.LightshowAuth) || {
   token: '', connected: () => {}, requireToken: () => {}, onToken: () => {},
 };
 
+// Beside the page, like every request it makes, so a proxy may serve it under a path prefix.
 export const socket = io({
+  path: new URL('socket.io', globalThis.document?.baseURI || 'http://localhost/').pathname,
   transports: ['websocket', 'polling'],
   auth: { token: auth.token || '', protocol: 2 },
 });
@@ -242,7 +244,7 @@ export const librarySig = signal({ status: 'idle', families: [], builtin: [], us
 let libraryLoads = 0;
 export async function loadLibrary() {
   const load = ++libraryLoads;
-  const res = await api('/api/effects');
+  const res = await api('api/effects');
   // Two loads in flight answer in either order; only the latest may land.
   if (load !== libraryLoads) return res;
   librarySig.value = res.ok
@@ -296,5 +298,5 @@ export function emitFixture(payload) {
   return false;
 }
 export function emitTap() { return emitLive('tap'); }
-export function followMusic() { return api('/api/tempo/auto', { method: 'POST' }); }
+export function followMusic() { return api('api/tempo/auto', { method: 'POST' }); }
 

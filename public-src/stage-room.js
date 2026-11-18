@@ -14,7 +14,7 @@ export function rememberRoom(result) {
 /** `{ ok, room, revision }`: the kept object while unchanged; a save or load that landed meanwhile wins. */
 export async function loadRoom() {
   const held = known;
-  const result = await api('/api/stage/room', held ? { headers: { 'If-None-Match': `"${held.revision}"` } } : undefined);
+  const result = await api('api/stage/room', held ? { headers: { 'If-None-Match': `"${held.revision}"` } } : undefined);
   if (!result.ok) return result;
   if (known !== held) return { ok: true, ...known };
   if (held && (result.notModified || result.revision === held.revision)) return { ok: true, ...held };

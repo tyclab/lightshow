@@ -85,6 +85,22 @@ An authenticated reverse proxy may overwrite `X-Lightshow-Token` on HTTP and
 Socket.IO traffic. Restrict the backend to the proxy and authorised
 integrations; forwarded usernames alone do not authenticate a client.
 
+### Under a path prefix
+
+The page addresses its server relative to its own address: its files, `api/`,
+`socket.io/`, the service worker and the manifest. A reverse proxy can therefore
+publish the app under a path such as `https://example.org/tools/lightshow/`,
+with no setting here, when it:
+
+- strips the prefix before forwarding, since the server always answers at its root;
+- passes WebSocket upgrades for `socket.io/`;
+- opens the app with the trailing slash (`/tools/lightshow/`, not `/tools/lightshow`);
+- sends a `Host` the server answers to (its own address or the **Public URL**'s
+  host) and either no `Origin` or one that matches that `Host`.
+
+The service worker's scope is then the prefix, so it never answers for the page
+that frames the app. Served at the root, every address is the same as before.
+
 ### Upgrade and rollback
 
 Stop the service and copy the **entire config directory** before upgrading:
@@ -2058,7 +2074,9 @@ live key of `/api/state`, without its catalogues or the rig's `fixtures` and
 `profiles`); the server
 requires no Home Assistant-specific transport. Supply `X-Lightshow-Token` and
 `Content-Type: application/json` for JSON bodies. Keep GET polling separate
-from POST/PUT/DELETE actions.
+from POST/PUT/DELETE actions. The page itself can sit in Home Assistant's
+sidebar behind its login through a path-stripping ingress proxy that sends the
+token header ([Under a path prefix](#under-a-path-prefix)).
 
 | Integration function | API/state |
 |----------------------|-----------|

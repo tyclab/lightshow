@@ -49,7 +49,7 @@ export function AudioReactiveColours() {
   const apply = async (colours) => {
     setBusy(true); setError('');
     try {
-      const r = await api('/api/palette-override', { method: 'PUT', body: JSON.stringify({ ...body, colours }) });
+      const r = await api('api/palette-override', { method: 'PUT', body: JSON.stringify({ ...body, colours }) });
       if (!r.ok) setError(r.error || 'Could not change colours');
     } finally { setBusy(false); }
   };
