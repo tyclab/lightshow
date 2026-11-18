@@ -30,10 +30,13 @@ import { acknowledgeFlashes } from '../helpers/acknowledged.js';
 // 6. Aligned software strobes change 41/2,908 frames only at Hue offsets 48–57; every PAR byte stays unchanged.
 // 8. The engine takes no drum pulse since the planned track show went, so the `hit` scene runs without one. The
 //    previous engine, given no pulse for that scene, renders these same two digests.
+// 9. No white unless picked: Amber's blend into Blue went pale (its amber die over the green the OkLCh path passes)
+//    and now goes round as the lamp shows the light (color.ts colourMixer). With that rule switched off the three
+//    digests are the previous ones.
 const GOLDEN = {
-  engine: 'f441f95975b77acd35c9b32b6193ef7e525a75ac587d0cef7becb097fb224b45',
-  pars: '8c32e3525aad245b0c1a8f6bdb01d19f1f343f0aa3f9877b91923a5ea090cf71',
-  preview: '65bd25548046cbe773dba9b0fee279aa99c3fc922498d7cfb965724057119178',
+  engine: 'b05000f018ece71657609aba4b32572df9d9aa308e9a6ed72f7f96cc54de394a',
+  pars: '83555aaac870000329addc42cb117d776cc638537000e54d71c98241167cf5df',
+  preview: 'f9fbd2775a3b613a2ec298d80b9b0fecc9e3d54e30ae99a4019981dc22d4cdf9',
 };
 
 /** A seeded stand-in for Math.random, so twinkle rolls the same dice every run. */

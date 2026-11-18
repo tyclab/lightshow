@@ -46,11 +46,13 @@ function run(patch, times = TIMES) {
 // All three moved once when Visualizer Flow and Drift left the catalogue: main's digests without those four rows.
 // Moved once more by G5: Stems in Space with neither stems nor reactive bands draws its no-stems dark. Without its two
 // rows the three digests are equal on main (cd0ad5e3) and on G5.
-const BEFORE_THE_FILL = '3a14b4008649f60cadf7cab5a1d40a16aadc6c1e7f23047d5476cf8023813aef';
+// All three moved again with no white unless picked: the effects' own white and pale colours, and the mixes that met in
+// pale (each of the two moves them; the cap on a composite over a gap does not).
+const BEFORE_THE_FILL = 'c38d6604702fa49aed39d4b5dd980562d3c155957c409d137214460d8fa16e68';
 // Taken on this change, the first time Glow and Full render; any later move needs an explained change. Moved once by #137:
 // a rapid v2 spec publishes no gap, so Scatter Strobe and Frequency Burst keep their rests and soft gaps as authored.
-const GLOW = '0f3b770c9c545a47c6f61bf15b0ba816bd435474df41ccc3fde6c9b1c6dc31a1';
-const FULL = '971bf75ce45b4937e7a300762ccf0aa135fd9abc609c1f5488f7bd87b605f153';
+const GLOW = '660301c889e34c0c873ff8d53d63b46384576266a30ee131992faf53166b0e10';
+const FULL = '12562209fffa1f768dc7da235262f35f6730aa3f06bdc6ddfc9705e17c4b35d2';
 
 test('with the fill off, the default, every pattern and catalogue row renders and previews byte for byte as before the fill existed', () => {
   assert.equal(backgroundDigest([DEFAULT_BACKGROUND, follow(undefined, 0.6), follow('off', 0.6)]), BEFORE_THE_FILL);
