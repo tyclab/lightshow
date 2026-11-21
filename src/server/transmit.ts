@@ -170,6 +170,9 @@ function createTransmitter({ wires = DEFAULT_WIRES, now = () => performance.now(
   const ddpFrames = new Map<number, Buffer>();
   let ddpSent = new Map<string, { route: DdpRoute; bytes: number }>();
   const ddpSequence = new Map<string, number>();
+  // DDP sections that took a frame since they were last darkened. A device that has taken none (its name does not
+  // resolve) shows none of the show's light: it holds no frame back and is owed no darkness.
+  const ddpLit = new Set<string>();
   const openrgbFrames = new Map<number, Buffer>();
   let openrgbSent = new Map<string, OpenRgbRoute>();
   // OpenRGB devices that took a frame since they were last darkened: the ones whose darkness disarm and removal
@@ -390,7 +393,7 @@ function createTransmitter({ wires = DEFAULT_WIRES, now = () => performance.now(
       lastDiscovery = -Infinity;
     }
     for (const [key, gone] of ddpSent) {
-      if (sendToWled(gone.route, new Uint8Array(gone.bytes), byteRuns(gone.route, 0))) ddpSent.delete(key);
+      if (darkenWled(key, gone)) ddpSent.delete(key);
     }
     const pendingRgb = new Map<string, OpenRgbRoute>();
     for (const [key, gone] of openrgbSent) {
@@ -493,10 +496,11 @@ function createTransmitter({ wires = DEFAULT_WIRES, now = () => performance.now(
         runs.push(...byteRuns(route, at, width));
         at += leds.length / nativeWidth * width;
       }
-      sendToWled({ ...group[0], rgbw }, data, runs);
+      if (sendToWled({ ...group[0], rgbw }, data, runs)) for (const route of group) ddpLit.add(routeKey(route));
+      else if (group.some((route) => ddpLit.has(routeKey(route)))) frameReady = false;
     }
     for (const [key, gone] of ddpSent) {
-      if (!now.has(key) && !sendToWled(gone.route, new Uint8Array(gone.bytes), byteRuns(gone.route, 0))) now.set(key, gone);
+      if (!now.has(key) && !darkenWled(key, gone)) now.set(key, gone);
     }
     ddpSent = now;
     ddpFrames.clear();
@@ -560,9 +564,17 @@ function createTransmitter({ wires = DEFAULT_WIRES, now = () => performance.now(
     const sequence = (ddpSequence.get(key) || 0) % 15 + 1;
     ddpSequence.set(key, sequence);
     const whole = runs.length === 1 && runs[0].at === 0 && runs[0].from === 0 && runs[0].bytes === data.length;
-    const ok = wires.ddp({ host: route.host, port: route.port, sequence, rgbw: route.rgbw, ...(whole ? {} : { runs }) }, data);
-    if (!ok) frameReady = false;
-    return ok;
+    return wires.ddp({ host: route.host, port: route.port, sequence, rgbw: route.rgbw, ...(whole ? {} : { runs }) }, data);
+  }
+
+  // True once the section owes no darkness: it took the dark frame, or it never took a lit one.
+  function darkenWled(key: string, gone: { route: DdpRoute; bytes: number }): boolean {
+    if (!sendToWled(gone.route, new Uint8Array(gone.bytes), byteRuns(gone.route, 0)) && ddpLit.has(key)) {
+      frameReady = false;
+      return false;
+    }
+    ddpLit.delete(key);
+    return true;
   }
 
   function seed(destinations: readonly ArtnetDestination[]): void {

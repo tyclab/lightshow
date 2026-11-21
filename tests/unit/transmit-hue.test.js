@@ -98,6 +98,27 @@ test('an OpenRGB device that drops out after it was lit does not stop Hue', () =
   assert.deepEqual(hue(log).filter((p) => p.bridge === 'b1').map((p) => p.channels), [[[0, 10]], [[0, 60]]]);
 });
 
+// A DDP device patched by name takes no frame until that name resolves; a board that was renamed never does.
+test('a DDP device that has taken no frame does not stop Hue, and Disarm waits for nothing of it', () => {
+  let resolved = false;
+  const { log, wires } = fakeWires();
+  wires.ddp = () => resolved;
+  const strip = { ddp: [{ host: 'strip.example', port: 4048, rgbw: false, parts: [{ universe: 0, from: 0, bytes: 3 }], runs: [{ at: 0, count: 1 }] }] };
+  const tx = createTransmitter({ wires });
+  assert.equal(frame(tx, outputs(strip), lit(10)), true, 'the frame it cannot take is applied for the others');
+  assert.equal(frame(tx, outputs(strip), lit(60)), true);
+  assert.deepEqual(hue(log).filter((p) => p.bridge === 'b1').map((p) => p.channels), [[[0, 10]], [[0, 60]]]);
+  assert.equal(tx.endFrame({ ...outputs(strip), armed: false }), true, 'it showed none of the light: no darkness is owed');
+
+  resolved = true;
+  assert.equal(frame(tx, outputs(strip), lit(70)), true, 'the name resolves: the device is lit');
+  resolved = false;
+  assert.equal(frame(tx, outputs(strip), lit(80)), false, 'a lit device that misses a frame still holds it back');
+  assert.equal(tx.endFrame({ ...outputs(strip), armed: false }), false, 'and Disarm waits for its darkness');
+  resolved = true;
+  assert.equal(tx.endFrame({ ...outputs(strip), armed: false }), true);
+});
+
 test('a bridge with no lamp left is still handed its empty frame, so it can release its area', () => {
   const { log, wires } = fakeWires();
   const tx = createTransmitter({ wires });

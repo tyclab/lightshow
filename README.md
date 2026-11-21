@@ -988,6 +988,13 @@ Removing a fixture or disarming sends darkness and stops updates. WLED resumes
 its own effects after its configured realtime timeout. Set its fallback preset
 accordingly. Preflight checks reachability and changed LED counts.
 
+A device patched by hostname takes frames once the name resolves. The name is
+looked up again every 60 s, and every 5 s while it has no address; a lookup that
+fails keeps the last address. A device that has taken no frame yet is passed
+over and holds back neither control acknowledgements nor Hue, and disarm and
+removal wait for nothing of it; one that has shown light still holds back a
+frame it misses.
+
 DDP has no reply, so a board that drops the stream is silent. While the outputs
 are armed, the server reads each patched WLED's `/json/si` every 10 s (3 s
 timeout, one request per board at a time, backing off to 60 s while it does not
