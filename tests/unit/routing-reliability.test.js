@@ -137,7 +137,8 @@ const alternateOutputs = {
 
 for (const [wire, output] of Object.entries(alternateOutputs)) {
   // OpenRGB's device is a machine that may be away: while armed its refusal is passed over, so the others play on.
-  const withholds = wire !== 'openrgb';
+  // So is a DDP device that has taken no frame yet: one patched by a name that does not resolve.
+  const withholds = wire === 'sacn';
   test(`${wire}: local enqueue refusal ${withholds ? 'withholds application' : 'is passed over while armed'}, and failed Disarm darkness is retried`, () => {
     const { wires } = recorder();
     let refuse = true;
@@ -195,6 +196,29 @@ for (const [wire, output] of Object.entries(alternateOutputs)) {
     assert.deepEqual(sent, [{ host: '192.0.2.30', dark: true }]);
   });
 }
+
+test('ddp: a removed device that took no frame is owed no darkness; its sections on a lit device are', () => {
+  const { wires } = recorder();
+  let refuse = true;
+  wires.ddp = () => !refuse;
+  const tx = createTransmitter({ wires });
+  const two = { ddp: [0, 1].map(at => ({ host: 'strip.example', port: 4048, rgbw: false, parts: [{ universe: 0, from: at * 3, bytes: 3 }], runs: [{ at, count: 1 }] })) };
+  const armed = config('192.0.2.10', { artnet: { enabled: false }, ...two });
+  const off = config('192.0.2.10', { artnet: { enabled: false } });
+  tx.send(0, Buffer.alloc(512, 100), armed);
+  assert.equal(tx.endFrame(armed), true);
+  assert.equal(tx.endFrame(off), true, 'removed before its name resolved: nothing to retire');
+
+  refuse = false;
+  tx.send(0, Buffer.alloc(512, 100), armed);
+  assert.equal(tx.endFrame(armed), true);
+  refuse = true;
+  assert.equal(tx.endFrame(off), false, 'both sections of the lit device wait for their darkness');
+  refuse = false;
+  assert.equal(tx.endFrame(off), true);
+  refuse = true;
+  assert.equal(tx.endFrame(off), true, 'darkened: nothing is owed any more');
+});
 
 test('new mapping revision drops partially staged multi-universe DDP pixels', () => {
   const { wires } = recorder();
