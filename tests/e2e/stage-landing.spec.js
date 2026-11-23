@@ -1,5 +1,5 @@
-// A pool is drawn by the lux its light throws, and a beam's cone is as strong as its pool: rendered by the stage's
-// own scene (public-src/stage3d/scene.js) in an empty room, read back by pixel.
+// A pool is drawn by the lux its light throws, and a beam's cone is as strong as the light its pool takes: rendered by
+// the stage's own scene (public-src/stage3d/scene.js) in an empty room with a white floor, read back by pixel.
 
 import { fileURLToPath } from 'node:url';
 import { test, expect } from '@playwright/test';
@@ -50,11 +50,14 @@ const script = buildSync({
   bundle: true, format: 'iife', write: false, logLevel: 'silent',
 }).outputFiles[0].text;
 
-const ROOM = { version: 1, name: 'Empty', bounds: { width: 8, depth: 8, height: 2.6 }, rooms: [], objects: [], bindings: [] };
+// White floors and walls reflect the light whole, so what is read is the light that lands.
+const white = (id, polygon) => ({ id, label: id, polygon, color: '#ffffff' });
+const ROOM = { version: 1, name: 'Empty', bounds: { width: 8, depth: 8, height: 2.6 }, rooms: [white('all', [[-4, -4], [4, -4], [4, 4], [-4, 4]])], objects: [], bindings: [] };
 const GREY = { r: 128, g: 128, b: 128 };
-// What a pool or a cone added to a pixel, as linear light: the stage adds its light in the display's own encoding.
+// What a pool or a cone added to a pixel, as linear light: the stage adds its light as linear light.
 const linear = (value) => { const v = Math.max(0, value) / 255; return v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; };
-const added = ({ off, on }) => on.map((value, k) => linear(value - off[k]));
+const added = ({ off, on }) => on.map((value, k) => linear(value) - linear(off[k]));
+const E_WHITE = 108;
 const floorAt = (...distances) => distances.map((x) => [x, 0.003, 0]);
 
 test.beforeEach(async ({ page }) => {
@@ -67,7 +70,7 @@ test('a beam\'s pool is at half its centre\'s light where the beam throws half a
   // Read from the audience view: seen from straight above, the lamp itself stands before the middle of its pool.
   const spot = { model: ROOM, view: 'audience', emission: { kind: 'beam', tilt: -90, beamAngle: 43, lumen: 350 }, binding: { position: { x: 0, y: 2.45, z: 0 } }, colour: GREY };
   const result = await page.evaluate((input) => window.landing(input), { ...spot, points: floorAt(0, 0.4, 0.833, 1.3, 1.7, 2.5) });
-  expect(result.level).toBeGreaterThan(0.95);
+  expect(Math.abs(result.level * E_WHITE - 94.4)).toBeLessThan(0.5);
   expect(Math.abs(result.half * 0.5412 - 0.833)).toBeLessThan(0.005);
   const [centre, inner, half, outer, past, far] = added(result);
   expect(centre, `${JSON.stringify(result)}`).toBeGreaterThan(0.1);
@@ -91,7 +94,7 @@ test('a bulb lights the floor under it wide and faintly; the same lumen in a bea
   const at = { position: { x: 0, y: 2.45, z: 0 } };
   const bulb = await page.evaluate((input) => window.landing(input), { model: ROOM, view: 'audience', binding: at, colour: { r: 255, g: 255, b: 255 }, points: floorAt(0, 1.88, 3.0) });
   expect([bulb.pars, bulb.pools]).toEqual([0, 1]);
-  expect(Math.abs(bulb.level - 806 / (4 * Math.PI * 2.45 ** 2) / 97)).toBeLessThan(1e-6);
+  expect(Math.abs(bulb.level - 806 / (4 * Math.PI * 2.45 ** 2) / E_WHITE)).toBeLessThan(1e-6);
   const [centre, half, wide] = added(bulb);
   expect(centre).toBeGreaterThan(0.05);
   expect(centre).toBeLessThan(0.15);
@@ -112,12 +115,12 @@ test('a bulb lights the floor under it wide and faintly; the same lumen in a bea
   expect(added(free)[2]).toBeGreaterThan(0.05);
 });
 
-test('a beam\'s cone in the haze is as strong as its pool: faint for a faint lamp, full for one of unknown lumen', async ({ page }) => {
+test('a beam\'s cone in the haze is as strong as its light: faint for a faint lamp, full for one of unknown lumen', async ({ page }) => {
   // From the side, a point on the beam's axis half way down; the floor behind it lies outside the pool.
   const cone = (lumen) => page.evaluate((input) => window.landing(input), { model: ROOM, view: 'side', haze: 1, colour: GREY, points: [[0, 1.2, 0], [0, 1.2, 2.5]],
     emission: { kind: 'beam', tilt: -90, beamAngle: 43, ...(lumen ? { lumen } : {}) }, binding: { position: { x: 0, y: 2.45, z: 0 } } });
   const faint = await cone(35), strong = await cone(350), unknown = await cone(null);
-  expect([faint.level, unknown.level].map((level) => level && Math.round(level * 1000) / 1000)).toEqual([0.097, null]);
+  expect([faint.level, unknown.level].map((level) => Math.round(level * E_WHITE))).toEqual([9, 97]);
   const [f, s, u] = [faint, strong, unknown].map((result) => added(result));
   expect(f[0], JSON.stringify({ faint, strong, unknown })).toBeGreaterThan(0);
   expect(s[0] / f[0]).toBeGreaterThan(6);
@@ -129,26 +132,28 @@ test('a beam\'s cone in the haze is as strong as its pool: faint for a faint lam
 });
 
 test('an aimed strip lights a band along its wall and throws no cone; a pool wider than its room fills the room to its edge', async ({ page }) => {
-  // Two metres of strip 5 cm off the back wall, facing it: the wall is lit beside the strip's whole run, not past its ends' reach.
+  // Two metres of strip 5 cm off the back wall, facing it: the wall is lit along the strip's whole run, about 45 times
+  // what shows white, in a band at half its level 4 cm to either side, and not past its ends' reach.
   const path = [{ x: -1, y: 1.3, z: -3.95 }, { x: 1, y: 1.3, z: -3.95 }];
   const wall = (x, y) => [x, y, -3.997];
   const strip = await page.evaluate((input) => window.landing(input), { model: ROOM, view: 'audience', colour: GREY,
-    binding: { position: path[0], path, lightTarget: { x: 0, y: 1.3, z: -4 } }, points: [wall(0, 1.5), wall(0.9, 1.5), wall(-0.9, 1.1), wall(2.2, 1.5), wall(0, 2.4)] });
-  expect([strip.pars, strip.pools, strip.level]).toEqual([0, 1, 1]);
+    binding: { position: path[0], path, lightTarget: { x: 0, y: 1.3, z: -4 } }, points: [wall(0, 1.31), wall(0.9, 1.31), wall(-0.9, 1.29), wall(2.2, 1.3), wall(0, 2.4)] });
+  expect([strip.pars, strip.pools]).toEqual([0, 1]);
+  expect(strip.level).toBeGreaterThan(40);
   const [middle, east, west, beyond, above] = added(strip);
   expect(middle, JSON.stringify(strip)).toBeGreaterThan(0.05);
   expect(east / middle).toBeGreaterThan(0.9);
   expect(west / middle).toBeGreaterThan(0.9);
   expect([beyond, above]).toEqual([0, 0]);
   // A bulb 2.4 m up in a room 2 m square: its pool is 7 m across and is drawn to the room's edge, no further.
-  const small = { ...ROOM, rooms: [{ id: 'small', label: 'Small', polygon: [[-1, -1], [1, -1], [1, 1], [-1, 1]] }] };
+  const small = { ...ROOM, rooms: [white('small', [[-1, -1], [1, -1], [1, 1], [-1, 1]])] };
   const corner = added(await page.evaluate((input) => window.landing(input), { model: small, binding: { position: { x: 0, y: 2.4, z: 0 } }, colour: { r: 255, g: 255, b: 255 },
     points: [[0.95, 0.003, 0.95], [-0.95, 0.003, 0.95], [0.95, 0.003, -0.95], [-0.95, 0.003, -0.95], [0, 0.003, 0.95], [1.1, 0.003, 0], [0, 0.003, -1.2]] }));
   for (const value of corner.slice(0, 5)) expect(value, JSON.stringify(corner)).toBeGreaterThan(0.03);
   expect(corner.slice(5)).toEqual([0, 0]);
   // A room four times as long as wide: what is drawn of the pool's quad differs along it and across it. The pool
   // reaches the room's far ends and stops at its near sides.
-  const long = { ...ROOM, rooms: [{ id: 'long', label: 'Long', polygon: [[-2, -0.5], [2, -0.5], [2, 0.5], [-2, 0.5]] }] };
+  const long = { ...ROOM, rooms: [white('long', [[-2, -0.5], [2, -0.5], [2, 0.5], [-2, 0.5]])] };
   const ends = added(await page.evaluate((input) => window.landing(input), { model: long, binding: { position: { x: 0, y: 2.4, z: 0 } }, colour: { r: 255, g: 255, b: 255 },
     points: [[1.8, 0.003, 0], [-1.8, 0.003, 0], [1.8, 0.003, 0.45], [0.6, 0.003, -0.45], [0, 0.003, 0.7], [2.2, 0.003, 0]] }));
   for (const value of ends.slice(0, 4)) expect(value, JSON.stringify(ends)).toBeGreaterThan(0.03);
