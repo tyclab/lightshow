@@ -27,8 +27,19 @@ const ROOF = TRUSS_H + 2.5;
 const POOL_LIFT = 0.006;
 // The cone's footprint stretches by 1/cos of the angle it strikes at; this cos caps a grazing hit.
 const GRAZE = 0.35;
-// Lux (lumen a square metre) at which a pool is drawn at full strength.
-export const POOL_FULL = 97;
+// Lux (lumen a square metre) that shows display white on a white surface: a surface of colour c lit with E lux shows
+// c × E / E_WHITE, linear. 108 is the scale pools were drawn at before they took their surface's colour (full at 97 lx,
+// at 0.9 of that).
+export const E_WHITE = 108;
+// A beam of unknown lumen is drawn as one that lands 0.9 of E_WHITE, as such a pool was before; its haze is full from there.
+export const PAR_LEVEL = 0.9;
+// The room's fill on a level surface, in lux: a floor of reflectance 0.22 (oak) shows unlit what the default floor showed
+// under the fill before (bytes 29, 32, 39 read back).
+export const E_FILL = 7;
+// The colours the stage draws a room's floor, the ground outside its rooms and an object in where the model gives none.
+export const FLOOR_COLOUR = '#3a3e48';
+export const GROUND_COLOUR = '#2a2d35';
+export const OBJECT_COLOUR = '#747985';
 // How far from its centre a pool is at half its level, as a share of its half width: the pool shader's falloff, (1 − d²)², is 1/2 there.
 export const POOL_HALF = Math.sqrt(1 - Math.SQRT1_2);
 // A light's own half size, in metres: a bulb's. No light is nearer a surface than that.
@@ -76,7 +87,7 @@ export function blockersOf(objects = []) {
   return objects.filter((object) => object.role === 'wall'
     || object.role === 'furniture' && !object.lightBindingId && (object.opacity ?? 1) >= 0.9).map((object) => {
     const r = object.rotation || { x: 0, y: 0, z: 0 }, { size } = object;
-    const blocker = { id: object.id, wall: object.role === 'wall', kind: object.kind, centre: object.position,
+    const blocker = { id: object.id, label: object.label ?? null, color: object.color ?? null, wall: object.role === 'wall', kind: object.kind, centre: object.position,
       axes: AXES.map((v) => turn(turn(turn(v, 'z', r.z), 'y', r.y), 'x', r.x)), half: [size.x / 2, size.y / 2, size.z / 2] };
     if (object.kind === 'prism' || object.kind === 'cylinder') {
       blocker.outline = object.kind === 'prism' ? object.polygon : Array.from({ length: CYLINDER_SIDES }, (_, i) =>
@@ -234,11 +245,6 @@ export function sideReach(angle, share) {
 const roundLux = (b, d) => 1 / (4 * Math.PI * d * Math.hypot(d, b));
 const facingLux = (b, d) => (1 / (b * b + d * d) + (b > EPS ? Math.atan(b / d) / (b * d) : 1 / (d * d))) / (2 * Math.PI);
 
-// What a pool shows of the lux at its centre: its level, the share of POOL_FULL, and where it is at half that level, as
-// the share of the centre's lux that lands there. A light brighter than full is drawn at full, as wide as it lights to
-// half of full; a beam of unknown lumen (null) at full, as wide as its own half.
-const shown = (lux) => (lux === null ? { share: 0.5 } : lux > POOL_FULL ? { level: 1, share: POOL_FULL / lux / 2 } : { level: lux / POOL_FULL, share: 0.5 });
-
 /** Where a light lands on a surface, at half its level `half` metres from its centre: an ellipse, `along` the slant on it and `across` that. */
 export function poolOn(end, normal, aim, half) {
   const into = dot(aim, normal), cos = Math.abs(into);
@@ -271,7 +277,7 @@ const boxDistance = (box, point) => {
  * those that reach into the box around the polygon and its own centre: no other can stand between the centre
  * and a point it shows.
  */
-function poolClip(pool, hit, room, area = room.rooms.find((candidate) => insidePolygon(candidate.polygon, pool.at.x, pool.at.z))) {
+function poolClip(pool, hit, room, area) {
   const xs = area && [pool.at.x, ...area.polygon.map(([x]) => x)], zs = area && [pool.at.z, ...area.polygon.map(([, z]) => z)];
   const box = area && { x0: Math.min(...xs), x1: Math.max(...xs), z0: Math.min(...zs), z1: Math.max(...zs) };
   // A wall's own box, seen from above, against that box.
@@ -307,10 +313,29 @@ export function poolWindow(pool) {
   return [(lo[0] + hi[0]) / 2, (lo[1] + hi[1]) / 2, Math.max(0, hi[0] - lo[0]) / 2, Math.max(0, hi[1] - lo[1]) / 2];
 }
 
-/** A pool in a room: where it may show (poolClip) and how much of its quad that leaves to draw. */
-function clipped(pool, hit, room, area) {
+/**
+ * What the surface a pool lies on reflects, as linear RGB: its colour is its reflectance. A room's floor and an object
+ * take the colour the model gives them, else the one the stage draws them in; a ceiling takes its room's `ceiling`.
+ * A surface the stage does not draw (a ceiling without a colour, the room box's walls) reflects the light whole, as
+ * every pool was drawn before. `uncoloured` names a surface the model gives no colour, and what it reflects as.
+ */
+function reflected(pool, hit, area, blockers) {
+  const blocker = hit.id === null ? null : blockers.find((candidate) => candidate.id === hit.id);
+  const flat = Math.abs(hit.normal.y) > Math.SQRT1_2, floor = flat && hit.surface.centre.y <= 0;
+  let surface;
+  if (blocker) surface = { id: blocker.id, label: blocker.label, part: blocker.wall ? 'wall' : 'furniture', given: blocker.color, as: OBJECT_COLOUR };
+  else if (flat && area) surface = { id: area.id, label: area.label, part: floor ? 'floor' : 'ceiling', given: floor ? area.color : area.ceiling, as: floor ? FLOOR_COLOUR : null };
+  else surface = { id: null, label: null, part: floor ? 'ground' : 'room box', as: floor ? GROUND_COLOUR : null };
+  const { given, ...named } = surface, colour = given ?? named.as;
+  pool.reflectance = colour ? [1, 3, 5].map((at) => toLinear(parseInt(colour.slice(at, at + 2), 16) / 255)) : [1, 1, 1];
+  if (!given) pool.uncoloured = named;
+}
+
+/** A pool in a room: where it may show (poolClip), how much of its quad that leaves to draw and what its surface reflects. */
+function clipped(pool, hit, room, area = room.rooms.find((candidate) => insidePolygon(candidate.polygon, pool.at.x, pool.at.z))) {
   pool.clip = poolClip(pool, hit, room, area);
   pool.window = poolWindow(pool);
+  reflected(pool, hit, area, room.blockers);
   return pool;
 }
 
@@ -363,9 +388,9 @@ function poolRound({ position, lumen }, room, aim = null, points = null) {
   if (!hit?.normal) return null;
   const d = Math.max(hit.length, OWN_SIZE), cos = Math.abs(dot(toward, hit.normal));
   const run = points && runOn(points, hit.normal), b = run?.half > EPS ? run.half : 0;
-  const { level, share } = shown(lumen * cos * (aim && points ? facingLux(b, d) : roundLux(b, d)));
+  const level = lumen * cos * (aim && points ? facingLux(b, d) : roundLux(b, d)) / E_WHITE;
   const end = { x: position.x + toward.x * hit.length, y: position.y + toward.y * hit.length, z: position.z + toward.z * hit.length };
-  const pool = poolOn(end, hit.normal, toward, d * sideReach(0, share));
+  const pool = poolOn(end, hit.normal, toward, d * sideReach(0, 0.5));
   if (b) {
     // A band: level along the run and across the run's own width, and beyond them falling off as a round pool does.
     // A strip's slant lies across its run, so the reach the slant stretched (poolOn's major) is the band's width.
@@ -437,10 +462,9 @@ function beamLight(light, emission, floor = false, room = null, direction = null
   const angle = (emission.beamAngle ?? 22) * Math.PI / 180, radius = Math.tan(angle / 2) * length;
   let pool = null;
   if (hit?.normal && length > 0) {
-    // A lamp of known lumen lights its pool by what lands at its centre; a par of unknown lumen keeps full strength.
-    const { level, share } = shown(light.lumen ? light.lumen * axisCandela(angle) * Math.abs(dot(aim, hit.normal)) / length ** 2 : null);
-    pool = poolOn(end, hit.normal, aim, length * sideReach(angle, share));
-    if (level !== undefined) pool.level = level;
+    // A lamp of known lumen lights its pool by what lands at its centre; a par of unknown lumen as it was drawn before.
+    pool = poolOn(end, hit.normal, aim, length * sideReach(angle, 0.5));
+    pool.level = light.lumen ? light.lumen * axisCandela(angle) * Math.abs(dot(aim, hit.normal)) / length ** 2 / E_WHITE : PAR_LEVEL;
     if (room) clipped(pool, hit, room);
   }
   const beam = { ...light, kind: 'par', aim, length, end, radius, pool };
@@ -671,10 +695,13 @@ export function roomRig(fixtures, rig, model, profiles = {}) {
       lumen: own.reduce((sum, light) => sum + (light.lumen ?? PIXEL_LUMEN * Math.min(1, dense * dense)), 0) }, null, points);
   }
   const bodies = plotted.filter((fixture) => fixture.geometry?.points?.length > 1).map((fixture) => bodyOf(fixture.id, cells));
+  // The surfaces pools land on that the model gives no colour, once each.
+  const uncoloured = [...new Map([...lamps, ...pools].filter((light) => light.pool?.uncoloured)
+    .map(({ pool: { uncoloured: surface } }) => [`${surface.part}:${surface.id}`, surface])).values()];
   const missing = fixtures.filter((fixture) => !mapped.has(fixture.id));
   const partial = fixtures.filter((fixture, index) => mapped.has(fixture.id) && mapped.get(fixture.id).size < rig.ranges[index].count);
   const shared = [...outputs.values()].filter((output) => output.bindings.length > 1);
-  return { lamps, cells, pools, objectLights, bodies, trusses: [], missing, partial, plotted, unresolved, incomplete, shared, estimated };
+  return { lamps, cells, pools, objectLights, bodies, trusses: [], missing, partial, plotted, unresolved, incomplete, shared, estimated, uncoloured };
 }
 
 /** The box an explicit cell map spans, a pixel wider than its pixels: the body Stage draws them in when no room object is the fixture. */

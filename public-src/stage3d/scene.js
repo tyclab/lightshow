@@ -2,7 +2,7 @@ import { performanceReport } from '../performance.js';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { roomObjectGeometry } from './room-geometry.js';
-import { meanLightRGB, onCeiling, roomViews, STAGE_FOV } from './world.js';
+import { meanLightRGB, onCeiling, roomViews, STAGE_FOV, E_FILL, E_WHITE, PAR_LEVEL, FLOOR_COLOUR, GROUND_COLOUR, OBJECT_COLOUR } from './world.js';
 
 /**
  * The 3D stage: the rig in a dark, hazy room, drawn with three.js.
@@ -19,9 +19,10 @@ import { meanLightRGB, onCeiling, roomViews, STAGE_FOV } from './world.js';
  * An imported room's surfaces shade under a dim fill, the same whatever the
  * outputs do; what a light gives the room is drawn where the light is: its own
  * glow, the room objects that are the light, and one pool where its light
- * lands, drawn by the lux it throws there (world.roomRig). A pool shows from
- * the side its surface faces; one on a ceiling from above as well, since no
- * ceiling is drawn to hide it.
+ * lands, the lux it throws there as its surface reflects it (world.roomRig). A
+ * pool shows from the side its surface faces; one on a ceiling from above as
+ * well, since no ceiling is drawn to hide it. Light adds in a linear half-float
+ * buffer, and the output keeps a pixel past white in its hue.
  *
  * Loaded on its own (three.js is most of it), the first time a stage
  * opens. `createStageScene` throws when the browser has no WebGL.
@@ -30,6 +31,11 @@ import { meanLightRGB, onCeiling, roomViews, STAGE_FOV } from './world.js';
  * (world.js) are handed in, so this chunk shares no code with the page's and
  * the page loads, and opens offline, without it.
  */
+
+// The output pass brings a pixel past white back by its largest channel, so it keeps its hue and saturation.
+THREE.ShaderChunk.tonemapping_pars_fragment = THREE.ShaderChunk.tonemapping_pars_fragment.replace(
+  'vec3 CustomToneMapping( vec3 color ) { return color; }',
+  'vec3 CustomToneMapping( vec3 color ) { return color / max( 1.0, max( color.r, max( color.g, color.b ) ) ); }');
 
 const BG = 0x050507;
 const OFF = 0.035;      // what an unlit lens or cell shows: its shape, not a light
@@ -161,7 +167,6 @@ const POOL_VERTEX = /* glsl */`
 // No loop leaves early (return, continue, discard): Direct3D's compiler fails on one that does with an
 // internal error, and the browser then takes the whole context away at the pool's first draw.
 const POOL_FRAGMENT = /* glsl */`
-  uniform float uStrength;
   uniform sampler2D uClip;
   uniform int uClipWidth;
   varying vec3 vColor;
@@ -211,10 +216,16 @@ const POOL_FRAGMENT = /* glsl */`
     // Past the light's own run the pool falls off as (1 − d²)²: half its level 0.54 of the way out (world.POOL_HALF).
     vec2 past = max(abs(vAt) - vRun, 0.0) / (1.0 - vRun);
     float fall = 1.0 - min(dot(past, past), 1.0);
-    gl_FragColor = vec4(vColor * fall * fall * uStrength, 1.0);
+    gl_FragColor = vec4(vColor * fall * fall, 1.0);
     #include <colorspace_fragment>
   }
 `;
+
+// The fill's sky and key light, in their shares of it (0.75 and 0.45), scaled so a level white surface shows
+// E_FILL / E_WHITE of white: three.js shades a surface of colour c lit with intensity I as c × I / π (read back in
+// stage-colour.spec.js: 0.97 to 1.02 of that, with its specular share).
+const SKY = new THREE.Color(0xc8d0e0), KEY = new THREE.Vector3(-3, 6, 4);
+const FILL = Math.PI * E_FILL / E_WHITE / (0.75 * (0.2126 * SKY.r + 0.7152 * SKY.g + 0.0722 * SKY.b) + 0.45 * KEY.clone().normalize().y);
 
 const CLIP_WIDTH = 1024;
 /** uClip's texels for these lights' pools: five per pool, then the room edges and wall boxes they point to. */
@@ -274,7 +285,10 @@ function beamClips(pars) {
   return { texture, least, most, where };
 }
 
-/** A soft round dot, for the glow around lenses, bulbs and cells. */
+/**
+ * A soft round dot, for the glow around lenses, bulbs and cells. Its fall is in its colour, as sRGB, not in its alpha:
+ * the stage adds light in linear values, and a full colour times the decoded fall shows the fall the dot was drawn with.
+ */
 function glowTexture() {
   const size = 64;
   const canvas = document.createElement('canvas');
@@ -282,9 +296,9 @@ function glowTexture() {
   canvas.height = size;
   const ctx = canvas.getContext('2d');
   const g = ctx.createRadialGradient(size / 2, size / 2, 0, size / 2, size / 2, size / 2);
-  g.addColorStop(0, 'rgba(255,255,255,1)');
-  g.addColorStop(0.25, 'rgba(255,255,255,0.45)');
-  g.addColorStop(1, 'rgba(255,255,255,0)');
+  g.addColorStop(0, 'rgb(255,255,255)');
+  g.addColorStop(0.25, 'rgb(115,115,115)');
+  g.addColorStop(1, 'rgb(0,0,0)');
   ctx.fillStyle = g;
   ctx.fillRect(0, 0, size, size);
   const texture = new THREE.CanvasTexture(canvas);
@@ -308,7 +322,9 @@ export function createStageScene(canvas, { haze = 0.6, room, lightRGB }) {
   let views = genericViews;
   let activeView = 'audience';
 
-  const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
+  // Light adds as light: every part draws into a linear half-float buffer, which the output pass encodes once.
+  const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance', outputBufferType: THREE.HalfFloatType });
+  renderer.toneMapping = THREE.CustomToneMapping;
   renderer.setPixelRatio(Math.min(2, window.devicePixelRatio || 1));
   renderer.setClearColor(BG, 1);
 
@@ -405,28 +421,28 @@ export function createStageScene(canvas, { haze = 0.6, room, lightRGB }) {
       const keepRoom = (resource) => { roomDisposables.push(resource); return resource; };
       const ground = new THREE.Mesh(
         keepRoom(new THREE.PlaneGeometry(model.bounds.width, model.bounds.depth)),
-        keepRoom(new THREE.MeshStandardMaterial({ color: 0x2a2d35, roughness: 0.95, side: THREE.DoubleSide })),
+        keepRoom(new THREE.MeshStandardMaterial({ color: GROUND_COLOUR, roughness: 0.95, side: THREE.DoubleSide })),
       );
       ground.rotation.x = -Math.PI / 2;
       roomGroup.add(ground);
       for (const area of model.rooms) {
         const shape = new THREE.Shape(area.polygon.map(([x, z]) => new THREE.Vector2(x, -z)));
         const geometry = keepRoom(new THREE.ShapeGeometry(shape).rotateX(-Math.PI / 2));
-        const material = keepRoom(new THREE.MeshStandardMaterial({ color: area.color || 0x3a3e48, roughness: 0.9, side: THREE.DoubleSide }));
+        const material = keepRoom(new THREE.MeshStandardMaterial({ color: area.color || FLOOR_COLOUR, roughness: 0.9, side: THREE.DoubleSide }));
         const mesh = new THREE.Mesh(geometry, material);
         mesh.position.y = 0.003;
         roomGroup.add(mesh);
       }
-      // A dim fill, so the room reads whatever the outputs do.
-      roomGroup.add(keepRoom(new THREE.HemisphereLight(0xc8d0e0, 0x30323a, 0.75)));
-      const key = keepRoom(new THREE.DirectionalLight(0xffffff, 0.45));
-      key.position.set(-3, 6, 4);
+      // A dim fill, so the room reads whatever the outputs do: E_FILL lux on a level surface (world.js).
+      roomGroup.add(keepRoom(new THREE.HemisphereLight(SKY, 0x30323a, 0.75 * FILL)));
+      const key = keepRoom(new THREE.DirectionalLight(0xffffff, 0.45 * FILL));
+      key.position.copy(KEY);
       roomGroup.add(key);
       for (const object of model.objects) {
         const geometry = keepRoom(roomObjectGeometry(object));
         // A screen shows the room picture as it is; everything else is a surface the light falls on.
-        const material = object.role === 'screen' ? new THREE.MeshBasicMaterial({ color: object.color || '#747985' })
-          : new THREE.MeshStandardMaterial({ color: object.color || '#747985', roughness: 0.85, emissiveIntensity: object.lightBindingId ? 0.25 : 1 });
+        const material = object.role === 'screen' ? new THREE.MeshBasicMaterial({ color: object.color || OBJECT_COLOUR })
+          : new THREE.MeshStandardMaterial({ color: object.color || OBJECT_COLOUR, roughness: 0.85, emissiveIntensity: object.lightBindingId ? 0.25 : 1 });
         material.opacity = object.opacity ?? 1;
         material.transparent = material.opacity < 1;
         material.depthWrite = !material.transparent;
@@ -441,7 +457,7 @@ export function createStageScene(canvas, { haze = 0.6, room, lightRGB }) {
         }
         if (object.lightBindingId) roomLightMaterials.set(object.id, { material, baseColor: material.color.clone(), tint: new THREE.Color(object.lightTint || '#ffffff') });
         if (object.role === 'wall') roomWalls.push({ mesh, model: object });
-        if (object.role === 'screen') screens.push({ material: mesh.material, color: object.color || '#747985' });
+        if (object.role === 'screen') screens.push({ material: mesh.material, color: object.color || OBJECT_COLOUR });
         roomGroup.add(mesh);
       }
       scene.add(roomGroup);
@@ -477,7 +493,7 @@ export function createStageScene(canvas, { haze = 0.6, room, lightRGB }) {
   // a ceiling, which show from both (one draw, nothing culled).
   const poolClips = [poolClipTexture([]), poolClipTexture([])];
   const poolMaterials = [THREE.FrontSide, THREE.DoubleSide].map((side, sheet) => keep(new THREE.ShaderMaterial({
-    uniforms: { uStrength: { value: 0.9 }, uClip: { value: poolClips[sheet] }, uClipWidth: { value: CLIP_WIDTH } },
+    uniforms: { uClip: { value: poolClips[sheet] }, uClipWidth: { value: CLIP_WIDTH } },
     vertexShader: POOL_VERTEX,
     fragmentShader: POOL_FRAGMENT,
     transparent: true,
@@ -684,19 +700,24 @@ export function createStageScene(canvas, { haze = 0.6, room, lightRGB }) {
     const glow = (attr, k, level) => {
       write(attr, k, rgb[0] * level, rgb[1] * level, rgb[2] * level);
     };
+    // A pool: its light at its level, as its surface reflects it (white where it has none, as in the generic venue).
+    const reflected = (attr, k, pool) => {
+      const [r, g, b] = pool?.reflectance ?? [1, 1, 1], level = pool?.level ?? 0;
+      write(attr, k, rgb[0] * level * r, rgb[1] * level * g, rgb[2] * level * b);
+    };
     pars.forEach((par, k) => {
       if (par.sources) meanLightRGB(par.sources, frame, rgb, sourceRGB);
       else lightRGB(frame[par.unit], rgb);
       put(lenses.instanceColor, k, 1);
-      // The cone is as strong as the pool it ends in: full for a beam of unknown lumen.
-      glow(beams.instanceColor, k, par.pool?.level ?? 1);
-      glow(...poolOf.get(par), par.pool?.level ?? 1);
+      // The cone is as strong as the light its pool takes, full from what a beam of unknown lumen lands.
+      glow(beams.instanceColor, k, Math.min(1, (par.pool?.level ?? PAR_LEVEL) / PAR_LEVEL));
+      reflected(...poolOf.get(par), par.pool);
       glow(lampGlow.geometry.attributes.color, k, par.body === 0 ? 0 : 0.9);
     });
     under.forEach((light) => {
       if (light.sources) meanLightRGB(light.sources, frame, rgb, sourceRGB);
       else lightRGB(frame[light.unit], rgb);
-      glow(...poolOf.get(light), light.pool.level);
+      reflected(...poolOf.get(light), light.pool);
     });
     bulbs.forEach((bulb, k) => {
       if (bulb.sources) meanLightRGB(bulb.sources, frame, rgb, sourceRGB);

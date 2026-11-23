@@ -38,6 +38,8 @@ function SourceFields({ source, fixtures, rig, onChange, prefix = '' }) {
 }
 
 const plotUnits = ({ lamps, cells }) => lamps.filter((lamp) => lamp.plot).length + cells.filter((cell) => cell.plot).length;
+const SURFACES = { floor: 'floor', ceiling: 'ceiling', 'room box': 'The room box\'s walls and ceiling', ground: 'The floor outside every room' };
+const surfaceName = ({ part, id, label }) => (part === 'floor' || part === 'ceiling' ? `${label || id} ${SURFACES[part]}` : SURFACES[part] ?? `${label || id} (${part})`);
 
 export function StageRoomPanel({ snapshot, coverage, fixtures, rig, onChange }) {
   const [busy, setBusy] = useState(false);
@@ -158,6 +160,13 @@ export function StageRoomPanel({ snapshot, coverage, fixtures, rig, onChange }) 
       {coverage.incomplete.length > 0 && <ul class="stage-room-unplaced">
         {coverage.incomplete.map(({ binding, missingSources }) => <li key={binding.id}>{binding.label || binding.id}: {missingSources} missing sources contribute black to this incomplete average.</li>)}
       </ul>}
+      {coverage.uncoloured?.length > 0 && <details class="stage-room-topology">
+        <summary>{coverage.uncoloured.length} lit surfaces without a colour</summary>
+        <p class="setting-help">A pool takes the colour of the surface it lands on. These have none in the room model, so their pools are drawn as the colour named reflects them.</p>
+        <ul class="stage-room-unplaced">{coverage.uncoloured.map((surface) => <li key={`${surface.part}:${surface.id}`}>
+          {surfaceName(surface)}: {surface.as ? `as drawn, ${surface.as}` : 'white, all of the light'}
+        </li>)}</ul>
+      </details>}
       {coverage.shared.length > 0 && <details class="stage-room-topology">
         <summary>{coverage.shared.length} shared output channels</summary>
         <p class="setting-help">These positions share output channels, so their colours cannot be controlled independently. Room bindings change only the preview.</p>

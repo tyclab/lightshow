@@ -50,7 +50,7 @@ test('a spot is drawn with the 43 degree beam of Hue\'s GU10, a Centris ceiling 
     assert.deepEqual(emissionOf(fixture, profile), { kind: 'beam', beamAngle: 43, tilt: -90 }, product);
     const beam = draw(fixture, profile, [{ id: 'spot', fixtureId: 1, position: { x: 0, y: 2.45, z: 0 } }]).lamps[0];
     assert.ok(Math.abs(spread(beam) - 43) < 1e-9 && Math.abs(beam.radius - Math.tan(21.5 * Math.PI / 180) * 2.45) < 1e-9, `${product}: ${spread(beam)}`);
-    assert.ok(Math.abs(beam.pool.level - 0.974) < 0.005, `350 lm from 2.45 m: 94 lx of the 97 a full pool has, ${beam.pool.level}`);
+    assert.ok(Math.abs(beam.pool.level - 0.874) < 0.005, `350 lm from 2.45 m: 94 lx of the 108 that show white, ${beam.pool.level}`);
   }
   const panel = lamp([light('hue_centris', 'Hue Centris ceiling')]);
   assert.deepEqual(emissionOf(panel.fixture, panel.profile), { kind: 'beam', beamAngle: 120, tilt: -90 });
