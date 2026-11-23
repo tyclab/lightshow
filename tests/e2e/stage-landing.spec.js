@@ -133,11 +133,12 @@ test('a beam\'s cone in the haze is as strong as its light: faint for a faint la
 
 test('an aimed strip lights a band along its wall and throws no cone; a pool wider than its room fills the room to its edge', async ({ page }) => {
   // Two metres of strip 5 cm off the back wall, facing it: the wall is lit along the strip's whole run, about 45 times
-  // what shows white, in a band at half its level 4 cm to either side, and not past its ends' reach.
+  // what shows white, in a band at half its level 4 cm to either side, and not past its ends' reach. Read 2 cm above
+  // the strip, where the strip itself, seen from above, hides none of it.
   const path = [{ x: -1, y: 1.3, z: -3.95 }, { x: 1, y: 1.3, z: -3.95 }];
   const wall = (x, y) => [x, y, -3.997];
   const strip = await page.evaluate((input) => window.landing(input), { model: ROOM, view: 'audience', colour: GREY,
-    binding: { position: path[0], path, lightTarget: { x: 0, y: 1.3, z: -4 } }, points: [wall(0, 1.31), wall(0.9, 1.31), wall(-0.9, 1.29), wall(2.2, 1.3), wall(0, 2.4)] });
+    binding: { position: path[0], path, lightTarget: { x: 0, y: 1.3, z: -4 } }, points: [wall(0, 1.32), wall(0.9, 1.32), wall(-0.9, 1.32), wall(2.2, 1.3), wall(0, 2.4)] });
   expect([strip.pars, strip.pools]).toEqual([0, 1]);
   expect(strip.level).toBeGreaterThan(40);
   const [middle, east, west, beyond, above] = added(strip);
