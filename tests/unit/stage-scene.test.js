@@ -27,7 +27,6 @@ const built = await esbuild.build({
       export class WebGLRenderer {
         constructor(options) { built.renderers.push({ options, renderer: this }); }
         setPixelRatio() {} setClearColor() {} setSize() {} dispose() {} forceContextLoss() {}
-        setEffects(effects) { this.effects = effects; }
         // Keeps the lights the frame is drawn under, as three collects them: the visible ones.
         render(scene) {
           built.lights = [];
@@ -45,7 +44,10 @@ const noop = () => {};
 globalThis.window = { devicePixelRatio: 1 };
 globalThis.document = { createElement: () => ({ getContext: () => ({ createRadialGradient: () => ({ addColorStop: noop }), fillRect: noop }) }) };
 const page = { addEventListener: noop, removeEventListener: noop };
-const canvas = { ...page, style: {}, ownerDocument: page, getRootNode: () => page, parentElement: null, getBoundingClientRect: () => ({ width: 800, height: 450 }) };
+// The context the scene asks for: a GPU's, or a software renderer's when `renderer` names one.
+let rendererName = 'ANGLE (NVIDIA, Vulkan)';
+const context = { RENDERER: 7937, getExtension: () => null, getParameter: (name) => (name === 7937 ? rendererName : null) };
+const canvas = { ...page, style: {}, ownerDocument: page, getRootNode: () => page, parentElement: null, getContext: () => context, getBoundingClientRect: () => ({ width: 800, height: 450 }) };
 const scene = () => ui.createStageScene(canvas, { room: { width: 12, depth: 8, trussHeight: 4.6 }, lightRGB: () => [0, 0, 0] });
 
 const BAR = { id: 'scene-bar', name: 'Bar', channelCount: 24, channelMap: {},
@@ -113,15 +115,18 @@ test('a room is shaded by its fill alone, whatever its lamps show; the generic v
   assert.deepEqual(ui.built.lights, []);
 });
 
-test('the stage adds light in a half-float buffer, smooths its edges and brings a pixel past white back by its largest channel', () => {
+test('the stage adds light in a half-float buffer, multisampled on a GPU, and brings a pixel past white back by its largest channel', () => {
   const at = ui.built.renderers.length;
   ui.createStageScene(canvas, { room: { width: 12, depth: 8, trussHeight: 4.6 }, lightRGB: ui.lightRGB });
   const { options, renderer } = ui.built.renderers[at];
-  assert.deepEqual([options.outputBufferType, renderer.toneMapping], [ui.HalfFloatType, ui.CustomToneMapping]);
-  // Edges are smoothed by FXAA on the square root of linear light, not by multisampling the half-float buffer.
-  assert.equal(options.antialias, false);
-  assert.equal(renderer.effects.length, 1);
-  assert.match(renderer.effects[0].material.fragmentShader, /return sqrt\( dot\( min\( Sample\( tex2D, uv \)\.rgb, 1\.0 \), vec3\( 0\.3, 0\.59, 0\.11 \) \) \);/);
+  assert.deepEqual([options.outputBufferType, renderer.toneMapping, options.context, options.antialias], [ui.HalfFloatType, ui.CustomToneMapping, context, true]);
+  // A software renderer draws the buffer without multisampling.
+  for (const name of ['ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero)))', 'ANGLE (Mesa, Vulkan 1.4 (llvmpipe (LLVM 21.1.8 256 bits)))']) {
+    rendererName = name;
+    ui.createStageScene(canvas, { room: { width: 12, depth: 8, trussHeight: 4.6 }, lightRGB: ui.lightRGB });
+    assert.equal(ui.built.renderers.at(-1).options.antialias, false, name);
+  }
+  rendererName = 'ANGLE (NVIDIA, Vulkan)';
   // The output pass's CustomToneMapping, run as GLSL would: orange three times white comes back orange.
   const glsl = ui.ShaderChunk.tonemapping_pars_fragment.match(/vec3 CustomToneMapping\( vec3 color \) \{([^}]*)\}/)[1];
   assert.match(glsl, /return color \/ max\( 1\.0, max\( color\.r, max\( color\.g, color\.b \) \) \);/);

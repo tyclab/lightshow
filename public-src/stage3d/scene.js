@@ -1,7 +1,6 @@
 import { performanceReport } from '../performance.js';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-import { FXAAPass } from 'three/addons/postprocessing/FXAAPass.js';
 import { roomObjectGeometry } from './room-geometry.js';
 import { meanLightRGB, onCeiling, roomViews, STAGE_FOV, E_FILL, E_WHITE, PAR_LEVEL, FLOOR_COLOUR, GROUND_COLOUR, OBJECT_COLOUR } from './world.js';
 
@@ -34,15 +33,13 @@ import { meanLightRGB, onCeiling, roomViews, STAGE_FOV, E_FILL, E_WHITE, PAR_LEV
  */
 
 // The output pass brings a pixel past white back by its largest channel, so it keeps its hue and saturation.
-// Edges are smoothed by FXAA on a perceptual luma (the square root of linear light, as far as white): multisampling a
-// half-float buffer cost a software renderer twice the frame.
-const FXAA_LUMA = ['return dot( Sample( tex2D, uv ).rgb, vec3( 0.3, 0.59, 0.11 ) );',
-  'return sqrt( dot( min( Sample( tex2D, uv ).rgb, 1.0 ), vec3( 0.3, 0.59, 0.11 ) ) );'];
 THREE.ShaderChunk.tonemapping_pars_fragment = THREE.ShaderChunk.tonemapping_pars_fragment.replace(
   'vec3 CustomToneMapping( vec3 color ) { return color; }',
   'vec3 CustomToneMapping( vec3 color ) { return color / max( 1.0, max( color.r, max( color.g, color.b ) ) ); }');
 
 const BG = 0x050507;
+// What a software renderer calls itself: SwiftShader, Mesa's llvmpipe and softpipe, Microsoft's Basic Render Driver.
+const SOFTWARE = /swiftshader|llvmpipe|softpipe|basic render|software/i;
 const OFF = 0.035;      // what an unlit lens or cell shows: its shape, not a light
 const DAMPING = 0.08;
 const GLOW = { lamp: 1.1, cell: 0.5 };
@@ -327,12 +324,13 @@ export function createStageScene(canvas, { haze = 0.6, room, lightRGB }) {
   let views = genericViews;
   let activeView = 'audience';
 
-  // Light adds as light: every part draws into a linear half-float buffer, which the output pass encodes once.
-  const renderer = new THREE.WebGLRenderer({ canvas, antialias: false, powerPreference: 'high-performance', outputBufferType: THREE.HalfFloatType });
+  // Light adds as light: every part draws into a linear half-float buffer, which the output pass encodes once. A GPU
+  // multisamples that buffer; a software renderer draws it without, as multisampling it costs one three times the frame.
+  const context = canvas.getContext('webgl2', { alpha: false, depth: true, stencil: false, antialias: false, powerPreference: 'high-performance' });
+  const named = context?.getExtension('WEBGL_debug_renderer_info');
+  const software = SOFTWARE.test(String(context?.getParameter(named ? named.UNMASKED_RENDERER_WEBGL : context.RENDERER)));
+  const renderer = new THREE.WebGLRenderer({ canvas, context: context ?? undefined, antialias: !software, outputBufferType: THREE.HalfFloatType });
   renderer.toneMapping = THREE.CustomToneMapping;
-  const smooth = new FXAAPass();
-  smooth.material.fragmentShader = smooth.material.fragmentShader.replace(...FXAA_LUMA);
-  renderer.setEffects([smooth]);
   renderer.setPixelRatio(Math.min(2, window.devicePixelRatio || 1));
   renderer.setClearColor(BG, 1);
 
@@ -886,7 +884,6 @@ export function createStageScene(canvas, { haze = 0.6, room, lightRGB }) {
     for (const clip of poolClips) clip.dispose();
     beamClip.dispose();
     for (const thing of disposables) if (thing && thing.dispose) thing.dispose();
-    smooth.dispose();
     renderer.dispose();
     // dispose() frees what the renderer allocated but not the context, which the
     // browser keeps (up to its limit) until the canvas is collected.
