@@ -8,7 +8,7 @@ import assert from 'node:assert/strict';
 import { emissionOf, hueEmission, hueLumen, beamDirection, BULB_LUMEN, PIXEL_LUMEN } from '../../src/shared/emission.ts';
 import { hueProfile } from '../../src/server/hue-profile.ts';
 import { buildRig } from '../../src/shared/rig.ts';
-import { roomRig, axisCandela, POOL_FULL, POOL_HALF } from '../../public-src/stage3d/world.js';
+import { roomRig, axisCandela, E_WHITE, PAR_LEVEL, POOL_HALF } from '../../public-src/stage3d/world.js';
 import { areaLamp } from './hue-test-lamps.js';
 
 const light = (archetype, product = 'Hue color lamp') => ({ archetype, product });
@@ -162,17 +162,17 @@ test('a room lamp\'s pool is drawn by the lux that lands at its centre', () => {
   // Hue's GU10: 350 lm in 43 degrees is 567 cd on its axis (its maker states 570), 94 lx from 2.45 m.
   const spot = placed('Hue color spot', { position: { x: 0, y: 2.45, z: 0 } }, 'spot_bulb').lamps[0];
   assert.ok(Math.abs(spot.lumen * axisCandela(43 * Math.PI / 180) - 570) < 5, `${spot.lumen * axisCandela(43 * Math.PI / 180)} cd`);
-  assert.ok(Math.abs(spot.pool.level * POOL_FULL - 94.4) < 0.5, `${spot.pool.level * POOL_FULL} lx`);
+  assert.ok(Math.abs(spot.pool.level * E_WHITE - 94.4) < 0.5, `${spot.pool.level * E_WHITE} lx`);
   // A bulb shines all round: 806 lm over the sphere, 7 lx on a wall 3 m away.
   const wash = placed('Hue color lamp', { position: { x: 0, y: 1, z: 0 }, lightTarget: { x: 0, y: 1, z: 3 } }).pools[0].pool;
-  assert.ok(Math.abs(wash.level * POOL_FULL - 806 / (4 * Math.PI * 9)) < 1e-9, `${wash.level * POOL_FULL} lx`);
+  assert.ok(Math.abs(wash.level * E_WHITE - 806 / (4 * Math.PI * 9)) < 1e-9, `${wash.level * E_WHITE} lx`);
 });
 
-test('a par of unknown lumen keeps a full pool', () => {
+test('a par of unknown lumen is drawn as every pool was before: 0.9 of its light', () => {
   const par = { id: 2, label: 'Par', profileId: 'par', emission: { kind: 'beam', tilt: -90, beamAngle: 120 } }, parProfile = { id: 'par', channelMap: { red: 0 } };
   const room = { bounds: { width: 6, depth: 6, height: 2.6 }, objects: [], bindings: [{ id: 'par', fixtureId: 2, position: { x: 0, y: 2.5, z: 0 } }] };
   const lit = roomRig([par], buildRig([par], () => parProfile), room, { par: parProfile }).lamps[0];
-  assert.equal(lit.pool.level, undefined);
+  assert.equal(lit.pool.level, PAR_LEVEL);
 });
 
 // A plain lamp (no lumen of its own: a bulb's 806 lm) and a room to stand it in.
@@ -184,12 +184,12 @@ const inRoom = (fixtures, bindings, { objects = [], rooms = [], bounds = BOUNDS,
     Object.fromEntries(fixtures.map((fixture) => [fixture.profileId, profileOf(fixture)])));
 const at = (id, position, extra = {}) => ({ id: `light-${id}`, fixtureId: id, position, ...extra });
 const near = (actual, expected, message) => assert.ok(Math.abs(actual - expected) < 1e-9, `${message}: ${actual} is not ${expected}`);
-// What an all-round light of this lumen throws `d` metres off, in lux, from a line of it 2 × `b` long; the level that is drawn at;
-// and how wide its pool is from there: at half its level where half as much lands (cos³ of the angle off it), or,
-// brighter than full, where half of full does.
+// What an all-round light of this lumen throws `d` metres off, in lux, from a line of it 2 × `b` long; the level that is drawn at
+// (what a white surface shows of it); and how wide its pool is from there: at half its level where half as much lands
+// (cos³ of the angle off it), however bright.
 const luxOf = (lumen, d, b = 0) => lumen / (4 * Math.PI * d * Math.hypot(d, b));
-const levelOf = (lux) => Math.min(1, lux / POOL_FULL);
-const reachOf = (lux, d) => d * Math.sqrt((2 * Math.max(1, lux / POOL_FULL)) ** (2 / 3) - 1) / POOL_HALF;
+const levelOf = (lux) => lux / E_WHITE;
+const reachOf = (_lux, d) => d * Math.sqrt(2 ** (2 / 3) - 1) / POOL_HALF;
 const close = (actual, expected, message) => assert.ok(Math.abs(actual - expected) < 1e-6 * Math.max(1, Math.abs(expected)), `${message}: ${actual} is not ${expected}`);
 
 test('a lamp without an aim or a beam lights the floor under it: round, by the lux it throws there, at half its level 0.77 of its height out', () => {
@@ -201,18 +201,20 @@ test('a lamp without an aim or a beam lights the floor under it: round, by the l
   assert.deepEqual([unit, fixture], [0, 1], 'coloured by the lamp\'s own unit');
   assert.deepEqual([pool.at.x, pool.at.z, pool.normal], [1, -1, { x: 0, y: 1, z: 0 }]);
   assert.ok(pool.at.y > 0 && pool.at.y < 0.01, 'on the floor');
-  close(pool.level, BULB_LUMEN / (4 * Math.PI * 2.6 ** 2) / POOL_FULL, 'a bulb\'s 806 lm over the sphere 2.6 m off');
-  assert.ok(pool.level > 0.09 && pool.level < 0.1, `${pool.level}`);
+  close(pool.level, BULB_LUMEN / (4 * Math.PI * 2.6 ** 2) / E_WHITE, 'a bulb\'s 806 lm over the sphere 2.6 m off');
+  assert.ok(pool.level > 0.08 && pool.level < 0.09, `${pool.level}`);
   close(pool.major * POOL_HALF, 2.6 * Math.sqrt(2 ** (2 / 3) - 1), 'at half its level where half as much lands: cos³ of the angle off it is a half');
   assert.ok(Math.abs(pool.major * POOL_HALF / 2.6 - 0.766) < 0.001);
   assert.equal(pool.minor, pool.major, 'round');
   const under = (y, bounds = BOUNDS) => inRoom([plain(1)], [at(1, { x: 0, y, z: 0 })], { bounds }).pools[0]?.pool;
-  // A metre up it throws 64 lx. 0.4 m up it throws 401 lx, more than full: drawn at full, as wide as it lights to half of full.
-  close(under(1).level, 806 / (4 * Math.PI) / POOL_FULL, 'a metre up');
+  // A metre up it throws 64 lx. 0.4 m up it throws 401 lx, 3.7 times what shows white: drawn at that, at half its level
+  // where half of its centre's light lands, 0.31 m out, as any pool.
+  close(under(1).level, 806 / (4 * Math.PI) / E_WHITE, 'a metre up');
   close(under(1).major, reachOf(luxOf(BULB_LUMEN, 1), 1), 'a metre up');
-  assert.equal(under(0.4).level, 1, 'brighter than full');
+  close(under(0.4).level, luxOf(BULB_LUMEN, 0.4) / E_WHITE, 'past white');
+  assert.ok(under(0.4).level > 3.7 && under(0.4).level < 3.75, `${under(0.4).level}`);
   close(under(0.4).major, reachOf(luxOf(BULB_LUMEN, 0.4), 0.4), '0.4 m up');
-  assert.ok(Math.abs(under(0.4).major * POOL_HALF - 0.70) < 0.01, `48 lx land 0.70 m out: ${under(0.4).major * POOL_HALF}`);
+  assert.ok(Math.abs(under(0.4).major * POOL_HALF - 0.306) < 0.001, `200 lx land 0.31 m out: ${under(0.4).major * POOL_HALF}`);
   // Lying on the floor it counts as its own 3.5 cm above it.
   close(under(0).major, reachOf(luxOf(BULB_LUMEN, 0.035), 0.035), 'lying on the floor');
   assert.deepEqual(under(0.02), under(0));
@@ -228,7 +230,7 @@ test('a light has one pool, where its light lands: a beam its beam\'s, any other
   assert.deepEqual([aimed.lamps.map((light) => light.kind), aimed.pools.length], [['bulb'], 1], 'aimed without a beam: a bulb, and its pool where it is aimed');
   const landed = aimed.pools[0].pool, far = Math.hypot(1, 2);
   close(landed.at.x, 1, 'on its target');
-  close(landed.level, luxOf(BULB_LUMEN, far) * (2 / far) / POOL_FULL, 'all round, turned by the angle it strikes at');
+  close(landed.level, luxOf(BULB_LUMEN, far) * (2 / far) / E_WHITE, 'all round, turned by the angle it strikes at');
   // Aimed at the floor under it, it is the pool it has without an aim.
   const down = inRoom([plain(1)], [at(1, { x: 0, y: 2, z: 0 }, { lightTarget: { x: 0, y: 0, z: 0 } })]).pools[0].pool;
   const free = inRoom([plain(1)], [at(1, { x: 0, y: 2, z: 0 })]).pools[0].pool;

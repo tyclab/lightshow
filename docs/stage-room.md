@@ -45,7 +45,8 @@ revision and measurement confidence can be retained in the model.
   "bounds": { "width": 6, "depth": 4, "height": 3 },
   "rooms": [{
     "id": "main", "label": "Main room",
-    "polygon": [[-3, -2], [3, -2], [3, 2], [-3, 2]]
+    "polygon": [[-3, -2], [3, -2], [3, 2], [-3, 2]],
+    "color": "#9a8a78", "ceiling": "#e8e8e8"
   }],
   "objects": [{
     "id": "back-wall", "kind": "box", "role": "wall",
@@ -88,7 +89,9 @@ passes a mesh wall's opening, its haze ends at that wall. Furniture does not cut
 Optional `rotation` contains `x`, `y`, `z` Euler angles in radians. A cylinder's
 local axis is Y; X/Z sizes are diameters. A prism also needs a local X/Z polygon
 within its width/depth. Room polygons use world X/Z coordinates. Colours are
-optional `#RRGGBB` values. IDs must be unique within each collection.
+optional `#RRGGBB` values: an object's `color`, a room's `color` for its floor and its
+`ceiling` for its ceiling. Stage takes a surface's colour as what it reflects of the light
+that lands on it (see the pools below). IDs must be unique within each collection.
 
 A `mesh` contains `mesh: { vertices: [[x, y, z], ...], triangles: [[i, j, k], ...] }`.
 Vertices are normalized local coordinates in −0.5…0.5, scaled by the object's
@@ -130,7 +133,7 @@ furniture surface or room boundary receives the pool, as for any beam.
 Physical positions, output addressing and effect sampling remain unchanged.
 
 Every light gives the room one pool, where its light lands, drawn by the lux (lumen a square
-metre) it throws there:
+metre) it throws there as the surface there reflects it:
 
 - A lamp with a beam (a **Light shape** of directional beam, or a Hue spot, pendant, ceiling or
   wall fitting its bridge names) throws it where it is aimed, else by its own pan and tilt, onto
@@ -150,14 +153,40 @@ metre) it throws there:
   of light that shines all round. It is level along their longest level extent and across
   their extent the other way. A strip that turns corners needs a `path` to be lit along its run.
 
-A pool's level is the lux at its centre over 97, the lux drawn at full strength (`POOL_FULL` in
-`public-src/stage3d/world.js`). It is at half that level where half as much lands: 0.77 of its
-height to the side under a lamp, 0.34 of its throw to the side for a 43° beam. A light that
-throws more than 97 lx is drawn at full, as wide as it lights to half of full: a 900 lm a
-metre strip 5 cm off a wall lights 0.28 m to either side. From 2.45 m, Hue's spot throws 94 lx
-(level 0.97) with its half level 0.83 m out, and an 806 lm bulb 11 lx (0.11) with its half
-level 1.88 m out. A beam's cone in the haze is as strong as its pool. No light counts as
-nearer a surface than a bulb's own 3.5 cm.
+A surface of colour c lit with E lux shows c × E / E_white, in linear light, where E_white is
+108 lx (`E_WHITE` in `public-src/stage3d/world.js`): a white surface lit with 108 lx shows
+display white. 108 lx is the scale every pool was drawn at before pools took their surface's
+colour (full at 97 lx, at 0.9 of that), so on a white surface a pool shows what it did and a
+darker one less. A pool's level, the lux at its centre over E_white, has no cap, and it is at
+half that level where half as much lands, however bright: 0.77 of its height to the side under
+a lamp, 0.34 of its throw to the side for a 43° beam. From 2.45 m, Hue's spot throws 94 lx
+(level 0.87) with its half level 0.83 m out, and an 806 lm bulb 11 lx (0.10) with its half
+level 1.88 m out; a 900 lm a metre strip 5 cm off a wall lands about 9,000 lx along it, 83 times
+what shows white, and half of that 0.04 m to either side. A beam's cone in the haze is as strong
+as the light its pool takes, and full from the 97 lx a beam of unknown lumen lands. No light
+counts as nearer a surface than a bulb's own 3.5 cm.
+
+The colour of the surface is its reflectance, channel by channel. A pool on the floor takes its
+room's `color`, one on the ceiling the room's `ceiling`, one on a wall or on furniture that
+object's `color`. A floor or an object the model gives no colour reflects as Stage draws it
+(#3a3e48 for a room's floor, #2a2d35 for the floor outside every room, #747985 for an object); a
+surface Stage does not draw (a ceiling without `ceiling`, the walls and ceiling of the room box)
+reflects the light whole, as every pool was drawn before. The room panel lists the lit surfaces
+the model gives no colour. The generic venue has no surfaces: its pools reflect their light whole.
+
+The room's surfaces shade under a fill of 7 lx on a level surface (`E_FILL`) through the same
+exposure: unlit, a level surface shows its colour × 7 / 108. 7 lx makes a floor of reflectance
+0.22 (oak) show unlit what the default floor showed under the fill before pools took their
+surface's colour (sRGB 29, 32, 39 read back). The fill keeps its sky and its key light in their
+shares; three.js shades a surface lit with intensity I as its colour × I / π (read back: 0.97 to
+1.02 of that, with its specular share), and the two are scaled by that.
+
+Stage adds light in a linear half-float buffer, so pools, beams and glows add as light: four
+pools of 0.05 of white on one spot show 0.2 (sRGB 124), where adding them as encoded values
+showed 252. The output encodes once, and a pixel past white is divided by its largest channel,
+so it keeps its hue and saturation: orange at three times white stays orange, not yellow. A GPU
+multisamples the buffer; a software renderer (SwiftShader, llvmpipe) draws it without, since
+multisampling a half-float buffer costs one about three times the frame.
 
 A pool is clipped like any other: the one under a light to the room its light stands in, where
 a light outside every room polygon, such as one hung in the line of a wall, belongs to the room
@@ -170,11 +199,13 @@ strip 800 lm a metre; `HUE_LUMEN` in `src/shared/emission.ts`, the maker's figur
 rounded), any other strip 484 lm a metre of surveyed run and a pixel 8 lm. A panel's pixels
 closer than a 60-per-metre strip's are smaller LEDs and count by the area each has (a 5.6 mm
 pitch gives 0.9 lm a pixel); that figure is an estimate. A beam of unknown lumen (a DMX par)
-keeps a full-strength pool, at half its level where half of its own centre's light lands; aimed
-in a room it counts as an 806 lm bulb. Any other light of unknown lumen counts as an 806 lm
+lands 97 lx at its centre, 0.9 of E_white (`PAR_LEVEL`), as such a pool was drawn before, at
+half its level where half of its own centre's light lands; aimed in a room it counts as an
+806 lm bulb. Any other light of unknown lumen counts as an 806 lm
 bulb too, except the one light of a fixture sent as LED data (DDP, OpenRGB) for which nobody
 chose a **Light shape** or typed a **Lumen**: it is a single LED and counts as a pixel. The
-generic venue knows no lumen: its beams land by the same rule, each pool at full strength.
+generic venue knows no lumen: its beams land by the same rule, each pool as a beam of unknown
+lumen's.
 
 A fixture's own figure comes first: the **Lumen** of its light shape (`emission.lumen`, set in
 the fixture inspector) is what the whole fixture gives at full white, for any output. Its units

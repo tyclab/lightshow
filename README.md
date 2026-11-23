@@ -319,7 +319,8 @@ room position; with an explicit cell map it stands in a dark, see-through body s
 pixels, since the room has no object for it. A fixture with no position anywhere is not drawn. The room's
 surfaces shade under a dim fill, the same whatever the outputs do. What a light gives the room
 is drawn where the light is: its own glow, the room objects that are the light, and one pool
-where its light lands, drawn by the lux it throws there: a beam's where it is aimed, any other
+where its light lands, drawn by the lux it throws there as that surface's colour reflects it
+(light adds as light, and a pool past white keeps its hue): a beam's where it is aimed, any other
 light's on the surface it is aimed at or on the floor under it
 ([the rule](docs/stage-room.md)). A beam's haze stops at the walls, the floor and the ceiling,
 as its light does. Light on a wall shows from that wall's side only; light on the ceiling,
@@ -1269,9 +1270,10 @@ stream alike, before the grade and whether or not the grade is on.
 **sRGB decode** (`picture.decode`, off by default) decodes each byte with the
 IEC 61966-2-1 curve before the black point, for outputs whose light is linear
 in the byte: sRGB 75 is 7 % light and drives 18 of 255, not 75; 128 drives 55;
-(200, 120, 60) drives (147, 48, 12). Leave it off for a WLED board, which
-applies its own gamma to its realtime input: the decode on top of that made
-the room and the LED curtain far too dim. Hue lamps get the colour in the
+(200, 120, 60) drives (147, 48, 12). Leave it off for a WLED board: with the
+decode on, the room and the LED curtain looked far too dim, although such a board
+shows its realtime input without gamma when its `live.no-gc` setting is on (WLED
+16.0.1, `FX_fcn.cpp:1713`), so its light is linear in the byte. Hue lamps get the colour in the
 stream's RGB colour space (each level times 257, below a byte included); the server
 applies no further curve. The Stage's screens show the picture as sent either way.
 

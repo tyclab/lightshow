@@ -11,25 +11,27 @@ const three = JSON.stringify(path.join(root, 'node_modules/three/build/three.mod
 const built = await esbuild.build({
   stdin: { contents: `export { createStageScene } from './public-src/stage3d/scene.js';
     export { keptRig } from './public-src/stage3d/kept-rig.js';
-    export { lightRGB } from './public-src/stage3d/world.js';
-    export { FrontSide, DoubleSide, Matrix4, Vector3 } from 'three';
+    export { lightRGB, E_WHITE, E_FILL, PAR_LEVEL, FLOOR_COLOUR } from './public-src/stage3d/world.js';
+    export { FrontSide, DoubleSide, Matrix4, Vector3, Color, ShaderChunk, HalfFloatType, CustomToneMapping } from 'three';
     export { built } from 'scene-counts';`, resolveDir: root },
   bundle: true, format: 'esm', platform: 'node', write: false, logLevel: 'silent',
   plugins: [{ name: 'stub-renderer', setup(build) {
     build.onResolve({ filter: /^three$/ }, () => ({ path: 'three', namespace: 'stub' }));
     build.onResolve({ filter: /^scene-counts$/ }, () => ({ path: 'counts', namespace: 'stub' }));
-    build.onLoad({ filter: /^counts$/, namespace: 'stub' }, () => ({ contents: 'export const built = { instanced: 0, groups: 0, lights: [], meshes: [] };' }));
+    build.onLoad({ filter: /^counts$/, namespace: 'stub' }, () => ({ contents: 'export const built = { instanced: 0, groups: 0, lights: [], fill: [], meshes: [], renderers: [] };' }));
     // Real three.js, but no WebGL: InstancedMesh is built per rig, a Group per rig and per room.
     build.onLoad({ filter: /^three$/, namespace: 'stub' }, () => ({ resolveDir: root, contents: `
       import * as THREE from ${three};
       import { built } from 'scene-counts';
       export * from ${three};
       export class WebGLRenderer {
+        constructor(options) { built.renderers.push({ options, renderer: this }); }
         setPixelRatio() {} setClearColor() {} setSize() {} dispose() {} forceContextLoss() {}
         // Keeps the lights the frame is drawn under, as three collects them: the visible ones.
         render(scene) {
           built.lights = [];
-          scene.traverseVisible((object) => { if (object.isLight) built.lights.push(object.type); });
+          built.fill = [];
+          scene.traverseVisible((object) => { if (object.isLight) { built.lights.push(object.type); built.fill.push(object); } });
         }
       }
       export class InstancedMesh extends THREE.InstancedMesh { constructor(...args) { super(...args); built.instanced++; built.meshes.push(this); } }
@@ -42,7 +44,10 @@ const noop = () => {};
 globalThis.window = { devicePixelRatio: 1 };
 globalThis.document = { createElement: () => ({ getContext: () => ({ createRadialGradient: () => ({ addColorStop: noop }), fillRect: noop }) }) };
 const page = { addEventListener: noop, removeEventListener: noop };
-const canvas = { ...page, style: {}, ownerDocument: page, getRootNode: () => page, parentElement: null, getBoundingClientRect: () => ({ width: 800, height: 450 }) };
+// The context the scene asks for: a GPU's, or a software renderer's when `renderer` names one.
+let rendererName = 'ANGLE (NVIDIA, Vulkan)';
+const context = { RENDERER: 7937, getExtension: () => null, getParameter: (name) => (name === 7937 ? rendererName : null) };
+const canvas = { ...page, style: {}, ownerDocument: page, getRootNode: () => page, parentElement: null, getContext: () => context, getBoundingClientRect: () => ({ width: 800, height: 450 }) };
 const scene = () => ui.createStageScene(canvas, { room: { width: 12, depth: 8, trussHeight: 4.6 }, lightRGB: () => [0, 0, 0] });
 
 const BAR = { id: 'scene-bar', name: 'Bar', channelCount: 24, channelMap: {},
@@ -99,9 +104,35 @@ test('a room is shaded by its fill alone, whatever its lamps show; the generic v
     assert.equal(stage.render(), true);
     assert.deepEqual(ui.built.lights, ['HemisphereLight', 'DirectionalLight']);
   }
+  // The fill is E_FILL lux on a level surface: a sky and a key in their old shares (0.75 and 0.45), lighting a level
+  // white surface to E_FILL / E_WHITE of white (three.js shades by intensity over π; stage-colour.spec.js reads it back).
+  const [sky, key] = ui.built.fill, luminance = ({ r, g, b }) => 0.2126 * r + 0.7152 * g + 0.0722 * b;
+  assert.ok(Math.abs(sky.intensity / key.intensity - 0.75 / 0.45) < 1e-9, `${sky.intensity} ${key.intensity}`);
+  const level = (sky.intensity * luminance(sky.color) + key.intensity * key.position.clone().normalize().y) / Math.PI;
+  assert.ok(Math.abs(level - ui.E_FILL / ui.E_WHITE) < 1e-9, `${level}`);
   stage.setRoom(null);
   stage.render();
   assert.deepEqual(ui.built.lights, []);
+});
+
+test('the stage adds light in a half-float buffer, multisampled on a GPU, and brings a pixel past white back by its largest channel', () => {
+  const at = ui.built.renderers.length;
+  ui.createStageScene(canvas, { room: { width: 12, depth: 8, trussHeight: 4.6 }, lightRGB: ui.lightRGB });
+  const { options, renderer } = ui.built.renderers[at];
+  assert.deepEqual([options.outputBufferType, renderer.toneMapping, options.context, options.antialias], [ui.HalfFloatType, ui.CustomToneMapping, context, true]);
+  // A software renderer draws the buffer without multisampling.
+  for (const name of ['ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero)))', 'ANGLE (Mesa, Vulkan 1.4 (llvmpipe (LLVM 21.1.8 256 bits)))']) {
+    rendererName = name;
+    ui.createStageScene(canvas, { room: { width: 12, depth: 8, trussHeight: 4.6 }, lightRGB: ui.lightRGB });
+    assert.equal(ui.built.renderers.at(-1).options.antialias, false, name);
+  }
+  rendererName = 'ANGLE (NVIDIA, Vulkan)';
+  // The output pass's CustomToneMapping, run as GLSL would: orange three times white comes back orange.
+  const glsl = ui.ShaderChunk.tonemapping_pars_fragment.match(/vec3 CustomToneMapping\( vec3 color \) \{([^}]*)\}/)[1];
+  assert.match(glsl, /return color \/ max\( 1\.0, max\( color\.r, max\( color\.g, color\.b \) \) \);/);
+  const custom = ([r, g, b]) => [r, g, b].map((v) => v / Math.max(1, r, g, b));
+  assert.deepEqual(custom([3, 1.5, 0]), [1, 0.5, 0]);
+  assert.deepEqual(custom([0.5, 0.25, 0]), [0.5, 0.25, 0]);
 });
 
 test('every light\'s pool is drawn: a beam\'s own, and the one of a lamp without a beam, under it or where it is aimed', () => {
@@ -141,12 +172,16 @@ test('a beam\'s cone is as strong as its pool, and each pool is drawn by its win
   const [, , cones, pools] = ui.built.meshes.slice(-6);
   stage.setLights([{ r: 255 }, { g: 255 }, { b: 255 }]);
   const [faint, unknown] = shown.placed.lamps, band = shown.placed.pools[0].pool;
-  assert.ok(faint.pool.level > 0.05 && faint.pool.level < 0.2 && unknown.pool.level === undefined, `${faint.pool.level}`);
+  assert.ok(faint.pool.level > 0.05 && faint.pool.level < 0.2 && unknown.pool.level === ui.PAR_LEVEL, `${faint.pool.level}`);
   const colour = (mesh, k) => [...mesh.instanceColor.array.slice(k * 3, k * 3 + 3)];
-  assert.deepEqual(colour(cones, 0), [Math.fround(faint.pool.level), 0, 0], 'the cone of a 20 lm beam is as faint as its pool');
-  assert.deepEqual(colour(pools, 0), colour(cones, 0));
-  assert.deepEqual([colour(cones, 1), colour(pools, 1)], [[0, 1, 0], [0, 1, 0]], 'a beam of unknown lumen: both full');
-  assert.deepEqual(colour(pools, 2), [0, 0, Math.fround(band.level)]);
+  // A pool is its light times what its surface reflects (this floor has no colour: the default one); a cone has no
+  // surface, and is full from what a beam of unknown lumen lands.
+  const floor = new ui.Color(ui.FLOOR_COLOUR), [r, g, b] = faint.pool.reflectance;
+  assert.ok([r - floor.r, g - floor.g, b - floor.b].every((d) => Math.abs(d) < 1e-9), 'the floor as three.js draws it');
+  assert.deepEqual(colour(cones, 0), [Math.fround(faint.pool.level / ui.PAR_LEVEL), 0, 0], 'the cone of a 20 lm beam is as faint as its light');
+  assert.deepEqual(colour(pools, 0), [Math.fround(faint.pool.level * r), 0, 0]);
+  assert.deepEqual([colour(cones, 1), colour(pools, 1)], [[0, 1, 0], [0, Math.fround(ui.PAR_LEVEL * g), 0]], 'a beam of unknown lumen: a full cone');
+  assert.deepEqual(colour(pools, 2), [0, 0, Math.fround(band.level * b)]);
   // What each pool draws of its quad, and how much of it is level: the beams' whole and round, the strip's band cut to the room.
   const windows = pools.geometry.attributes.poolWindow, runs = pools.geometry.attributes.poolRun;
   assert.deepEqual([windows.count, windows.itemSize, runs.count, runs.itemSize, windows.isInstancedBufferAttribute, runs.isInstancedBufferAttribute], [3, 4, 3, 2, true, true]);
@@ -296,8 +331,10 @@ test('a pool on a ceiling is drawn from both sides, on the room\'s ceiling and u
   assert.deepEqual(quads.map((quad) => quad.mesh.material.side), [ui.DoubleSide, ui.DoubleSide, ui.FrontSide, ui.FrontSide]);
   assert.equal(quads[0].mesh, quads[1].mesh, 'the pools on ceilings are one sheet');
   assert.equal(quads[2].mesh, quads[3].mesh, 'the others another');
-  assert.deepEqual(quads.map((quad) => quad.colour), [[1, 0, 0], [0, 1, 0], [0, 0, 1], [1, 1, 0]].map((rgb, k) => rgb.map((v) => Math.fround(v * [up, onShelf, onWall, under][k].pool.level))),
-    'each pool keeps its own light\'s colour at its own level');
+  assert.deepEqual(quads.map((quad) => quad.colour), [[1, 0, 0], [0, 1, 0], [0, 0, 1], [1, 1, 0]].map((rgb, k) => {
+    const { pool } = [up, onShelf, onWall, under][k];
+    return rgb.map((v, c) => Math.fround(v * pool.level * pool.reflectance[c]));
+  }), 'each pool keeps its own light\'s colour at its own level, as its own surface reflects it');
   assert.equal(stage.info().pools, 4);
   // Each sheet draws its own pools' windows and runs, in its own order.
   const windowsOf = (quad) => [...quad.mesh.geometry.attributes.poolWindow.array];

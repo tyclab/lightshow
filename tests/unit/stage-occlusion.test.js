@@ -231,10 +231,11 @@ test('a light outside its room\'s polygon carries the wall between itself and th
   assert.ok(lit(pool, { x: 0.3, y: pool.at.y, z: 1.4 }), 'past the wall\'s end it shows');
 });
 
-// A pool's own coordinates (−1…1 along and across) of a point of its surface, and whether its window holds them.
+// A pool's own coordinates (−1…1 along and across) of a point of its surface, and whether its window holds them, to
+// rounding: a point on the quad's own edge comes back a hair past ±1.
 const inWindow = (pool, point) => {
   const from = sub(point, pool.at), u = dot(from, pool.along) / pool.major, v = dot(from, pool.across) / pool.minor, [cu, cv, hu, hv] = pool.window;
-  return Math.abs(u - cu) <= hu && Math.abs(v - cv) <= hv;
+  return Math.abs(u - cu) <= hu + 1e-9 && Math.abs(v - cv) <= hv + 1e-9;
 };
 // Every point a pool shows lies in its window, and the share of its quad the window is.
 const windowed = (pool, name, step = 0.02) => {

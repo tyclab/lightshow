@@ -69,7 +69,8 @@ export const roomSceneSchema = z.object({
     confidence,
   }).strict().optional(),
   bounds: z.object({ width: dimension, depth: dimension, height: dimension }).strict(),
-  rooms: z.array(z.object({ id, label: name, polygon, color: color.optional() }).strict()).max(128).default([]),
+  // A room's floor `color` and its `ceiling` colour: what each reflects of the light that lands on it.
+  rooms: z.array(z.object({ id, label: name, polygon, color: color.optional(), ceiling: color.optional() }).strict()).max(128).default([]),
   objects: z.array(z.object({
     id,
     label: name.optional(),
