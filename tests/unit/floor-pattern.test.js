@@ -41,6 +41,22 @@ test('each room returns on average the light of its colour: its reflectance, wit
   });
 });
 
+test('a bright floor whose lightest pieces clip at white still returns its colour on average, in every channel', () => {
+  for (const [color, pattern] of [['#f0ebe0', OAK], ['#f4f2ee', OAK], ['#e6e6e6', { ...TILES, tone: 0.5 }]]) {
+    const room = { polygon: [[-1, -1], [1, -1], [1, 1], [-1, 1]], color, pattern };
+    const bright = { width: 300, height: 300, x0: -1, y0: -1, dx: 2 / 300, dy: 2 / 300, ground: '#000000', rooms: [room] };
+    const bytes = paintFloors(bright), sum = [0, 0, 0];
+    for (let at = 0; at < bytes.length; at += 4) for (let c = 0; c < 3; c++) sum[c] += toLinear(bytes[at + c] / 255);
+    linear(color).forEach((want, c) => assert.ok(Math.abs(sum[c] / (bytes.length / 4) / want - 1) < 0.005, `${color} channel ${c}: ${sum[c] / (bytes.length / 4)} for ${want}`));
+  }
+});
+
+test('a pattern of nothing but black joints paints its room plain, not black', () => {
+  const room = { polygon: [[-0.1, -0.1], [0.1, -0.1], [0.1, 0.1], [-0.1, 0.1]], color: '#a37953', pattern: { kind: 'tiles', width: 0.02, length: 0.02, joint: 0, jointWidth: 0.05 } };
+  const bytes = paintFloors({ width: 40, height: 40, x0: -0.1, y0: -0.1, dx: 0.005, dy: 0.005, ground: '#000000', rooms: [room] });
+  assert.deepEqual([...bytes.slice(0, 4)], [0xa3, 0x79, 0x53, 255]);
+});
+
 test('the boards differ and the joints between them are darker; a floor without a pattern and the ground are plain', () => {
   const oak = new Set(), plain = new Set(), ground = new Set();
   for (let j = 0; j < floor.height; j++) for (let i = 0; i < floor.width; i++) {
