@@ -184,7 +184,9 @@ shares; three.js shades a surface lit with intensity I as its colour × I / π (
 Stage adds light in a linear half-float buffer, so pools, beams and glows add as light: four
 pools of 0.05 of white on one spot show 0.2 (sRGB 124), where adding them as encoded values
 showed 252. The output encodes once, and a pixel past white is divided by its largest channel,
-so it keeps its hue and saturation: orange at three times white stays orange, not yellow.
+so it keeps its hue and saturation: orange at three times white stays orange, not yellow. Edges
+are smoothed by FXAA on the square root of linear light rather than by multisampling, which in a
+half-float buffer cost a software renderer twice the frame.
 
 A pool is clipped like any other: the one under a light to the room its light stands in, where
 a light outside every room polygon, such as one hung in the line of a wall, belongs to the room

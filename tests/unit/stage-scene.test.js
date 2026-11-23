@@ -27,6 +27,7 @@ const built = await esbuild.build({
       export class WebGLRenderer {
         constructor(options) { built.renderers.push({ options, renderer: this }); }
         setPixelRatio() {} setClearColor() {} setSize() {} dispose() {} forceContextLoss() {}
+        setEffects(effects) { this.effects = effects; }
         // Keeps the lights the frame is drawn under, as three collects them: the visible ones.
         render(scene) {
           built.lights = [];
@@ -112,11 +113,15 @@ test('a room is shaded by its fill alone, whatever its lamps show; the generic v
   assert.deepEqual(ui.built.lights, []);
 });
 
-test('the stage adds light in a half-float buffer and brings a pixel past white back by its largest channel, keeping its hue', () => {
+test('the stage adds light in a half-float buffer, smooths its edges and brings a pixel past white back by its largest channel', () => {
   const at = ui.built.renderers.length;
   ui.createStageScene(canvas, { room: { width: 12, depth: 8, trussHeight: 4.6 }, lightRGB: ui.lightRGB });
   const { options, renderer } = ui.built.renderers[at];
   assert.deepEqual([options.outputBufferType, renderer.toneMapping], [ui.HalfFloatType, ui.CustomToneMapping]);
+  // Edges are smoothed by FXAA on the square root of linear light, not by multisampling the half-float buffer.
+  assert.equal(options.antialias, false);
+  assert.equal(renderer.effects.length, 1);
+  assert.match(renderer.effects[0].material.fragmentShader, /return sqrt\( dot\( min\( Sample\( tex2D, uv \)\.rgb, 1\.0 \), vec3\( 0\.3, 0\.59, 0\.11 \) \) \);/);
   // The output pass's CustomToneMapping, run as GLSL would: orange three times white comes back orange.
   const glsl = ui.ShaderChunk.tonemapping_pars_fragment.match(/vec3 CustomToneMapping\( vec3 color \) \{([^}]*)\}/)[1];
   assert.match(glsl, /return color \/ max\( 1\.0, max\( color\.r, max\( color\.g, color\.b \) \) \);/);
