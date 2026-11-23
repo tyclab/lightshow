@@ -30,8 +30,21 @@ function streaks(u, lane, seed) {
 const covered = (d, width, size) => Math.max(0, Math.min(1, Math.min(width, size, (width + size) / 2 - d) / size));
 
 /** The piece at (along, across) and where on it: rows `width` wide, shifted by `bond` or at random, end joints
- * `length` apart, each moved up to `lengthSpread`. @param {FloorPattern} p @param {number} along @param {number} across */
+ * `length` apart, each moved up to `lengthSpread`. A deck is square tiles `length` a side, every other one turned a
+ * quarter, each of planks `width` wide: one along an edge, the rest beside it and one across their ends.
+ * @param {FloorPattern} p @param {number} along @param {number} across */
 function pieceAt(p, along, across) {
+  if (p.kind === 'deck') {
+    const units = Math.max(2, Math.round(p.length / p.width)), width = p.length / units, last = units - 1;
+    const column = Math.floor(along / p.length), row = Math.floor(across / p.length);
+    let a = (along - column * p.length) / width, b = (across - row * p.length) / width;
+    if ((column + row) & 1) [a, b] = [units - b, a];
+    const tile = column * 7919 + row;
+    if (a >= last) return { row: tile, key: 0, u: b * width, v: (a - last) * width, length: p.length, width };
+    if (b < 1) return { row: tile, key: 1, u: a * width, v: b * width, length: last * width, width };
+    const k = Math.floor(a);
+    return { row: tile, key: 2 + k, u: (b - 1) * width, v: (a - k) * width, length: last * width, width };
+  }
   const row = Math.floor(across / p.width);
   const shift = typeof p.bond === 'number' ? (((row * p.bond) % 1) + 1) % 1 : hash(row, 7, 1);
   const spread = Math.min(p.lengthSpread ?? 0, p.length * 0.45);
@@ -41,7 +54,7 @@ function pieceAt(p, along, across) {
   if (run < joint(column)) column--;
   else if (run >= joint(column + 1)) column++;
   const from = joint(column);
-  return { row, key: column, u: run - from, v: across - row * p.width, length: joint(column + 1) - from };
+  return { row, key: column, u: run - from, v: across - row * p.width, length: joint(column + 1) - from, width: p.width };
 }
 
 /** The light a pattern returns at (x, y) relative to its mean: a piece's tone, its grain, its joints over a pixel
@@ -50,7 +63,7 @@ export function patternOf(p) {
   const angle = ((p.angle ?? 0) * Math.PI) / 180, [ox, oy] = p.origin ?? [0, 0], cos = Math.cos(angle), sin = Math.sin(angle);
   return (/** @type {number} */ x, /** @type {number} */ y, /** @type {number} */ size) => {
     const dx = x - ox, dy = y - oy;
-    const { row, key, u, v, length } = pieceAt(p, dx * cos + dy * sin, -dx * sin + dy * cos);
+    const { row, key, u, v, length, width } = pieceAt(p, dx * cos + dy * sin, -dx * sin + dy * cos);
     let level = 1 + (p.tone ?? 0) * Math.sqrt(3) * (2 * hash(row, key, 2) - 1);
     if (p.grain) {
       const lane = Math.floor(v / 0.012), seed = Math.floor(hash(row, key, 3) * 65536);
@@ -58,7 +71,7 @@ export function patternOf(p) {
     }
     const jointWidth = p.jointWidth ?? 0;
     if (!jointWidth) return level;
-    const side = Math.min(v, p.width - v), end = Math.min(u, length - u);
+    const side = Math.min(v, width - v), end = Math.min(u, length - u);
     const joint = Math.max(covered(side, jointWidth, size), covered(end, jointWidth, size));
     return level * (1 - joint) + (p.joint ?? 1) * joint;
   };

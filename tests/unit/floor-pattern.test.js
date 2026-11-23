@@ -93,6 +93,22 @@ test('pieces of random length lie within length ± twice the spread, end to end 
   assert.ok(Math.max(...lengths) - Math.min(...lengths) > 0.15, 'the lengths spread');
 });
 
+test('a deck is square tiles of planks, one along an edge, three beside it and one across, every other tile turned a quarter', () => {
+  const deck = patternOf({ kind: 'deck', width: 0.075, length: 0.3, tone: 0.3 }), w = 0.075, at = (x, y) => deck(x * w, y * w, 0.001);
+  // The first tile: the long plank along x = 3..4 from end to end, the one across at y 0..1, three beside the long one.
+  assert.equal(at(3.5, 0.2), at(3.5, 3.8), 'the long plank');
+  assert.equal(at(0.2, 0.5), at(2.8, 0.5), 'the plank across');
+  assert.equal(at(1.5, 1.2), at(1.5, 3.8), 'a plank beside the long one');
+  assert.notEqual(at(0.5, 2), at(1.5, 2), 'two planks beside each other');
+  assert.notEqual(at(2.5, 2), at(3.5, 2), 'the last short plank and the long one');
+  // Its neighbour along x is turned a quarter: its long plank runs along y = 0..1, its three short ones below it at
+  // x 5..8 and the one across their ends at x 4..5.
+  assert.equal(at(4.2, 0.5), at(7.8, 0.5), 'the turned tile\'s long plank');
+  assert.equal(at(5.2, 1.5), at(7.8, 1.5), 'a short plank of the turned tile');
+  assert.notEqual(at(6, 1.5), at(6, 2.5), 'the turned tile\'s short planks lie side by side');
+  assert.equal(at(4.5, 1.2), at(4.5, 3.8), 'the turned tile\'s plank across');
+});
+
 test('the same rooms paint the same floor, and a pattern turns with its angle', () => {
   assert.deepEqual(paintFloors(floor), painted);
   const along = patternOf({ ...OAK, angle: 0, origin: [0, 0], bond: 0.5, grain: 0, jointWidth: 0 });
