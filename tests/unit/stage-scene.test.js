@@ -174,27 +174,41 @@ test('a beam\'s cone is as strong as its pool, and each pool is drawn by its win
   const [faint, unknown] = shown.placed.lamps, band = shown.placed.pools[0].pool;
   assert.ok(faint.pool.level > 0.05 && faint.pool.level < 0.2 && unknown.pool.level === ui.PAR_LEVEL, `${faint.pool.level}`);
   const colour = (mesh, k) => [...mesh.instanceColor.array.slice(k * 3, k * 3 + 3)];
-  // A pool is its light times what its surface reflects (this floor has no colour: the default one); a cone has no
+  // A pool reflects what its surface does (this floor has no colour: the default one). On a room's floor it carries
+  // its light alone, and the pool shader takes the floor's colour from the floor's picture under it. A cone has no
   // surface, and is full from what a beam of unknown lumen lands.
   const floor = new ui.Color(ui.FLOOR_COLOUR), [r, g, b] = faint.pool.reflectance;
   assert.ok([r - floor.r, g - floor.g, b - floor.b].every((d) => Math.abs(d) < 1e-9), 'the floor as three.js draws it');
+  assert.deepEqual([faint.pool.floor, unknown.pool.floor, band.floor], [true, true, true]);
+  assert.deepEqual([...pools.geometry.attributes.poolFloor.array], [1, 1, 1]);
+  const { uFloor, uFloorBox, uFloorOn } = pools.material.uniforms;
+  assert.equal(uFloorOn.value, true);
+  for (const pool of [faint.pool, unknown.pool, band]) assert.deepEqual(texelAt(uFloor.value, uFloorBox.value, pool.at), [0x3a, 0x3e, 0x48, 255]);
   assert.deepEqual(colour(cones, 0), [Math.fround(faint.pool.level / ui.PAR_LEVEL), 0, 0], 'the cone of a 20 lm beam is as faint as its light');
-  assert.deepEqual(colour(pools, 0), [Math.fround(faint.pool.level * r), 0, 0]);
-  assert.deepEqual([colour(cones, 1), colour(pools, 1)], [[0, 1, 0], [0, Math.fround(ui.PAR_LEVEL * g), 0]], 'a beam of unknown lumen: a full cone');
-  assert.deepEqual(colour(pools, 2), [0, 0, Math.fround(band.level * b)]);
+  assert.deepEqual(colour(pools, 0), [Math.fround(faint.pool.level), 0, 0]);
+  assert.deepEqual([colour(cones, 1), colour(pools, 1)], [[0, 1, 0], [0, Math.fround(ui.PAR_LEVEL), 0]], 'a beam of unknown lumen: a full cone');
+  assert.deepEqual(colour(pools, 2), [0, 0, Math.fround(band.level)]);
   // What each pool draws of its quad, and how much of it is level: the beams' whole and round, the strip's band cut to the room.
   const windows = pools.geometry.attributes.poolWindow, runs = pools.geometry.attributes.poolRun;
   assert.deepEqual([windows.count, windows.itemSize, runs.count, runs.itemSize, windows.isInstancedBufferAttribute, runs.isInstancedBufferAttribute], [3, 4, 3, 2, true, true]);
   assert.deepEqual([...windows.array], [...faint.pool.window, ...unknown.pool.window, ...band.window].map(Math.fround));
   assert.deepEqual([...runs.array], [0, 0, 0, 0, ...band.run].map(Math.fround));
   assert.ok(band.run[0] > 0.2 && band.window[3] < 1, `${band.run} ${band.window}`);
-  // The generic venue cuts nothing: every pool draws its whole quad.
+  // The generic venue cuts nothing: every pool draws its whole quad, white as it lands, with no floor's picture.
   stage.setRoom(null);
+  assert.deepEqual([uFloorOn.value, uFloor.value], [false, null]);
   const venue = ui.keptRig([beam(1, 20), beam(2)], { [LAMP.id]: LAMP }, null);
   stage.setRig(venue.placed, venue.rig.units.length);
   assert.deepEqual([...ui.built.meshes.at(-3).geometry.attributes.poolWindow.array], [0, 0, 1, 1, 0, 0, 1, 1]);
   stage.dispose();
 });
+
+// The floor's picture at a point on the floor, as the pool shader reads it: RGBA bytes.
+function texelAt(texture, box, at) {
+  const { width, height, data } = texture.image;
+  const i = Math.floor(((at.x - box.x) / box.z) * width), j = Math.floor(((at.z - box.y) / box.w) * height);
+  return [...data.slice((j * width + i) * 4, (j * width + i) * 4 + 4)];
+}
 
 // The pool quad a rig's scene draws for `pool`: the mesh that holds it, and the way its front faces in the room.
 // three.js draws a triangle's front where its corners run counter-clockwise, and a one-sided material nothing else.
@@ -333,8 +347,9 @@ test('a pool on a ceiling is drawn from both sides, on the room\'s ceiling and u
   assert.equal(quads[2].mesh, quads[3].mesh, 'the others another');
   assert.deepEqual(quads.map((quad) => quad.colour), [[1, 0, 0], [0, 1, 0], [0, 0, 1], [1, 1, 0]].map((rgb, k) => {
     const { pool } = [up, onShelf, onWall, under][k];
-    return rgb.map((v, c) => Math.fround(v * pool.level * pool.reflectance[c]));
-  }), 'each pool keeps its own light\'s colour at its own level, as its own surface reflects it');
+    return rgb.map((v, c) => Math.fround(v * pool.level * (pool.floor ? 1 : pool.reflectance[c])));
+  }), 'each pool keeps its own light\'s colour at its own level, as its own surface reflects it (the floor in its shader)');
+  assert.deepEqual([up, onShelf, onWall, under].map(({ pool }) => !!pool.floor), [false, false, false, true]);
   assert.equal(stage.info().pools, 4);
   // Each sheet draws its own pools' windows and runs, in its own order.
   const windowsOf = (quad) => [...quad.mesh.geometry.attributes.poolWindow.array];

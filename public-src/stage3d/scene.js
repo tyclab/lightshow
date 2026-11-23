@@ -2,6 +2,7 @@ import { performanceReport } from '../performance.js';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { roomObjectGeometry } from './room-geometry.js';
+import { paintFloors } from './floor-pattern.js';
 import { meanLightRGB, onCeiling, roomViews, STAGE_FOV, E_FILL, E_WHITE, PAR_LEVEL, FLOOR_COLOUR, GROUND_COLOUR, OBJECT_COLOUR } from './world.js';
 
 /**
@@ -44,6 +45,8 @@ const OFF = 0.035;      // what an unlit lens or cell shows: its shape, not a li
 const DAMPING = 0.08;
 const GLOW = { lamp: 1.1, cell: 0.5 };
 const ROOM_GLOW = { lamp: 0.45, cell: 0.09 };
+// The floor's picture: up to 5 mm a texel, at most 2048 texels a side (1024 on a software renderer).
+const FLOOR_DENSITY = 200, FLOOR_TEXELS = 2048;
 
 // A beam's clip rides with its place and colour (aLeast, aMost, aWhere: see BEAM_FRAGMENT), so haze that no room
 // edge and no wall can cut reads no texel.
@@ -146,9 +149,11 @@ const BEAM_FRAGMENT = /* glsl */`
 const POOL_VERTEX = /* glsl */`
   attribute vec4 poolWindow;
   attribute vec2 poolRun;
+  attribute float poolFloor;
   varying vec3 vColor;
   varying vec2 vAt;
   flat varying vec2 vRun;
+  flat varying float vFloor;
   varying vec3 vWorld;
   varying vec3 vCentre;
   flat varying int vPool;
@@ -160,6 +165,7 @@ const POOL_VERTEX = /* glsl */`
     vWorld = world.xyz;
     vCentre = (modelMatrix * instanceMatrix * vec4(0.0, 0.0, 0.0, 1.0)).xyz;
     vPool = gl_InstanceID;
+    vFloor = poolFloor;
     gl_Position = projectionMatrix * viewMatrix * world;
   }
 `;
@@ -171,9 +177,13 @@ const POOL_VERTEX = /* glsl */`
 const POOL_FRAGMENT = /* glsl */`
   uniform sampler2D uClip;
   uniform int uClipWidth;
+  uniform sampler2D uFloor;
+  uniform vec4 uFloorBox;
+  uniform bool uFloorOn;
   varying vec3 vColor;
   varying vec2 vAt;
   flat varying vec2 vRun;
+  flat varying float vFloor;
   varying vec3 vWorld;
   varying vec3 vCentre;
   flat varying int vPool;
@@ -218,7 +228,10 @@ const POOL_FRAGMENT = /* glsl */`
     // Past the light's own run the pool falls off as (1 − d²)²: half its level 0.54 of the way out (world.POOL_HALF).
     vec2 past = max(abs(vAt) - vRun, 0.0) / (1.0 - vRun);
     float fall = 1.0 - min(dot(past, past), 1.0);
-    gl_FragColor = vec4(vColor * fall * fall, 1.0);
+    vec3 light = vColor * fall * fall;
+    // A pool on the floor of a room carries its light alone and takes the floor's colour where it lands: its boards.
+    if (uFloorOn && vFloor > 0.5) light *= texture(uFloor, (vWorld.xz - uFloorBox.xy) / uFloorBox.zw).rgb;
+    gl_FragColor = vec4(light, 1.0);
     #include <colorspace_fragment>
   }
 `;
@@ -404,6 +417,37 @@ export function createStageScene(canvas, { haze = 0.6, room, lightRGB }) {
     }
   }
 
+  /** The floor's picture over `bounds`, texel rows running with z: each room's pattern or colour, the ground's elsewhere. */
+  function floorTexture({ bounds, rooms }) {
+    const most = Math.min(software ? FLOOR_TEXELS / 2 : FLOOR_TEXELS, renderer.capabilities?.maxTextureSize ?? FLOOR_TEXELS);
+    const perMetre = Math.min(FLOOR_DENSITY, most / Math.max(bounds.width, bounds.depth));
+    const width = Math.max(1, Math.round(bounds.width * perMetre)), height = Math.max(1, Math.round(bounds.depth * perMetre));
+    const texels = paintFloors({ width, height, x0: -bounds.width / 2, y0: -bounds.depth / 2, dx: bounds.width / width, dy: bounds.depth / height,
+      ground: GROUND_COLOUR, rooms: rooms.map((area) => ({ polygon: area.polygon, color: area.color || FLOOR_COLOUR, pattern: area.floorPattern })) });
+    const texture = new THREE.DataTexture(texels, width, height, THREE.RGBAFormat);
+    Object.assign(texture, { colorSpace: THREE.SRGBColorSpace, magFilter: THREE.LinearFilter, minFilter: THREE.LinearMipmapLinearFilter,
+      generateMipmaps: true, anisotropy: renderer.capabilities?.getMaxAnisotropy?.() ?? 1, needsUpdate: true });
+    return texture;
+  }
+
+  /** The floor plane over the room box, mapped as the pools read the floor's picture: u along x, v along z. */
+  function floorGeometry({ width, depth }) {
+    const geometry = new THREE.PlaneGeometry(width, depth).rotateX(-Math.PI / 2);
+    const { position, uv } = geometry.attributes;
+    for (let i = 0; i < position.count; i++) uv.setXY(i, position.getX(i) / width + 0.5, position.getZ(i) / depth + 0.5);
+    return geometry;
+  }
+
+  /** Pools on the floor read its picture, or carry the colour of what they land on where there is none. */
+  function showFloor(map, bounds) {
+    for (const material of poolMaterials) {
+      const { uFloor, uFloorBox, uFloorOn } = material.uniforms;
+      uFloor.value = map;
+      uFloorOn.value = !!map;
+      if (bounds) uFloorBox.value.set(-bounds.width / 2, -bounds.depth / 2, bounds.width, bounds.depth);
+    }
+  }
+
   let roomModel;
   function setRoom(model) {
     // The room this scene already shows: a view that mounts again keeps it, and its materials' programs.
@@ -419,26 +463,19 @@ export function createStageScene(canvas, { haze = 0.6, room, lightRGB }) {
     screens = [];
     if (screenTexture) { screenTexture.dispose(); screenTexture = null; }
     roomGroup = null;
+    showFloor(null);
     floor.visible = deck.visible = wall.visible = !model;
     roomBounds = model?.bounds || null;
     views = genericViews;
     if (model) {
       roomGroup = new THREE.Group();
       const keepRoom = (resource) => { roomDisposables.push(resource); return resource; };
-      const ground = new THREE.Mesh(
-        keepRoom(new THREE.PlaneGeometry(model.bounds.width, model.bounds.depth)),
-        keepRoom(new THREE.MeshStandardMaterial({ color: GROUND_COLOUR, roughness: 0.95, side: THREE.DoubleSide })),
-      );
-      ground.rotation.x = -Math.PI / 2;
+      // The floor: one picture over the room box, each room's boards or tiles in it, the ground between them.
+      const floorMap = keepRoom(floorTexture(model));
+      const ground = new THREE.Mesh(keepRoom(floorGeometry(model.bounds)),
+        keepRoom(new THREE.MeshStandardMaterial({ map: floorMap, roughness: 0.9, side: THREE.DoubleSide })));
       roomGroup.add(ground);
-      for (const area of model.rooms) {
-        const shape = new THREE.Shape(area.polygon.map(([x, z]) => new THREE.Vector2(x, -z)));
-        const geometry = keepRoom(new THREE.ShapeGeometry(shape).rotateX(-Math.PI / 2));
-        const material = keepRoom(new THREE.MeshStandardMaterial({ color: area.color || FLOOR_COLOUR, roughness: 0.9, side: THREE.DoubleSide }));
-        const mesh = new THREE.Mesh(geometry, material);
-        mesh.position.y = 0.003;
-        roomGroup.add(mesh);
-      }
+      showFloor(floorMap, model.bounds);
       // A dim fill, so the room reads whatever the outputs do: E_FILL lux on a level surface (world.js).
       roomGroup.add(keepRoom(new THREE.HemisphereLight(SKY, 0x30323a, 0.75 * FILL)));
       const key = keepRoom(new THREE.DirectionalLight(0xffffff, 0.45 * FILL));
@@ -499,7 +536,8 @@ export function createStageScene(canvas, { haze = 0.6, room, lightRGB }) {
   // a ceiling, which show from both (one draw, nothing culled).
   const poolClips = [poolClipTexture([]), poolClipTexture([])];
   const poolMaterials = [THREE.FrontSide, THREE.DoubleSide].map((side, sheet) => keep(new THREE.ShaderMaterial({
-    uniforms: { uClip: { value: poolClips[sheet] }, uClipWidth: { value: CLIP_WIDTH } },
+    uniforms: { uClip: { value: poolClips[sheet] }, uClipWidth: { value: CLIP_WIDTH },
+      uFloor: { value: null }, uFloorBox: { value: new THREE.Vector4(0, 0, 1, 1) }, uFloorOn: { value: false } },
     vertexShader: POOL_VERTEX,
     fragmentShader: POOL_FRAGMENT,
     transparent: true,
@@ -607,9 +645,15 @@ export function createStageScene(canvas, { haze = 0.6, room, lightRGB }) {
       const quad = poolGeometry.clone();
       rigDisposables.push(quad);
       const windows = new Float32Array(Math.max(1, lights.length) * 4), runs = new Float32Array(Math.max(1, lights.length) * 2);
-      lights.forEach(({ pool }, k) => { windows.set(pool?.window ?? [0, 0, 1, 1], k * 4); runs.set(pool?.run ?? [0, 0], k * 2); });
+      const floors = new Float32Array(Math.max(1, lights.length));
+      lights.forEach(({ pool }, k) => {
+        windows.set(pool?.window ?? [0, 0, 1, 1], k * 4);
+        runs.set(pool?.run ?? [0, 0], k * 2);
+        floors[k] = pool?.floor ? 1 : 0;
+      });
       quad.setAttribute('poolWindow', new THREE.InstancedBufferAttribute(windows, 4));
       quad.setAttribute('poolRun', new THREE.InstancedBufferAttribute(runs, 2));
+      quad.setAttribute('poolFloor', new THREE.InstancedBufferAttribute(floors, 1));
       return instanced(quad, poolMaterials[sheet], lights.length);
     }).filter(Boolean);
     // Where each light's pool is coloured: its sheet's colours and its place among them.
@@ -706,9 +750,11 @@ export function createStageScene(canvas, { haze = 0.6, room, lightRGB }) {
     const glow = (attr, k, level) => {
       write(attr, k, rgb[0] * level, rgb[1] * level, rgb[2] * level);
     };
-    // A pool: its light at its level, as its surface reflects it (white where it has none, as in the generic venue).
+    // A pool: its light at its level, as its surface reflects it (white where it has none, as in the generic venue). On
+    // a room's floor the pool shader takes the colour from the floor's picture.
+    const floorShown = poolMaterials[0].uniforms.uFloorOn.value;
     const reflected = (attr, k, pool) => {
-      const [r, g, b] = pool?.reflectance ?? [1, 1, 1], level = pool?.level ?? 0;
+      const [r, g, b] = (floorShown && pool?.floor) || !pool?.reflectance ? [1, 1, 1] : pool.reflectance, level = pool?.level ?? 0;
       write(attr, k, rgb[0] * level * r, rgb[1] * level * g, rgb[2] * level * b);
     };
     pars.forEach((par, k) => {
