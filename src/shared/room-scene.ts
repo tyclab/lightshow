@@ -20,6 +20,23 @@ const polygon = z.array(point).min(3).max(128).refine((points) => {
 }, 'A polygon must enclose an area');
 const color = z.string().regex(/^#[\da-f]{6}$/i);
 const confidence = z.enum(['estimated', 'measured']);
+// How a room's floor is laid (public-src/stage3d/floor-pattern.js): boards or tiles `width` across and `length` along
+// (each end joint moved up to `lengthSpread` either way), their length `angle` degrees from x toward z, each row shifted
+// by `bond` of a length or at random, from `origin`. `tone` is the spread of the pieces' light, `grain` their streaks;
+// joints `jointWidth` wide return `joint` of the mean.
+const floorPattern = z.object({
+  kind: z.enum(['planks', 'tiles']),
+  width: z.number().finite().min(0.02).max(5),
+  length: z.number().finite().min(0.02).max(20),
+  lengthSpread: z.number().finite().min(0).max(5).optional(),
+  angle: z.number().finite().min(-360).max(360).optional(),
+  bond: z.union([z.literal('random'), z.number().finite().min(0).max(1)]).optional(),
+  origin: point.optional(),
+  tone: z.number().finite().min(0).max(0.5).optional(),
+  grain: z.number().finite().min(0).max(0.5).optional(),
+  joint: z.number().finite().min(0).max(3).optional(),
+  jointWidth: z.number().finite().min(0).max(0.05).optional(),
+}).strict();
 const fixtureRef = {
   fixtureId: z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER - 1),
   unit: z.number().int().nonnegative().max(65535).default(0),
@@ -69,8 +86,10 @@ export const roomSceneSchema = z.object({
     confidence,
   }).strict().optional(),
   bounds: z.object({ width: dimension, depth: dimension, height: dimension }).strict(),
-  // A room's floor `color` and its `ceiling` colour: what each reflects of the light that lands on it.
-  rooms: z.array(z.object({ id, label: name, polygon, color: color.optional(), ceiling: color.optional() }).strict()).max(128).default([]),
+  // A room's floor `color` and its `ceiling` colour: what each reflects of the light that lands on it. A floor with a
+  // `floorPattern` shows its boards or tiles, with `color` their mean.
+  rooms: z.array(z.object({ id, label: name, polygon, color: color.optional(), ceiling: color.optional(), floorPattern: floorPattern.optional() })
+    .strict()).max(128).default([]),
   objects: z.array(z.object({
     id,
     label: name.optional(),

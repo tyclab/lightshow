@@ -317,7 +317,8 @@ export function poolWindow(pool) {
  * What the surface a pool lies on reflects, as linear RGB: its colour is its reflectance. A room's floor and an object
  * take the colour the model gives them, else the one the stage draws them in; a ceiling takes its room's `ceiling`.
  * A surface the stage does not draw (a ceiling without a colour, the room box's walls) reflects the light whole, as
- * every pool was drawn before. `uncoloured` names a surface the model gives no colour, and what it reflects as.
+ * every pool was drawn before. `uncoloured` names a surface the model gives no colour, and what it reflects as;
+ * `floor` marks a pool on the floor, which a patterned floor shows its boards under (scene.js).
  */
 function reflected(pool, hit, area, blockers) {
   const blocker = hit.id === null ? null : blockers.find((candidate) => candidate.id === hit.id);
@@ -329,6 +330,7 @@ function reflected(pool, hit, area, blockers) {
   const { given, ...named } = surface, colour = given ?? named.as;
   pool.reflectance = colour ? [1, 3, 5].map((at) => toLinear(parseInt(colour.slice(at, at + 2), 16) / 255)) : [1, 1, 1];
   if (!given) pool.uncoloured = named;
+  if (floor && !blocker) pool.floor = true;
 }
 
 /** A pool in a room: where it may show (poolClip), how much of its quad that leaves to draw and what its surface reflects. */

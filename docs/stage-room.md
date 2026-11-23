@@ -46,7 +46,9 @@ revision and measurement confidence can be retained in the model.
   "rooms": [{
     "id": "main", "label": "Main room",
     "polygon": [[-3, -2], [3, -2], [3, 2], [-3, 2]],
-    "color": "#9a8a78", "ceiling": "#e8e8e8"
+    "color": "#9a8a78", "ceiling": "#e8e8e8",
+    "floorPattern": { "kind": "planks", "width": 0.0615, "length": 0.45, "lengthSpread": 0.055,
+      "angle": 90, "bond": "random", "tone": 0.17, "grain": 0.15, "joint": 0.4, "jointWidth": 0.0006 }
   }],
   "objects": [{
     "id": "back-wall", "kind": "box", "role": "wall",
@@ -92,6 +94,17 @@ within its width/depth. Room polygons use world X/Z coordinates. Colours are
 optional `#RRGGBB` values: an object's `color`, a room's `color` for its floor and its
 `ceiling` for its ceiling. Stage takes a surface's colour as what it reflects of the light
 that lands on it (see the pools below). IDs must be unique within each collection.
+
+A room's optional `floorPattern` lays its floor as boards or tiles, with its `color` their
+mean, so the floor returns as much light as without it (`public-src/stage3d/floor-pattern.js`).
+`kind` is `planks` or `tiles`; `width` and `length` are a piece's size across and along in
+metres, `lengthSpread` how far each end joint moves either way at random, `angle` the degrees
+from x toward z the pieces' length runs at, `bond` the share of a length each row is shifted by
+(0–1) or `random`, `origin` the [x, z] a piece's corner lies on, `tone` the spread of the pieces'
+light (a share of the mean), `grain` their streaks, and `jointWidth` (metres) and `joint` (a share
+of the mean, up to 3 for light grout) the joints between them. Stage paints the floors as one
+picture over the bounds, up to 5 mm a texel; a pool on the floor takes its colour from that
+picture where it lands, so the boards show under the light.
 
 A `mesh` contains `mesh: { vertices: [[x, y, z], ...], triangles: [[i, j, k], ...] }`.
 Vertices are normalized local coordinates in −0.5…0.5, scaled by the object's
