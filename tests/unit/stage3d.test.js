@@ -299,7 +299,7 @@ test('the pool shader\'s falloff is a half where a pool is said to be at half it
   near(fall(world.POOL_HALF), 0.5, 'at POOL_HALF');
   assert.deepEqual([fall(0), fall(1), fall(1.2)], [1, 0, 0]);
   const glsl = fs.readFileSync(new URL('../../public-src/stage3d/scene.js', import.meta.url), 'utf8');
-  assert.match(glsl, /float fall = 1\.0 - min\(dot\(past, past\), 1\.0\);\s*gl_FragColor = vec4\(vColor \* fall \* fall \* uStrength, 1\.0\);/, 'the falloff the shader draws');
+  assert.match(glsl, /float fall = 1\.0 - min\(dot\(past, past\), 1\.0\);\s*gl_FragColor = vec4\(vColor \* fall \* fall, 1\.0\);/, 'the falloff the shader draws');
 });
 
 test('the pool shader draws a pool\'s window of its quad and no more: the quad\'s corners are laid on the window\'s', () => {

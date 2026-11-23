@@ -8,7 +8,7 @@ import { hueProfile } from '../../src/server/hue-profile.ts';
 import { buildRig } from '../../src/shared/rig.ts';
 import { runLength } from '../../src/shared/space.ts';
 import { fixtureMessageSchema, fixtureRestoreSchema, showSchema, validate } from '../../src/server/validation.ts';
-import { roomRig, axisCandela, POOL_FULL } from '../../public-src/stage3d/world.js';
+import { roomRig, axisCandela, E_WHITE, PAR_LEVEL } from '../../public-src/stage3d/world.js';
 import { areaLamp } from './hue-test-lamps.js';
 
 const light = (archetype, product = 'Hue color lamp') => ({ archetype, product });
@@ -75,11 +75,11 @@ test('a lamp whose bridge names no product is drawn by the lumen and spread its 
   const aimed = [{ id: 'lamp', fixtureId: 1, position: { x: 0, y: 2.45, z: 0 }, lightTarget: { x: 0, y: 0, z: 0 } }];
   const before = draw(plain(), unnamed, aimed);
   assert.deepEqual([before.lamps[0].kind, before.lamps[0].lumen ?? BULB_LUMEN], ['bulb', BULB_LUMEN], 'unstated: a bulb');
-  assert.ok(Math.abs(before.pools[0].pool.level - BULB_LUMEN / (4 * Math.PI * 2.45 ** 2) / POOL_FULL) < 1e-9, 'its 806 lm all round');
+  assert.ok(Math.abs(before.pools[0].pool.level - BULB_LUMEN / (4 * Math.PI * 2.45 ** 2) / E_WHITE) < 1e-9, 'its 806 lm all round');
   const spot = draw(plain({ kind: 'beam', beamAngle: 43, tilt: -90, lumen: 350 }), unnamed, aimed).lamps[0];
   assert.equal(spot.lumen, 350);
   assert.ok(Math.abs(spread(spot) - 43) < 1e-9);
-  assert.ok(Math.abs(spot.pool.level - 350 * axisCandela(43 * Math.PI / 180) / 2.45 ** 2 / POOL_FULL) < 1e-9 && spot.pool.level < 1, `its pool by that lumen: ${spot.pool.level}`);
+  assert.ok(Math.abs(spot.pool.level - 350 * axisCandela(43 * Math.PI / 180) / 2.45 ** 2 / E_WHITE) < 1e-9 && spot.pool.level < 1, `its pool by that lumen: ${spot.pool.level}`);
   const unaimed = draw(plain({ kind: 'beam', beamAngle: 43, tilt: -90, lumen: 350 }), unnamed, [{ id: 'lamp', fixtureId: 1, position: { x: 0, y: 2.45, z: 0 } }]).lamps[0];
   assert.ok(unaimed.lumen === 350 && Math.abs(unaimed.pool.level - spot.pool.level) < 1e-9, 'the same lamp by its own tilt');
   const bulb = draw(plain({ kind: 'bulb', lumen: 530 }), unnamed, [{ id: 'lamp', fixtureId: 1, position: { x: 0, y: 1, z: 0 } }]).lamps[0];
@@ -93,10 +93,10 @@ test('a stated lumen comes before the product\'s for a Hue lamp and gives a par 
   assert.ok(Math.abs(spread(newer) - 40) < 1e-9);
   const parProfile = { id: 'par', channelMap: { red: 0 } };
   const par = (emission) => draw({ id: 1, label: 'Par', profileId: 'par', emission }, parProfile, [{ id: 'par', fixtureId: 1, position: { x: 0, y: 2.5, z: 0 } }]).lamps[0];
-  assert.deepEqual([par({ kind: 'beam', tilt: -90, beamAngle: 25 }).lumen, par({ kind: 'beam', tilt: -90, beamAngle: 25 }).pool.level], [undefined, undefined], 'unstated: no lumen, a full pool');
+  assert.deepEqual([par({ kind: 'beam', tilt: -90, beamAngle: 25 }).lumen, par({ kind: 'beam', tilt: -90, beamAngle: 25 }).pool.level], [undefined, PAR_LEVEL], 'unstated: no lumen, a pool as before');
   const stated = par({ kind: 'beam', tilt: -90, beamAngle: 25, lumen: 3000 });
-  assert.deepEqual([stated.lumen, stated.pool.level], [3000, 1]);
-  assert.ok(Math.abs(par({ kind: 'beam', tilt: -90, beamAngle: 25, lumen: 30 }).pool.level - 30 * axisCandela(25 * Math.PI / 180) / 2.5 ** 2 / POOL_FULL) < 1e-9, 'a faint one by its lumen');
+  assert.ok(stated.lumen === 3000 && Math.abs(stated.pool.level - 3000 * axisCandela(25 * Math.PI / 180) / 2.5 ** 2 / E_WHITE) < 1e-9 && stated.pool.level > 1, `${stated.pool.level}`);
+  assert.ok(Math.abs(par({ kind: 'beam', tilt: -90, beamAngle: 25, lumen: 30 }).pool.level - 30 * axisCandela(25 * Math.PI / 180) / 2.5 ** 2 / E_WHITE) < 1e-9, 'a faint one by its lumen');
 });
 
 test('the units of a fixture share its stated lumen, and markers along surveyed runs share it by their metres', () => {

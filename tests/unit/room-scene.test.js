@@ -95,6 +95,18 @@ test('room averages accept at most 64 contributors', () => {
   assert.equal(roomSceneSchema.safeParse(model).success, false);
 });
 
+test('a room\'s ceiling colour is optional: a room saved without one parses to the same value, a bad one is refused', () => {
+  const before = room();
+  before.rooms[0].color = '#b8895f';
+  assert.deepEqual(roomSceneSchema.parse(before).rooms, before.rooms);
+  const painted = structuredClone(before);
+  painted.rooms[0].ceiling = '#d9d9d9';
+  assert.deepEqual(roomSceneSchema.parse(painted).rooms, painted.rooms);
+  for (const ceiling of ['white', '#fff', '#d9d9d9ff', 0xd9d9d9, { color: '#d9d9d9' }]) {
+    assert.equal(roomSceneSchema.safeParse({ ...painted, rooms: [{ ...painted.rooms[0], ceiling }] }).success, false, String(ceiling));
+  }
+});
+
 test('room schema rejects unsafe geometry, remote assets and ambiguous IDs', () => {
   const mutations = [
     (r) => { r.bounds.width = Infinity; },

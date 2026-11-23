@@ -6,7 +6,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { buildRig } from '../../src/shared/rig.ts';
 import { BULB_LUMEN } from '../../src/shared/emission.ts';
-import { roomRig, placeRig, axisCandela, sideReach, POOL_FULL, POOL_HALF } from '../../public-src/stage3d/world.js';
+import { roomRig, placeRig, axisCandela, sideReach, E_WHITE, PAR_LEVEL, POOL_HALF } from '../../public-src/stage3d/world.js';
 
 const rad = (degrees) => degrees * Math.PI / 180;
 const close = (actual, expected, message, tolerance = 1e-6) => assert.ok(Math.abs(actual - expected) <= tolerance * Math.max(1, Math.abs(expected)), `${message}: ${actual} is not ${expected}`);
@@ -15,7 +15,7 @@ const BOUNDS = { width: 8, depth: 8, height: 2.6 };
 const lamp = (emission) => ({ id: 1, label: 'Lamp', profileId: LAMP.id, ...(emission ? { emission } : {}) });
 const inRoom = (fixture, binding, objects = []) => roomRig([fixture], buildRig([fixture], () => LAMP), { bounds: BOUNDS, rooms: [], objects, bindings: [{ id: 'light', fixtureId: 1, ...binding }] }, { lamp: LAMP });
 // The lux a pool stands for, and how far from its centre it is at half its level.
-const luxOf = (pool) => pool.level * POOL_FULL, halfOf = (pool) => pool.minor * POOL_HALF;
+const luxOf = (pool) => pool.level * E_WHITE, halfOf = (pool) => pool.minor * POOL_HALF;
 
 test('a beam\'s lumen and angle give the candela on its axis: the maker\'s own for Hue\'s GU10, and a bulb\'s all round', () => {
   close(axisCandela(0), 1 / (4 * Math.PI), 'all round: a lumen over the whole sphere');
@@ -49,28 +49,29 @@ test('a beam\'s pool is drawn by the lux at its centre, at half its level where 
   assert.ok(Math.abs(luxOf(high.pool) - 94.4) < 0.5 && Math.abs(halfOf(high.pool) - 0.833) < 0.002, `${luxOf(high.pool)} lx, half ${halfOf(high.pool)} m out`);
   assert.equal(high.pool.major, high.pool.minor, 'square on: round');
   close(high.radius, Math.tan(rad(21.5)) * 2.45, 'its cone keeps the beam angle');
-  // From 1.2 m it throws 394 lx, four times full: drawn at full, as wide as it lights to half of full.
+  // From 1.2 m it throws 394 lx, 3.6 times what shows white: drawn at that, at half its level where half of it lands.
   const low = spot(1.2), lux = 350 * axisCandela(rad(43)) / 1.2 ** 2;
-  assert.equal(low.pool.level, 1);
-  close(halfOf(low.pool), 1.2 * sideReach(rad(43), POOL_FULL / lux / 2), 'where 48 lx land');
-  assert.ok(halfOf(low.pool) > 1.2 * sideReach(rad(43), 0.5) * 1.5, `${halfOf(low.pool)}`);
+  close(luxOf(low.pool), lux, 'past white');
+  assert.ok(low.pool.level > 3.6 && low.pool.level < 3.7, `${low.pool.level}`);
+  close(halfOf(low.pool), 1.2 * sideReach(rad(43), 0.5), 'where 197 lx land');
   // Striking a wall aslant, less lands for each square metre, and the pool stretches along the slant.
   const slant = spot(2, { position: { x: 3, y: 2, z: 0 }, lightTarget: { x: 4, y: 1, z: 0 } }, 100), far = Math.SQRT2;
   close(luxOf(slant.pool), 100 * axisCandela(rad(43)) * Math.SQRT1_2 / far ** 2, 'turned by the angle it strikes at');
   close(slant.pool.major / slant.pool.minor, Math.SQRT2, 'stretched by 1/cos');
-  // A beam of unknown lumen is drawn at full, at half where its own half lands.
+  // A beam of unknown lumen is drawn at 0.9 of its light, as every pool was before, at half where its own half lands.
   const par = inRoom(lamp({ kind: 'beam', tilt: -90, beamAngle: 25 }), { position: { x: 0, y: 2.5, z: 0 } }).lamps[0];
-  assert.equal(par.pool.level, undefined);
+  assert.equal(par.pool.level, PAR_LEVEL);
   close(halfOf(par.pool), 2.5 * sideReach(rad(25), 0.5), 'a par');
   // Aimed in a room it counts as a bulb's 806 lm.
   const aimed = inRoom(lamp({ kind: 'beam', beamAngle: 25 }), { position: { x: 0, y: 2.5, z: 0 }, lightTarget: { x: 0, y: 0, z: 0 } }).lamps[0];
-  assert.deepEqual([aimed.lumen, aimed.pool.level], [BULB_LUMEN, 1]);
+  assert.equal(aimed.lumen, BULB_LUMEN);
+  close(luxOf(aimed.pool), BULB_LUMEN * axisCandela(rad(25)) / 2.5 ** 2, 'a bulb\'s lumen in its beam');
 });
 
-test('the generic venue lands its beams by the same rule, at full strength', () => {
+test('the generic venue lands its beams by the same rule, at the strength they had', () => {
   const par = { id: 1, label: 'Par', profileId: LAMP.id, position: { x: 50, y: 50, height: 100 }, emission: { kind: 'beam', tilt: -90, beamAngle: 30 } };
   const [beam] = placeRig([par], { lamp: LAMP }, buildRig([par], () => LAMP)).lamps;
-  assert.deepEqual([beam.pool.level, beam.pool.window, beam.pool.clip], [undefined, undefined, undefined]);
+  assert.deepEqual([beam.pool.level, beam.pool.window, beam.pool.clip], [PAR_LEVEL, undefined, undefined]);
   close(halfOf(beam.pool), beam.length * sideReach(rad(30), 0.5), 'at half its level where half its light lands');
 });
 
@@ -102,23 +103,27 @@ test('an aimed strip faces its surface: a band as long as its section, by its lu
   const { pool } = placed.pools[0], lumen = 2 * 0.6 * BULB_LUMEN, b = 1, d = 0.4;
   // A line of LEDs that face the surface (intensity by the cosine of the angle off their facing), summed along the line.
   const lux = lumen / (2 * Math.PI) * (1 / (b * b + d * d) + Math.atan(b / d) / (b * d));
-  assert.ok(lux > POOL_FULL, `${lux} lx`);
-  assert.deepEqual([pool.level, pool.normal, pool.at.x, pool.at.z, Math.abs(pool.along.x)], [1, { x: 0, y: -1, z: 0 }, 0, 0, 1], 'on the ceiling over its middle, along it');
-  const reach = d * sideReach(0, POOL_FULL / lux / 2) / POOL_HALF;
-  close(pool.minor, reach, 'as wide as it lights to half of full');
+  close(luxOf(pool), lux, 'past white');
+  assert.ok(lux > E_WHITE, `${lux} lx`);
+  assert.deepEqual([pool.normal, pool.at.x, pool.at.z, Math.abs(pool.along.x)], [{ x: 0, y: -1, z: 0 }, 0, 0, 1], 'on the ceiling over its middle, along it');
+  const reach = d * sideReach(0, 0.5) / POOL_HALF;
+  close(pool.minor, reach, 'at half its level where half of its middle\'s light lands');
   close(pool.major, reach + b, 'longer by half the section either way');
   assert.deepEqual(pool.run.map((value) => +value.toFixed(9)), [+(b / (reach + b)).toFixed(9), 0], 'level along the section');
   // The long strip's limit: a strip lights its surface by its lumen a metre over twice the distance.
   const long = [{ x: -3.9, y: 2.2, z: 0 }, { x: 3.9, y: 2.2, z: 0 }], dim = lamp({ kind: 'strip', lumen: 78 });
   const band = inRoom(dim, { position: long[0], path: long, lightTarget: { x: 0, y: 2.6, z: 0 } }).pools[0].pool;
   close(luxOf(band), 10 / (2 * 0.4), 'ten lumen a metre, 0.4 m off', 0.02);
-  // A strip 5 cm off a wall lights it far wider than a cone from its middle would: 0.28 m to half of full for 900 lm a metre.
+  // A strip 5 cm off a wall lights a band along its whole run: 900 lm a metre lands about 9,000 lx along it, 83 times
+  // what shows white, and half of that 0.038 m to either side.
   const wall = [{ x: -1, y: 1.2, z: 3.95 }, { x: 1, y: 1.2, z: 3.95 }];
   const halo = inRoom(lamp({ kind: 'strip', lumen: 1800 }), { position: wall[0], path: wall, lightTarget: { x: 0, y: 1.2, z: 4 } }).pools[0].pool;
-  assert.ok(Math.abs(halfOf(halo) - 0.28) < 0.005 && Math.abs(halo.major - halo.minor - 1) < 1e-9, `${halfOf(halo)} m`);
+  assert.ok(Math.abs(halfOf(halo) - 0.05 * sideReach(0, 0.5)) < 1e-9 && Math.abs(halo.major - halo.minor - 1) < 1e-9, `${halfOf(halo)} m`);
+  close(luxOf(halo), 1800 / (2 * Math.PI) * (1 / (1 + 0.05 ** 2) + Math.atan(1 / 0.05) / 0.05), 'facing it, summed along the strip');
+  assert.ok(halo.level > 83 && halo.level < 84, `${halo.level}`);
   // Aslant to its surface it lights less, and the band widens across.
   const tilted = inRoom(lamp(), { position: path[0], path, lightTarget: { x: 0, y: 2.6, z: 0.4 } }).pools[0].pool;
-  assert.ok(tilted.level === 1 && tilted.minor > pool.minor && Math.abs(tilted.at.z - 0.4) < 1e-9);
+  assert.ok(tilted.level < pool.level && tilted.minor > pool.minor && Math.abs(tilted.at.z - 0.4) < 1e-9);
 });
 
 test('a strip without an aim, and a fixture\'s pixels, shine all round as a line of light onto the floor under them', () => {
