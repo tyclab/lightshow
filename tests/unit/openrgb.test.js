@@ -13,11 +13,11 @@ import {
   buildPacket, parseHeader, buildUpdateLeds, buildUpdateMode, parseUpdateLeds, parseControllerData, directMode,
   closeOpenRgb, OpenRgbConnection, OPENRGB_PORT, PACKET,
 } from '../../src/server/openrgb.ts';
-import { openrgbProfile } from '../../src/server/openrgb-devices.ts';
+import { openrgbProfile, createOpenRgbIdentify } from '../../src/server/openrgb-devices.ts';
 import { getProfile } from '../../src/server/profiles.ts';
 import { openrgbRoutes, openrgbPixels, openrgbConflict } from '../../src/server/openrgb-routes.ts';
 import { ddpConflict } from '../../src/server/ddp-routes.ts';
-import { createTransmitter } from '../../src/server/transmit.ts';
+import { DEFAULT_WIRES, createTransmitter } from '../../src/server/transmit.ts';
 import { fixtureMessageSchema, showSchema, validate } from '../../src/server/validation.ts';
 import { attachRoutes } from '../../src/server/routes.ts';
 import { state } from '../../src/server/state.ts';
@@ -40,7 +40,7 @@ test.after(() => stopEngine());
 // ── A fake SDK server ───────────────────────────────────────────────────────
 // Speaks what the client needs: the version, the count, each device's
 // description (at the version the client asks for), and it keeps every
-// UPDATELEDS and UPDATEMODE it is sent.
+// UPDATELEDS and UPDATEMODE it is sent, also as received, in order.
 
 const u16 = (n) => { const b = Buffer.alloc(2); b.writeUInt16LE(n, 0); return b; };
 const u32 = (n) => { const b = Buffer.alloc(4); b.writeUInt32LE(n >>> 0, 0); return b; };
@@ -101,7 +101,7 @@ const rig = () => [
 ];
 
 async function fakeServer(devices = rig(), { version = 4, answerVersion = true } = {}) {
-  const log = { leds: [], modes: [], names: [], described: [], connections: 0, closed: 0 };
+  const log = { leds: [], modes: [], packets: [], names: [], described: [], connections: 0, closed: 0 };
   const sockets = new Set(), heldDescriptions = [];
   let holdDescriptions = false, intercept = null;
   const server = net.createServer((socket) => {
@@ -114,6 +114,9 @@ async function fakeServer(devices = rig(), { version = 4, answerVersion = true }
         const header = parseHeader(buf);
         if (buf.length < 16 + header.length) break;
         const data = buf.subarray(16, 16 + header.length);
+        if (header.id === PACKET.RGBCONTROLLER_UPDATELEDS || header.id === PACKET.RGBCONTROLLER_UPDATEMODE) {
+          log.packets.push({ device: header.device, id: header.id, raw: Buffer.from(buf.subarray(0, 16 + header.length)) });
+        }
         buf = buf.subarray(16 + header.length);
         const reply = (d) => socket.write(buildPacket(header.device, header.id, d));
         if (header.id === PACKET.REQUEST_CONTROLLER_DATA) log.described.push(header.device);
@@ -378,6 +381,29 @@ test('OpenRGB output obeys the arm lifecycle', () => {
   assert.deepStrictEqual(sent.map((p) => [p.wire, p.dark]), [['artnet', false], ['openrgb', false], ['openrgb', false]], 'armed again: the frames flow');
 });
 
+test('each arm tells the OpenRGB wire once, before the show\'s first frame', () => {
+  const { sent, wires } = fakeWires();
+  wires.openrgbArm = () => { sent.push({ wire: 'arm' }); };
+  const tx = createTransmitter({ wires });
+  const show = (frames) => { for (let f = 0; f < frames; f++) frame(tx, outputs(true)); };
+  frame(tx, outputs(false));
+  frame(tx, outputs(false));
+  assert.deepStrictEqual(sent, [], 'started disarmed: nothing');
+
+  show(40);
+  assert.deepStrictEqual(sent.slice(0, 4).map((p) => p.wire), ['arm', 'artnet', 'openrgb', 'openrgb']);
+  assert.strictEqual(sent.filter((p) => p.wire === 'arm').length, 1, 'once for the show, not a frame');
+  sent.length = 0;
+
+  frame(tx, outputs(false));
+  frame(tx, outputs(false));
+  assert.ok(!sent.some((p) => p.wire === 'arm'), 'disarm is not an arm');
+  sent.length = 0;
+  show(40);
+  assert.deepStrictEqual(sent.slice(0, 2).map((p) => p.wire), ['arm', 'artnet']);
+  assert.strictEqual(sent.filter((p) => p.wire === 'arm').length, 1, 'and once again for the next show');
+});
+
 test('removed OpenRGB devices receive black before disconnect', () => {
   const { sent, wires } = fakeWires();
   const tx = createTransmitter({ wires });
@@ -477,6 +503,93 @@ test('OpenRGB wire sessions enter Direct mode and follow arm changes', async () 
     await until(() => server.log.connections === 2 && server.log.leds.slice(afterDark).some(litFrame), { each: () => paint(true), what: 'a second connection carrying frames' });
   } finally {
     closeOpenRgb({ host: '127.0.0.1', port: server.port });
+    await server.close();
+  }
+});
+
+/** Device `device`'s packets at the server since `mark`, in order: ['mode', its index] or ['leds', the LEDs' bytes]. */
+const packetsOf = (server, device, mark = 0) => server.log.packets.slice(mark).filter((p) => p.device === device).map((p) => (
+  p.id === PACKET.RGBCONTROLLER_UPDATEMODE ? ['mode', p.raw.readInt32LE(20)] : ['leds', [...parseUpdateLeds(p.raw.subarray(16)).rgb]]));
+const tick = () => new Promise((resolve) => setTimeout(resolve, 2));
+
+test('a connection kept over a disarm puts each device in Direct again at the next arm, once, before its first frame', async () => {
+  // A board found in Rainbow, and a strip the server reports in Direct already.
+  const server = await fakeServer([{ name: 'Board', leds: 4, activeMode: 1 }, { name: 'Strip', leds: 2 }]);
+  const route = (device, name, leds, universe) => ({ host: '127.0.0.1', port: server.port, device, name, leds, parts: [{ universe, from: 0, bytes: leds * 3 }], width: 3, rgb: [0, 1, 2] });
+  const config = (armed) => ({ ...noDmx, openrgb: [route(0, 'Board', 4, 21), route(1, 'Strip', 2, 22)], armed });
+  // The strip cannot take its black frame (asleep, behind): the transmitter keeps the server's connection for it.
+  let refuseBlack = false;
+  const tx = createTransmitter({ wires: { ...DEFAULT_WIRES, openrgb: (target, rgb) => !(refuseBlack && target.device === 1 && dark(rgb)) && DEFAULT_WIRES.openrgb(target, rgb) } });
+  const picture = Buffer.alloc(512);
+  picture.set([200, 100, 50, 1, 2, 3, 4, 5, 6, 7, 8, 9]);
+  const paint = (armed) => { tx.send(21, picture, config(armed)); tx.send(22, picture, config(armed)); tx.endFrame(config(armed)); };
+  const lit = (mark) => [0, 1].every((d) => packetsOf(server, d, mark).some(([what, rgb]) => what === 'leds' && !dark(rgb)));
+  const modes = (d, mark) => packetsOf(server, d, mark).filter(([what]) => what === 'mode');
+  try {
+    paint(false);
+    await until(() => lit(0), { each: () => paint(true), what: 'the first show at both devices' });
+    for (let f = 0; f < 40; f++) { paint(true); await tick(); }
+    assert.deepStrictEqual([0, 1].map((d) => packetsOf(server, d)[0]), [['mode', 0], ['mode', 0]], 'a new connection: Direct before the first frame, the strip too');
+    assert.deepStrictEqual([0, 1].map((d) => modes(d, 0).length), [1, 1], 'once each over the show');
+
+    refuseBlack = true;
+    paint(false);
+    await until(() => dark(packetsOf(server, 0).at(-1)[1]), { what: 'the board\'s black frame' });
+    for (let f = 0; f < 5; f++) { paint(false); await tick(); }
+    assert.deepStrictEqual([server.log.connections, server.log.closed], [1, 0], 'the strip still owes its black: the connection is kept');
+    server.devices[0].activeMode = 1; // another client puts the board back in its own effect
+
+    const mark = server.log.packets.length;
+    await until(() => lit(mark), { each: () => paint(true), what: 'the second show at both devices' });
+    for (let f = 0; f < 40; f++) { paint(true); await tick(); }
+    assert.deepStrictEqual([0, 1].map((d) => packetsOf(server, d, mark)[0]), [['mode', 0], ['mode', 0]], 'Direct again, before the second show\'s first frame');
+    assert.deepStrictEqual([0, 1].map((d) => modes(d, mark).length), [1, 1], 'once each over the second show');
+    assert.strictEqual(server.log.connections, 1, 'on the kept connection');
+
+    const golden = Buffer.concat([Buffer.from('ORGB'), u32(0), u32(1050), u32(22), u32(22), u16(4), Buffer.from([200, 100, 50, 0, 1, 2, 3, 0, 4, 5, 6, 0, 7, 8, 9, 0])]);
+    const frames = server.log.packets.filter((p) => p.device === 0 && p.id === PACKET.RGBCONTROLLER_UPDATELEDS && !dark(parseUpdateLeds(p.raw.subarray(16)).rgb));
+    assert.ok(frames.length > 80 && frames.every((p) => p.raw.equals(golden)), 'every lit frame of both shows is the same bytes');
+  } finally {
+    closeOpenRgb({ host: '127.0.0.1', port: server.port });
+    await server.close();
+  }
+});
+
+test('a new OpenRGB connection puts a device in Direct even when the server reports it there, once over many frames', async () => {
+  const server = await fakeServer([{ name: 'Strip', leds: 2 }]);
+  const connection = new OpenRgbConnection({ host: '127.0.0.1', port: server.port });
+  const strip = { device: 0, name: 'Strip' }, rgb = Uint8Array.of(9, 8, 7, 6, 5, 4);
+  try {
+    await connection.open();
+    await until(() => connection.send(strip, rgb, 2), { what: 'the strip ready for frames' });
+    for (let f = 0; f < 40; f++) { connection.send(strip, rgb, 2); await new Promise(setImmediate); }
+    await until(() => server.log.leds.length === 41, { what: 'every frame at the server' });
+    assert.deepStrictEqual(packetsOf(server, 0), [['mode', 0], ...new Array(41).fill(['leds', [9, 8, 7, 6, 5, 4]])]);
+  } finally {
+    connection.end();
+    await server.close();
+  }
+});
+
+test('identify puts back the mode it found a device in, and no mode for one it found in Direct', async () => {
+  const server = await fakeServer([
+    { name: 'Board', leds: 2, activeMode: 1, colors: [[10, 20, 30], [40, 50, 60]] },
+    { name: 'Strip', leds: 2, colors: [[1, 2, 3], [4, 5, 6]] },
+  ]);
+  const identify = createOpenRgbIdentify({ clock: () => 0, every: () => null, stopEvery: () => {} });
+  try {
+    for (const device of [0, 1]) {
+      await identify.start('127.0.0.1', server.port, device, 5);
+      identify.stop('127.0.0.1', server.port, device);
+    }
+    await until(() => server.log.closed === 2, { what: 'both identifies hung up' });
+    const picture = [0, 255, 0, 255, 0, 0];
+    assert.deepStrictEqual(packetsOf(server, 0), [['mode', 0], ['leds', picture], ['leds', [10, 20, 30, 40, 50, 60]], ['mode', 1]],
+      'the board: Direct, the picture, then its colours and its Rainbow');
+    assert.deepStrictEqual(packetsOf(server, 1), [['mode', 0], ['leds', picture], ['leds', [1, 2, 3, 4, 5, 6]]],
+      'the strip: Direct, the picture, then its colours and no mode');
+  } finally {
+    identify.stopAll();
     await server.close();
   }
 });
@@ -636,7 +749,8 @@ for (const replaced of [false, true]) test(`retry discovery rebinds OpenRGB indi
     assert.strictEqual(connection.send(monitor, Uint8Array.of(0, 0, 200), 1), true);
     await until(() => server.log.leds.length === 2);
     assert.deepStrictEqual(server.log.leds.map((p) => [p.device, ...p.rgb]), [[1, 100, 0, 0], [0, 0, 0, 200]]);
-    assert.deepStrictEqual(server.log.modes, [{ device: 0, mode: 0 }], 'the returned monitor enters Direct mode from its own fresh description');
+    assert.deepStrictEqual(server.log.modes, [{ device: 0, mode: 0 }, { device: 0, mode: 0 }, { device: 1, mode: 0 }],
+      'Direct at each preparation: the keyboard at #0, then the returned monitor at #0 and the keyboard at #1, each from its own fresh description');
   } finally {
     connection.end();
     await server.close();
