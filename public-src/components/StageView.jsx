@@ -15,6 +15,7 @@ import { StageRoomPanel } from './StageRoomPanel.jsx';
 import { scenePool } from '../stage3d/scene-pool.js';
 import { keptRig } from '../stage3d/kept-rig.js';
 import { knownRoom, loadRoom } from '../stage-room.js';
+import { frameGains, loadSupply, supplyOf, supplySig } from '../stage-supply.js';
 
 const VIEWS = [
   { id: 'audience', label: 'Audience' },
@@ -76,15 +77,19 @@ export function StageView({ compact = false, draft = null } = {}) {
     return () => { live = false; };
   }, [compact]);
   useDmxFeed(!auditioning && !drafting);
+  // Stage reads each WLED's current limiter again as it opens; a stage elsewhere takes what was last read.
+  useEffect(() => { void loadSupply(!compact); }, [compact]);
+  const { models, gaps } = supplySig.value;
 
   const { rig, placed } = keptRig(fixtures, profiles, room);
+  const supply = supplyOf(rig, models);
   const space = useUnitSpace(rig, [rig], room);
   const auditionSample = useAuditionSampler(space, auditioning && format === '3d');
   const demoSample = useDemoLookSampler(space, drafting && format === '3d', drafting ? draft : null);
 
   // What the frame loop reads, without restarting it for every change.
   const live = useRef({});
-  live.current = { fixtures, profiles, rig, auditionSample, demoSample, auditioning, drafting, format, dark: !mode.lit, presets: s.colorPresets };
+  live.current = { fixtures, profiles, rig, supply, auditionSample, demoSample, auditioning, drafting, format, dark: !mode.lit, presets: s.colorPresets };
 
   // The canvas and its scene come from the pool and go back to it (scene-pool.js):
   // a return to this view reuses the WebGL context instead of making another.
@@ -189,6 +194,14 @@ export function StageView({ compact = false, draft = null } = {}) {
     let lastDark = null;
     let sampledInputs = null;
     let sampledFrame = null;
+    let litFrame = null;
+    let litSupply = null;
+    let litGains = null;
+    // A frame's supply gains are worked out once for each frame and set of models (stage-supply.js).
+    const light = (frame, supply) => {
+      if (frame !== litFrame || supply !== litSupply) { litFrame = frame; litSupply = supply; litGains = frameGains(supply, frame); }
+      scene.current.setLights(frame, litGains);
+    };
     let lastNow = performance.now();
     const tick = (now) => {
       const started = performanceReport ? performance.now() : 0;
@@ -203,7 +216,7 @@ export function StageView({ compact = false, draft = null } = {}) {
           sampledInputs = inputs;
           sampledFrame = cur.auditionSample(at, cur.fixtures, cur.presets, cur.rig);
         }
-        scene.current.setLights(sampledFrame);
+        light(sampledFrame, cur.supply);
         lastDmx = null;
       } else if (cur.demoSample) {
         const at = demoBeatSig.peek();
@@ -212,7 +225,7 @@ export function StageView({ compact = false, draft = null } = {}) {
           sampledInputs = inputs;
           sampledFrame = cur.demoSample(at, cur.fixtures, cur.presets, cur.rig);
         }
-        scene.current.setLights(sampledFrame);
+        light(sampledFrame, cur.supply);
         lastDmx = null;
       } else {
         const dmx = dmxSig.value;
@@ -230,7 +243,7 @@ export function StageView({ compact = false, draft = null } = {}) {
           liveFrame = rigLights(raw, { profiles: cur.profiles, masterBlackout: cur.dark, masterDimmer: 255 }, dmx, cur.rig);
           if (performanceReport) performanceReport.sample('stage.deriveLights', performance.now() - deriveStarted);
         }
-        scene.current.setLights(liveFrame);
+        light(liveFrame, cur.supply);
       }
       lastNow = now;
       const drew = scene.current.render();
@@ -312,6 +325,10 @@ export function StageView({ compact = false, draft = null } = {}) {
         {status === 'ready' && fixtures.length > 0 && dark && <p class={`stage3d-note stage-dark${mode.tag === 'Blackout' ? ' blackout' : ''}`} role="status">{dark}</p>}
         {status === 'ready' && room && fixtures.length > 0 && !placed.lamps.length && !placed.cells.length && <p class="stage3d-note">This room has no positions for the current fixtures. Review its bindings above.</p>}
       </div>
+      {!compact && gaps.length > 0 && <details class="stage-room-topology">
+        <summary>{gaps.length} {gaps.length === 1 ? 'WLED' : 'WLEDs'} drawn without {gaps.length === 1 ? 'its' : 'their'} current limit</summary>
+        <ul class="stage-room-unplaced">{gaps.map((gap) => <li key={gap.host}>{gap.host}: {gap.reason} ({gap.fixtures.join(', ')})</li>)}</ul>
+      </details>}
       {!compact && <p class="look-note">
         Drag to look around, scroll or pinch to move closer, right-drag or two fingers to pan, double-click to turn around
         that point; on the stage, the arrow keys turn and tilt and + and − move

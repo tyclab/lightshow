@@ -2,6 +2,7 @@ import { hueChannelsLabel, hueChannels, isHueProfile } from '../src/shared/hue-l
 import { hueSectionColour } from '../src/shared/hue-colour.ts';
 import { channelReader, hasNoAddress, isWled } from '../src/shared/placement.ts';
 import { lightCss } from './unit-light.js';
+import { supplyGains } from '../src/shared/wled-power.ts';
 
 // Scale emitter mixes proportionally so white-heavy swatches retain their colour temperature.
 export function colorToCss({ r, g, b, w = 0, a = 0, uv = 0 }) {
@@ -148,22 +149,44 @@ export function fixtureOutputColor(fix, state, dmxSnapshot, css = colorToCss) {
 
 const UNLIT = [];
 
+/** The light a single-light fixture shows under `state`, as its swatch takes it (fixtureOutputColor). */
+function singleLight(fix, state, dmx) {
+  if (state.masterBlackout) return BLACK;
+  if (fix.override && fix.override.enabled && !isHueProfile(state.profiles?.[fix.profileId])) return fix.override.blackout ? BLACK : overrideLight(fix, state);
+  return fixtureLight(fix, state, dmx);
+}
+
 /**
  * What the Stage's 2D plot paints: each bar cell's colour by rig unit, and each fixture's lamp, as the display shows the
  * light their bytes make (unit-light.js), on a Hue bridge or not as the rig resolved it once. `preview` is an audition's
- * or the demo beat's frame by unit; without it the fixtures are read from the feed `dmx` under `state`.
+ * or the demo beat's frame by unit; without it the fixtures are read from the feed `dmx` under `state`. With `supply`
+ * (stage-supply.js) each unit's light is scaled by what its WLED lets out on this frame; a lamp of cells by their mean.
  */
-export function plotColours(fixtures, rig, { preview = null, state, connected = true, dmx = null }) {
+export function plotColours(fixtures, rig, { preview = null, state, connected = true, dmx = null, supply = null }) {
   const cells = new Array(rig.points.length);
   const lamps = new Array(fixtures.length);
+  const lit = fixtures.map((fix, i) => {
+    const { start, count } = rig.ranges[i];
+    if (rig.cellMaps[i]) return preview ? preview.slice(start, start + count) : connected ? fixtureCellLights(fix, state, dmx) || UNLIT : UNLIT;
+    return preview ? preview[start] : supply && connected ? singleLight(fix, state, dmx) : null;
+  });
+  let gains = null;
+  if (supply) {
+    const units = new Array(rig.units.length);
+    fixtures.forEach((fix, i) => {
+      const { start, count } = rig.ranges[i];
+      if (rig.cellMaps[i]) for (let c = 0; c < count; c++) units[start + c] = lit[i][c];
+      else units[start] = lit[i];
+    });
+    gains = supplyGains(supply, units);
+  }
   fixtures.forEach((fix, i) => {
     const { start, count } = rig.ranges[i];
     const bar = !!rig.cellMaps[i], hue = !!rig.hue[i];
-    const css = (light) => lightCss(light, hue);
-    if (bar) {
-      const lit = preview ? preview.slice(start, start + count) : connected ? fixtureCellLights(fix, state, dmx) || UNLIT : UNLIT;
-      for (let c = 0; c < count; c++) cells[start + c] = lit[c] && css(lit[c]);
-    }
+    let mean = 1;
+    if (gains) { mean = 0; for (let c = 0; c < count; c++) mean += gains[start + c] / count; }
+    const css = (light) => lightCss(light, hue, mean);
+    if (bar) for (let c = 0; c < count; c++) cells[start + c] = lit[i][c] && lightCss(lit[i][c], hue, gains ? gains[start + c] : 1);
     lamps[i] = preview ? css(bar ? meanLight(preview.slice(start, start + count)) : preview[start])
       : connected ? fixtureOutputColor(fix, state, dmx, css) : '#222';
   });

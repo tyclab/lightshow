@@ -738,10 +738,13 @@ export function createStageScene(canvas, { haze = 0.6, room, lightRGB }) {
 
   const rgb = new Float32Array(3);
   const sourceRGB = new Float32Array(3);
-  /** Colour every light from a frame: one emitter set per unit of the rig. */
-  function setLights(frame) {
-    if (!parts || !frame || frame === lastLights) return;
+  let lastGains = null;
+  /** Colour every light from a frame: one emitter set per unit of the rig; `gains` what each unit's board lets out (stage-supply.js). */
+  function setLights(frame, gains = null) {
+    if (!parts || !frame || (frame === lastLights && gains === lastGains)) return;
     lastLights = frame;
+    lastGains = gains;
+    const gain = (unit) => (gains ? gains[unit] : 1);
     const { pars, bulbs, cells, under, lenses, beams, poolOf, bulbMesh, cellMesh, lampGlow, cellGlow } = parts;
     const changed = new Set();
     const write = (attr, k, r, g, b) => {
@@ -766,7 +769,7 @@ export function createStageScene(canvas, { haze = 0.6, room, lightRGB }) {
       write(attr, k, rgb[0] * level * r, rgb[1] * level * g, rgb[2] * level * b);
     };
     pars.forEach((par, k) => {
-      landingRGB(par, frame, rgb, sourceRGB, hueOf);
+      landingRGB(par, frame, rgb, sourceRGB, hueOf, gains);
       put(lenses.instanceColor, k, 1);
       // The cone is as strong as the light its pool takes, full from what a beam of unknown lumen lands.
       glow(beams.instanceColor, k, Math.min(1, (par.pool?.level ?? PAR_LEVEL) / PAR_LEVEL));
@@ -774,18 +777,18 @@ export function createStageScene(canvas, { haze = 0.6, room, lightRGB }) {
       glow(lampGlow.geometry.attributes.color, k, par.body === 0 ? 0 : 0.9);
     });
     under.forEach((light) => {
-      landingRGB(light, frame, rgb, sourceRGB, hueOf);
+      landingRGB(light, frame, rgb, sourceRGB, hueOf, gains);
       reflected(...poolOf.get(light), light.pool);
     });
     bulbs.forEach((bulb, k) => {
-      if (bulb.sources) meanLightRGB(bulb.sources, frame, rgb, sourceRGB, hueOf);
-      else lightRGB(frame[bulb.unit], rgb, 0, hueOf?.[bulb.unit] === 1);
+      if (bulb.sources) meanLightRGB(bulb.sources, frame, rgb, sourceRGB, hueOf, gains);
+      else lightRGB(frame[bulb.unit], rgb, 0, hueOf?.[bulb.unit] === 1, gain(bulb.unit));
       put(bulbMesh.instanceColor, k, 1);
       glow(lampGlow.geometry.attributes.color, pars.length + k, 1);
     });
     cells.forEach((cell, k) => {
-      if (cell.sources) meanLightRGB(cell.sources, frame, rgb, sourceRGB, hueOf);
-      else lightRGB(frame[cell.unit], rgb, 0, hueOf?.[cell.unit] === 1);
+      if (cell.sources) meanLightRGB(cell.sources, frame, rgb, sourceRGB, hueOf, gains);
+      else lightRGB(frame[cell.unit], rgb, 0, hueOf?.[cell.unit] === 1, gain(cell.unit));
       put(cellMesh.instanceColor, k, 1);
       glow(cellGlow.geometry.attributes.color, k, cell.length ? 0 : 0.8);
     });
@@ -793,7 +796,7 @@ export function createStageScene(canvas, { haze = 0.6, room, lightRGB }) {
       const surface = roomLightMaterials.get(light.objectId);
       if (!surface) return;
       const { material, baseColor, tint, glow } = surface;
-      meanLightRGB(light.sources, frame, rgb, sourceRGB, hueOf);
+      meanLightRGB(light.sources, frame, rgb, sourceRGB, hueOf, gains);
       rgb[0] *= tint.r; rgb[1] *= tint.g; rgb[2] *= tint.b;
       const r = rgb[0] + glow.r, g = rgb[1] + glow.g, b = rgb[2] + glow.b;
       if (material.emissive.r === r && material.emissive.g === g && material.emissive.b === b) return;

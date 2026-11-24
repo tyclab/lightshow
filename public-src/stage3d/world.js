@@ -723,13 +723,13 @@ function bodyOf(fixture, cells) {
     size: { x: hi.x - lo.x + pad, y: hi.y - lo.y + pad, z: hi.z - lo.z + pad } };
 }
 
-/** The weighted mean of sources' light, as linear RGB; `hue` is the world's `hueUnits` (unit-light.js). */
-export function meanLightRGB(sources, frame, out, scratch = new Float32Array(3), hue = null) {
+/** The weighted mean of sources' light, as linear RGB; `hue` is the world's `hueUnits`, `gains` a frame's supply gains (unit-light.js). */
+export function meanLightRGB(sources, frame, out, scratch = new Float32Array(3), hue = null, gains = null) {
   const total = sources.reduce((sum, source) => sum + source.weight, 0);
   out[0] = out[1] = out[2] = 0;
   for (const source of sources) {
     if (source.unit === null) lightRGB(null, scratch);
-    else lightRGB(frame[source.unit], scratch, 0, hue?.[source.unit] === 1);
+    else lightRGB(frame[source.unit], scratch, 0, hue?.[source.unit] === 1, gains ? gains[source.unit] : 1);
     const weight = source.weight / total, tint = source.tint;
     for (let channel = 0; channel < 3; channel++) out[channel] += scratch[channel] * weight * (tint ? tint[channel] : 1);
   }
@@ -739,9 +739,9 @@ export function meanLightRGB(sources, frame, out, scratch = new Float32Array(3),
  * What a light gives the room from a frame, as linear RGB: its sources' mean or its unit's own, through the shell drawn
  * for it (roomRig's `tint`). A light a shell is drawn for shows no lens or glow of its own, so its pool and cone take this.
  */
-export function landingRGB(light, frame, out, scratch, hue = null) {
-  if (light.sources) meanLightRGB(light.sources, frame, out, scratch, hue);
-  else lightRGB(frame[light.unit], out, 0, hue?.[light.unit] === 1);
+export function landingRGB(light, frame, out, scratch, hue = null, gains = null) {
+  if (light.sources) meanLightRGB(light.sources, frame, out, scratch, hue, gains);
+  else lightRGB(frame[light.unit], out, 0, hue?.[light.unit] === 1, gains ? gains[light.unit] : 1);
   if (light.tint) { out[0] *= light.tint[0]; out[1] *= light.tint[1]; out[2] *= light.tint[2]; }
 }
 

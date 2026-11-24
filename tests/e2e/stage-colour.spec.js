@@ -102,11 +102,13 @@ const light = buildSync({
     import { createStageScene } from './public-src/stage3d/scene.js';
     import { placeRig, roomRig, lightRGB, STAGE_W, STAGE_D, TRUSS_H, STAGE_FOV, E_WHITE, E_FILL } from './public-src/stage3d/world.js';
     import { buildRig } from './src/shared/rig.ts';
+    import { compileSupply, supplyGains } from './src/shared/wled-power.ts';
     document.body.innerHTML = '<div style="width:960px;height:600px"><canvas></canvas></div>';
     const canvas = document.querySelector('canvas');
     const scene = createStageScene(canvas, { haze: 0, lightRGB, room: { width: STAGE_W, depth: STAGE_D, trussHeight: TRUSS_H } });
     scene.resize();
     const LAMP = { id: 'lamp', channelMap: { red: 0, green: 1, blue: 2 } };
+    window.supply = { compileSupply, supplyGains };
     const decode = (byte) => { const v = byte / 255; return v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; };
     const read = (x, y) => {
       scene.resize();
@@ -136,14 +138,17 @@ const light = buildSync({
       return read(canvas.width / 2, canvas.height / 2);
     };
     // A beam straight down from 1.9 m at the middle of the venue's deck: the middle of its pool, seen from the audience.
-    window.venuePool = (colour, protocol = null) => {
+    // With 'beside', other fixtures in the venue; with 'model', a WLED supply model the frame is limited by (stage-supply.js).
+    window.venuePool = (colour, protocol = null, { beside = [], profiles = {}, frame = null, model = null } = {}) => {
       const fixture = { id: 1, label: 'Par', profileId: 'lamp', position: { x: 50, y: 50, height: 1.9 / TRUSS_H * 100 }, emission: { kind: 'beam', tilt: -90, beamAngle: 30 },
         ...(protocol ? { output: { protocol } } : {}) };
-      const rig = buildRig([fixture], () => LAMP);
+      const all = { lamp: LAMP, ...profiles }, fixtures = [fixture, ...beside];
+      const rig = buildRig(fixtures, (f) => all[f.profileId]);
       scene.setRoom(null);
       scene.view('audience');
-      scene.setRig(placeRig([fixture], { lamp: LAMP }, rig), rig.units.length);
-      scene.setLights([colour]);
+      scene.setRig(placeRig(fixtures, all, rig), rig.units.length);
+      const lights = frame ?? [colour], supply = model && compileSupply([model], rig);
+      scene.setLights(lights, supply ? supplyGains(supply, lights) : null);
       // The audience view, as the scene's orbit keeps it: no lower than 0.02 rad above level.
       const camera = new THREE.PerspectiveCamera(STAGE_FOV, canvas.width / canvas.height, 0.1, 200), target = new THREE.Vector3(0, 1.9, 0);
       const orbit = new THREE.Spherical().setFromVector3(new THREE.Vector3(0, 1.7, STAGE_D / 2 + 8).sub(target));
@@ -231,4 +236,27 @@ test('a byte of 128 lands half the light of a DMX par and the sRGB decode of it 
     const rise = pool.map((value, c) => decode(value) - decode(deck[c]));
     for (const channel of rise) expect(Math.abs(channel - 0.9 * shown), `${name}: ${pool} over ${deck}`).toBeLessThan(0.9 * shown * 0.04);
   }
+});
+
+test('a WLED limits the light of a full white frame by its current limit, and a sparse frame not at all', async ({ page }) => {
+  await page.goto('about:blank');
+  await page.addScriptTag({ content: light });
+  // One synthetic board, one bus of 61 LEDs at 55 mA and 1,000 mA (880 left after the board's 120): the par's one LED and
+  // a strip of 60 pixels at the back of the venue, out of the par's pool.
+  const STRIP = { id: 'strip', channelCount: 180, channelMap: {}, cells: Array.from({ length: 60 }, (_, c) => ({ channelMap: { red: c * 3, green: c * 3 + 1, blue: c * 3 + 2 } })) };
+  const beside = [{ id: 2, label: 'Strip', profileId: 'strip', position: { x: 15, y: 10, height: 100 }, output: { protocol: 'ddp', host: 'board.invalid' } }];
+  const model = { host: 'board.invalid', esp: 120, global: 0, brightness: 255, buses: [{ length: 61, ledma: 55, limit: 880, white: false, aw: 0 }],
+    cells: [{ fixture: 1, cell: 0, bus: 0, leds: 1 }, ...Array.from({ length: 60 }, (_, cell) => ({ fixture: 2, cell, bus: 0, leds: 1 }))] };
+  const WHITE = { r: 255, g: 255, b: 255 };
+  const read = (frame, limited) => page.evaluate((input) => window.venuePool(null, 'ddp', input),
+    { beside, profiles: { strip: STRIP }, frame, model: limited ? model : null });
+  const dark = Array(61).fill(OFF), dense = Array(61).fill(WHITE), sparse = [WHITE, ...Array(60).fill(OFF)];
+  const deck = await read(dark, false);
+  const rise = (pixel) => pixel.map((value, c) => decode(value) - decode(deck[c]));
+  // 61 LEDs at full white: 61 × 765 × 55 / 765 + 61 = 3,416 mA; 880 × 255 / 3,416 = 65.7, + 1: 66 of 255.
+  const whole = rise(await read(dense, false)), limited = rise(await read(dense, true));
+  for (let c = 0; c < 3; c++) expect(Math.abs(limited[c] / whole[c] - 66 / 255), `${limited} of ${whole}`).toBeLessThan(0.04 * 66 / 255);
+  // The par alone: 55 + 61 = 116 mA, under the limit: drawn as without the model.
+  expect(await read(sparse, true)).toEqual(await read(sparse, false));
+  expect(Math.min(...rise(await read(sparse, true)))).toBeGreaterThan(0.5);
 });

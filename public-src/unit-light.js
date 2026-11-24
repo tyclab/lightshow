@@ -6,8 +6,9 @@ const decode = (v) => (v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4);
 const encode = (v) => (v <= 0.0031308 ? v * 12.92 : 1.055 * v ** (1 / 2.4) - 0.055);
 
 /** One unit's emitters as linear RGB in out[at..at + 2] (`hue`: it streams to a Hue bridge), white, amber and UV mixed
- * in and an overbright mix scaled back whole; returns the brightest channel's share of full. */
-export function lightRGB(light, out, at = 0, hue = false) {
+ * in and an overbright mix scaled back whole, times the share its board lets out (`gain`, stage-supply.js); returns the
+ * brightest channel's share of full before that share. */
+export function lightRGB(light, out, at = 0, hue = false, gain = 1) {
   if (!light) { out[at] = 0; out[at + 1] = 0; out[at + 2] = 0; return 0; }
   const w = light.w || 0;
   const a = light.a || 0;
@@ -17,9 +18,9 @@ export function lightRGB(light, out, at = 0, hue = false) {
   let b = (light.b || 0) + w + uv * 0.9;
   const peak = Math.max(r, g, b);
   if (peak > 255) { const k = 255 / peak; r *= k; g *= k; b *= k; }
-  out[at] = hue ? decode(r / 255) : r / 255;
-  out[at + 1] = hue ? decode(g / 255) : g / 255;
-  out[at + 2] = hue ? decode(b / 255) : b / 255;
+  out[at] = (hue ? decode(r / 255) : r / 255) * gain;
+  out[at + 1] = (hue ? decode(g / 255) : g / 255) * gain;
+  out[at + 2] = (hue ? decode(b / 255) : b / 255) * gain;
   return Math.min(1, peak / 255);
 }
 
@@ -27,8 +28,8 @@ const shown = new Float64Array(3);
 const byte = (v) => Math.max(0, Math.min(255, Math.round(encode(v) * 255)));
 
 /** The same light as the 2D plot paints it: encoded for the display. */
-export function lightCss(light, hue = false) {
-  lightRGB(light, shown, 0, hue);
+export function lightCss(light, hue = false, gain = 1) {
+  lightRGB(light, shown, 0, hue, gain);
   return `rgb(${byte(shown[0])},${byte(shown[1])},${byte(shown[2])})`;
 }
 

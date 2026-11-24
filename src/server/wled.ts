@@ -504,6 +504,7 @@ export {
   segments as wledSegments,
   ledmap as wledLedmap,
   liveState as wledLive,
+  getJson as wledRead,
   readInfo,
   readLive,
   readSegments,

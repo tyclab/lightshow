@@ -46,6 +46,7 @@ function startSupervisor() {
     ...process.env,
     LIGHTSHOW_CONFIG_DIR: dir,
     LIGHTSHOW_LOG_DIR: path.join(dir, 'logs'),
+    LIGHTSHOW_WLED_READS: '0',
   };
   delete env.LIGHTSHOW_SUPERVISOR;
   delete env.LIGHTSHOW_SUPERVISED;

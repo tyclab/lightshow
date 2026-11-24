@@ -22,6 +22,8 @@ process.env.LIGHTSHOW_CONFIG_DIR = E2E_DIR;
 process.env.LIGHTSHOW_LOG_DIR = path.join(E2E_DIR, 'logs');
 // The server itself, not a supervisor over it: the specs drive one process.
 process.env.LIGHTSHOW_SUPERVISOR = '0';
+// No board is asked for its current limiter: the specs' hosts are not real WLEDs (wled-power.ts).
+process.env.LIGHTSHOW_WLED_READS = '0';
 
 process.on('exit', () => fs.rmSync(E2E_DIR, { recursive: true, force: true }));
 for (const signal of ['SIGINT', 'SIGTERM']) process.on(signal, () => process.exit(0));
