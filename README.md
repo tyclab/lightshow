@@ -1400,9 +1400,14 @@ two devices of one model, such as identical monitors, keep their fixtures
 whichever wakes first; while one is away, its fixture stays dark rather than
 driving the other. A device patched before locations were kept is matched in
 order, as before, and its location is learned the first time every device of
-its name is listed. Devices must support a direct LED colour mode.
+its name is listed. Devices must support a direct LED colour mode. Each
+device is put in that mode before its first frame whatever mode OpenRGB
+reports, since another client or the device itself may have left it: on a new
+connection, after a device-list change, and again at every arm, also on a
+connection still open from the show before.
 
-Disarm or removal sends darkness and closes the connection. OpenRGB has no
+Disarm or removal sends darkness and closes the connection; a connection stays
+open while a device on it still owes its dark frame. OpenRGB has no
 realtime timeout: another client/profile must restore the desired hardware
 effect. Unavailable PCs generate warnings; other outputs continue. A device that
 cannot take a frame (still connecting, asleep, behind) is passed over and holds

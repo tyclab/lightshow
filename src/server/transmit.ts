@@ -63,6 +63,8 @@ export interface Wires {
   ddp(target: DdpTarget, data: Uint8Array): boolean;
   openrgb(target: OpenRgbTarget, rgb: Uint8Array): boolean;
   openrgbClose(target: { host: string; port: number }): unknown;
+  /** Disarmed to armed: each OpenRGB device is put in its Direct mode again before its first frame. */
+  openrgbArm?(): unknown;
   /** One applied frame's colours for a bridge; the wire opens the bridge's session on demand. */
   hue?(bridge: HueStreamConfig, channels: readonly HueChannelColour[]): boolean;
   /** Dark frame, then release: true once the dark frame is out or nothing was lit. `retire`: it left the config. */
@@ -107,12 +109,12 @@ function sacnUniverseFor(universe: number, offset: number): number | null {
   return mapped;
 }
 
-let openrgbWire: Pick<Wires, 'openrgb' | 'openrgbClose'> | null = null;
+let openrgbWire: Required<Pick<Wires, 'openrgb' | 'openrgbClose' | 'openrgbArm'>> | null = null;
 let openrgbLoading: Promise<void> | null = null;
 function loadOpenRgbWire(): void {
   if (openrgbLoading) return;
   openrgbLoading = import('./openrgb.ts').then((m) => {
-    openrgbWire = { openrgb: m.sendOpenRgb, openrgbClose: m.closeOpenRgb };
+    openrgbWire = { openrgb: m.sendOpenRgb, openrgbClose: m.closeOpenRgb, openrgbArm: m.armOpenRgb };
   }, (err) => {
     console.warn(`[openrgb] cannot load the wire: ${err instanceof Error ? err.message : String(err)}`);
     openrgbLoading = null;
@@ -127,6 +129,7 @@ const DEFAULT_WIRES: Wires = {
     return false;
   },
   openrgbClose: (target) => openrgbWire?.openrgbClose(target),
+  openrgbArm: () => openrgbWire?.openrgbArm(),
 };
 
 const ddpUniversesOf = new WeakMap<DdpRoute[], Set<number>>();
@@ -374,6 +377,7 @@ function createTransmitter({ wires = DEFAULT_WIRES, now = () => performance.now(
     }
     live = armed;
     if (!armed) goDark();
+    else wires.openrgbArm?.();
     return armed;
   }
 

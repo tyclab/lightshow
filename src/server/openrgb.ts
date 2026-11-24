@@ -19,7 +19,8 @@ import { OPENRGB_PORT } from './openrgb-routes.ts';
  * the devices (0) and reads each one (1: its name, type, modes, zones and
  * LEDs); it paints a device with UPDATELEDS (1050: a count and that many
  * colours as four bytes R, G, B, 0), after putting it in its per-LED
- * "Direct" mode with UPDATEMODE (1101) when it is in a hardware effect.
+ * "Direct" mode with UPDATEMODE (1101) each time it prepares the device: on
+ * a new connection, after a device-list change and at every arm.
  *
  * Reference: openrgb-python, which LedFx drives OpenRGB through. The engine's
  * worker loads this module the first time a frame goes to a device, so it
@@ -649,10 +650,16 @@ export class OpenRgbConnection {
     return index;
   }
 
+  /** A show begins: each device is put in its Direct mode again before its next frame, found where it was. */
+  rearm(): void {
+    this.devices.clear();
+  }
+
   /**
-   * Find device `ref` (resolve), read it, and put it in its Direct mode when
-   * it is in another, as openrgb-python's set_mode does; kept until the
-   * connection drops.
+   * Find device `ref` (resolve), read it, and put it in its Direct mode,
+   * whatever mode the server reports: another client or the device itself may
+   * have left it since. Kept until the connection drops, the device list
+   * changes or the next show (rearm).
    */
   prepare(ref: OpenRgbDeviceRef): Promise<ControllerData> {
     const key = deviceKey(ref);
@@ -678,9 +685,10 @@ export class OpenRgbConnection {
       const data = await this.describe(index);
       if (revision !== this.revision || this.ended) throw new Error(`${this.where()}: preparation superseded`);
       const direct = directMode(data);
-      if (direct && data.activeMode !== direct.index) {
+      // Another reference to this device may have prepared it while this one read it.
+      if (direct && !this.devices.has(index)) {
         const before = data.modes[data.activeMode];
-        if (before) this.wasIn.set(index, before);
+        if (before && data.activeMode !== direct.index) this.wasIn.set(index, before);
         this.write(buildUpdateMode(index, direct));
         data.activeMode = direct.index;
       }
@@ -765,6 +773,11 @@ function sendOpenRgb(target: OpenRgbTarget, rgb: Uint8Array): boolean {
   return connection.send(target, rgb, target.leds);
 }
 
+/** The outputs were armed: every open connection puts its devices in Direct again before their next frame. */
+function armOpenRgb(): void {
+  for (const connection of connections.values()) connection.rearm();
+}
+
 /** Close the connection to a server, once what was written has gone. */
 function closeOpenRgb({ host, port }: { host: string; port: number }): void {
   const key = keyOf(host, port);
@@ -832,6 +845,7 @@ export {
   directMode,
   matchSameName,
   sendOpenRgb,
+  armOpenRgb,
   closeOpenRgb,
   openrgbClient,
   asHttpError as openrgbHttpError,
