@@ -301,7 +301,9 @@ plot. Private room imports also accept bounded
 inline triangle meshes for detailed objects; their shape and surface colour affect
 only the preview. Furniture objects can reference an existing room light binding with
 `lightBindingId`, so their surface emits its live RGB instead of a separate marker. Optional
-`lightTint` models a translucent material colour without changing physical outputs.
+`lightTint` models a translucent material colour, which also filters the light the room gets
+from it, and `lightAfterglow` a glow-in-the-dark material's own light; neither changes
+physical outputs.
 Surveyed strip paths render as continuous
 runs with their original corners and per-section colours; moving a strip moves the whole path.
 Bindings can also carry a `lightTarget` in room metres, with optional

@@ -308,6 +308,27 @@ test('emissive furniture mesh bindings round-trip and require an existing room b
 });
 
 
+test('a bound shell may carry an afterglow colour; one without a binding or with a bad colour is refused; a room without one parses as before', (t) => {
+  const model = room();
+  model.objects.push({ ...meshObject(), lightBindingId: 'left', lightTint: '#c4dbea', lightAfterglow: '#2a6040' });
+  const store = storeFor(t);
+  store.replace(model);
+  assert.deepEqual(new RoomSceneStore(store.file).load().snapshot().room.objects[1], model.objects[1]);
+  for (const change of [{ lightBindingId: undefined, lightTint: undefined }, { lightAfterglow: '#blue' }, { lightAfterglow: '#2a604' },
+    { lightAfterglow: 'green' }, { lightAfterglow: 0x2a6040 }]) {
+    const invalid = structuredClone(model);
+    Object.assign(invalid.objects[1], change);
+    for (const key of Object.keys(change)) if (invalid.objects[1][key] === undefined) delete invalid.objects[1][key];
+    assert.equal(roomSceneSchema.safeParse(invalid).success, false, JSON.stringify(change));
+  }
+  const old = room();
+  old.objects.push({ ...meshObject(), lightBindingId: 'left', lightTint: '#c4dbea' });
+  const parsed = roomSceneSchema.parse(old);
+  assert.equal('lightAfterglow' in parsed.objects[1], false);
+  assert.deepEqual(parsed.objects, old.objects);
+});
+
+
 test('a furniture primitive can emit a binding without fabricated mesh geometry', () => {
   const model = room();
   model.objects[0] = { ...model.objects[0], kind: 'cylinder', role: 'furniture', lightBindingId: 'left' };

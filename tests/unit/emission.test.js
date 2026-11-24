@@ -8,7 +8,7 @@ import assert from 'node:assert/strict';
 import { emissionOf, hueEmission, hueLumen, beamDirection, BULB_LUMEN, PIXEL_LUMEN } from '../../src/shared/emission.ts';
 import { hueProfile } from '../../src/server/hue-profile.ts';
 import { buildRig } from '../../src/shared/rig.ts';
-import { roomRig, axisCandela, E_WHITE, PAR_LEVEL, POOL_HALF } from '../../public-src/stage3d/world.js';
+import { roomRig, axisCandela, landingRGB, lightRGB, E_WHITE, PAR_LEVEL, POOL_HALF } from '../../public-src/stage3d/world.js';
 import { areaLamp } from './hue-test-lamps.js';
 
 const light = (archetype, product = 'Hue color lamp') => ({ archetype, product });
@@ -309,7 +309,68 @@ test('the pixels of a fixture bound one by one share one pool, a band along thei
   const band = row.pools[0].pool, rowLux = luxOf(8 * PIXEL_LUMEN, 1, 0.35);
   assert.deepEqual([row.pools.length, Math.abs(band.along.z)], [1, 1]);
   close(band.major, reachOf(rowLux, 1) + 0.35, 'half the row longer');
-  close(band.level, levelOf(rowLux), 'eight pixels of 8 lm');
+  close(band.level, levelOf(rowLux), 'eight pixels of 4.1 lm');
+});
+
+test('a pixel gives 4.1 lm, what the WS2812B datasheet\'s typical intensities give a Lambertian emitter', () => {
+  // The V5 sheet at 12 mA, typical: red 310, green 780, blue 215 mcd. A Lambertian emitter gives π times its axial intensity.
+  assert.equal(Math.round(Math.PI * (310 + 780 + 215) / 100) / 10, 4.1);
+  assert.equal(PIXEL_LUMEN, 4.1);
+  // One LED sent as LED data, 2.6 m up, lands 0.048 lx on the floor under it.
+  const led = inRoom([plain(1, { output: { protocol: 'ddp' } })], [at(1, { x: 0, y: 2.6, z: 0 })]).pools[0].pool;
+  assert.ok(Math.abs(led.level * E_WHITE - 0.0483) < 1e-4, `${led.level * E_WHITE} lx`);
+  // A panel whose pixels lie 5.6 mm apart counts each by its area against a 60-per-metre strip's: 0.46 lm a pixel.
+  const panel = { id: 3, label: 'Panel', profileId: 'panel' };
+  const cells = Array.from({ length: 4 }, (_, c) => ({ at: { x: c % 2, y: Math.floor(c / 2) } }));
+  const profile = { id: 'panel', channelMap: { red: 0, green: 1, blue: 2 }, cells, grid: { columns: 2, rows: 2 } };
+  const pitch = 0.0056, d = 1 + pitch / 2;
+  const pool = inRoom([panel], cells.map((cell, unit) => ({ id: `p${unit}`, fixtureId: 3, unit,
+    position: { x: cell.at.x * pitch, y: 1 + cell.at.y * pitch, z: 0 } })), { profileOf: () => profile }).pools[0].pool;
+  const each = pool.level * E_WHITE * 4 * Math.PI * d * Math.hypot(d, pitch / 2) / 4;
+  assert.ok(Math.abs(each - 0.463) < 0.001, `${each} lm a pixel`);
+});
+
+test('a shell drawn for a light filters what the light gives the room: its pools and its cone, in linear light', () => {
+  const shell = (id, lightTint, extra = {}) => ({ id, kind: 'box', role: 'furniture', position: { x: 0, y: 2, z: 0 }, size: { x: 0.3, y: 0.3, z: 0.3 },
+    lightBindingId: 'light-1', ...(lightTint ? { lightTint } : {}), ...extra });
+  const bulb = (objects = []) => inRoom([plain(1)], [at(1, { x: 0, y: 2, z: 0 })], { objects });
+  const bare = bulb(), orange = bulb([shell('shade', '#ff8000')]);
+  // #ff8000 decoded from sRGB: 0x80 is 0.2158605 in linear light.
+  const ORANGE = [1, 0.2158605, 0];
+  assert.equal(orange.pools.length, 1);
+  const { tint, ...pool } = orange.pools[0];
+  tint.forEach((value, c) => assert.ok(Math.abs(value - ORANGE[c]) < 1e-7, `tint ${c}: ${value} is not ${ORANGE[c]}`));
+  assert.deepEqual(pool, bare.pools[0], 'the same pool, only filtered');
+  for (const lightTint of [undefined, '#ffffff', '#FFFFFF']) assert.deepEqual(bulb([shell('shade', lightTint)]).pools, bare.pools, `${lightTint}: the bare lamp's`);
+  // Of several shells, the first in the room's order whose tint is not white.
+  assert.deepEqual(bulb([shell('clear', '#ffffff'), shell('first', '#ff8000'), shell('second', '#0000ff')]).pools[0].tint, tint);
+  assert.deepEqual(bulb([shell('first', '#0000ff'), shell('second', '#ff8000')]).pools[0].tint, [0, 0, 1]);
+  // What the pool and the cone take of a frame: the light times the tint.
+  const out = new Float32Array(3), bareOut = new Float32Array(3);
+  for (const frame of [[{ r: 255, g: 255, b: 255 }], [{ r: 128, g: 255, b: 64 }], [{}], []]) {
+    landingRGB(orange.pools[0], frame, out);
+    lightRGB(frame[0], bareOut);
+    assert.deepEqual([...out], [...bareOut].map((value, c) => Math.fround(value * tint[c])), JSON.stringify(frame));
+    landingRGB(bare.pools[0], frame, out);
+    assert.deepEqual([...out], [...bareOut], 'unfiltered without a tint');
+  }
+  // A beam's lamp carries it, for its pool and its cone; a strip's sections each.
+  const par = plain(2, { emission: { kind: 'beam', tilt: -90, beamAngle: 40 } });
+  const beam = inRoom([par], [at(2, { x: 0, y: 2, z: 0 })], { objects: [shell('head', '#ff8000', { lightBindingId: 'light-2' })] }).lamps[0];
+  assert.deepEqual(beam.tint, tint);
+  landingRGB(beam, [{ r: 255, g: 255, b: 255 }], out);
+  assert.deepEqual([...out], tint.map(Math.fround));
+  const path = [{ x: -1, y: 2, z: 0 }, { x: 1, y: 2, z: 0 }, { x: 1, y: 2, z: 1 }];
+  const strip = inRoom([plain(1)], [at(1, path[0], { path })], { objects: [shell('bar', '#ff8000')] });
+  assert.deepEqual(strip.pools.map((light) => light.tint), [tint, tint]);
+  // Pixels that share a pool: each one's share through its own shell.
+  const panel = { id: 3, label: 'Panel', profileId: 'panel' }, cells = [{ at: { x: 0, y: 0 } }, { at: { x: 1, y: 0 } }];
+  const profile = { id: 'panel', channelMap: { red: 0, green: 1, blue: 2 }, cells, grid: { columns: 2, rows: 1 } };
+  const shared = inRoom([panel], cells.map((cell, unit) => ({ id: `p${unit}`, fixtureId: 3, unit, position: { x: unit * 0.1, y: 1, z: 0 } })),
+    { profileOf: () => profile, objects: [shell('lens0', '#ff8000', { lightBindingId: 'p0' }), shell('lens1', null, { lightBindingId: 'p1' })] }).pools[0];
+  assert.equal(shared.tint, undefined);
+  landingRGB(shared, [{ r: 255, g: 255, b: 255 }, { r: 255, g: 255, b: 255 }], out);
+  [(1 + 1) / 2, (tint[1] + 1) / 2, (0 + 1) / 2].forEach((value, c) => assert.ok(Math.abs(out[c] - value) < 1e-6, `${[...out]}`));
 });
 
 test('a fixture of one light sent as LED data is a single LED, a pixel\'s lumen, unless its shape is chosen', () => {

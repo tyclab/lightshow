@@ -44,10 +44,10 @@ export function remapRoomCells(room: RoomScene, fixtureId: number, before: Pick<
     if (unit !== binding.unit) moved++;
     bindings.push({ ...binding, unit });
   }
-  // A furniture object lit by a binding that is gone keeps its shape and loses only the light.
+  // A furniture object lit by a binding that is gone keeps its shape and loses only the light, its tint and its afterglow.
   const objects = room.objects.map((object) => {
     if (!object.lightBindingId || !gone.has(object.lightBindingId)) return object;
-    const { lightBindingId: _binding, lightTint: _tint, ...rest } = object;
+    const { lightBindingId: _binding, lightTint: _tint, lightAfterglow: _afterglow, ...rest } = object;
     return rest;
   });
   return { room: { ...room, bindings, objects }, moved, dropped };

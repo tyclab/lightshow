@@ -328,7 +328,7 @@ function reflected(pool, hit, area, blockers) {
   else if (flat && area) surface = { id: area.id, label: area.label, part: floor ? 'floor' : 'ceiling', given: floor ? area.color : area.ceiling, as: floor ? FLOOR_COLOUR : null };
   else surface = { id: null, label: null, part: floor ? 'ground' : 'room box', as: floor ? GROUND_COLOUR : null };
   const { given, ...named } = surface, colour = given ?? named.as;
-  pool.reflectance = colour ? [1, 3, 5].map((at) => toLinear(parseInt(colour.slice(at, at + 2), 16) / 255)) : [1, 1, 1];
+  pool.reflectance = colour ? linearOf(colour) : [1, 1, 1];
   if (!given) pool.uncoloured = named;
   if (floor && !blocker) pool.floor = true;
 }
@@ -612,7 +612,7 @@ export function roomRig(fixtures, rig, model, profiles = {}) {
   const { resolved, mapped, outputs } = resolveBindings(fixtures, rig, model.bindings);
   const round = (light, aim = null, points = null) => {
     const pool = poolRound({ lumen: BULB_LUMEN, ...light }, room, aim, points);
-    if (pool) pools.push({ unit: light.unit, fixture: light.fixture, ...(light.sources ? { sources: light.sources } : {}), pool });
+    if (pool) pools.push({ unit: light.unit, fixture: light.fixture, ...(light.sources ? { sources: light.sources } : {}), ...(light.tint ? { tint: light.tint } : {}), pool });
   };
   const share = (light, fixture) => { if (!loose.has(fixture)) loose.set(fixture, []); loose.get(fixture).push(light); };
   // A light of unknown lumen is a bulb, except the one light of a fixture sent as LED data: a pixel, unless its shape is chosen.
@@ -631,9 +631,11 @@ export function roomRig(fixtures, rig, model, profiles = {}) {
     const index = indices.get(binding.fixtureId ?? binding.sources?.[0]?.fixtureId), fixture = fixtures[index];
     // A lamp's lumen is what its light shape states, else its Hue product's: the whole lamp's for one marker over all its units, else this unit's share.
     const flux = fixture ? lampLumen(fixture, hueLumen(profiles[fixture.profileId]), runs.get(fixture.id)) : null;
+    // Room objects that are the light are drawn in its place; what it gives the room passes through their tint.
+    const drawn = lightObjects.get(binding.id), tint = drawn && shellTint(drawn);
     const light = { unit: sources[0].unit, fixture: binding.fixtureId, position: binding.position,
       ...(binding.sources ? { sources } : {}), ...(flux ? { lumen: flux.lumen / (binding.sources ? 1 : rig.ranges[index].count) }
-        : !binding.sources && led(fixture, index) ? { lumen: PIXEL_LUMEN } : {}) };
+        : !binding.sources && led(fixture, index) ? { lumen: PIXEL_LUMEN } : {}), ...(tint ? { tint } : {}) };
     // A room draws unshaped lamps as bulbs, except a Hue fitting its bridge names (emission.ts).
     const emission = fixture && (fixture.emission ?? hueEmission(fixture, profiles[fixture.profileId]));
     const target = binding.lightTarget;
@@ -641,8 +643,6 @@ export function roomRig(fixtures, rig, model, profiles = {}) {
     const offset = target && { x: target.x - origin.x, y: target.y - origin.y, z: target.z - origin.z };
     const aim = offset && Math.hypot(offset.x, offset.y, offset.z) >= 0.001 ? unit(offset) : null;
     const pixel = emission?.kind === 'strip' || !emission && !binding.sources && !!rig.cellMaps[index];
-    // Room objects that are the light are drawn in its place; what it gives the room stays its own.
-    const drawn = lightObjects.get(binding.id);
     for (const object of drawn || []) objectLights.push({ objectId: object.id, sources });
     // A pixel that room objects draw still counts for its fixture's pitch.
     if (drawn && pixel && !binding.path) drawnPixels.push(light);
@@ -693,7 +693,9 @@ export function roomRig(fixtures, rig, model, profiles = {}) {
   for (const [id, own] of loose) {
     const grid = rig.grids[indices.get(id)], dense = grid?.rows > 1 && grid.columns > 1 && pitch.has(id) ? pitch.get(id) / PIXEL_PITCH : 1;
     const points = own.map((light) => light.position);
-    round({ fixture: id, position: runOn(points).centre, sources: own.flatMap((light) => light.sources ?? [{ unit: light.unit, weight: 1 }]),
+    // Each pixel's share of the pool passes through its own shell.
+    const sources = own.flatMap((light) => (light.sources ?? [{ unit: light.unit, weight: 1 }]).map((source) => (light.tint ? { ...source, tint: light.tint } : source)));
+    round({ fixture: id, position: runOn(points).centre, sources,
       lumen: own.reduce((sum, light) => sum + (light.lumen ?? PIXEL_LUMEN * Math.min(1, dense * dense)), 0) }, null, points);
   }
   const bodies = plotted.filter((fixture) => fixture.geometry?.points?.length > 1).map((fixture) => bodyOf(fixture.id, cells));
@@ -723,9 +725,19 @@ export function meanLightRGB(sources, frame, out, scratch = new Float32Array(3))
   out[0] = out[1] = out[2] = 0;
   for (const source of sources) {
     lightRGB(source.unit === null ? null : frame[source.unit], scratch);
-    const weight = source.weight / total;
-    for (let channel = 0; channel < 3; channel++) out[channel] += scratch[channel] * weight;
+    const weight = source.weight / total, tint = source.tint;
+    for (let channel = 0; channel < 3; channel++) out[channel] += scratch[channel] * weight * (tint ? tint[channel] : 1);
   }
+}
+
+/**
+ * What a light gives the room from a frame, as linear RGB: its sources' mean or its unit's own, through the shell drawn
+ * for it (roomRig's `tint`). A light a shell is drawn for shows no lens or glow of its own, so its pool and cone take this.
+ */
+export function landingRGB(light, frame, out, scratch) {
+  if (light.sources) meanLightRGB(light.sources, frame, out, scratch);
+  else lightRGB(frame[light.unit], out);
+  if (light.tint) { out[0] *= light.tint[0]; out[1] *= light.tint[1]; out[2] *= light.tint[2]; }
 }
 
 export const STAGE_FOV = 48;
@@ -781,6 +793,13 @@ export function trussesFor(points) {
 }
 
 const toLinear = (v) => (v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4);
+const linearOf = (colour) => [1, 3, 5].map((at) => toLinear(parseInt(colour.slice(at, at + 2), 16) / 255));
+
+/** What the shells drawn for a light let through of it, as linear RGB: the first of them, in the room's order, whose `lightTint` is not white; null when none is. */
+function shellTint(objects) {
+  const tint = objects.find((object) => object.lightTint && object.lightTint.toLowerCase() !== '#ffffff')?.lightTint;
+  return tint ? linearOf(tint) : null;
+}
 
 // Scale the whole RGB mix to preserve hue, then linearize for GPU lighting.
 export function lightRGB(light, out, at = 0) {

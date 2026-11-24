@@ -174,7 +174,7 @@ test('reading the patched ball again: 80 cells under its id, its DDP spread over
   const dark = { id: 'fixture-38-cell-1', fixtureId: 38, unit: 1, confidence: 'estimated', position: { x: -1, y: 1.2, z: 0.5 } };
   const mixed = { id: 'pole', aggregation: 'weightedMean', confidence: 'estimated', position: { x: -1, y: 1.1, z: 0.5 },
     sources: [{ fixtureId: 38, unit: 2, weight: 1 }, { fixtureId: 0, unit: 0, weight: 2 }] };
-  const object = { id: 'shade', kind: 'box', role: 'furniture', position: { x: -1, y: 1.2, z: 0.5 }, size: { x: 0.1, y: 0.1, z: 0.1 }, lightBindingId: dark.id, lightTint: '#ffffff' };
+  const object = { id: 'shade', kind: 'box', role: 'furniture', position: { x: -1, y: 1.2, z: 0.5 }, size: { x: 0.1, y: 0.1, z: 0.1 }, lightBindingId: dark.id, lightTint: '#ffffff', lightAfterglow: '#102030' };
   rooms.replace(sphereRoom([...kept, dark, mixed], { objects: [object] }));
   registerProfile(plain);
   try {
@@ -204,7 +204,8 @@ test('reading the patched ball again: 80 cells under its id, its DDP spread over
         assert.deepEqual(binding.position, kept.find((k) => k.id === binding.id).position);
       }
       assert.deepEqual(room.bindings.find((b) => b.id === 'pole').sources, [{ fixtureId: 0, unit: 0, weight: 2 }], 'a mix keeps its other sources');
-      assert.equal(room.objects[0].lightBindingId, undefined, 'the shade keeps its shape and loses the light that is gone');
+      assert.deepEqual(room.objects[0], { id: 'shade', kind: 'box', role: 'furniture', position: object.position, size: object.size },
+        'the shade keeps its shape and loses the light that is gone, its tint and its afterglow');
       assert.deepEqual(done.body.room, { moved: 79, dropped: 2 }, 'every cell but the first takes a new index; the dark one and its source go');
       const rig = buildRig(state.fixtures, getProfile);
       const space = buildUnitSpace(rig, room);
