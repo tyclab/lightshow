@@ -59,9 +59,11 @@ const lampFrames = (page, ms, all = false) => page.evaluate(([ms, all]) => new P
 // changes when it swings by SWING with its darker side under DARKER; after 2 × FLASHES_PER_SECOND changes in a second
 // it is held within a swing, but only by scaling light, so a frame the effect leaves dark still falls: one more change,
 // after which every rise is held. A frame the page misses can only hide a change. The room's light is the mean
-// luminance of the plot's lamps as drawn; in green, with no white emitter, that is the limiter's own measure.
+// luminance of the light the plot's lamps show: the plot paints a DMX lamp's bytes as linear light encoded for the
+// display (unit-light.js), so the drawn colour is decoded; in green, with no white emitter, that is the limiter's measure.
 const LIMIT = 2 * FLASHES_PER_SECOND + 1;
-const luminance = (light) => { const [r = 0, g = 0, b = 0] = channels(light); return (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255; };
+const decode = (byte) => { const v = byte / 255; return v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; };
+const luminance = (light) => { const [r = 0, g = 0, b = 0] = channels(light).map(decode); return 0.2126 * r + 0.7152 * g + 0.0722 * b; };
 
 /** The most changes of the room's light in any one second of `frames` ({ t in ms, lights }). */
 function mostChangesInASecond(frames) {

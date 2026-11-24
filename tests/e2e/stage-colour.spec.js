@@ -71,9 +71,10 @@ for (const shape of [
 test('dense strip sections retain orange without accumulating white glow', async ({ page }) => {
   await page.goto('about:blank');
   await page.addScriptTag({ content: script });
+  // A byte on DDP is linear light: (255, 55, 13) is the orange (255, 128, 64) shows on a display.
   for (const count of [1, 3, 64, 256]) {
     const result = await page.evaluate((input) => window.stageColour(input),
-      { kind: 'strip', protocol: 'ddp', count, colour: { r: 255, g: 128, b: 64 } });
+      { kind: 'strip', protocol: 'ddp', count, colour: { r: 255, g: 55, b: 13 } });
     expect(result.white, `${count} sections`).toBe(0);
     expect(result.peaks[0]).toBeGreaterThan(200);
     expect(result.peaks[1]).toBeGreaterThan(100);
@@ -135,8 +136,9 @@ const light = buildSync({
       return read(canvas.width / 2, canvas.height / 2);
     };
     // A beam straight down from 1.9 m at the middle of the venue's deck: the middle of its pool, seen from the audience.
-    window.venuePool = (colour) => {
-      const fixture = { id: 1, label: 'Par', profileId: 'lamp', position: { x: 50, y: 50, height: 1.9 / TRUSS_H * 100 }, emission: { kind: 'beam', tilt: -90, beamAngle: 30 } };
+    window.venuePool = (colour, protocol = null) => {
+      const fixture = { id: 1, label: 'Par', profileId: 'lamp', position: { x: 50, y: 50, height: 1.9 / TRUSS_H * 100 }, emission: { kind: 'beam', tilt: -90, beamAngle: 30 },
+        ...(protocol ? { output: { protocol } } : {}) };
       const rig = buildRig([fixture], () => LAMP);
       scene.setRoom(null);
       scene.view('audience');
@@ -179,8 +181,8 @@ test('overlapping pools add as light: four of 0.05 of white show the floor at 0.
 test('a pool brighter than white keeps its hue: orange and pink at three times white stay orange and pink', async ({ page }) => {
   await page.goto('about:blank');
   await page.addScriptTag({ content: light });
-  // (255, 188, 0) is linear (1, 0.5, 0); (255, 0, 188) is (1, 0, 0.5).
-  for (const [colour, half, none] of [[{ r: 255, g: 188, b: 0 }, 1, 2], [{ r: 255, g: 0, b: 188 }, 2, 1]]) {
+  // A byte is linear light: (255, 128, 0) is (1, 0.5, 0) and (255, 0, 128) is (1, 0, 0.5).
+  for (const [colour, half, none] of [[{ r: 255, g: 128, b: 0 }, 1, 2], [{ r: 255, g: 0, b: 128 }, 2, 1]]) {
     const shown = await page.evaluate((input) => window.roomLight(input), { floor: '#ffffff', lamps: [{ at: corners[0], shown: 3, colour }] });
     const rgb = shown.map(decode);
     expect(shown[0], `${shown}`).toBeGreaterThanOrEqual(254);
@@ -209,10 +211,24 @@ test('the generic venue draws its pools at 0.9 of their light, as before, added 
   await page.goto('about:blank');
   await page.addScriptTag({ content: light });
   const deck = await page.evaluate((colour) => window.venuePool(colour), OFF);
-  // Before linear compositing these read (255, 20, 24) and (50, 20, 24) over a deck of (20, 20, 24).
-  for (const [red, rise] of [[255, 0.9], [32, 0.9 * decode(32)]]) {
+  // Before linear compositing these read (255, 20, 24) and (50, 20, 24) over a deck of (20, 20, 24); a DMX par's byte is
+  // linear light, so red 32 lands 32 / 255 of full.
+  for (const [red, rise] of [[255, 0.9], [32, 0.9 * 32 / 255]]) {
     const pool = await page.evaluate((colour) => window.venuePool(colour), { r: red, g: 0, b: 0 });
     expect(Math.abs(decode(pool[0]) - decode(deck[0]) - rise), `red ${red}: ${pool} over ${deck}`).toBeLessThan(Math.max(0.004, rise * 0.04));
     for (const c of [1, 2]) expect(Math.abs(pool[c] - deck[c]), `${pool} over ${deck}`).toBeLessThanOrEqual(2);
+  }
+});
+
+test('a byte of 128 lands half the light of a DMX par and the sRGB decode of it from a Hue lamp', async ({ page }) => {
+  await page.goto('about:blank');
+  await page.addScriptTag({ content: light });
+  const GREY = { r: 128, g: 128, b: 128 };
+  // A DMX fixture names no output; a Hue lamp streams to its bridge. Each pool lands 0.9 of its light (PAR_LEVEL).
+  for (const [name, protocol, shown] of [['DMX', null, 128 / 255], ['Hue', 'hue', decode(128)]]) {
+    const deck = await page.evaluate(([c, p]) => window.venuePool(c, p), [OFF, protocol]);
+    const pool = await page.evaluate(([c, p]) => window.venuePool(c, p), [GREY, protocol]);
+    const rise = pool.map((value, c) => decode(value) - decode(deck[c]));
+    for (const channel of rise) expect(Math.abs(channel - 0.9 * shown), `${name}: ${pool} over ${deck}`).toBeLessThan(0.9 * shown * 0.04);
   }
 });

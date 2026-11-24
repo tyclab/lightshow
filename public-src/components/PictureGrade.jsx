@@ -48,7 +48,7 @@ export function PictureGrade() {
           <input type="checkbox" checked={decode} onChange={(e) => savePicture({ decode: e.target.checked })} />
           {decode ? 'sRGB decode (on): a byte drives the linear light it stands for' : 'sRGB decode (off): a byte drives the lamp as sent'}
         </label>
-        <small class="setting-help">Only for outputs with no gamma of their own: a WLED board applies one already, and a decode on top makes the room far too dim.</small>
+        <small class="setting-help">Only for outputs with no gamma of their own. A WLED board applies its gamma to realtime input while its “Disable realtime gamma correction” is off, and a decode on top then makes the room far too dim; with that setting on, its light is linear in the byte.</small>
       </fieldset>
       <fieldset>
         <legend>Picture colour grade</legend>
