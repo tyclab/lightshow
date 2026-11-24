@@ -97,8 +97,9 @@ that lands on it (see the pools below). IDs must be unique within each collectio
 
 A room's optional `floorPattern` lays its floor as boards or tiles, with its `color` their
 mean, so the floor returns as much light as without it (`public-src/stage3d/floor-pattern.js`).
-`kind` is `planks` or `tiles`; `width` and `length` are a piece's size across and along in
-metres, `lengthSpread` how far each end joint moves either way at random, `angle` the degrees
+`kind` is `planks`, `tiles` or `deck`; `width` and `length` are a piece's size across and along in
+metres (a deck: square click tiles `length` a side of planks `width` wide, one along an edge, the
+rest beside it and one across their ends, every other tile turned a quarter), `lengthSpread` how far each end joint moves either way at random, `angle` the degrees
 from x toward z the pieces' length runs at, `bond` the share of a length each row is shifted by
 (0–1) or `random`, `origin` the [x, z] a piece's corner lies on, `tone` the spread of the pieces'
 light (a share of the mean), `grain` their streaks, and `jointWidth` (metres) and `joint` (a share

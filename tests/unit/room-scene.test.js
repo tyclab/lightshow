@@ -113,6 +113,7 @@ test('a floor pattern is optional and kept as given; one out of range or with un
   laid.rooms[0].floorPattern = { kind: 'planks', width: 0.0615, length: 0.45, lengthSpread: 0.055, angle: 90, bond: 'random', origin: [-2, 1], tone: 0.1, grain: 0.06, joint: 0.4, jointWidth: 0.002 };
   assert.deepEqual(roomSceneSchema.parse(laid).rooms, laid.rooms);
   const tiled = { kind: 'tiles', width: 0.3, length: 0.6, bond: 0.5 };
+  assert.equal(roomSceneSchema.safeParse({ ...laid, rooms: [{ ...laid.rooms[0], floorPattern: { kind: 'deck', width: 0.075, length: 0.3 } }] }).success, true);
   assert.deepEqual(roomSceneSchema.parse({ ...laid, rooms: [{ ...laid.rooms[0], floorPattern: tiled }] }).rooms[0].floorPattern, tiled);
   for (const change of [{ kind: 'parquet' }, { width: 0 }, { width: 0.01 }, { length: 25 }, { bond: 1.5 }, { bond: 'wild' }, { tone: -0.1 },
     { jointWidth: 0.1 }, { lengthSpread: -0.1 }, { origin: [0] }, { seed: 3 }]) {

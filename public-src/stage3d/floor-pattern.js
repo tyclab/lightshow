@@ -30,8 +30,21 @@ function streaks(u, lane, seed) {
 const covered = (d, width, size) => Math.max(0, Math.min(1, Math.min(width, size, (width + size) / 2 - d) / size));
 
 /** The piece at (along, across) and where on it: rows `width` wide, shifted by `bond` or at random, end joints
- * `length` apart, each moved up to `lengthSpread`. @param {FloorPattern} p @param {number} along @param {number} across */
+ * `length` apart, each moved up to `lengthSpread`. A deck is square tiles `length` a side, every other one turned a
+ * quarter, each of planks `width` wide: one along an edge, the rest beside it and one across their ends.
+ * @param {FloorPattern} p @param {number} along @param {number} across */
 function pieceAt(p, along, across) {
+  if (p.kind === 'deck') {
+    const units = Math.max(2, Math.round(p.length / p.width)), width = p.length / units, last = units - 1;
+    const column = Math.floor(along / p.length), row = Math.floor(across / p.length);
+    let a = (along - column * p.length) / width, b = (across - row * p.length) / width;
+    if ((column + row) & 1) [a, b] = [units - b, a];
+    const tile = column * 7919 + row;
+    if (a >= last) return { row: tile, key: 0, u: b * width, v: (a - last) * width, length: p.length, width };
+    if (b < 1) return { row: tile, key: 1, u: a * width, v: b * width, length: last * width, width };
+    const k = Math.floor(a);
+    return { row: tile, key: 2 + k, u: (b - 1) * width, v: (a - k) * width, length: last * width, width };
+  }
   const row = Math.floor(across / p.width);
   const shift = typeof p.bond === 'number' ? (((row * p.bond) % 1) + 1) % 1 : hash(row, 7, 1);
   const spread = Math.min(p.lengthSpread ?? 0, p.length * 0.45);
@@ -41,7 +54,7 @@ function pieceAt(p, along, across) {
   if (run < joint(column)) column--;
   else if (run >= joint(column + 1)) column++;
   const from = joint(column);
-  return { row, key: column, u: run - from, v: across - row * p.width, length: joint(column + 1) - from };
+  return { row, key: column, u: run - from, v: across - row * p.width, length: joint(column + 1) - from, width: p.width };
 }
 
 /** The light a pattern returns at (x, y) relative to its mean: a piece's tone, its grain, its joints over a pixel
@@ -50,7 +63,7 @@ export function patternOf(p) {
   const angle = ((p.angle ?? 0) * Math.PI) / 180, [ox, oy] = p.origin ?? [0, 0], cos = Math.cos(angle), sin = Math.sin(angle);
   return (/** @type {number} */ x, /** @type {number} */ y, /** @type {number} */ size) => {
     const dx = x - ox, dy = y - oy;
-    const { row, key, u, v, length } = pieceAt(p, dx * cos + dy * sin, -dx * sin + dy * cos);
+    const { row, key, u, v, length, width } = pieceAt(p, dx * cos + dy * sin, -dx * sin + dy * cos);
     let level = 1 + (p.tone ?? 0) * Math.sqrt(3) * (2 * hash(row, key, 2) - 1);
     if (p.grain) {
       const lane = Math.floor(v / 0.012), seed = Math.floor(hash(row, key, 3) * 65536);
@@ -58,7 +71,7 @@ export function patternOf(p) {
     }
     const jointWidth = p.jointWidth ?? 0;
     if (!jointWidth) return level;
-    const side = Math.min(v, p.width - v), end = Math.min(u, length - u);
+    const side = Math.min(v, width - v), end = Math.min(u, length - u);
     const joint = Math.max(covered(side, jointWidth, size), covered(end, jointWidth, size));
     return level * (1 - joint) + (p.joint ?? 1) * joint;
   };
@@ -87,7 +100,8 @@ function spans(polygon, y, x0, dx, width) {
  * is its colour, the rest `ground`. @param {{width: number, height: number, x0: number, y0: number, dx: number, dy: number, ground: string, rooms: FloorRoom[]}} floor */
 export function paintFloors({ width, height, x0, y0, dx, dy, ground, rooms }) {
   const owner = new Int16Array(width * height).fill(-1), level = new Float32Array(width * height);
-  const sums = new Float64Array(rooms.length), counts = new Float64Array(rooms.length), size = Math.max(Math.abs(dx), Math.abs(dy));
+  const sums = new Float64Array(rooms.length), counts = new Float64Array(rooms.length), peaks = new Float64Array(rooms.length);
+  const size = Math.max(Math.abs(dx), Math.abs(dy));
   rooms.forEach((room, r) => {
     const at = room.pattern ? patternOf(room.pattern) : null;
     for (let j = 0; j < height; j++) {
@@ -99,20 +113,31 @@ export function paintFloors({ width, height, x0, y0, dx, dy, ground, rooms }) {
           level[n] = at ? at(x0 + (i + 0.5) * dx, y, size) : 1;
           sums[r] += level[n];
           counts[r]++;
+          peaks[r] = Math.max(peaks[r], level[n]);
         }
       }
     }
   });
-  const colours = rooms.map((room, r) => {
-    const mean = counts[r] ? sums[r] / counts[r] : 1;
-    return linearOf(room.color).map((c) => c / mean);
-  });
+  // Each channel's scale: its colour over the mean level; where pieces would pass white and clip, the rest rises until
+  // the mean is the colour again. A room of nothing but black joints is plain.
+  const scales = rooms.map((room, r) => linearOf(room.color).map((want) => {
+    if (!(sums[r] > 0)) return want;
+    let scale = (want * counts[r]) / sums[r];
+    for (let step = 0; step < 12 && scale * peaks[r] > 1; step++) {
+      let got = 0;
+      for (let n = 0; n < owner.length; n++) if (owner[n] === r) got += Math.min(1, scale * level[n]);
+      got /= counts[r];
+      if (Math.abs(got - want) <= want * 1e-4) break;
+      scale *= want / got;
+    }
+    return scale;
+  }));
   const plain = linearOf(ground).map(encode), bytes = new Uint8ClampedArray(width * height * 4);
   for (let at = 0, b = 0; at < owner.length; at++, b += 4) {
     const r = owner[at];
     if (r === -1) { bytes[b] = plain[0]; bytes[b + 1] = plain[1]; bytes[b + 2] = plain[2]; }
     else {
-      const c = colours[r], l = level[at];
+      const c = scales[r], l = sums[r] > 0 ? level[at] : 1;
       bytes[b] = encode(c[0] * l); bytes[b + 1] = encode(c[1] * l); bytes[b + 2] = encode(c[2] * l);
     }
     bytes[b + 3] = 255;

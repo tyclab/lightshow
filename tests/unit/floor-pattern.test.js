@@ -41,6 +41,22 @@ test('each room returns on average the light of its colour: its reflectance, wit
   });
 });
 
+test('a bright floor whose lightest pieces clip at white still returns its colour on average, in every channel', () => {
+  for (const [color, pattern] of [['#f0ebe0', OAK], ['#f4f2ee', OAK], ['#e6e6e6', { ...TILES, tone: 0.5 }]]) {
+    const room = { polygon: [[-1, -1], [1, -1], [1, 1], [-1, 1]], color, pattern };
+    const bright = { width: 300, height: 300, x0: -1, y0: -1, dx: 2 / 300, dy: 2 / 300, ground: '#000000', rooms: [room] };
+    const bytes = paintFloors(bright), sum = [0, 0, 0];
+    for (let at = 0; at < bytes.length; at += 4) for (let c = 0; c < 3; c++) sum[c] += toLinear(bytes[at + c] / 255);
+    linear(color).forEach((want, c) => assert.ok(Math.abs(sum[c] / (bytes.length / 4) / want - 1) < 0.005, `${color} channel ${c}: ${sum[c] / (bytes.length / 4)} for ${want}`));
+  }
+});
+
+test('a pattern of nothing but black joints paints its room plain, not black', () => {
+  const room = { polygon: [[-0.1, -0.1], [0.1, -0.1], [0.1, 0.1], [-0.1, 0.1]], color: '#a37953', pattern: { kind: 'tiles', width: 0.02, length: 0.02, joint: 0, jointWidth: 0.05 } };
+  const bytes = paintFloors({ width: 40, height: 40, x0: -0.1, y0: -0.1, dx: 0.005, dy: 0.005, ground: '#000000', rooms: [room] });
+  assert.deepEqual([...bytes.slice(0, 4)], [0xa3, 0x79, 0x53, 255]);
+});
+
 test('the boards differ and the joints between them are darker; a floor without a pattern and the ground are plain', () => {
   const oak = new Set(), plain = new Set(), ground = new Set();
   for (let j = 0; j < floor.height; j++) for (let i = 0; i < floor.width; i++) {
@@ -75,6 +91,22 @@ test('pieces of random length lie within length ± twice the spread, end to end 
   assert.ok(lengths.length > 300, `${lengths.length} pieces`);
   assert.ok(Math.min(...lengths) > 0.45 - 2 * 0.055 - 0.002 && Math.max(...lengths) < 0.45 + 2 * 0.055 + 0.002, `${Math.min(...lengths)} ${Math.max(...lengths)}`);
   assert.ok(Math.max(...lengths) - Math.min(...lengths) > 0.15, 'the lengths spread');
+});
+
+test('a deck is square tiles of planks, one along an edge, three beside it and one across, every other tile turned a quarter', () => {
+  const deck = patternOf({ kind: 'deck', width: 0.075, length: 0.3, tone: 0.3 }), w = 0.075, at = (x, y) => deck(x * w, y * w, 0.001);
+  // The first tile: the long plank along x = 3..4 from end to end, the one across at y 0..1, three beside the long one.
+  assert.equal(at(3.5, 0.2), at(3.5, 3.8), 'the long plank');
+  assert.equal(at(0.2, 0.5), at(2.8, 0.5), 'the plank across');
+  assert.equal(at(1.5, 1.2), at(1.5, 3.8), 'a plank beside the long one');
+  assert.notEqual(at(0.5, 2), at(1.5, 2), 'two planks beside each other');
+  assert.notEqual(at(2.5, 2), at(3.5, 2), 'the last short plank and the long one');
+  // Its neighbour along x is turned a quarter: its long plank runs along y = 0..1, its three short ones below it at
+  // x 5..8 and the one across their ends at x 4..5.
+  assert.equal(at(4.2, 0.5), at(7.8, 0.5), 'the turned tile\'s long plank');
+  assert.equal(at(5.2, 1.5), at(7.8, 1.5), 'a short plank of the turned tile');
+  assert.notEqual(at(6, 1.5), at(6, 2.5), 'the turned tile\'s short planks lie side by side');
+  assert.equal(at(4.5, 1.2), at(4.5, 3.8), 'the turned tile\'s plank across');
 });
 
 test('the same rooms paint the same floor, and a pattern turns with its angle', () => {

@@ -21,11 +21,12 @@ const polygon = z.array(point).min(3).max(128).refine((points) => {
 const color = z.string().regex(/^#[\da-f]{6}$/i);
 const confidence = z.enum(['estimated', 'measured']);
 // How a room's floor is laid (public-src/stage3d/floor-pattern.js): boards or tiles `width` across and `length` along
+// (a deck: square tiles `length` a side of planks `width` wide, every other tile turned a quarter)
 // (each end joint moved up to `lengthSpread` either way), their length `angle` degrees from x toward z, each row shifted
 // by `bond` of a length or at random, from `origin`. `tone` is the spread of the pieces' light, `grain` their streaks;
 // joints `jointWidth` wide return `joint` of the mean.
 const floorPattern = z.object({
-  kind: z.enum(['planks', 'tiles']),
+  kind: z.enum(['planks', 'tiles', 'deck']),
   width: z.number().finite().min(0.02).max(5),
   length: z.number().finite().min(0.02).max(20),
   lengthSpread: z.number().finite().min(0).max(5).optional(),
