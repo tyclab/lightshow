@@ -2,7 +2,7 @@ import { emissionOf, hueEmission, hueLumen, lampLumen, beamDirection, BULB_LUMEN
 import { isPlaced, stagePositions } from '../../src/shared/stage.ts';
 import { lineOf } from '../../src/shared/rig.ts';
 import { bindingSources, pathPoints, plotPosition, resolveBindings, runLength } from '../../src/shared/space.ts';
-import { hueUnits, lightRGB } from '../unit-light.js';
+import { lightRGB } from '../unit-light.js';
 
 export { lightRGB };
 
@@ -563,7 +563,7 @@ export function placeRig(fixtures, profiles, rig) {
     lamps.push(fixture.emission.kind === 'beam' ? beamLight(cell, fixture.emission, fixture.group === 'floor')
       : { ...cell, kind: 'bulb', aim: null, length: 0 });
   }
-  return { lamps, cells: stripCells, trusses: trussesFor(hung), hueUnits: hueUnits(rig) };
+  return { lamps, cells: stripCells, trusses: trussesFor(hung) };
 }
 
 export { bindingSources };
@@ -707,8 +707,7 @@ export function roomRig(fixtures, rig, model, profiles = {}) {
   const missing = fixtures.filter((fixture) => !mapped.has(fixture.id));
   const partial = fixtures.filter((fixture, index) => mapped.has(fixture.id) && mapped.get(fixture.id).size < rig.ranges[index].count);
   const shared = [...outputs.values()].filter((output) => output.bindings.length > 1);
-  return { lamps, cells, pools, objectLights, bodies, trusses: [], missing, partial, plotted, unresolved, incomplete, shared, estimated, uncoloured,
-    hueUnits: hueUnits(rig) };
+  return { lamps, cells, pools, objectLights, bodies, trusses: [], missing, partial, plotted, unresolved, incomplete, shared, estimated, uncoloured };
 }
 
 /** The box an explicit cell map spans, a pixel wider than its pixels: the body Stage draws them in when no room object is the fixture. */
@@ -723,13 +722,13 @@ function bodyOf(fixture, cells) {
     size: { x: hi.x - lo.x + pad, y: hi.y - lo.y + pad, z: hi.z - lo.z + pad } };
 }
 
-/** The weighted mean of sources' light, as linear RGB; `hue` is the world's `hueUnits`, `gains` a frame's supply gains (unit-light.js). */
-export function meanLightRGB(sources, frame, out, scratch = new Float32Array(3), hue = null, gains = null) {
+/** The weighted mean of sources' light, as linear RGB; `gains` a frame's supply gains (unit-light.js). */
+export function meanLightRGB(sources, frame, out, scratch = new Float32Array(3), gains = null) {
   const total = sources.reduce((sum, source) => sum + source.weight, 0);
   out[0] = out[1] = out[2] = 0;
   for (const source of sources) {
     if (source.unit === null) lightRGB(null, scratch);
-    else lightRGB(frame[source.unit], scratch, 0, hue?.[source.unit] === 1, gains ? gains[source.unit] : 1);
+    else lightRGB(frame[source.unit], scratch, 0, gains ? gains[source.unit] : 1);
     const weight = source.weight / total, tint = source.tint;
     for (let channel = 0; channel < 3; channel++) out[channel] += scratch[channel] * weight * (tint ? tint[channel] : 1);
   }
@@ -739,9 +738,9 @@ export function meanLightRGB(sources, frame, out, scratch = new Float32Array(3),
  * What a light gives the room from a frame, as linear RGB: its sources' mean or its unit's own, through the shell drawn
  * for it (roomRig's `tint`). A light a shell is drawn for shows no lens or glow of its own, so its pool and cone take this.
  */
-export function landingRGB(light, frame, out, scratch, hue = null, gains = null) {
-  if (light.sources) meanLightRGB(light.sources, frame, out, scratch, hue, gains);
-  else lightRGB(frame[light.unit], out, 0, hue?.[light.unit] === 1, gains ? gains[light.unit] : 1);
+export function landingRGB(light, frame, out, scratch, gains = null) {
+  if (light.sources) meanLightRGB(light.sources, frame, out, scratch, gains);
+  else lightRGB(frame[light.unit], out, 0, gains ? gains[light.unit] : 1);
   if (light.tint) { out[0] *= light.tint[0]; out[1] *= light.tint[1]; out[2] *= light.tint[2]; }
 }
 

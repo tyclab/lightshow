@@ -158,9 +158,9 @@ function singleLight(fix, state, dmx) {
 
 /**
  * What the Stage's 2D plot paints: each bar cell's colour by rig unit, and each fixture's lamp, as the display shows the
- * light their bytes make (unit-light.js), on a Hue bridge or not as the rig resolved it once. `preview` is an audition's
- * or the demo beat's frame by unit; without it the fixtures are read from the feed `dmx` under `state`. With `supply`
- * (stage-supply.js) each unit's light is scaled by what its WLED lets out on this frame; a lamp of cells by their mean.
+ * light their bytes make (unit-light.js). `preview` is an audition's or the demo beat's frame by unit; without it the
+ * fixtures are read from the feed `dmx` under `state`. With `supply` (stage-supply.js) each unit's light is scaled by
+ * what its WLED lets out on this frame; a lamp of cells by their mean.
  */
 export function plotColours(fixtures, rig, { preview = null, state, connected = true, dmx = null, supply = null }) {
   const cells = new Array(rig.points.length);
@@ -182,11 +182,11 @@ export function plotColours(fixtures, rig, { preview = null, state, connected = 
   }
   fixtures.forEach((fix, i) => {
     const { start, count } = rig.ranges[i];
-    const bar = !!rig.cellMaps[i], hue = !!rig.hue[i];
+    const bar = !!rig.cellMaps[i];
     let mean = 1;
     if (gains) { mean = 0; for (let c = 0; c < count; c++) mean += gains[start + c] / count; }
-    const css = (light) => lightCss(light, hue, mean);
-    if (bar) for (let c = 0; c < count; c++) cells[start + c] = lit[i][c] && lightCss(lit[i][c], hue, gains ? gains[start + c] : 1);
+    const css = (light) => lightCss(light, mean);
+    if (bar) for (let c = 0; c < count; c++) cells[start + c] = lit[i][c] && lightCss(lit[i][c], gains ? gains[start + c] : 1);
     lamps[i] = preview ? css(bar ? meanLight(preview.slice(start, start + count)) : preview[start])
       : connected ? fixtureOutputColor(fix, state, dmx, css) : '#222';
   });
