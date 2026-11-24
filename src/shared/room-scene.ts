@@ -106,6 +106,8 @@ export const roomSceneSchema = z.object({
     mesh: triangleMesh.optional(),
     lightBindingId: id.optional(),
     lightTint: color.optional(),
+    // A glow-in-the-dark shell's own light, shown whatever its light does; it lights nothing else.
+    lightAfterglow: color.optional(),
   }).strict()).max(1500).default([]),
   bindings: z.array(binding).max(4096).default([]),
   // Optional and without defaults, so a room saved before they existed parses to the same value.
@@ -167,6 +169,9 @@ export const roomSceneSchema = z.object({
   room.objects.forEach((object, index) => {
     if (object.lightTint && !object.lightBindingId) {
       ctx.addIssue({ code: 'custom', path: ['objects', index, 'lightTint'], message: 'A light tint needs a light binding' });
+    }
+    if (object.lightAfterglow && !object.lightBindingId) {
+      ctx.addIssue({ code: 'custom', path: ['objects', index, 'lightAfterglow'], message: 'An afterglow needs a light binding' });
     }
     if (object.lightBindingId && (object.role !== 'furniture' || !bindingIds.has(object.lightBindingId))) {
       ctx.addIssue({ code: 'custom', path: ['objects', index, 'lightBindingId'], message: 'Only furniture objects may reference an existing light binding' });

@@ -205,14 +205,21 @@ multisampling a half-float buffer costs one about three times the frame.
 A pool is clipped like any other: the one under a light to the room its light stands in, where
 a light outside every room polygon, such as one hung in the line of a wall, belongs to the room
 whose edge is nearest. A light under the floor or above the ceiling throws none under it. Room
-objects drawn for a light (`lightBindingId`) change nothing about its pool or its cone.
+objects drawn for a light (`lightBindingId`) move neither its pool nor its cone; a `lightTint` on
+them filters both (see the end of this page).
 
 How strongly a pool is drawn follows its light's lumen at full white. A Hue lamp has the lumen
 of the product its bridge names (a GU10 spot 350 lm, a candle 470 lm, a Play bar 500 lm, a light
 strip 800 lm a metre; `HUE_LUMEN` in `src/shared/emission.ts`, the maker's figures at 4000 K,
-rounded), any other strip 484 lm a metre of surveyed run and a pixel 8 lm. A panel's pixels
+rounded), any other strip 484 lm a metre of surveyed run and a pixel 4.1 lm. A panel's pixels
 closer than a 60-per-metre strip's are smaller LEDs and count by the area each has (a 5.6 mm
-pitch gives 0.9 lm a pixel); that figure is an estimate. A beam of unknown lumen (a DMX par)
+pitch gives 0.46 lm a pixel); that figure is an estimate. A pixel's 4.1 lm (`PIXEL_LUMEN`) is a
+WS2812B's at full white, from the luminous intensity Worldsemi's datasheets give each colour: the
+original sheet red 390–420, green 660–720 and blue 180–200 mcd, the V5 sheet at 12 mA red
+300/310/500, green 600/780/1000 and blue 200/215/300 mcd (min/typical/max). A Lambertian emitter
+gives π times its axial intensity, Φ = π·ΣIv: 4.1 lm at the V5 sheet's typical figures, 3.5 to
+5.7 lm over its range. It stays an estimate, since neither sheet states the viewing angle. One
+such LED 2.6 m up lands 0.048 lx on the floor under it. A beam of unknown lumen (a DMX par)
 lands 97 lx at its centre, 0.9 of E_white (`PAR_LEVEL`), as such a pool was drawn before, at
 half its level where half of its own centre's light lands; aimed in a room it counts as an
 806 lm bulb. Any other light of unknown lumen counts as an 806 lm
@@ -249,9 +256,9 @@ colour lamp, 570 cd on its axis; EPREL 1508900 and 387862), which is the spread 
 drawn with; the white ambiance GU10 has 42° (EPREL 391948) and the 4.2 W colour lamp 40°. The
 120° of a pendant, a ceiling fitting or a Centris ceiling panel, the 90° of a wall fitting and
 the 55° of spots combined on one channel are assumptions, as are the 484 lm a metre and the
-120° of a strip that is not Hue and the 8 lm of a pixel. The beam's shape is one too: against
-the candela the registry states for twelve of the maker's GU10 lamps, lumen and beam angle give
-0.77 to 1.44 times as much. Light that walls and ceiling throw back is not drawn.
+120° of a strip that is not Hue; a pixel's 4.1 lm is the datasheet estimate above. The beam's
+shape is one too: against the candela the registry states for twelve of the maker's GU10 lamps,
+lumen and beam angle give 0.77 to 1.44 times as much. Light that walls and ceiling throw back is not drawn.
 
 Optional `anchors` name points effects can start from, such as speakers:
 `[{ "id": "speakerLeft", "position": { "x": -1.5, "y": 1, "z": -1.5 } }]`. Optional
@@ -292,15 +299,27 @@ marker is replaced by the object; its coverage and source data are retained. Thi
 uses the same live/preview frame and power-state semantics as other Stage lights.
 Lit surfaces blend their neutral diffuse colour toward 0.35 × the current linear RGB and
 add restrained emission (intensity 0.25), preserving hue and directional relief.
-An off frame removes emission while leaving the physical shell visible. Multiple
+An off frame removes the light's emission while leaving the physical shell visible. Multiple
 object parts may share one binding; unbound parts remain ordinary scenery. This is
 preview rendering only and never moves or changes an output fixture.
 
 A bound furniture object can optionally set `lightTint: "#c4dbea"` to model a
-coloured translucent material. Stage converts both the tint and live RGB to linear
-light and multiplies them before shading; the default white tint preserves existing
-rendering. The tint filters illumination without adding light to black frames or
-changing output colours. The object's base `color` remains its appearance when off.
+coloured translucent shell around its light. Stage converts both the tint and live RGB
+to linear light and multiplies them, on the object's surface before shading and in the
+light the shell lets into the room: the light's pool or pools and its beam's cone. A lamp
+in a dark shell lights the room as little as the shell lets through. Where several objects
+of one binding carry tints other than white, the first of them in `objects` order filters
+the room's light. The pixels of a fixture that share one pool each pass their share
+through their own binding's shell. A white (`#ffffff`) or missing tint renders as without
+one. The tint adds no light to black frames and changes no output colour. The object's
+base `color` remains its appearance when off.
+
+A bound furniture object can also set `lightAfterglow: "#2a6040"`, the own light of a
+glow-in-the-dark material. Stage shows it as a constant emission at that colour, in
+linear light and whatever the emission intensity, whether the binding's light is lit,
+off or black; a lit frame adds the light's own emission on top, and the tint does not
+filter the afterglow. It lights nothing else: no pool, no cone. Like `lightTint` it needs
+a `lightBindingId`, and an object whose binding is removed loses all three.
 
 Objects may set `opacity` from 0 (invisible) to 1 (opaque), for example `0.4`
 for glass. Omitted opacity preserves the opaque default. Transparent objects

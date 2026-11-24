@@ -3,7 +3,7 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { roomObjectGeometry } from './room-geometry.js';
 import { paintFloors } from './floor-pattern.js';
-import { meanLightRGB, onCeiling, roomViews, STAGE_FOV, E_FILL, E_WHITE, PAR_LEVEL, FLOOR_COLOUR, GROUND_COLOUR, OBJECT_COLOUR } from './world.js';
+import { meanLightRGB, landingRGB, onCeiling, roomViews, STAGE_FOV, E_FILL, E_WHITE, PAR_LEVEL, FLOOR_COLOUR, GROUND_COLOUR, OBJECT_COLOUR } from './world.js';
 
 /**
  * The 3D stage: the rig in a dark, hazy room, drawn with three.js.
@@ -498,7 +498,12 @@ export function createStageScene(canvas, { haze = 0.6, room, lightRGB }) {
             keepRoom(new THREE.LineBasicMaterial({ color: 0x171a21, transparent: true, opacity: 0.3 * material.opacity, depthWrite: material.depthWrite })));
           mesh.add(outline);
         }
-        if (object.lightBindingId) roomLightMaterials.set(object.id, { material, baseColor: material.color.clone(), tint: new THREE.Color(object.lightTint || '#ffffff') });
+        if (object.lightBindingId) {
+          // A glowing shell's own light: emitted at its colour whatever the emissive intensity, lit or not, lighting nothing else.
+          const glow = new THREE.Color(object.lightAfterglow || '#000000').multiplyScalar(1 / material.emissiveIntensity);
+          material.emissive.copy(glow);
+          roomLightMaterials.set(object.id, { material, baseColor: material.color.clone(), tint: new THREE.Color(object.lightTint || '#ffffff'), glow });
+        }
         if (object.role === 'wall') roomWalls.push({ mesh, model: object });
         if (object.role === 'screen') screens.push({ material: mesh.material, color: object.color || OBJECT_COLOUR });
         roomGroup.add(mesh);
@@ -610,8 +615,8 @@ export function createStageScene(canvas, { haze = 0.6, room, lightRGB }) {
     invalidate();
     lastLights = null;
     objectLights = placed.objectLights || [];
-    for (const { material, baseColor } of roomLightMaterials.values()) {
-      material.emissive.setRGB(0, 0, 0);
+    for (const { material, baseColor, glow } of roomLightMaterials.values()) {
+      material.emissive.copy(glow);
       material.color.copy(baseColor);
     }
     if (rigGroup) {
@@ -758,8 +763,7 @@ export function createStageScene(canvas, { haze = 0.6, room, lightRGB }) {
       write(attr, k, rgb[0] * level * r, rgb[1] * level * g, rgb[2] * level * b);
     };
     pars.forEach((par, k) => {
-      if (par.sources) meanLightRGB(par.sources, frame, rgb, sourceRGB);
-      else lightRGB(frame[par.unit], rgb);
+      landingRGB(par, frame, rgb, sourceRGB);
       put(lenses.instanceColor, k, 1);
       // The cone is as strong as the light its pool takes, full from what a beam of unknown lumen lands.
       glow(beams.instanceColor, k, Math.min(1, (par.pool?.level ?? PAR_LEVEL) / PAR_LEVEL));
@@ -767,8 +771,7 @@ export function createStageScene(canvas, { haze = 0.6, room, lightRGB }) {
       glow(lampGlow.geometry.attributes.color, k, par.body === 0 ? 0 : 0.9);
     });
     under.forEach((light) => {
-      if (light.sources) meanLightRGB(light.sources, frame, rgb, sourceRGB);
-      else lightRGB(frame[light.unit], rgb);
+      landingRGB(light, frame, rgb, sourceRGB);
       reflected(...poolOf.get(light), light.pool);
     });
     bulbs.forEach((bulb, k) => {
@@ -786,11 +789,12 @@ export function createStageScene(canvas, { haze = 0.6, room, lightRGB }) {
     objectLights.forEach((light) => {
       const surface = roomLightMaterials.get(light.objectId);
       if (!surface) return;
-      const { material, baseColor, tint } = surface;
+      const { material, baseColor, tint, glow } = surface;
       meanLightRGB(light.sources, frame, rgb, sourceRGB);
       rgb[0] *= tint.r; rgb[1] *= tint.g; rgb[2] *= tint.b;
-      if (material.emissive.r === rgb[0] && material.emissive.g === rgb[1] && material.emissive.b === rgb[2]) return;
-      material.emissive.setRGB(rgb[0], rgb[1], rgb[2]);
+      const r = rgb[0] + glow.r, g = rgb[1] + glow.g, b = rgb[2] + glow.b;
+      if (material.emissive.r === r && material.emissive.g === g && material.emissive.b === b) return;
+      material.emissive.setRGB(r, g, b);
       const neutral = 1 - Math.max(rgb[0], rgb[1], rgb[2]);
       material.color.setRGB(baseColor.r * neutral + rgb[0] * 0.35, baseColor.g * neutral + rgb[1] * 0.35, baseColor.b * neutral + rgb[2] * 0.35);
       invalidate();
