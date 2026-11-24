@@ -288,6 +288,51 @@ furniture, 4.2 MB). External asset URLs, scripts and unrecognised fields are rej
 source and measurements separately; this is a rendering format, not an archive
 of the floor-plan source.
 
+## WLED's current limit
+
+A WLED limits the current it estimates for its LEDs on every frame, realtime data included,
+and the Stage dims a board's light the same way, frame by frame, in the 3D room and the 2D plot
+alike (`src/shared/wled-power.ts`; WLED 16.0.1, `wled00/bus_manager.cpp`). Each LED adds
+its four channels to its bus's sum after the board's master brightness (`BusDigital::setPixelColor`,
+lines 270-292; on an RGBW bus after its auto-white, lines 102-120); the brightest of red, green and
+blue alone, times three, on the WS2815 model (`ledma` 255, lines 196-201). A bus's estimate is
+that sum times its mA per LED over 3 × 255 (4 × 255 with white), plus 1 mA a LED, in integer steps
+(lines 196-206). Without a global limit each bus with mA per LED and a limit takes its limit less
+the board's own share (120 mA on an ESP32, 80 on an ESP8266, split over those buses), at least
+1 mA a LED (lines 1458-1479); over it the bus shows at `limit × 255 / estimate + 1` of 255, and a
+limit not above its LEDs at 1 (lines 208-227). A global limit (`hw.led.maxpwr`) replaces the buses'
+own: the board's limit less its share, against the sum of all estimates, dims every bus with mA
+per LED alike (lines 1482-1520). What a cell shows is its light times the mean of its LEDs'
+`newBri / 255` and the master brightness the board runs realtime data at (`bri`, scaled by
+`light.scale-bri`; 255 with "Force max brightness", `if.live.maxbri`). So a dense, bright frame on
+a tight limit is dimmed to a fraction and a sparse one not at all, whatever lumen the light has.
+
+The server reads each board for it (`src/server/wled-power.ts`): `/json/info` (`arch`),
+`/json/cfg` (`hw.led.ins[]`, `hw.led.maxpwr`, `if.live`), `/json/state` (`bri`) and, when realtime
+data follows the ledmap (`if.live.rlm`, `FX.h:952-954`), the ledmap. It reads every WLED the patch
+sends DDP to and every host a DMX universe goes to (Art-Net nodes that claim it, Art-Net's host
+when it is one device, sACN's host), when the server starts, when the patch reaches other hosts,
+and when Stage opens; never per frame. The result lives in memory only (`GET /api/stage/supply`):
+nothing of it enters `show.json`, an output or the board. Each cell's LEDs are counted from the
+step transmit sends them by (the spread and runs of `src/server/ddp-routes.ts`), at their logical
+index, plus the board's realtime offset, through its ledmap to the bus whose range holds them;
+several fixtures can share a bus and one can span several. A fixture sent as DMX counts on a WLED
+in DMX mode 4, one RGB triple per LED (`e131.cpp:308-358`): in the board's first universe LED i
+reads from its address on, from channel 1 in each later one, after the first universe's
+(512 - address + 1) / 3 LEDs and 170 a universe between.
+
+What stays unmodelled: a board that does not answer draws as before, unlimited, and Stage lists it
+with its fixtures under "WLEDs drawn without their current limit", as it lists one that gamma-corrects
+its realtime data (`light.gc.col` with "Disable realtime gamma correction" off), its brightness
+(`light.gc.bri`), or sends realtime data to its main segment only (`if.live.mso`). A DMX fixture on
+a board whose DMX input is on in another mode, or whose cells are not red-green-blue triples on its LEDs, is drawn
+unlimited and listed; a DMX host that does not answer as a WLED is not listed, since an Art-Net
+node need not be one, and the board's own count of universes is not checked. LEDs no fixture
+drives count as dark (WLED clears the strip when realtime data starts, `udp.cpp:410-424`). White
+balance, CCT channels, brightness transitions and the rounding of the dimmed bytes are not
+modelled, and a ledmap is read only for a board set up as a matrix. The tests' servers read no
+board (`LIGHTSHOW_WLED_READS=0`).
+
 ## API and concurrent changes
 
 `GET /api/stage/room` returns `{ ok, room, revision }`. With no imported model,

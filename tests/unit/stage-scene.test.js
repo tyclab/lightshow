@@ -393,4 +393,12 @@ test('the 3D room lights each unit as the 2D plot paints it: a byte is linear li
   }
   assert.deepEqual([plot.lamps[0], plot.lamps[1]], ['rgb(188,188,188)', 'rgb(128,128,128)'], 'half the light on DMX; on Hue the bytes, as before');
   assert.ok(Math.abs(bulbs.instanceColor.array[0] - 128 / 255) < 1e-6 && Math.abs(bulbs.instanceColor.array[3] - decode(128)) < 1e-6);
+  // A frame's supply gains (stage-supply.js) scale each unit's light; the same frame without them draws as before.
+  const frame = ui.rigLights(fixtures, state, dmx, rig), before = [...cells.instanceColor.array];
+  const gains = new Float32Array(rig.units.length).fill(1);
+  gains[2] = 0.25;
+  stage.setLights(frame, gains);
+  assert.ok(Math.abs(cells.instanceColor.array[0] - before[0] * 0.25) < 1e-6 && cells.instanceColor.array[3] === before[3], `${cells.instanceColor.array.slice(0, 6)}`);
+  stage.setLights(frame, null);
+  assert.deepEqual([...cells.instanceColor.array], before);
 });

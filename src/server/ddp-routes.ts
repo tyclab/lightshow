@@ -68,15 +68,22 @@ function spreadOf(output: DdpOutput, profile: Profile, width: number): Spread | 
   };
 }
 
+/** The cell each LED of a spread shows, -1 for none: what spreadPixels sends and the Stage's supply model counts. */
+function spreadOwners(spread: Spread): Int32Array {
+  if (spread.areas && spread.columns) return areaOwners(spread.areas, spread.columns, spread.leds);
+  const owner = new Int32Array(spread.leds), n = spread.cells;
+  for (let i = 0; i < spread.leds; i++) {
+    owner[i] = spread.columns ? Math.floor(((i % spread.columns) * n) / spread.columns) : Math.floor((i * n) / spread.leds);
+  }
+  return owner;
+}
+
 function spreadPixels(cells: Uint8Array, width: number, spread: Spread): Uint8Array {
   const out = new Uint8Array(spread.leds * width);
-  const n = spread.cells;
-  const owner = spread.areas && spread.columns ? areaOwners(spread.areas, spread.columns, spread.leds) : null;
+  const owner = spreadOwners(spread);
   const white = spread.white && width === 3 ? new Set(spread.white) : null;
   for (let i = 0; i < spread.leds; i++) {
-    const cell = owner ? owner[i]
-      : spread.columns ? Math.floor(((i % spread.columns) * n) / spread.columns)
-        : Math.floor((i * n) / spread.leds);
+    const cell = owner[i];
     if (cell < 0) continue;
     if (white && white.has(cell)) out.fill(cells[cell * width], i * width, i * width + width);
     else out.set(cells.subarray(cell * width, cell * width + width), i * width);
@@ -134,6 +141,8 @@ export {
   ddpRoutes,
   ddpConflict,
   runsOf,
+  spreadOf,
+  spreadOwners,
   spreadPixels,
   pixelWidth,
 };

@@ -16,6 +16,7 @@ import { attachEffectRoutes } from './routes/effects.ts';
 import { attachVoiceRoutes } from './routes/voices.ts';
 import { attachSequenceRoutes } from './routes/sequence.ts';
 import { attachRoomSceneRoutes } from './routes/room-scene.ts';
+import { attachSupplyRoutes } from './routes/stage-supply.ts';
 import { attachShowSetupRoutes } from './routes/show-setup.ts';
 import { attachPerformanceRoutes } from './routes/performance.ts';
 import { attachControlRoutes } from './routes/control.ts';
@@ -41,6 +42,7 @@ function attachRoutes(app: Express, deps: RouteDeps): void {
   attachShowSetupRoutes(app, ctx);
   attachPerformanceRoutes(app, ctx);
   attachRoomSceneRoutes(app);
+  attachSupplyRoutes(app);
   attachOpsRoutes(app, ctx);
   // Must be registered last (see errorHandler).
   app.use(errorHandler);

@@ -13,6 +13,7 @@ import { stagePositions } from '../../src/shared/stage.ts';
 import { buildRig, gridLabel, lineOf, rigSignature } from '../../src/shared/rig.ts';
 import { STAGE_EDGES, clamp, geometryOf, placeAt, pointIn, surfaceStyle } from '../stage-geometry.js';
 import { layoutOf, paintLayer, useCellLayer } from '../cell-layer.js';
+import { supplyOf, supplySig } from '../stage-supply.js';
 
 // The state the plot draws from; any other key changes without waking it.
 const KEYS = ['fixtures', 'profiles', 'armed', 'colorPresets', 'masterBlackout', 'masterDimmer', 'control'];
@@ -23,11 +24,11 @@ const NONE = [];
  * Runs outside rendering, once per animation frame the DMX feed moved in, so a
  * frame costs one paint of the layer and no restyle or repaint of an element.
  */
-function paintPlot(surface, layer, { drawn, rig, positions, preview, shown, connected, live }) {
+function paintPlot(surface, layer, { drawn, rig, supply, positions, preview, shown, connected, live }) {
   const dmx = live ? dmxSig.peek() : null;
   const lamps = surface ? surface.querySelectorAll(':scope > .stage-fixture') : NONE;
   const cells = layer && layer.size ? layoutOf(layer, rig, positions) : null;
-  const painted = plotColours(drawn, rig, { preview, state: shown, connected, dmx });
+  const painted = plotColours(drawn, rig, { preview, state: shown, connected, dmx, supply });
   const lights = new Array(drawn.length);
   drawn.forEach((fix, i) => {
     const color = painted.lamps[i];
@@ -93,9 +94,19 @@ export function StagePreview({ draftLook = null } = {}) {
   const surface = useRef(null);
   const lightHost = useRef(null);
   const inputs = useRef(null);
-  inputs.current = { drawn, rig, positions, preview, shown, connected, live };
+  // Each WLED's current limiter as last read (stage-supply.js); a new read paints the plot again.
+  const supply = supplyOf(rig, supplySig.value.models);
+  inputs.current = { drawn, rig, supply, positions, preview, shown, connected, live };
   const layer = useCellLayer(lightHost, drawn.length > 0, () => paintPlot(surface.current, layer.current, inputs.current));
   useDmxPaint(() => paintPlot(surface.current, layer.current, inputs.current), live && !demoSample);
+  const paintedSupply = useRef(supply);
+  useEffect(() => {
+    if (paintedSupply.current === supply) return undefined;
+    paintedSupply.current = supply;
+    const paint = () => paintPlot(surface.current, layer.current, inputs.current);
+    frames.schedule(paint);
+    return () => frames.cancel(paint);
+  }, [supply]);
 
   useEffect(() => { if (!connected) { drag.current = null; setDraft(null); setUi({ edit: false }); } }, [connected]);
 

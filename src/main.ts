@@ -11,9 +11,9 @@ import MidiController, { openMidiOutput } from './midi.ts';
 import LiveInput from './live-input.ts';
 import MidiClock from './midi-clock.ts';
 
-import { state, voices } from './server/state.ts';
+import { state, voices, universeOf } from './server/state.ts';
 import { startEngine, stopEngine, publishRigRevision, waitForEngineReady } from './server/engine.ts';
-import { artnetDiscovery, startHueAreaWatch } from './server/output.ts';
+import { artnetDiscovery, getSacnConfig, startHueAreaWatch } from './server/output.ts';
 import { onHuePatched } from './server/hue-sections.ts';
 import { conductor } from './server/conductor.ts';
 import { applyPatch, applyOverride, setFixtureMaxBrightness, processTap, setPersist, setHooks } from './server/patch.ts';
@@ -29,6 +29,9 @@ import { createIdleDisarm } from './server/idle-disarm.ts';
 import { createIdleStop } from './server/idle-stop.ts';
 import { isArmed } from './server/armed.ts';
 import { startWledWatch, wledBoards } from './server/wled-watch.ts';
+import { dmxTargetsOf, startSupply } from './server/wled-power.ts';
+import { isBroadcastTarget } from './server/artnet-nodes.ts';
+import { getProfile } from './server/profiles.ts';
 import { pixelInputs } from './server/pixel-input-live.ts';
 import { midiMap } from './server/midi-map.ts';
 import { cues } from './server/cues.ts';
@@ -174,6 +177,12 @@ setInterval(() => idleDisarm.tick(), 10_000).unref();
 startWledWatch({ boards: () => wledBoards(state.fixtures), armed: isArmed });
 // Read-only too: another app streaming on a bridge is reported, never stopped.
 startHueAreaWatch();
+// Read-only: each WLED's current limiter for the Stage preview, kept in memory; the tests' servers read no board.
+startSupply({
+  patch: () => ({ fixtures: state.fixtures, profileOf: getProfile, universeOf }),
+  targets: () => dmxTargetsOf({ artnet: { ...state.artnet, routes: artnetDiscovery.routes() }, sacn: getSacnConfig(), broadcast: isBroadcastTarget, loopback: isLoopback }),
+  reads: process.env.LIGHTSHOW_WLED_READS !== '0',
+});
 
 const PORT = settings.get('server.port');
 

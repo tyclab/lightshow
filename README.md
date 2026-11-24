@@ -981,7 +981,7 @@ cannot be followed: they stay as they are, the answer counts them, and the room
 needs exporting again. A fixture patched as zones, a wash or a strobe panel, or one
 whose explicit cell map no longer matches, is refused, and so is a host answering
 with another device's MAC, or a fixture re-patched or removed while its WLED was
-being read. Nothing is read again on its own.
+being read. Nothing is read again on its own (the Stage's read of a board's current limit, below, changes no fixture).
 
 RGB and RGBW fixtures can share a controller. RGB sections retain their colour
 with a zero white channel; RGBW sections retain the palette's white value.
@@ -1012,6 +1012,14 @@ makes the status `degraded`). Two missed polls in a row report the board as
 `checking`, `live`, `override`, `not-live` or `unreachable` and `problem` the
 sentence to show, or null; the list is empty while disarmed, and it changes only
 on a transition.
+
+For the Stage preview the server also reads each patched WLED, and each host a DMX
+universe is sent to, for what limits its LEDs' current: `/json/info`, `/json/cfg`,
+`/json/state` and, when its realtime data follows its ledmap, the ledmap. It reads
+them when it starts, when the patch reaches other hosts, and when Stage opens; it keeps
+them in memory only and writes nothing to the board, the patch or an output. The
+Stage then dims each board's light as WLED's limiter would on every frame
+([WLED's current limit](docs/stage-room.md#wleds-current-limit)).
 
 ### Other DDP pixel devices
 
@@ -2150,6 +2158,7 @@ All endpoints return JSON. When a token is configured, send it as an
 | GET | `/api/state/live` | The live state alone: `/api/state` without the built-in catalogues (the `catalogs` keys, about 117 KB), `dmxSnapshot` or the rig's `fixtures` and `profiles` (most of the rest), for a poller such as a Home Assistant sensor. `rigRevision` changes whenever the fixtures or the profiles do |
 | GET · PUT · DELETE | `/api/stage/room` | Private Stage room model; writes require the current `If-Match` revision. See [room format](docs/stage-room.md) |
 | GET | `/api/stage/room/report` | Read-only: `{ ok, revision, units, unbound, shared, far }`, where the [Spatial effects](#spatial-effects) place each unit against the room bindings and the Rig plot |
+| GET | `/api/stage/supply` | Read-only: `{ ok, reads, readAt, models, gaps }`, each WLED's current limiter as last read, which the Stage scales its light by; `?fresh=1` reads the boards again first. See [WLED's current limit](docs/stage-room.md#wleds-current-limit) |
 | POST | `/api/set` | Patch state fields (JSON body); answers `{ ok, state }` with the live state, as `/api/state/live` gives it |
 | POST | `/api/tap` | Tap tempo |
 | GET · POST | `/api/control` | Versioned explicit global controls; see contract below |
