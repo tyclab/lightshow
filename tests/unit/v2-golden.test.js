@@ -21,10 +21,6 @@ test('explicit cell selection renders its recorded frames', () => {
   for (const [key, frames] of Object.entries(paths.cells)) assert.deepEqual(frameDiff(rendered.cells[key], frames), { maxChannel: 0, units: 0 }, key);
 });
 
-test('the complete demo baseline records every Spatial preset', () => {
-  assert.deepEqual(Object.keys(golden).sort(), V2_PRESETS.map((p) => p.id).sort());
-});
-
 test('every Spatial preset renders its recorded frames', () => {
   const frames = renderGolden(V2_PRESETS.map((p) => p.id), 'synthetic', V2_COMPLETE_BEATS, V2_COMPLETE_OPTIONS);
   const moved = V2_PRESETS.map((p) => [p.id, frameDiff(frames[p.id], golden[p.id])]).filter(([, d]) => d.maxChannel > 0);

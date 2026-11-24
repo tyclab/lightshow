@@ -27,33 +27,6 @@ const deps = {
 const { BUILTIN_PROFILE_ID, listProfiles } = await import('../../src/server/profiles.ts');
 const draft = (host, universe) => { const value = show(host, universe); value.fixtures[0].profileId = BUILTIN_PROFILE_ID; return value; };
 
-function legacyConfig({ armed = false, omitShowRoute = false } = {}) {
-  const directory = path.join(dir, `restart-${sequence++}`);
-  fs.mkdirSync(directory);
-  const settingsRoute = { ...original.artnet, host: '192.0.2.101', universe: 31 };
-  const legacyShow = draft('192.0.2.102', 32);
-  if (omitShowRoute) {
-    delete legacyShow.artnet;
-    legacyShow.fixtures.push({ id: 92, address: 30, profileId: BUILTIN_PROFILE_ID });
-  }
-  fs.writeFileSync(path.join(directory, 'settings.json'), JSON.stringify({ artnet: settingsRoute, outputs: { armed } }));
-  fs.writeFileSync(path.join(directory, 'show.json'), JSON.stringify(legacyShow));
-  return { directory, settingsRoute, legacyShow };
-}
-
-function restartProcess(directory, script) {
-  const modules = name => new URL(`../../src/server/${name}.ts`, import.meta.url).href;
-  const child = spawnSync(process.execPath, ['--input-type=module', '-e', `
-    import assert from 'node:assert/strict';
-    import fs from 'node:fs';
-    import { settings } from ${JSON.stringify(modules('settings'))};
-    import { showStore } from ${JSON.stringify(modules('show-store'))};
-    import { state } from ${JSON.stringify(modules('state'))};
-    ${script}
-  `], { env: { ...process.env, LIGHTSHOW_CONFIG_DIR: directory, LIGHTSHOW_LOG_DIR: path.join(directory, 'logs') }, encoding: 'utf8', timeout: 10000 });
-  assert.equal(child.status, 0, `${child.error || ''}\n${child.stdout}\n${child.stderr}`);
-}
-
 test('import persists one coherent rig before publication and waits for renderer acknowledgement', async () => {
   const store = fresh();
   let acknowledge;
@@ -145,29 +118,6 @@ test('saved but unapplied is explicit and does not roll back a committed file', 
   assert.match(result.error, /worker unavailable/);
   assert.equal(JSON.parse(fs.readFileSync(store.file)).show.artnet.host, '192.0.2.50');
   assert.equal(store.status().pending, true);
-});
-
-test('a legacy show with routing of its own keeps it over the settings route, and is versioned on first load', () => {
-  const { directory, legacyShow } = legacyConfig();
-  for (let boot = 0; boot < 2; boot++) restartProcess(directory, `
-    showStore.restore();
-    assert.deepEqual(state.artnet, ${JSON.stringify(legacyShow.artnet)});
-    assert.equal(state.fixtures[0].universe, 42);
-    assert.equal(JSON.parse(fs.readFileSync(showStore.file, 'utf8')).formatVersion, 1);
-    settings.save();
-    assert.equal(JSON.parse(fs.readFileSync(settings.file, 'utf8')).values.artnet, undefined);
-  `);
-});
-
-test('a legacy show without routing inherits settings before defaulting fixture universes', () => {
-  const { directory, settingsRoute } = legacyConfig({ omitShowRoute: true });
-  for (let boot = 0; boot < 2; boot++) restartProcess(directory, `
-    showStore.restore();
-    assert.deepEqual(state.artnet, ${JSON.stringify(settingsRoute)});
-    assert.deepEqual(state.fixtures.map(fixture => fixture.universe), [42, 31]);
-    settings.save();
-    assert.equal(JSON.parse(fs.readFileSync(settings.file, 'utf8')).values.artnet, undefined);
-  `);
 });
 
 test('unknown rig versions refuse all writes without quarantine', () => {

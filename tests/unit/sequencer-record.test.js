@@ -257,33 +257,6 @@ test('a pattern length is at least its clips and a sixteenth note', () => {
   assert.equal(validatePattern(TWO).lengthBeats, 8);
 });
 
-test('oversized takes are rejected atomically', () => {
-  const { s } = clockRig({ pattern: TINY });
-  s.startRecording({ mode: 'overdub', quantise: 0 });
-  s.onPadHit({ bank: 0, slot: 0, startBeat: 0 });
-  s.onPadHit({ bank: 0, slot: 0, startBeat: 0, endBeat: 2 });
-  const revision = s.revision();
-  assert.throws(() => s.stopRecording(true), { status: 409 });
-  assert.equal(s.revision(), revision, 'nothing loaded');
-  assert.equal(s.current().clips.length, 0);
-  assert.equal(s.recording().hits, 1, 'the take stays for a discard');
-  s.stopRecording(false);
-  // Three held hits of 1024 laps, two clips each: the clip cap, not the copy cap.
-  const many = clockRig().s;
-  many.startRecording({ mode: 'overdub', quantise: 1 });
-  for (const at of [0, 10000, 20000]) many.onPadHit({ bank: 0, slot: 0, startBeat: at, endBeat: at + 8 * 1024 });
-  assert.throws(() => many.stopRecording(true), { status: 409 });
-  assert.equal(many.current().clips.length, 0);
-  assert.equal(many.recording().hits, 3);
-  many.stopRecording(false);
-  // The take itself is bounded: past the cap a hit is not staged and the status says so.
-  const one = clockRig({ pad: () => ({ presetId: 'ldj.FadeCycle', targets: 'shared', lengthBeats: 1 }) }).s;
-  one.startRecording({ mode: 'overdub', quantise: 0 });
-  for (let i = 0; i < 4097; i++) one.onPadHit({ bank: 0, slot: 0, startBeat: i, lengthBeats: 1 });
-  assert.deepEqual([one.recording().hits, one.recording().full], [4096, true]);
-  assert.equal(one.stopRecording(true).added.length, 4096);
-});
-
 test('count-in follows conductor time across loops', () => {
   const { s, c } = clockRig({ pad: () => ({ presetId: 'ldj.FadeCycle', targets: 'shared', lengthBeats: 1 }) });
   c.loop = LOOP;

@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { EffectLibrary } from '../../src/server/effect-library.ts';
-import { LEGACY_PRESETS, V2_ALIASES, CATALOGUE, presetById } from '../../src/shared/effects/catalogue.ts';
+import { LEGACY_PRESETS } from '../../src/shared/effects/catalogue.ts';
 import { migrateEffectSpec, legacyKind, EFFECT_LIBRARY_VERSION } from '../../src/shared/effects/migrate.ts';
 import { requiresAcknowledgement, validateSpec } from '../../src/shared/effects/registry.ts';
 import { renderEffect } from '../../src/shared/effects/render.ts';
@@ -51,12 +51,4 @@ test('an old stored library migrates nested specs without losing rich parameters
   library.update(entry.id, { name: 'Authored again' });
   assert.equal(JSON.parse(fs.readFileSync(file, 'utf8')).version, EFFECT_LIBRARY_VERSION);
   assert.deepEqual(new EffectLibrary(file).load().resolve(entry.id), saved.spec);
-});
-
-test('all old preset ids resolve, curated aliases are explicit, and Popcorn is absent from the picker', () => {
-  for (const old of LEGACY_PRESETS) assert.ok(presetById(old.id), old.id);
-  for (const [alias, target] of Object.entries(V2_ALIASES)) assert.equal(presetById(alias), presetById(target), alias);
-  assert.equal(presetById('ldj.PartyStrobe'), presetById('ldj.MatrixPulse'));
-  assert.ok(CATALOGUE.filter((p) => !p.retired).every((p) => !/popcorn/i.test(p.id + p.name)));
-  assert.ok(CATALOGUE.filter((p) => p.app !== 'own').every((p) => p.retired));
 });

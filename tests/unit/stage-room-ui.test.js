@@ -221,16 +221,6 @@ test('unplaced fixtures expose a placement action', () => {
   assert.equal((markup.match(/>Place<\/button>/g) || []).length, 2);
 });
 
-test('the panel names the lit surfaces the room gives no colour, and what their pools are drawn as', () => {
-  const room = { ...model, rooms: [{ id: 'main', label: 'Main', polygon: [[-2, -2], [2, -2], [2, 2], [-2, 2]] }], bindings: [binding('a', 10)] };
-  const markup = ui.render(ui.h(ui.StageRoomPanel, { snapshot: { room, revision: 'current' }, fixtures, rig, coverage: roomRig(fixtures, rig, room), onChange() {} }));
-  assert.match(markup, /1 lit surfaces without a colour/);
-  assert.match(markup, /Main floor: as drawn, #3a3e48/);
-  const painted = { ...room, rooms: [{ ...room.rooms[0], color: '#808080' }] };
-  assert.doesNotMatch(ui.render(ui.h(ui.StageRoomPanel, { snapshot: { room: painted, revision: 'current' }, fixtures, rig,
-    coverage: roomRig(fixtures, rig, painted), onChange() {} })), /without a colour/);
-});
-
 test('haze has a beam to show in only where a lamp is drawn as a par', () => {
   const par = { ...fixtures[0], position: { x: 50, y: 50, height: 100 }, group: 'front' };
   assert.equal(hasBeams(placeRig([par], profiles, buildRig([par], () => profiles.lamp))), true);

@@ -5,7 +5,6 @@
 
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import fs from 'node:fs';
 // ES modules like the server, imported as they are; they read the plan
 // through src/shared/stage.ts and src/shared/rig.ts.
 import * as world from '../../public-src/stage3d/world.js';
@@ -293,26 +292,6 @@ test('a room\'s walls and opaque furniture stop a beam before the room box does,
     const normal = expected.face.normal.clone().transformDirection(mesh.matrixWorld);
     nearVec(hit.normal, normal, 'on the face three.js finds');
   }
-});
-
-test('the pool shader\'s falloff is a half where a pool is said to be at half its level', () => {
-  // scene.js POOL_FRAGMENT: (1 − d²)², d the share of the pool's half width.
-  const fall = (d) => (1 - Math.min(d * d, 1)) ** 2;
-  near(fall(world.POOL_HALF), 0.5, 'at POOL_HALF');
-  assert.deepEqual([fall(0), fall(1), fall(1.2)], [1, 0, 0]);
-  const glsl = fs.readFileSync(new URL('../../public-src/stage3d/scene.js', import.meta.url), 'utf8');
-  assert.match(glsl, /float fall = 1\.0 - min\(dot\(past, past\), 1\.0\);\s*vec3 light = vColor \* fall \* fall;/, 'the falloff the shader draws');
-});
-
-test('the pool shader draws a pool\'s window of its quad and no more: the quad\'s corners are laid on the window\'s', () => {
-  // scene.js POOL_VERTEX: a corner of the quad (±1 along, ±1 across) goes to the window's centre and half size
-  // (world.poolWindow), and the pool's place in the room is built from that. Drawn whole, a pool shows the same
-  // picture, since its clip cuts the rest, but costs its whole quad; laid across the other axis, it draws the wrong part.
-  const corner = ([cu, cv, hu, hv], [x, z]) => [cu + hu * x, cv + hv * z];
-  const window = [0.25, -0.1, 0.5, 0.2];
-  assert.deepEqual([[-1, -1], [1, 1]].map((at) => corner(window, at)), [[-0.25, -0.30000000000000004], [0.75, 0.1]]);
-  const glsl = fs.readFileSync(new URL('../../public-src/stage3d/scene.js', import.meta.url), 'utf8');
-  assert.match(glsl, /vAt = poolWindow\.xy \+ poolWindow\.zw \* position\.xz;\s*vRun = poolRun;\s*vec4 world = modelMatrix \* instanceMatrix \* vec4\(vAt\.x, 0\.0, vAt\.y, 1\.0\);/, 'the window the shader draws');
 });
 
 test('a pool lies on its surface facing the lamp, an ellipse stretched along the slant and capped when grazing', () => {

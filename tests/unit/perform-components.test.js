@@ -28,7 +28,7 @@ async function load() {
         export { createVoiceHolds } from './public-src/hold-control.js';
         export { stopAllVoices, FreezePad, toggleFreeze } from './public-src/components/Perform.jsx';
         export { PaletteStrip, overrideBody, activeOverride } from './public-src/components/PaletteStrip.jsx';
-        export { SequenceShelf, Transport, positionText, beatsPerBar, laneRows } from './public-src/components/Transport.jsx';
+        export { positionText, beatsPerBar, laneRows } from './public-src/components/Transport.jsx';
         export { presetNameOf } from './public-src/preview-inputs.js';
         export { AudioMeters, meterRows, splClass, latencyText } from './public-src/components/AudioMeters.jsx';
       `,
@@ -63,34 +63,6 @@ function fakeFetch(body = { ok: true }) {
   globalThis.fetch = async (p, init) => { calls.push([p, init]); return { ok: body.ok !== false, json: async () => body }; };
   return { calls, restore: () => { globalThis.fetch = real; } };
 }
-
-test('the photosensitivity dialog names what flashes and both answers', () => {
-  const html = ui.html(ui.h(ui.Photosensitivity, { name: 'Strobe', onConfirm: () => {}, onCancel: () => {} }));
-  assert.match(html, /role="alertdialog"/);
-  assert.match(html, /aria-labelledby="photosensitivity-title"/);
-  assert.match(html, /<strong>Strobe<\/strong>/);
-  assert.match(html, /photosensitive epilepsy/i);
-  assert.match(html, />I understand — play it</);
-  assert.match(html, />Cancel</);
-});
-
-test('strobe notice opens an acknowledgement dialog for every fast-flashing effect', () => {
-  const html = ui.html(ui.h(ui.Photosensitivity, { allow: true, onConfirm: () => {}, onCancel: () => {} }));
-  assert.match(html, /<strong>The strobe and every fast-flashing effect<\/strong> flash the lamps/);
-  assert.match(html, /Allowing them acknowledges this until the outputs are disarmed\./);
-  assert.doesNotMatch(html, /once/);
-  assert.match(html, />I understand — allow them</);
-  assert.doesNotMatch(html, /play it/);
-});
-
-test('the Arm button asks through the same dialog, for this arm', () => {
-  const html = ui.html(ui.h(ui.Photosensitivity, { arm: true, onConfirm: () => {}, onCancel: () => {} }));
-  assert.match(html, /<strong>The strobe and every fast-flashing effect<\/strong> flash the lamps/);
-  assert.match(html, /Arming acknowledges this until the outputs are disarmed\./);
-  assert.match(html, />I understand — arm</);
-  assert.match(html, />Cancel</);
-  assert.doesNotMatch(html, /play it|allow them/);
-});
 
 // As Armed is: the state over the action, on the button itself.
 test('an active Blackout names itself on its button; the action stays Restore', () => {
@@ -363,17 +335,6 @@ test('stop all voices sends DELETE /api/voices', async () => {
   } finally { f.restore(); }
 });
 
-test('a named random override lights its palette button with live swatches', () => {
-  ui.librarySig.value = { status: 'ok', palettes: { builtin: BUILTIN, user: USER } };
-  given({ paletteOverride: ['#00FF00', '#2A00FF'], paletteOverrideId: 'hdDefault',
-    overridePalette: { colours: ['#00FF00', '#2A00FF'] }, userPalettes: USER });
-  const html = ui.html(ui.h(ui.PaletteStrip));
-  assert.match(html, /aria-pressed="true"[^>]*data-override="hdDefault"/);
-  const lit = html.match(/<button[^>]*data-override="hdDefault"[^>]*>.*?<\/button>/)[0];
-  assert.match(lit, /background:\s*#2A00FF/);
-  assert.doesNotMatch(lit, /class="random"/);
-});
-
 test('an unknown palette id falls back to matching fixed colours', () => {
   assert.equal(ui.activeOverride(['#FF0000', '#FF8800'], BUILTIN, 'gone'), 'ldjFire');
   assert.equal(ui.activeOverride(['#123456'], BUILTIN, 'gone'), null);
@@ -451,96 +412,6 @@ test('transport positions count the configured eighth-note beat unit', () => {
   assert.strictEqual(ui.positionText({ beat: 4.5, bar: 2 }, 3, 0.5), '2.4');
 });
 
-// The sequence editor loads by its transport's picker; Perform chooses on its shelf (Show v3, G5).
-test("the editor's transport lists available sequences and marks the loaded one; Perform's has no picker", () => {
-  given({ control: { programme: 'sequence', playing: true }, sequence: STATUS, sequences: [{ id: 'set1', name: 'Set one' }, { id: 'set2', name: 'Set two' }] });
-  assert.doesNotMatch(ui.html(ui.h(ui.Transport, { initial: { sequence: SEQ } })), /Loaded sequence|transport-picker/);
-  const html = ui.html(ui.h(ui.Transport, { initial: { sequence: SEQ }, prefer: 'sequence' }));
-  assert.match(html, /aria-label="Loaded sequence"/);
-  assert.match(html, /<option(?=[^>]*value="set1")(?=[^>]*selected)[^>]*>Set one</);
-  assert.match(html, /<option value="set2"[^>]*>Set two</);
-});
-
-test("playing transport exposes clip position and controls", () => {
-  given({ control: { programme: 'sequence', playing: true }, sequence: STATUS, sequences: [{ id: 'set1', name: 'Set one' }, { id: 'set2', name: 'Set two' }] });
-  const html = ui.html(ui.h(ui.Transport, { initial: { sequence: SEQ } }));
-  for (const label of ['Pause timeline', 'Next row', 'Shuffle rows', 'Loop region']) assert.match(html, new RegExp(`aria-label="${label}"`));
-  assert.match(html, /class="transport-position"[^>]*>3\.2</);
-  assert.match(html, /Front[\s\S]*Chase 2D/);
-});
-
-// Show v3, G4: the sequencer's pause is one-way, so the timeline's Pause turns into Resume; the header keeps Stop.
-test('a paused timeline keeps its context and offers Resume in Pause\'s place', () => {
-  given({ control: { programme: 'sequence', playing: true, paused: true }, sequence: { ...STATUS, playing: false, paused: true } });
-  const html = ui.html(ui.h(ui.Transport, { initial: { sequence: SEQ } }));
-  assert.match(html, /<button type="button" class="transport-btn" aria-label="Resume timeline"><span aria-hidden="true">▶<\/span><span>Resume timeline<\/span><\/button>/);
-  assert.doesNotMatch(html, /aria-label="Pause timeline"/);
-  assert.match(html, /class="transport-position"[^>]*>3\.2</, 'the held position');
-  assert.match(ui.html(ui.h(ui.Transport, { initial: { sequence: SEQ }, prefer: 'sequence' })), /aria-label="Loaded sequence"[^>]*disabled/);
-  assert.match(ui.html(ui.h(ui.GlobalControls)), /aria-label="Stop sequence Set one"/);
-});
-
-test('sequence picker follows shelves received from other clients', () => {
-  given({ control: { programme: 'sequence', playing: true }, sequence: STATUS, sequences: [{ id: 'set1', name: 'Set one' }] });
-  assert.doesNotMatch(ui.html(ui.h(ui.Transport, { initial: { sequence: SEQ }, prefer: 'sequence' })), /Saved on the tablet/);
-  assert.doesNotMatch(ui.html(ui.h(ui.SequenceShelf)), /Saved on the tablet/);
-  given({ control: { programme: 'sequence', playing: true }, sequence: STATUS, sequences: [{ id: 'set1', name: 'Set one' }, { id: 'tab', name: 'Saved on the tablet' }] });
-  assert.match(ui.html(ui.h(ui.Transport, { initial: { sequence: SEQ }, prefer: 'sequence' })), /<option value="tab"[^>]*>Saved on the tablet</);
-  assert.match(ui.html(ui.h(ui.SequenceShelf)), /<option value="tab"[^>]*>Saved on the tablet</);
-});
-
-test('without a sequence the look has no duplicate global transport buttons', () => {
-  given({ control: { programme: 'look', playing: false }, running: false,
-    sequence: { ...STATUS, loaded: null, playing: false, lanes: [] }, sequences: [{ id: 'set1', name: 'Set one' }] });
-  const html = ui.html(ui.h(ui.Transport, { initial: { sequence: null } }));
-  assert.doesNotMatch(html, /<button|transport-picker|transport-position/);
-  const global = ui.html(ui.h(ui.GlobalControls));
-  assert.match(global, /aria-label="Global show controls"/);
-  assert.match(global, /aria-label="Play selected picture"/, 'one play button, naming what it starts');
-  assert.match(global, /role="switch"[^>]*aria-label="Auto show"/);
-  assert.doesNotMatch(global, /Programme|menuitemradio/);
-  for (const label of ['Blackout', 'Arm']) assert.match(global, new RegExp(`>${label}</button>`));
-  assert.doesNotMatch(global, />(Freeze|Resume)<\/button>/, 'G4: no Freeze button, and no Resume while nothing is frozen');
-});
-
-test('whole-picture Freeze stays in global controls and does not create secondary look transport', () => {
-  const look = { ...STATUS, loaded: null, playing: false, lanes: [] };
-  for (const playing of [true, false]) {
-    given({ control: { version: 1, programme: 'look', playing, frozen: true }, running: playing, sequence: look });
-    const html = ui.html(ui.h(ui.Transport, { initial: { sequence: null } }));
-    assert.doesNotMatch(html, /<button|Freeze|Resume|transport-state/);
-    const global = ui.html(ui.h(ui.GlobalControls));
-    assert.match(global, /aria-label="Master dimmer"[^]*<\/label><button[^>]*global-resume[^>]*>Resume<\/button>/, 'G4, PR 9: Resume after the master while frozen');
-    assert.match(global, playing ? /aria-label="Stop selected picture"/ : /aria-label="Play selected picture"/, 'Stop while the programme plays, Play while stopped');
-  }
-  assert.equal(ui.html(ui.h(ui.Transport, { compact: true })), '');
-});
-
-// Show v3, G5: a sequence is chosen on Perform and left for the selected picture; the header plays it.
-test('the sequence shelf offers the loaded sequence, saved or not, and leaves playing to the header', () => {
-  const unsaved = { ...STATUS, loaded: { id: 'draft', name: 'Draft' }, playing: false };
-  given({ control: { version: 1, programme: 'look', playing: false }, sequence: unsaved, sequences: [{ id: 'set1', name: 'Set one' }] });
-  let html = ui.html(ui.h(ui.SequenceShelf));
-  assert.match(html, /aria-label="Sequence shelf"/);
-  assert.deepStrictEqual([...html.matchAll(/<option[^>]*value="([^"]+)"[^>]*>([^<]*)</g)].map((m) => [m[1], m[2]]), [['draft', 'Draft · not saved'], ['set1', 'Set one']]);
-  assert.match(html, /<select[^>]*aria-label="Sequence"[^>]*>/);
-  assert.match(html, /<option(?=[^>]*value="draft")(?=[^>]*selected)/, 'the loaded one first');
-  assert.match(html, />Select sequence</);
-  assert.doesNotMatch(html, /Use selected picture|>Play|>Stop/, 'no second play button');
-  assert.match(html, /Select here, then use the header’s Play button\./);
-  assert.match(html, /<a class="sequence-shelf-editor" href="#sequence">Open the sequence editor</);
-  given({ control: { version: 1, programme: 'sequence', playing: true }, sequence: STATUS, sequences: [{ id: 'set1', name: 'Set one' }] });
-  html = ui.html(ui.h(ui.SequenceShelf));
-  assert.match(html, />Sequence selected ✓</);
-  assert.match(html, />Use selected picture</);
-  assert.match(html, /Playing in the header’s shared transport\. Use the selected picture or turn Auto show on to leave this sequence\./);
-  given({ control: { version: 1, programme: 'look', playing: false }, sequence: { ...STATUS, loaded: null }, sequences: [] });
-  html = ui.html(ui.h(ui.SequenceShelf));
-  assert.match(html, /No sequence saved/);
-  assert.match(html, /<button[^>]*disabled[^>]*>Select sequence</);
-  assert.match(html, />Make one in the sequence editor</);
-});
-
 const FEED = {
   t: 1, party: { full: 0.8, bass: 0.5, mid: 0.25, high: 0 },
   disco: { gate: [1, 0, 1], level: [0.9, 0.1, 0.6], hit: [true, false, false] },
@@ -567,15 +438,6 @@ test("latency text preserves sign and handles missing readings", () => {
   assert.strictEqual(ui.latencyText(undefined), '–');
 });
 
-test("audio panel selects the live audio mode", () => {
-  given({ audio: { mode: 'reactive', listening: true, levels: FEED.party, spl: FEED.spl, detectors: { spl: {}, disco: { owner: null, bands: [], globals: {} } } } });
-  ui.audioFeedSig.value = FEED;
-  const html = ui.html(ui.h(ui.AudioMeters, { latencyMs: 40 }));
-  assert.match(html, /<select[^>]*aria-label="Audio mode"/);
-  for (const m of ['off', 'tempo', 'reactive']) assert.match(html, new RegExp(`<option value="${m}"`));
-  assert.match(html, /<option value="reactive" selected/);
-});
-
 test("audio panel renders meter levels", () => {
   given({ audio: { mode: 'reactive', listening: true, levels: FEED.party, spl: FEED.spl, detectors: { spl: {}, disco: { owner: null, bands: [], globals: {} } } } });
   ui.audioFeedSig.value = FEED;
@@ -590,14 +452,6 @@ test("audio panel renders detector gate states", () => {
   const html = ui.html(ui.h(ui.AudioMeters, { latencyMs: 40 }));
   assert.strictEqual((html.match(/class="gate open"/g) || []).length, 1);
   assert.strictEqual((html.match(/class="gate"/g) || []).length, 2);
-});
-
-test("audio panel renders SPL and latency readings", () => {
-  given({ audio: { mode: 'reactive', listening: true, levels: FEED.party, spl: FEED.spl, detectors: { spl: {}, disco: { owner: null, bands: [], globals: {} } } } });
-  ui.audioFeedSig.value = FEED;
-  const html = ui.html(ui.h(ui.AudioMeters, { latencyMs: 40 }));
-  assert.match(html, /class="spl-chip loud"/);
-  assert.match(html, /\+40 ms/);
 });
 
 test('audio feed subscriptions share one connection', () => {

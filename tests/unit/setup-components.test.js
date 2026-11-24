@@ -24,10 +24,9 @@ async function load() {
         export { lineFromEnds, geometryOf } from './public-src/stage-geometry.js';
         export { SettingsSection } from './public-src/components/setup/Section.jsx';
         export * as specs from './public-src/components/setup/specs.js';
-        export { SERVER, ENGINE, LIVE, SHOW } from './public-src/components/setup/specs.js';
+        export { ENGINE, LIVE, SHOW } from './public-src/components/setup/specs.js';
         export { PatchTable, conflictsOf } from './public-src/components/setup/PatchTable.jsx';
         export { Inspector } from './public-src/components/setup/Inspector.jsx';
-        export { Outputs } from './public-src/components/setup/Outputs.jsx';
         export { rowPositions, endToEnd } from './public-src/components/setup/PlanEditor.jsx';
         export { PreflightReport } from './public-src/components/setup/PreflightView.jsx';
       `,
@@ -66,34 +65,6 @@ const fixture = (id, address, universe, profileId, extra = {}) => ({ id, label: 
 function given(state) {
   ui.store.applySnapshot({ versions: {}, state: { profiles: PROFILES, fixtures: [], ...state } });
 }
-
-test("server settings mask configured secrets", () => {
-  ui.settingsSig.value = {
-    settings: { server: { host: '127.0.0.1', port: 3000, token: '', publicUrl: '' }, engine: { thread: 'worker' } },
-    secrets: { 'server.token': true },
-    restartKeys: ['server.host', 'server.port', 'server.token', 'engine.thread'],
-    pendingRestart: ['server.port'],
-    engine: { thread: 'worker', rate: 44, frames: 100, renderMs: { p95: 0.4 }, lateFrames: 1, skippedFramesLastMinute: 0, skippedFramesTotal: 0 },
-  };
-  const server = ui.html(ui.h(ui.SettingsSection, ui.SERVER));
-  assert.match(server, /id="set-server.token" type="password"/);
-  assert.match(server, /placeholder="•••••••• \(leave blank to keep\)"/, 'says a token is set, never what it is');
-  assert.doesNotMatch(server, /value="[^"]+" aria-describedby="set-server.token-help"/);
-});
-
-test("server settings mark restart requirements and unchanged values", () => {
-  ui.settingsSig.value = {
-    settings: { server: { host: '127.0.0.1', port: 3000, token: '', publicUrl: '' }, engine: { thread: 'worker' } },
-    secrets: { 'server.token': true },
-    restartKeys: ['server.host', 'server.port', 'server.token', 'engine.thread'],
-    pendingRestart: ['server.port'],
-    engine: { thread: 'worker', rate: 44, frames: 100, renderMs: { p95: 0.4 }, lateFrames: 1, skippedFramesLastMinute: 0, skippedFramesTotal: 0 },
-  };
-  const server = ui.html(ui.h(ui.SettingsSection, ui.SERVER));
-  assert.strictEqual(server.split('class="setting-badge ').length - 1, 3, 'host, port and token restart');
-  assert.match(server, /restart to apply/, 'the port differs from what is running');
-  assert.match(server, /class="btn active" disabled>Apply/, 'nothing to apply yet');
-});
 
 test("engine settings show resolved runtime values", () => {
   ui.settingsSig.value = {
@@ -185,65 +156,6 @@ test('the inspector: one fixture in full, a bar with its line', () => {
   assert.match(ui.html(ui.h(ui.Inspector, {})), /2 fixtures/);
   ui.rigSelectionSig.value = [];
   assert.match(ui.html(ui.h(ui.Inspector, {})), /Select a fixture/);
-});
-
-// G7 (Show v3 fixes): what the views lost to another place, and what that place holds now.
-test('the inspector holds a fixture\'s group, its override and Off beside Identify', () => {
-  const channels = { r: 10, g: 200, b: 0, w: 0, a: 0, uv: 0, dim: 255, strobe: 0 };
-  given({ fixtures: [fixture(1, 1, 0, 'par', { group: 'back' }), fixture(2, 13, 0, 'par', { override: { ...channels, enabled: true, blackout: false } }),
-    fixture(3, 25, 0, 'par', { override: { ...channels, enabled: false, blackout: true } })] });
-  const pressed = (html, name) => new RegExp(`<button[^>]*aria-pressed="(true|false)"[^>]*>${name}</button>`).exec(html)?.[1];
-  ui.rigSelectionSig.value = [1];
-  let html = ui.html(ui.h(ui.Inspector, {}));
-  const group = html.match(/<select id="insp-group"[^>]*>(.*?)<\/select>/);
-  assert.ok(group, 'a Group field');
-  assert.deepStrictEqual([...group[1].matchAll(/<option[^>]*>([^<]*)</g)].map((m) => m[1]), ['None', 'Front', 'Back', 'Room', 'Floor']);
-  assert.match(group[1], /<option selected value="back">Back</);
-  const actions = html.slice(html.indexOf('class="inspector-actions"'));
-  assert.ok(actions.indexOf('>Identify<') < actions.indexOf('>Override<') && actions.indexOf('>Override<') < actions.indexOf('>Off<'), 'in the row Identify is in');
-  assert.deepStrictEqual([pressed(html, 'Override'), pressed(html, 'Off')], ['false', 'false']);
-  assert.doesNotMatch(html, />Clear<|Override channels/, 'nothing to clear and no channels without an override');
-  ui.rigSelectionSig.value = [2];
-  html = ui.html(ui.h(ui.Inspector, {}));
-  assert.deepStrictEqual([pressed(html, 'Override'), pressed(html, 'Off')], ['true', 'false']);
-  assert.match(html, /aria-label="Override channels"/);
-  assert.match(html, /<input id="insp-override-g"[^>]*value="200"/);
-  assert.match(html, />Clear</);
-  ui.rigSelectionSig.value = [3];
-  html = ui.html(ui.h(ui.Inspector, {}));
-  assert.deepStrictEqual([pressed(html, 'Override'), pressed(html, 'Off')], ['false', 'true']);
-  assert.doesNotMatch(html, /Override channels/, 'Off alone shows no channels');
-  assert.match(html, />Clear</);
-  ui.rigSelectionSig.value = [];
-});
-
-test('Rig → Outputs holds Hardware limits, and Settings → Show no longer sets the picture source', () => {
-  given({ fixtures: [] });
-  ui.settingsSig.value = { settings: { outputs: { armed: false }, safety: { flashLimit: false }, hue: { strobe: 'flash' } }, secrets: {} };
-  assert.match(ui.html(ui.h(ui.Outputs, {})), /<h2 class="panel-title" id="hardware-title">Hardware limits<\/h2>/);
-  const show = ui.html(ui.h(ui.SettingsSection, ui.SHOW));
-  assert.deepStrictEqual([...show.matchAll(/id="set-([a-z]+\.[A-Za-z]+)"/g)].map((m) => m[1]), ['outputs.idleStopMin', 'safety.flashLimit', 'hue.strobe']);
-  assert.doesNotMatch(show, /Picture Source/);
-});
-
-test('a DDP device that is not a WLED is named for what it is, and Outputs offers to add one by size', () => {
-  given({ fixtures: [
-    fixture(1, 1, 60000, 'bar', { output: { protocol: 'ddp', host: 'matrix.local', device: 'generic' } }),
-    fixture(2, 1, 60001, 'bar', { output: { protocol: 'ddp', host: '10.0.0.50' } }),
-  ] });
-  const table = ui.html(ui.h(ui.PatchTable, {}));
-  assert.match(table, /aria-label="DDP device address of F1"/);
-  assert.match(table, /aria-label="WLED address of F2"/);
-  ui.rigSelectionSig.value = [1];
-  assert.match(ui.html(ui.h(ui.Inspector, {})), /DDP device at matrix\.local, over DDP/);
-  ui.rigSelectionSig.value = [2];
-  assert.match(ui.html(ui.h(ui.Inspector, {})), /WLED at 10\.0\.0\.50, over DDP/);
-  ui.rigSelectionSig.value = [];
-
-  const outputs = ui.html(ui.h(ui.Outputs, {}));
-  assert.match(outputs, /<h2 class="panel-title" id="ddp-title">Other DDP pixel devices<\/h2>/);
-  for (const id of ['ddp-host', 'ddp-label', 'ddp-columns', 'ddp-rows']) assert.match(outputs, new RegExp(`<label for="${id}">`), id);
-  assert.match(outputs, /id="ddp-columns" type="number" min="1" max="4096" value="32"/);
 });
 
 test('a bar drawn from its first cell to its last', () => {

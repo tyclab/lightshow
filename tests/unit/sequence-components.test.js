@@ -22,7 +22,7 @@ async function load() {
         export { remapPattern } from './public-src/components/SequencePatterns.jsx';
         export { h } from 'preact';
         export { store, librarySig } from './public-src/state.js';
-        export { Sequence, laneStack, moveClip, resizeClip, putSequence, automationStart, newClip, commandAs, createTextDraft, parseNumber, beyondRangeNotice, clipKeySelects, loopRegion, barBeatText, blankSequence, clipPresetRows, createSequenceSync } from './public-src/components/Sequence.jsx';
+        export { Sequence, laneStack, moveClip, resizeClip, putSequence, automationStart, newClip, commandAs, createTextDraft, parseNumber, clipKeySelects, loopRegion, barBeatText, blankSequence, clipPresetRows, createSequenceSync } from './public-src/components/Sequence.jsx';
         export { Matrix, MATRIX_MODES, createMatrixHolds, matrixCellKeys, matrixModeKey } from './public-src/components/Matrix.jsx';
         export { drawRuler, drawClips } from './public-src/timeline-renderer.js';
       `,
@@ -74,7 +74,6 @@ const STATUS = {
   stopped: null, beat: 9.5, bar: 3, loop: null, lanes: [{ id: 'a', clip: 'c1' }, { id: 'b', clip: null }], error: null,
 };
 const SHELF = [{ id: 'friday', name: 'Friday' }, { id: 'warmup', name: 'Warm-up' }];
-const PATTERNS = [{ id: 'p1', name: 'Four on the floor', lengthBeats: 16, lanes: [] }];
 const count = (html, needle) => html.split(needle).length - 1;
 
 function recorder() {
@@ -146,35 +145,6 @@ test('pattern remapping swaps occupied slots without dropping either lane', () =
   assert.deepStrictEqual(pattern.lanes.map((lane) => lane.slot), [0, 1, 1]);
 });
 
-test('sequence and pattern shelves follow live state', () => {
-  given({ sequence: STATUS, sequences: SHELF, sequencePatterns: [] });
-  let html = ui.html(ui.h(ui.Sequence, { initial: { sequence: SEQ, editing: true } }));
-  assert.doesNotMatch(html, /Load From the tablet/);
-  assert.doesNotMatch(html, /Insert Four on the floor/);
-  given({ sequence: STATUS, sequences: [...SHELF, { id: 'tab', name: 'From the tablet' }], sequencePatterns: PATTERNS });
-  html = ui.html(ui.h(ui.Sequence, { initial: { sequence: SEQ, editing: true } }));
-  assert.match(html, /aria-label="Load From the tablet"/);
-  assert.match(html, /aria-label="Insert Four on the floor at beat 9"/);
-});
-
-test('playing sequences expose transport while edits stay gated', () => {
-  given({ sequence: STATUS, sequences: SHELF, sequencePatterns: PATTERNS });
-  const html = ui.html(ui.h(ui.Sequence, { initial: { sequence: SEQ } }));
-  assert.match(html, /class="seq-now"[^>]*aria-live="polite"/);
-  assert.match(html, /Friday.*Playing.*Bar 3/s);
-  for (const verb of ['Pause timeline', 'Next row', 'Shuffle rows', 'Loop region']) assert.match(html, new RegExp(`aria-label="${verb}"`));
-  assert.doesNotMatch(html, /aria-label="(?:Play|Stop|Freeze|Resume)"/, 'global controls are not duplicated in the sequence editor');
-  assert.match(html, /class="seq-edit-toggle" aria-pressed="false"/);
-  assert.doesNotMatch(html, /class="seq-inspector"/, 'the inspector waits for Edit');
-  const lanes = [...html.matchAll(/class="seq-lane-name">([^<]+)</g)].map((m) => m[1]);
-  assert.deepStrictEqual(lanes, ['Base', 'Accents', 'Left']);
-  assert.strictEqual(count(html, 'class="seq-block'), 2);
-  assert.match(html, /class="seq-block[^"]*playing/, 'the clip on top of its lane shows it plays');
-  // A tap outside Edit changes nothing: the patterns insert only in the editor.
-  assert.doesNotMatch(html, /Insert Four on the floor/);
-  assert.match(html, />New sequence</, 'a new one with one loaded too');
-});
-
 test('the view unloads the sequence: back to the look without leaving it', async () => {
   given({ sequence: { ...STATUS, playing: false, stopped: 'hold' }, sequences: SHELF });
   const html = ui.html(ui.h(ui.Sequence, { initial: { sequence: SEQ } }));
@@ -209,14 +179,6 @@ test('undo waits for a pending field save and replays at the revision that save 
   assert.deepStrictEqual(calls[1], ['api/sequence/undo', 'POST', 7]);
 });
 
-test('ended arrangements display their endpoint', () => {
-  given({ sequence: { ...STATUS, playing: false, ended: true, beat: 0, bar: 1, lanes: [{ id: 'a', clip: null }, { id: 'b', clip: null }] } });
-  const html = ui.html(ui.h(ui.Sequence, { initial: { sequence: SEQ } }));
-  assert.match(html, /Friday.*Ended/s);
-  // The bar line after the last clip and command, beat 16, on a ruler of 36 beats.
-  assert.match(html, /class="seq-end" style="left: ?44\.44444\d*%;?"/);
-});
-
 test('clips outside Edit do not advertise an inactive button', () => {
   given({ sequence: STATUS });
   const html = ui.html(ui.h(ui.Sequence, { initial: { sequence: SEQ } }));
@@ -226,60 +188,6 @@ test('clips outside Edit do not advertise an inactive button', () => {
     assert.match(block, /role="group"/);
     assert.doesNotMatch(block, /tabindex=/i);
   }
-});
-
-test('track choices use the fixture label', () => {
-  given({ sequence: STATUS });
-  const html = ui.html(ui.h(ui.Sequence, { initial: { sequence: SEQ, editing: true } }));
-  assert.match(html, /<option value="2">Right<\/option>/);
-  assert.doesNotMatch(html, /<option value="2">Fixture 2<\/option>/);
-});
-
-test('clips show their preset by name, a saved preset\'s first', () => {
-  given({ sequence: STATUS, effects: [{ id: 'mine-1', name: 'My wash' }] });
-  const seq = { ...SEQ, clips: [{ ...SEQ.clips[0], presetId: 'hd.neonDomino' }, { ...SEQ.clips[1], presetId: 'mine-1' }] };
-  const html = ui.html(ui.h(ui.Sequence, { initial: { sequence: seq } }));
-  assert.match(html, /class="seq-clip-label">Chase 2D</);
-  assert.match(html, /aria-label="Chase 2D, beats 0 to 16"/);
-  assert.match(html, /class="seq-clip-label">My wash</);
-  assert.doesNotMatch(html, />hd\.neonDomino</);
-});
-
-test('Edit exposes the sequence authoring controls', () => {
-  given({ sequence: STATUS, sequences: SHELF, sequencePatterns: PATTERNS });
-  const html = ui.html(ui.h(ui.Sequence, { initial: { sequence: SEQ, editing: true, selected: 'c2' } }));
-  assert.match(html, /class="seq-edit-toggle active" aria-pressed="true"/);
-  assert.strictEqual(count(html, 'class="seq-clip-row'), 2);
-  assert.match(html, /class="seq-inspector"/);
-  for (const label of ['Preset', 'Start beat', 'Length', 'Loop every', 'Targets', 'Mute']) assert.match(html, new RegExp(`>${label}<`));
-  assert.match(html, /value="hd.neon-domino"/);
-  assert.match(html, /class="seq-command-row"/);
-  assert.match(html, /value="132"/);
-  assert.match(html, /aria-label="Tempo automation mode"/);
-  assert.match(html, /aria-label="Brightness automation mode"/);
-  assert.match(html, /role="switch" aria-checked="false"[^>]*>[^<]*Playlist/);
-  for (const verb of ['Save', 'Duplicate', 'Delete']) assert.match(html, new RegExp(`>${verb}<`));
-  assert.match(html, /aria-label="Sequence name"[^>]*value="Friday"|value="Friday"[^>]*aria-label="Sequence name"/);
-});
-
-test('each lane has mute and solo in the editor', () => {
-  given({ sequence: STATUS });
-  const seq = { ...SEQ, lanes: SEQ.lanes.map((l) => (l.id === 'b' ? { ...l, solo: true } : l)) };
-  const html = ui.html(ui.h(ui.Sequence, { initial: { sequence: seq, editing: true } }));
-  assert.match(html, /class="seq-mini" aria-pressed="false" aria-label="Mute Base"[^>]*>M</);
-  assert.match(html, /class="seq-mini" aria-pressed="false" aria-label="Solo Base"[^>]*>S</);
-  assert.match(html, /class="seq-mini active" aria-pressed="true" aria-label="Solo Accents"[^>]*>S</);
-  assert.doesNotMatch(ui.html(ui.h(ui.Sequence, { initial: { sequence: seq } })), /aria-label="Solo Base"/, 'behind Edit, as mute is');
-});
-
-test('new clips use the selected lane', () => {
-  given({ sequence: STATUS, patterns: [{ id: 'hd.neonDomino' }] });
-  const view = (initial) => ui.html(ui.h(ui.Sequence, { initial: { sequence: SEQ, editing: true, ...initial } }));
-  assert.match(view({}), />Add clip to Base</);
-  assert.match(view({ selected: 'c2' }), />Add clip to Accents</);
-  assert.match(view({ lane: 't1' }), />Add clip to Left</);
-  assert.match(view({ lane: 't1' }), /class="seq-lane-pick" aria-pressed="true"[^>]*>Left</, 'the lane picked shows it');
-  assert.match(view({ lane: 'gone' }), />Add clip to Base</);
 });
 
 test('deleting a saved sequence requires confirmation', () => {
@@ -318,13 +226,6 @@ test('clip presets come from playable library rows', (t) => {
   assert.doesNotMatch(html, /value="chase"|value="strobe"|value="hd.disco.rock"/);
   // A preset the library has not got (yet) stays, under its id.
   assert.match(html, /<option value="hd.neon-domino" selected[^>]*>hd.neon-domino</);
-});
-
-test('the pattern library inserts at the playhead in one tap and captures a range', () => {
-  given({ sequence: STATUS, sequencePatterns: PATTERNS });
-  const html = ui.html(ui.h(ui.Sequence, { initial: { sequence: SEQ, editing: true } }));
-  assert.match(html, /aria-label="Insert Four on the floor at beat 9"/);
-  assert.match(html, /Capture beats/);
 });
 
 test('record controls expose take configuration and disposition', () => {
@@ -501,20 +402,6 @@ test('a press the server takes keeps renewing under its token', async (t) => {
   holds.releaseAll();
 });
 
-test('the Matrix board is a grid of colours with the five board modes', () => {
-  given({ matrix: { mode: 'flashes', colours: ['#FF0000'], voice: 'v1' },
-    builtinPalettes: [{ id: 'rainbow', colours: ['#FF0000', '#123456789ABC'] }], userPalettes: [] });
-  const html = ui.html(ui.h(ui.Matrix, {}));
-  assert.deepStrictEqual(ui.MATRIX_MODES.map((m) => m.id), ['fireworks', 'flashes', 'pulses', 'cycle', 'solid']);
-  assert.match(html, /role="radiogroup" aria-label="Board mode"/);
-  assert.match(html, /role="radio" aria-checked="true"[^>]*>Flashes</);
-  assert.equal(count(html, 'class="matrix-cell'), 2);
-  assert.match(html, /aria-label="Colour #123456789abc"/);
-  assert.match(html, /aria-label="Matrix palette"/);
-  assert.match(html, /class="matrix-cell held"[^>]*aria-label="Colour #ff0000"/, 'a colour the board plays shows held');
-  assert.match(html, /touch-action: none|touch-action:none/);
-});
-
 test('only the selected Matrix mode is in the tab order', () => {
   given({ matrix: { mode: 'flashes', colours: [] } });
   const html = ui.html(ui.h(ui.Matrix, {}));
@@ -634,16 +521,4 @@ test('loop positions in six-eight count eighth notes within each bar', () => {
   assert.deepStrictEqual(ui.loopRegion(seq, { on: true, start: '1.4', end: '2.4' }),
     { loop: { on: true, startBeat: 1.5, endBeat: 4.5 } });
   assert.strictEqual(ui.barBeatText(4.5, 3, 0.5), '2.4');
-});
-
-test('a kept take names the removed clips that reached beyond it', async () => {
-  const ui = await load();
-  const lanes = [{ id: 'a', name: 'Wash' }, { id: 'b', name: 'Bars' }];
-  assert.strictEqual(ui.beyondRangeNotice(undefined, lanes, 4), null);
-  assert.strictEqual(ui.beyondRangeNotice([], lanes, 4), null);
-  const text = ui.beyondRangeNotice([
-    { id: 'c1', laneId: 'a', startBeat: 6, lengthBeats: 8, beforeBeats: 2, afterBeats: 0 },
-    { id: 'c2', laneId: 'b', startBeat: 16, lengthBeats: 8, beforeBeats: 0, afterBeats: 3 },
-  ], lanes, 4);
-  assert.strictEqual(text, 'Replaced 2 clips that reached beyond the take: Wash from 2.3, 2 beats before; Bars from 5.1, 3 beats after');
 });

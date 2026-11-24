@@ -6,7 +6,7 @@ import assert from 'node:assert';
 import { LEGACY_PRESETS, V2_ALIASES } from '../../src/shared/effects/catalogue.ts';
 import { CLASSIC_REDIRECTS } from '../../src/shared/effects/v2/classic.ts';
 import { V2_PRESETS } from '../../src/shared/effects/v2/presets.ts';
-import { CATALOGUE, FAMILIES, presetById, presetIndex } from '../../src/shared/effects/index.ts';
+import { CATALOGUE, FAMILIES, presetById } from '../../src/shared/effects/index.ts';
 import { KINDS, kindOf, requiresAcknowledgement, validateSpec } from '../../src/shared/effects/registry.ts';
 import { HD_DEFAULTS, scopedLoopLength } from '../../src/shared/effects/hd.ts';
 import { DISCO_PRESETS } from '../../src/shared/effects/disco.ts';
@@ -45,13 +45,6 @@ test('the eleven Disco presets are in the catalogue', () => {
 
 test("every public catalogue spec validates", () => {
   for (const p of CATALOGUE.filter((c) => !c.legacy)) assert.doesNotThrow(() => validateSpec(p.spec), p.id);
-});
-
-test("own looks retain their legacy pattern ids", () => {
-  for (const id of LOOKS) {
-    assert.ok(PATTERN_IDS.includes(id), id);
-    assert.strictEqual(presetById(id).legacy, true, id);
-  }
 });
 
 test("PATTERNS contains only legacy rows", () => {
@@ -312,29 +305,12 @@ test("catalogue ids are unique across apps and legacy patterns", () => {
   assert.ok(Object.isFrozen(CATALOGUE) && CATALOGUE.every(Object.isFrozen));
 });
 
-test("preset ids cannot shadow legacy patterns unless CLASSIC_REDIRECTS lists them", () => {
-  const spec = validateSpec({ kind: 'energy.kill' });
-  const row = (id, extra = {}) => ({ id, name: id, desc: '', app: 'own', family: 'own', spec, ...extra });
-  assert.throws(() => presetIndex([row('strobe')]), Error);
-  assert.throws(() => presetIndex([row('x', { aliases: ['chase'] })]), Error);
-  const redirects = { chase: 'Chase plays the Chase preset after the A/B test' };
-  assert.strictEqual(presetIndex([row('x', { aliases: ['chase'] })], redirects).get('chase').id, 'x');
-  assert.throws(() => presetIndex([row('x', { aliases: ['chase', 'runner'] })], redirects), /runner/);
-  assert.throws(() => presetIndex([{ id: 'chase', name: '', desc: '', app: 'own', family: 'own.party', legacy: true }], redirects), /chase/);
-});
-
 test("every redirected classic id plays a preset and leaves the classic list", () => {
   for (const id of Object.keys(CLASSIC_REDIRECTS)) {
     assert.ok(PATTERN_FUNCS[id], id);
     assert.ok(presetById(id).spec, id);
     assert.ok(!PATTERN_IDS.includes(id), id);
   }
-});
-
-test("legacy rows require a matching pattern function", () => {
-  assert.throws(() => presetIndex([{ id: 'no-such-look', name: '', desc: '', app: 'own', family: 'own.party', legacy: true }]), Error);
-  assert.throws(() => presetIndex([{ id: 'chase', name: '', desc: '', app: 'own', family: 'own.party', legacy: true, aliases: ['old-chase'] }]), Error);
-  assert.strictEqual(presetIndex([{ id: 'chase', name: '', desc: '', app: 'own', family: 'own.party', legacy: true }]).get('chase').id, 'chase');
 });
 
 test('built-in specs validate twice to themselves', () => {

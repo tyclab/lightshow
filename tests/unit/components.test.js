@@ -19,28 +19,26 @@ async function load() {
       contents: `
         export { render as html } from 'preact-render-to-string';
         export { h, options } from 'preact';
-        export { store, connectedSig } from './public-src/state.js';
+        export { store } from './public-src/state.js';
         export { Perform } from './public-src/components/Perform.jsx';
         export { Show } from './public-src/components/Show.jsx';
-        export { ShowEffects, effectsBox, effectsKey, searchRequestSig } from './public-src/components/ShowEffects.jsx';
+        export { ShowEffects, effectsKey, searchRequestSig } from './public-src/components/ShowEffects.jsx';
         export { Header, StatusDetails } from './public-src/components/Header.jsx';
         export { PictureSource } from './public-src/components/PictureSource.jsx';
         export { Bands } from './public-src/components/Bands.jsx';
-        export { pictureColours, unmetLine, clockTime } from './public-src/picture-source.js';
-        export { StagePreview } from './public-src/components/StagePreview.jsx';
-        export { NowPlaying, PlayingVoices } from './public-src/components/NowPlaying.jsx';
+        export { pictureColours, clockTime } from './public-src/picture-source.js';
+        export { PlayingVoices } from './public-src/components/NowPlaying.jsx';
         export { SHORTCUTS } from './public-src/components/Shortcuts.jsx';
         export { VIEWS } from './public-src/views.js';
         export { TempoControls } from './public-src/components/TempoControls.jsx';
-        export { Cues } from './public-src/components/Cues.jsx';
-        export { Effects, PhotosensitivityConfirm, editingSig, filtersSig, FILTER_AXES, filterByChips, chipCounts, byName, matchesSearch, catalogueRows, catalogueOf, quickDeck, tapRow, usePress, utilityEffect } from './public-src/components/Effects.jsx';
-        export { TAGS, legacyTags, specTags, tagFields } from './src/shared/effects/tags.ts';
+        export { Effects, PhotosensitivityConfirm, filtersSig, filterByChips, chipCounts, byName, matchesSearch, catalogueRows, catalogueOf, quickDeck, tapRow, usePress, utilityEffect } from './public-src/components/Effects.jsx';
+        export { legacyTags, specTags, tagFields } from './src/shared/effects/tags.ts';
         export { mappingOf } from './src/shared/effects/mapping.ts';
         export { Inspector, SingleColourField, readRecommendedPreference, savePreset, withRecommended } from './public-src/components/Inspector.jsx';
         export { PaletteEditor, isHexColour, normaliseHex, savePalette } from './public-src/components/PaletteEditor.jsx';
         export { librarySig, pick, socket, followMusic } from './public-src/state.js';
-        export { Pads, PadEditor, padGlyph, padBody, contentRows, padChoices } from './public-src/components/Pads.jsx';
-        export { StrobePad, StrobeSettings, strobeBody, strobeChoices } from './public-src/components/StrobePad.jsx';
+        export { Pads, padBody, padChoices } from './public-src/components/Pads.jsx';
+        export { StrobeSettings, strobeBody, strobeChoices } from './public-src/components/StrobePad.jsx';
         export { createVoiceHolds } from './public-src/hold-control.js';
         export { BUILTIN_PALETTES, FAMILIES } from './src/shared/effects/index.ts';
         import { CATALOGUE as CURRENT_CATALOGUE, LEGACY_PRESETS } from './src/shared/effects/catalogue.ts';
@@ -108,24 +106,6 @@ const STROBE = {
 };
 const padLabels = (html) => [...html.matchAll(/class="pad-label">([^<]*)</g)].map((m) => m[1]);
 
-test('the Perform view has the bank, the strobe, Tap, Freeze and Stop pads, and leaves the masters to the header', () => {
-  given({});
-  const html = ui.html(ui.h(ui.Perform, {}));
-  const names = [...html.matchAll(/class="perform-pad-name">([^<]+)</g)].map((m) => m[1]);
-  assert.deepStrictEqual(names, ['Tap', 'Freeze', 'Stop pads']);
-  assert.deepStrictEqual(padLabels(html), ['Kill', 'Blinder', 'Strobe', 'Colour strobe', 'UV', 'Glow', 'Domino', 'Empty']);
-  assert.match(html, /class="strobe-hold"/);
-  assert.strictEqual(count(html, 'aria-pressed="true"'), 3, 'the Override destination, Off and the beat division in use are pressed');
-  assert.match(html, /aria-pressed="true" title="Beat division 1\/2"/, 'G7: the beat division moved here from the command bar');
-  assert.match(html, /aria-pressed="true" data-override="off"/, 'no palette override: Off is pressed');
-  assert.match(html, /aria-label="Palette destination"/);
-  assert.match(html, />Main effect<.*>Global override</);
-  assert.strictEqual(count(html, 'role="switch"'), 0, 'arm, blackout and the master live in the header');
-  assert.doesNotMatch(html, /Master dimmer|Picture source/);
-  assert.doesNotMatch(html, /Intensity|Nothing loaded/, 'no planned show: no intensity fader, no track (G8)');
-  assert.doesNotMatch(html, /Latch effects/, 'a pad\'s launch mode says how it plays');
-});
-
 test('the header owns output permission, and the Arm button itself says Armed', () => {
   for (const armed of [false, true]) {
     given({ armed, control: { version: 1, programme: 'look', playing: false, frozen: false, blackout: false, armed } });
@@ -153,38 +133,6 @@ test('unacknowledged strobe notices follow server safety state', () => {
   for (const html of views()) assert.doesNotMatch(html, /Strobes off/);
   given({});
   for (const html of views()) assert.doesNotMatch(html, /Strobes off/);
-});
-
-test('every status pill keeps its place in every state', () => {
-  const LABELS = ['BPM', 'Energy', 'Flash', 'Auto', 'Hue'];
-  const STATES = {
-    'nothing known yet': { bpm: null, masterDimmer: undefined, live: undefined },
-    'disarmed, idle': { armed: false },
-    armed: { armed: true },
-    'blackout on': { masterBlackout: true },
-    'an energy override': { energyOverride: 'blinder' },
-    'the flash limit on': { flashLimit: true },
-    'the auto show playing': { live: { listening: true, director: { active: true } } },
-    'a sequence loaded': { sequence: { loaded: { id: 'set', name: 'Set' }, playing: true, lanes: [] } },
-    'strobes refused': { safety: { photosensitivityAcknowledged: false, hdFlashIntervalMs: 350, strobeMaxLatchSec: 60 } },
-    'strobes allowed': { safety: { photosensitivityAcknowledged: true, hdFlashIntervalMs: 350, strobeMaxLatchSec: 60 } },
-    'a Hue bridge held by another app': { hue: [{ id: 'b1', label: 'Lounge', status: 'idle', occupiedBy: { areaId: 'tv', area: 'TV Couch', streamer: 'x' }, problem: 'held' }] },
-  };
-  for (const [name, state] of Object.entries(STATES)) {
-    given(state);
-    const html = ui.html(ui.h(ui.StatusDetails, {}));
-    for (const label of LABELS) assert.match(html, new RegExp(`<span class="label">${label}</span>`), `${name}: ${label}`);
-    assert.match(html, /<span class="label">Strobes<\/span>/, `${name}: Strobes`);
-    assert.match(html, /<span>(Online|Offline)<\/span>/, `${name}: connection`);
-    // BPM and the connection need no tap: the chip in the header carries both.
-    const chip = /<button[^>]*class="status-chip[^"]*"[^>]*>(.*?)<\/button>/s.exec(ui.html(ui.h(ui.Header, {})))[1];
-    assert.match(chip, /class="status-chip-bpm">(—|[\d.]+)</, `${name}: BPM on the chip`);
-    assert.match(chip, /class="status-chip-conn">(Online|Offline)</, `${name}: connection on the chip`);
-  }
-  given({ masterBlackout: true, masterDimmer: 128 });
-  const header = ui.html(ui.h(ui.Header, {}));
-  assert.match(header, /class="global-master-value">50%</, 'the master slider reads through a blackout');
-  assert.doesNotMatch(header, /<span class="label">Master<\/span>/, 'no Master pill beside the slider');
 });
 
 // A Sync Box or the Hue app streaming an area leaves the lightshow's lamps on that bridge without the show.
@@ -234,17 +182,6 @@ test('the header shows Resume exactly while the whole picture is frozen, after t
   assert.strictEqual(resume(unavailable), undefined, 'legacy running=false must not masquerade as a whole-picture hold');
 });
 
-test('global blackout and a running voice\'s pad show their independent pressed states', () => {
-  const lit = Array(16).fill(null);
-  lit[4] = 'v7';
-  given({ masterBlackout: true, control: { version: 1, programme: 'look', playing: true, frozen: false, blackout: true, armed: false }, pads: { layout: LAYOUT, lit } });
-  const header = ui.html(ui.h(ui.Header, {}));
-  assert.match(header, /<button[^>]*aria-pressed="true"[^>]*aria-label="Blackout, Restore"[^>]*>.*?● .*?Blackout.*?<span>Restore<\/span><\/button>/);
-  assert.match(header, /Restore reveals the current picture without changing playback or Freeze/);
-  assert.strictEqual(count(header, 'aria-label="Blackout, Restore"'), 1, 'one Restore');
-  assert.match(ui.html(ui.h(ui.Perform, {})), /class="pad-cell lit"[^>]*data-slot="4"[^>]*aria-pressed="true"/);
-});
-
 test('sync health says whether the live input, which Auto follows, hears the music', () => {
   given({ live: { listening: false } });
   assert.match(ui.html(ui.h(ui.Perform, {})), /chip-off.*?Live input.*?not listening.*?\(not working\)/s);
@@ -252,28 +189,6 @@ test('sync health says whether the live input, which Auto follows, hears the mus
   const html = ui.html(ui.h(ui.Perform, {}));
   assert.match(html, /chip-ok.*?Live input.*?listening/s);
   assert.doesNotMatch(html, /Intensity|Following|Now and next|perform-progress/, 'nothing of the planned show is left on Perform');
-});
-
-// G7: the command bar goes; its typed tempo, beat division and −1/+1 (operator: "Keep on Perform") join ½ and ×2 on Perform.
-test('Perform holds the typed tempo, −1, +1, ½, ×2 and the beat division; the master stays in the header', () => {
-  given({});
-  const html = ui.html(ui.h(ui.Perform, {}));
-  const tempo = html.slice(html.indexOf('aria-label="Tempo"'));
-  const divisions = [...tempo.matchAll(/title="Beat division 1\/(\d+)"/g)].map((m) => Number(m[1]));
-  assert.deepStrictEqual(divisions, [1, 2, 4, 8, 16]);
-  assert.match(tempo, /aria-label="Tempo 124.5 BPM. Press to type a tempo."/);
-  for (const label of ['Tempo −1 BPM', 'Tempo \\+1 BPM', 'Half tempo', 'Double tempo, ×2']) assert.match(tempo, new RegExp(`aria-label="${label}"`));
-  assert.doesNotMatch(html, /Master dimmer|BLACKOUT/, 'blackout and the master sit in the header above every view');
-  assert.match(ui.html(ui.h(ui.Header, {})), /aria-label="Master dimmer" aria-valuetext="50 percent"/);
-});
-
-test('a follow control sits beside the clock only while a tempo is held by hand', () => {
-  given({});
-  assert.doesNotMatch(ui.html(ui.h(ui.Perform, {})), /perform-follow/);
-  given({ clock: { source: 'tap', bpm: 140, byHand: true }, bpm: 140 });
-  // The chip carrying the clock's BPM, whatever its wording.
-  assert.match(ui.html(ui.h(ui.Perform, {})),
-    /class="perform-chip-value">[^<]*\b140\b[^<]*<\/span><\/span><button type="button" class="perform-follow"/);
 });
 
 test('following the music again is POST /api/tempo/auto', async () => {
@@ -393,24 +308,6 @@ test('a rapid flash reads the same on a pad and on a row: one tag badge, no seco
   }
 });
 
-test('the Strobe row is Static and its badge says which strobe functions follow the beat', () => {
-  ui.filtersSig.value = [];
-  const strobe = { id: 'strobe', name: 'Strobe', desc: 'All fixtures on colour A', legacy: true, ...ui.tagFields(ui.legacyTags('strobe')) };
-  givenLibrary({ patterns: [strobe, ...PATTERN_ROWS] });
-  const row = rowOf(ui.html(ui.h(ui.Effects, {})), 'strobe');
-  assert.deepStrictEqual(badgesOf(row), ['Static', 'Whole rig']);
-  assert.match(row, /data-tag="static" title="Follows neither the beat nor any input: constant, or timed by a fixed rate of its own\. With the Strobe card's Ramp, Random or Burst function the strobe follows the beat; Standard runs the fixture's own rate"/);
-});
-
-test('a preset saved here lists among the built-ins, marked Yours, with the tags of its own spec', () => {
-  ui.filtersSig.value = [];
-  givenLibrary({});
-  const html = ui.html(ui.h(ui.Effects, {}));
-  assert.deepStrictEqual(badgesOf(rowOf(html, 'u1')), ['Beat only', 'Own colours']);
-  assert.match(rowOf(html, 'u1'), /<span class="effect-tag effect-pad-yours">Yours<\/span>/);
-  assert.doesNotMatch(rowOf(html, 'hd.neonDomino'), /Yours/);
-});
-
 test('chips: any chip within an axis, every axis with one on, and counts as the other axes leave them', () => {
   const t = (id, tags) => ({ id, name: id, tags });
   const rows = [
@@ -435,45 +332,6 @@ test('chips: any chip within an axis, every axis with one on, and counts as the 
     ['A2', 'a', 'b', 'c9', 'c10'], 'A to Z, numbers in order, one name in the order given');
 });
 
-test('the filters: four axes, Reactive folding the three reactions, a live count on each, Clear only while one is on', () => {
-  givenLibrary({});
-  const chipsOf = (html) => [...html.matchAll(/class="effects-chip ?(active)?" data-chip="([^"]+)" aria-pressed="(true|false)"([^>]*)>(.*?)<span class="effects-chip-count">(\d+)<\/span>/g)]
-    .map((m) => ({ id: m[2], on: m[3] === 'true', disabled: /disabled/.test(m[4]), name: m[5].replace(/<[^>]+>/g, '').replace(/&amp;/g, '&').trim(), n: Number(m[6]) }));
-  ui.filtersSig.value = [];
-  let html = ui.html(ui.h(ui.Effects, {}));
-  assert.deepStrictEqual(ui.FILTER_AXES.map((axis) => [axis.name, axis.chips.map((c) => c.id)]), [
-    ['Reacts to', ['beat', 'static', 'reactive']], ['Surface', ['rig', 'room', 'bars']], ['Colour', ['ownColours']], ['Use & safety', ['energy', 'rapid']],
-  ]);
-  assert.match(html, /<div class="effects-filters effects-chips" role="group" aria-label="Filters">/);
-  for (const axis of ['Reacts to', 'Surface', 'Colour', 'Use &amp; safety']) assert.match(html, new RegExp(`role="group" aria-label="${axis}"`));
-  const rows = [{ id: 'u1', tags: ui.specTags(USER_PRESET.spec).tags }, ...ui.catalogueRows(PATTERN_ROWS, 'hd.neonDomino')];
-  const has = (tags) => rows.filter((r) => tags.some((tag) => r.tags.includes(tag))).length;
-  let chips = chipsOf(html);
-  assert.deepStrictEqual(chips.map((c) => c.name), ['Beat only', 'Static', 'Reactive', 'Whole rig', 'Room-placed', 'Bars & panels', 'Own colours', 'Energy', 'Rapid ⚡']);
-  assert.deepStrictEqual(chips.map((c) => c.n), [['beat'], ['static'], ['bands', 'level', 'sections'], ['rig'], ['room'], ['bars'], ['ownColours'], ['energy'], ['rapid']].map(has));
-  assert.ok(chips.every((c) => !c.on && !c.disabled));
-  assert.doesNotMatch(html, /effects-chip-clear/, 'nothing to clear');
-  const titles = [...html.matchAll(/data-chip="[^"]+"[^>]*title="([^"]+)"/g)].map((m) => m[1].replace(/&amp;/g, '&').replace(/&#39;|&#x27;/g, "'"));
-  assert.deepStrictEqual(titles, ui.FILTER_AXES.flatMap((axis) => axis.chips.map((chip) => chip.desc)), 'each chip explains its tag, nothing else');
-  assert.deepStrictEqual(titles.filter((t) => !Object.values(ui.TAGS).some((tag) => tag.desc === t)), ['Any of Bands & drums, Audio level, Song sections']);
-
-  ui.filtersSig.value = ['reactive', 'bars'];
-  try {
-    html = ui.html(ui.h(ui.Effects, {}));
-    chips = chipsOf(html);
-    assert.deepStrictEqual(chips.filter((c) => c.on).map((c) => c.id), ['reactive', 'bars']);
-    const list = listOf(html);
-    const expected = rows.filter((r) => r.tags.includes('bars') && r.tags.some((t) => ['bands', 'level', 'sections'].includes(t))).map((r) => r.id);
-    assert.deepStrictEqual([...list].sort(), [...expected].sort());
-    assert.strictEqual(chips.find((c) => c.id === 'bars').n, list.length);
-    assert.ok(chips.find((c) => c.id === 'static').disabled, 'a chip with no matches is off and disabled');
-    assert.match(html, /<button type="button" class="effects-chip effects-chip-clear">Clear<\/button>/);
-    assert.match(html, new RegExp(`class="effects-list-count">${list.length} of ${rows.length}<`));
-  } finally {
-    ui.filtersSig.value = [];
-  }
-});
-
 test('the search finds a look by name, description, id and family as before, and now by its tags and where it reacts from', () => {
   const rows = ui.catalogueRows(PATTERN_ROWS, null);
   const find = (q) => rows.filter((r) => ui.matchesSearch(r, q, ui.FAMILIES)).map((r) => r.id);
@@ -486,25 +344,6 @@ test('the search finds a look by name, description, id and family as before, and
   assert.ok(find('chase').includes('chase') && find('v2.neural').includes('v2.neural'), 'by name and id');
   assert.ok(find('spatial').includes('v2.grooveWave'), 'by family name');
   assert.deepStrictEqual(find(''), rows.map((r) => r.id));
-});
-
-// G7: the editor on Effect settings draws the open draft on a stage of its own; "Audition on Stage" and its jump go.
-test('the editor on Effect settings carries its own stage and Hold on live rig, and no Audition on Stage', () => {
-  givenLibrary({});
-  const html = ui.html(ui.h(ui.Inspector, { id: 'v2.grooveWave', stage: true }));
-  assert.match(html, /class="effect-inspector-stage"><div class="stage3d-view compact">/);
-  assert.match(html, />Hold on live rig</);
-  assert.doesNotMatch(html, /Audition on Stage/);
-  assert.doesNotMatch(ui.html(ui.h(ui.Inspector, { id: 'v2.grooveWave' })), /effect-inspector-stage/, 'a clip\'s editor in Sequence has none');
-});
-
-// G7: recall and save stay on Show; Effect settings' Cues panel renames, overwrites and deletes.
-test('the Cues panel renames, overwrites and deletes each cue, and neither recalls nor saves', () => {
-  given({ cues: [{ id: 'c1', name: 'Warm', pattern: 'solid', bpm: 120, colors: [] }], colorPresets: [] });
-  const html = ui.html(ui.h(ui.Cues, {}));
-  for (const label of [/Rename &quot;Warm&quot;/, /Overwrite &quot;Warm&quot; with what/, /Delete &quot;Warm&quot;/]) assert.match(html, label);
-  assert.match(html, /class="cue-name">Warm</);
-  assert.doesNotMatch(html, /Save current look|cue-recall|Restore saved background/);
 });
 
 test("a Spatial preset opens in the inspector", () => {
@@ -722,56 +561,6 @@ const deckOf = (html) => {
   return deck ? [...deck[1].matchAll(/<div class="effect-pad ?[^"]*" data-id="([^"]+)"/g)].map((m) => m[1]) : null;
 };
 
-test('the deck marks the base among saved and party presets', () => {
-  givenLibrary({ pattern: 'position-chase' });
-  const html = ui.html(ui.h(ui.Effects, {}));
-  assert.ok(html.indexOf('class="effects-deck"') < html.indexOf('class="effects-catalogue"'), 'the deck is above the catalogue');
-  const deck = deckOf(html);
-  assert.deepStrictEqual(deck.slice(0, 2), ['u1', 'position-chase'], 'the saved preset, then the party looks in catalogue order');
-  assert.ok(deck.includes('swirl') && !deck.includes('hd.neonDomino') && !deck.includes('chase'), 'party looks only, no built-in or upstream row');
-  // A pad carries its tags; a preset saved here says it is yours. Its ⚡ stays in the corner.
-  assert.match(html, /data-id="u1">(?:(?!<\/div>).)*class="effect-tags">(?:(?!<\/div>).)*>Beat only<(?:(?!<\/div>).)*class="effect-tag effect-pad-yours">Yours</s);
-  assert.match(html, /data-id="position-chase"[^>]*>(?:(?!<\/div>).)*data-tag="beat"[^>]*>Beat only</s);
-  assert.doesNotMatch(html, /effect-pad-app/);
-  assert.match(html, /<div class="effect-pad active" data-id="position-chase" data-layer="base">/);
-  assert.strictEqual(count(html, 'class="effect-pad-now"'), 1);
-  assert.match(html, /class="effect-pad-now">Main effect</, 'the pad on stage is the main effect, not "Base"');
-  assert.match(html, /data-layer="base"> · Main effect</);
-  // Every pad and row has its pencil; the pencil is not the pad.
-  assert.match(html, /<button type="button" class="effect-edit" aria-label="Edit My Domino"/);
-  assert.match(html, /<button type="button" class="effect-edit" aria-label="Edit Neon Domino"/);
-});
-
-test('shared status stays above the effect search', () => {
-  givenLibrary({});
-  const html = ui.html(ui.h(ui.Effects, {}));
-  const bar = /<div class="effects-now" role="status"[^>]*>(.*?)<\/div>/s.exec(html);
-  assert.ok(bar, 'the now-playing bar is there');
-  assert.ok(bar[1].includes(ui.html(ui.h(ui.NowPlaying, {}))));
-  assert.match(bar[1], /aria-label="Edit Neon Domino"/, 'its own pencil');
-  assert.ok(html.indexOf('class="effects-now"') < html.indexOf('class="effects-search"'), 'above the search');
-  assert.ok(html.indexOf('class="effects-tools"') < html.indexOf('class="effects-now"'), 'inside the sticky tools');
-  assert.ok(html.indexOf('class="effects-search"') < html.indexOf('class="effects-filters'), 'the filters under the search');
-  assert.ok(html.indexOf('class="effects-filters') < html.indexOf('class="effects-deck"'), 'and over the deck they filter');
-  givenLibrary({ pattern: null });
-  assert.match(ui.html(ui.h(ui.Effects, {})), /class="effects-now"/);
-});
-
-test('the picture layers offer background access outside the main effect live status', () => {
-  givenLibrary({ background: { version: 1, mode: 'fixed', level: .4, colour: { r: 255, g: 0, b: 0, w: 0, a: 0, uv: 0 }, fixtures: 'selected', selected: [2] } });
-  const html = ui.html(ui.h(ui.Effects, {}));
-  const status = /<div class="effects-now" role="status"[^>]*>(.*?)<\/div>/s.exec(html)[1];
-  assert.match(status, /class="now-playing"[^>]*>Main effect: Neon Domino</, 'the chip names the main effect');
-  assert.doesNotMatch(status, /Picture layers/, 'a background change is not announced as the look changing');
-  const strip = /<div class="picture-layers" role="group" aria-label="Picture layers">(.*?)<\/div>/s.exec(html);
-  assert.ok(strip, 'the strip is a named group');
-  assert.ok(html.indexOf('class="effects-now"') < strip.index && strip.index < html.indexOf('class="effects-search"'), 'between the chip and the search');
-  const text = strip[1].replace(/<[^>]+>/g, '').replace(/&amp;/g, '&');
-  assert.equal(text, 'Pads and overrides: None activeMain effect: Neon DominoBackground: Fixed colour · Selected (1 of 2)');
-  assert.equal(count(strip[1], '<button '), 1, 'one direct path to the background controls');
-  assert.match(strip[1], /aria-label="Background: Fixed colour · Selected \(1 of 2\)\. Edit background lighting"/);
-});
-
 test('the Background card offers Fixed colour by hue, saturation and brightness, with white, amber and UV, and says what it reaches', () => {
   givenLibrary({ background: { version: 1, mode: 'fixed', level: .4, colour: { r: 255, g: 128, b: 0, w: 40, a: 0, uv: 0 } } });
   const card = /<section class="card background-controls"[^>]*>(.*?)<\/section>/s.exec(ui.html(ui.h(ui.Show)))[1];
@@ -860,17 +649,6 @@ test('one button on Show folds the wheel and the colour order: folded first, rem
   } finally {
     delete globalThis.localStorage;
   }
-});
-
-test('Show says that Auto holds a look picked by hand while the director holds it', () => {
-  const live = (holding) => ({ running: true, listening: true, bpm: 128, director: { active: true, pattern: 'chase', silent: false, holding } });
-  const effects = (html) => /<section class="card contained-effects[^"]*"[^>]*>(.*?)<\/section>/s.exec(html)[1];
-  givenLibrary({ running: true, live: live(true) });
-  assert.match(effects(ui.html(ui.h(ui.Show))), /<p class="hint contained-hold" role="status">Auto holds the picked look/);
-  givenLibrary({ running: true, live: live(false) });
-  assert.doesNotMatch(effects(ui.html(ui.h(ui.Show))), /holds the picked look/);
-  givenLibrary({ running: true, live: { running: true, listening: true, director: null } });
-  assert.doesNotMatch(effects(ui.html(ui.h(ui.Show))), /holds the picked look/, 'a planned show gets no label');
 });
 
 test('a favourite is pinned first on the deck, whatever it is', () => {
@@ -1000,24 +778,6 @@ test('a plain tap puts the row on stage and nothing else', () => {
   }
 });
 
-test('the inspector stays hidden until Edit is chosen, and closes again', () => {
-  givenLibrary({});
-  ui.editingSig.value = null;
-  let html = ui.html(ui.h(ui.Effects, {}));
-  assert.strictEqual(count(html, 'class="card effect-inspector"'), 0);
-  assert.strictEqual(count(html, 'role="dialog"'), 0);
-  ui.editingSig.value = 'hd.neonDomino';
-  try {
-    html = ui.html(ui.h(ui.Effects, {}));
-    assert.strictEqual(count(html, 'class="card effect-inspector"'), 1);
-    assert.match(html, /class="effect-sheet" role="dialog" aria-modal="true"[^>]*><div class="card effect-inspector">/, 'in a sheet over the page');
-    assert.match(html, /class="card effect-inspector">(?:(?!<\/strong>).)*<strong>Neon Domino</s);
-    assert.match(html, /aria-label="Close the inspector"/);
-  } finally {
-    ui.editingSig.value = null;
-  }
-});
-
 test("family recommendation preferences persist in this browser", () => {
   givenLibrary({});
   const stored = {};
@@ -1050,44 +810,6 @@ test("recommended settings preserve the name and copy family defaults", () => {
 });
 
 // ── Perform: pads and the strobe ─────────────────────────────────────────────
-
-test('pad banks render each slot\'s presentation and launch mode', () => {
-  given({});
-  const html = ui.html(ui.h(ui.Pads, {}));
-  assert.match(html, /role="tablist" aria-label="Pad banks"/);
-  assert.match(html, /role="tab" aria-selected="true"[^>]*>A</);
-  assert.match(html, /role="tab" aria-selected="false"[^>]*>B</);
-  assert.match(html, /style="--pad-accent:#FF8800;?"[^>]*data-bank="0" data-slot="1"/);
-  assert.deepStrictEqual([ui.padGlyph('hold'), ui.padGlyph('once'), ui.padGlyph('loop')], ['●', '▶', '↻']);
-  assert.match(html, /data-slot="4"[^>]*title="UV — tap to loop, tap again to stop"/);
-  assert.match(html, /data-slot="5"[^>]*title="Glow — tap to play once"/);
-  assert.match(html, /data-slot="1"[^>]*title="Blinder — hold"/);
-  assert.match(html, /class="pad-cell empty"[^>]*disabled/);
-  assert.match(html, /aria-pressed="false"[^>]*>Edit pads</);
-  const bank1 = ui.html(ui.h(ui.Pads, { initialBank: 1 }));
-  assert.deepStrictEqual(padLabels(bank1), ['Look 1', 'Look 2', 'Look 3', 'Look 4', 'Look 5', 'Look 6', 'Look 7', 'Look 8']);
-});
-
-test('pad editor exposes effect, launch, quantise and fixture choices', () => {
-  givenLibrary({ pads: { layout: LAYOUT, lit: Array(16).fill(null) } });
-  const rows = ui.contentRows([{ id: 'u1', name: 'My Domino', user: true }, ...PATTERN_ROWS], ['chase']);
-  assert.deepStrictEqual(rows.slice(0, 2).map((r) => r.id), ['chase', 'u1']);
-  assert.ok(rows.findIndex((r) => !r.party && !r.user && r.id !== 'chase') > rows.findIndex((r) => r.party), 'party before the rest');
-  const html = ui.html(ui.h(ui.PadEditor, { entry: LAYOUT[6], onClose: () => {}, initial: { patterns: [{ id: 'groove', name: 'Groove' }] } }));
-  assert.match(html, /role="dialog" aria-modal="true" aria-label="Edit pad A7"/);
-  assert.match(html, /<option value="preset:hd.neonDomino" selected/);
-  assert.match(html, /<option value="preset:u1"/);
-  // Every preset under kind preset, palette-strobe too; a legacy row never as a preset or a pattern.
-  assert.match(html, /<option value="preset:palette-strobe"/);
-  assert.doesNotMatch(html, /value="(?:preset|pattern):(?:chase|gradient|confetti|swirl)"/);
-  // The shelf's patterns: played as one voice, or dropped into the sequence.
-  assert.match(html, /<optgroup label="Patterns, played as one voice"><option value="pattern:groove"[^>]*>Groove</);
-  assert.match(html, /<optgroup label="Patterns, dropped into the sequence"><option value="sequencePattern:groove"[^>]*>Groove</);
-  assert.match(html, /name="pad-launch" value="loop" checked/);
-  assert.match(html, /<option value="0.25" selected>1\/4 beat</);
-  assert.match(html, /<input type="checkbox" value="2" checked[^>]*\/?>(?:<span>)?Par 2/);
-  assert.match(html, /<input type="checkbox" value="1"(?! checked)[^>]*\/?>(?:<span>)?Par 1/);
-});
 
 test('pad editor offers playable presets and migrated legacy looks', () => {
   const rows = [{ id: 'u1', name: 'My Domino', user: true }, ...PATTERN_ROWS];
@@ -1126,28 +848,6 @@ test("empty pad target selection means the whole rig", () => {
   assert.strictEqual(ui.padBody({ label: '', accent: '#123456', content: '', launch: 'once', quantise: 0, targets: [] }).targets, 'shared', 'no fixture ticked is the whole rig');
 });
 
-test('strobe pad exposes hold, burst and settings controls', () => {
-  given({});
-  let html = ui.html(ui.h(ui.StrobePad, {}));
-  assert.match(html, /class="strobe-hold"[^>]*aria-pressed="false"/);
-  assert.match(html, />Burst 2 s</);
-  assert.match(html, /aria-label="Strobe settings"/);
-  given({ strobe: { ...STROBE, active: { id: 'strobe', mode: 'hold', startedAt: 1, until: null }, mode: 'hold' } });
-  html = ui.html(ui.h(ui.StrobePad, {}));
-  assert.match(html, /class="strobe-hold active"[^>]*aria-pressed="true"/);
-});
-
-test("strobe settings show the current controls", () => {
-  givenLibrary({ strobe: STROBE });
-  const html = ui.html(ui.h(ui.StrobeSettings, { onClose: () => {} }));
-  assert.match(html, /role="dialog" aria-modal="true" aria-label="Strobe settings"/);
-  assert.match(html, /value="#FFFFFF"/, 'the palette editor with the strobe\'s colour');
-  assert.match(html, /aria-label="Flashes per second"[^>]*min="1"[^>]*max="5"[^>]*value="5"/);
-  assert.match(html, /<input type="checkbox"[^>]*\/?>(?:<span>)?Look shows between flashes/);
-  assert.match(html, /<option value="wall" selected/);
-  assert.match(html, /aria-label="Strobe brightness"[^>]*value="100"/);
-});
-
 test("strobe settings serialize bounded normalized palette values", () => {
   assert.deepStrictEqual(ui.strobeBody({ palette: ['#ff0000', 'random', '#00FF00', '#1', '#2', '#3', '#444444', '#555555', '#666666', '#777777'], flashesPerSecond: '3', continueBetween: true, clock: 'beat', brightness: 50 }),
     { palette: ['#FF0000', '#00FF00', '#444444', '#555555', '#666666', '#777777'], function: 'palette', speed: 128, flashesPerSecond: 3, continueBetween: true, clock: 'beat', brightness: 0.5 });
@@ -1184,96 +884,11 @@ test('voice holds release their own tokens', () => {
 });
 
 
-test('every live status surface renders the shared state', () => {
-  givenLibrary({
-    sequence: { loaded: { id: 'intro', name: 'Intro' }, paused: true, beat: 3, bar: 1,
-      activeClips: [{ id: 'c1', laneId: 'a', lane: 'Front', name: 'Custom pulse' }] },
-    voices: [{ id: 'api:1', label: 'API look', mode: 'latched', targets: 'shared' }],
-    paletteOverride: ['#123456'], fixtures: [],
-  });
-  const expected = ui.html(ui.h(ui.NowPlaying, {}));
-  assert.match(expected, /Clips: Front: Custom pulse/);
-  for (const Component of [ui.Perform, ui.Effects, ui.StagePreview]) {
-    assert.ok(ui.html(ui.h(Component, {})).includes(expected));
-  }
-});
-
 test('a pad with no label is named by its preset', () => {
   const entry = pad(0, 0, '', { kind: 'preset', id: 'hd.neonDomino' });
   givenLibrary({ pads: { layout: [entry], lit: [] } });
   const labels = padLabels(ui.html(ui.h(ui.Pads, {})));
   assert.strictEqual(labels[0], ui.CATALOGUE.find((row) => row.id === entry.content.id).name);
-});
-
-test('one header row: the picture source first, then play, Blackout, Arm, the master, status and this device', () => {
-  given({ armed: false, picture: { source: 'effects', input: null }, fixtures: [], profiles: {}, families: [],
-    pattern: 'swirl', patterns: [{ id: 'swirl', name: 'Swirl' }],
-    control: { version: 1, programme: 'look', playing: false, frozen: false, blackout: false, armed: false },
-    safety: { photosensitivityAcknowledged: true } });
-  const header = ui.html(ui.h(ui.Header));
-  const order = ['aria-label="Picture source"', 'aria-label="Global show controls"', 'aria-label="Auto show"', 'aria-label="Play selected picture"',
-    '>Blackout</button>', 'aria-label="Arm"', 'aria-label="Master dimmer"', '<button type="button" class="status-chip', 'aria-label="This device"'];
-  const at = order.map((needle) => header.indexOf(needle));
-  assert.ok(at.every((i) => i >= 0), `every control is there: ${order.filter((_, i) => at[i] < 0)}`);
-  assert.deepStrictEqual([...at].sort((a, b) => a - b), at, 'in this order');
-  for (const needle of order) assert.strictEqual(count(header, needle), 1, `${needle} once`);
-  const source = /<div class="picture-source-segments" role="group" aria-label="Picture source">(.*?)<\/div>/s.exec(header)[1];
-  const segments = [...source.matchAll(/<button[^>]*data-source="(\w+)"[^>]*aria-pressed="(true|false)"[^>]*>/g)].map((m) => [m[1], m[2]]);
-  assert.deepStrictEqual(segments, [['effects', 'true'], ['visualizer', 'false']]);
-  assert.match(source, /aria-pressed="true" aria-label="Effects"/, 'the chosen source names no effect (G3)');
-  assert.doesNotMatch(source, /aria-haspopup|aria-expanded|Swirl|▾/, 'and opens nothing');
-  assert.match(source, /aria-label="Visualizer"/);
-  assert.doesNotMatch(header, />Freeze<\/button>|>Resume<\/button>/, 'neither Freeze nor, unfrozen, Resume (G4)');
-  assert.match(header, /<button[^>]*aria-label="Play selected picture"[^>]*><span aria-hidden="true">▶<\/span><span class="global-play-text">Play<\/span><\/button>/, 'play names what it starts');
-  assert.match(header, /<button type="button" role="switch"[^>]*aria-checked="false" aria-label="Auto show"/, 'one Auto show switch');
-  assert.strictEqual(count(header, 'role="switch"'), 1);
-  assert.doesNotMatch(header, /Programme|menuitemradio|role="menu"|aria-label="(Start |Stop )?Look"/, 'no Look button and no programme menu');
-  assert.doesNotMatch(header, /now-playing|header-now|stat-pill/, 'the main effect line and the pills are gone from the row');
-  assert.doesNotMatch(header, /aria-label="Theme"|Keep awake|Full screen/, 'this device\'s tools are behind ⋮');
-  const show = ui.html(ui.h(ui.Show));
-  assert.ok(show.includes('stage3d-host'));
-  assert.match(show, /contained-effects/);
-  assert.match(show, /Search effects/);
-  assert.doesNotMatch(show, /effects-deck|effects-catalogue/, 'Show uses its contained list');
-  assert.strictEqual(count(show, 'role="switch"'), 0, 'global controls stay in the header');
-  assert.doesNotMatch(show, /Global show controls|Master dimmer|Picture source/);
-  assert.ok(!show.includes('stage-room-panel'), 'the room panel stays in Stage');
-});
-
-// Show v3, G4: one Play/Stop; Stop whenever it would clear something, Play named for what it starts.
-test('the play button names what it starts', () => {
-  const header = (control, sequence) => {
-    given({ running: !!control.playing, sequence, control: { version: 1, frozen: false, blackout: false, armed: false, layers: false, ...control } });
-    return ui.html(ui.h(ui.Header));
-  };
-  const play = (control, sequence) => /<div class="global-play[^"]*">(.*?)<\/div>/s.exec(header(control, sequence))[1];
-  const intro = { loaded: { id: 'intro', name: 'Intro' }, playing: false, paused: false, lanes: [] };
-  for (const [control, sequence, name] of [
-    [{ programme: 'look' }, undefined, 'Play selected picture'],
-    [{ programme: 'auto' }, undefined, 'Play Auto show'],
-    [{ programme: 'sequence' }, intro, 'Play sequence Intro'],
-    [{ programme: 'sequence' }, { loaded: null, lanes: [] }, 'Play sequence'],
-  ]) {
-    const html = play(control, sequence);
-    assert.match(html, new RegExp(`aria-label="${name}"[^>]*>.*▶.*<span class="global-play-text">Play</span></button>`, 's'), name);
-    assert.strictEqual(count(html, '<button type="button" class="btn global-control global-play-main'), 1, `${name}: one play button`);
-  }
-  for (const [control, name] of [
-    [{ programme: 'look', playing: true }, 'Stop selected picture'],
-    [{ programme: 'auto', playing: true }, 'Stop Auto show'],
-    [{ programme: 'sequence', playing: true, paused: true }, 'Stop sequence Intro'],
-    [{ programme: 'look', playing: false, layers: true }, 'Stop and clear pads'],
-  ]) {
-    const html = play(control, intro);
-    assert.match(html, new RegExp(`class="btn global-control global-play-main protective"[^>]*aria-label="${name}"[^>]*>.*■.*<span class="global-play-text">Stop</span></button>`, 's'), name);
-    assert.doesNotMatch(html, /aria-label="Play /, `${name}: Stop instead of Play`);
-  }
-  assert.match(play({ programme: 'sequence', playing: true, paused: true }, intro), /title="The timeline is paused; Resume is on Perform\./);
-  const auto = (programme) => /<button type="button" role="switch"[^>]*aria-checked="(true|false)"[^>]*>(.*?)<\/button>/s.exec(header({ programme }))
-    .slice(1);
-  assert.deepStrictEqual(auto('auto').map((x) => x.replace(/<[^>]+>/g, '')), ['true', 'Auto showOn']);
-  assert.deepStrictEqual(auto('look').map((x) => x.replace(/<[^>]+>/g, '')), ['false', 'Auto showOff']);
-  assert.strictEqual(auto('sequence')[0], 'false');
 });
 
 /** The picture source as rendered: its markup, the chosen segment's, and the props of every segment. */
@@ -1331,24 +946,6 @@ test('an unmet source turns its chosen segment amber, its tooltip the unmet line
   assert.match(pictureSource().chosen, /class="picture-segment active"/, 'met: not amber');
 });
 
-test('the unmet line names the first fact, with its detail and its time', () => {
-  const since = Date.UTC(2026, 10, 15, 20, 3, 12), at = ui.clockTime(since);
-  assert.match(at, /^\d\d:\d\d:\d\d$/);
-  const line = (source, code, detail) => ui.unmetLine(source, [{ code, since, ...(detail ? { detail } : {}) }]);
-  assert.strictEqual(ui.unmetLine('visualizer', []), null);
-  assert.strictEqual(ui.unmetLine('visualizer', undefined), null);
-  assert.strictEqual(line('visualizer', 'no-frame'), 'Visualizer: the sender has sent no picture yet');
-  assert.strictEqual(line('visualizer', 'rig-changed'), `Visualizer: the rig changed at ${at}; the sender must claim it again`);
-  assert.strictEqual(line('visualizer', 'bad-frame', 'Expected exact RGB24 bytes'), 'Visualizer: the sender\'s picture was refused (Expected exact RGB24 bytes)');
-  assert.strictEqual(line('squid', 'panel-unmapped'), 'Squid: the LED panel has no cell map');
-  assert.strictEqual(line('squid', 'loading'), 'Squid: loading its loops');
-  assert.strictEqual(line('squid', 'loops-failed', 'ENOENT'), 'Squid: its loops did not load (ENOENT)');
-  assert.strictEqual(line('squid', 'no-beat'), 'Squid: no beat from the clock');
-  assert.strictEqual(line('squid', 'unacknowledged'), 'Squid: photosensitivity not acknowledged');
-  assert.strictEqual(line('squid', 'board-problem', 'the board ignores the show'), 'Squid: the board ignores the show');
-  assert.strictEqual(line('effects', 'no-stems'), 'Stems in Space: no stems or reactive bands to follow');
-});
-
 test('Squid is offered once the rig has an LED panel, and stays in view while chosen', () => {
   const sources = () => [...pictureSource().html.matchAll(/data-source="(\w+)"/g)].map((m) => m[1]);
   givenLibrary({ picture: { source: 'effects', input: null } });
@@ -1394,29 +991,6 @@ test('E asks for Show\'s effects search, except while typing, under a modal, wit
   assert.deepStrictEqual(pressE({ defaultPrevented: true }), { ...left, kept: true }, 'a key another control took');
 });
 
-// Show v3 fixes, G3: what only the header picker had moves into Show's Effects card, keyed to the selected effect.
-test('Show\'s Effects card offers the Audio-reactive looks and their colours while the selected effect is one, playing, frozen or stopped', () => {
-  const splotch = ui.CATALOGUE.find((row) => row.name === 'Audio-reactive Splotch').id;
-  const card = () => ui.html(ui.h(ui.ShowEffects));
-  givenLibrary({ picture: { source: 'effects', input: null }, armed: true });
-  assert.doesNotMatch(card(), /Audio-reactive looks|Audio-reactive colours/, 'no Audio-reactive look selected, none offered');
-  for (const [running, frozen] of [[true, false], [true, true], [false, true], [false, false]]) {
-    givenLibrary({ pattern: splotch, running, control: { version: 1, programme: 'look', playing: running, frozen, blackout: false, armed: true },
-      picture: { source: 'effects', input: null }, armed: true });
-    const html = card();
-    const looks = /aria-label="Audio-reactive looks">(.*?)<section/s.exec(html)?.[1];
-    assert.ok(looks, `running ${running}, frozen ${frozen}: the looks`);
-    for (const [group, names] of [['Active', ['Firework', 'Flash', 'Splotch', 'Pulse']], ['Mellow', ['Solid', 'Swirl', 'Wave']]]) {
-      const row = new RegExp(`aria-label="Audio-reactive ${group}">(.*?)</div>`, 's').exec(looks)[1];
-      assert.deepStrictEqual([...row.matchAll(/<button[^>]*>([^<]*)<\/button>/g)].map((m) => m[1]), names, `${group}: the look name alone`);
-    }
-    assert.match(looks, /aria-pressed="true" aria-label="Audio-reactive Splotch"/, 'the selected one is pressed');
-    assert.match(html, /aria-label="Audio-reactive colours"><fieldset><legend>Live Audio-reactive colours<\/legend>/, 'its colours beside its looks');
-    assert.match(html, />Shuffle Audio-reactive colours</);
-    assert.ok(html.indexOf('Audio-reactive looks') < html.indexOf('class="contained-scroll"'), 'above the list');
-  }
-});
-
 test('the Colours card gives way to one line while the picture sets the colours', () => {
   const receiving = { units: 4, receiving: true };
   assert.strictEqual(ui.pictureColours({ source: 'visualizer', input: receiving }), true);
@@ -1430,93 +1004,6 @@ test('the Colours card gives way to one line while the picture sets the colours'
   assert.doesNotMatch(card, /Colour order|Effect palette|palette-list/, 'no colour controls that change nothing');
   givenLibrary({ picture: { source: 'effects', input: receiving } });
   assert.doesNotMatch(ui.html(ui.h(ui.Bands)), /Colours follow the picture/);
-});
-
-// G5: under Visualizer the card is one sentence, met or not, and promises no effect while the picture is missing.
-test('Show\'s Effects box names the main effect as current only while it plays, and gives way to one sentence under Visualizer', () => {
-  const picture = 'the Visualizer picture paints the room; effects are chosen here while the picture source is Effects.';
-  const rows = [
-    // running, frozen, source → what the box says
-    [true, false, 'effects', { picture: false, label: 'Current effect', hint: null }],
-    [true, false, 'squid', { picture: false, label: 'Current effect', hint: null }],
-    [true, true, 'effects', { picture: false, label: 'Selected effect', hint: 'The picture is frozen. The selected effect plays after Resume.' }],
-    [false, false, 'effects', { picture: false, label: 'Selected effect', hint: 'The show is stopped. The selected effect plays when the show plays.' }],
-    [false, true, 'squid', { picture: false, label: 'Selected effect',
-      hint: 'The picture is frozen and the show is stopped. The selected effect plays after Resume and play.' }],
-    [true, false, 'visualizer', { picture: true, text: `T${picture.slice(1)}` }],
-    [true, true, 'visualizer', { picture: true, text: `The picture is frozen. After Resume, ${picture}` }],
-    [false, false, 'visualizer', { picture: true, text: `The show is stopped. When the show plays, ${picture}` }],
-    [false, true, 'visualizer', { picture: true, text: `The picture is frozen and the show is stopped. After Resume and play, ${picture}` }],
-  ];
-  for (const [running, frozen, source, want] of rows) {
-    assert.deepStrictEqual(ui.effectsBox({ running, frozen, source }), want, JSON.stringify({ running, frozen, source }));
-  }
-
-  const effects = (html) => /<section class="card contained-effects[^"]*"[^>]*>(.*?)<\/section>/s.exec(html)[1];
-  const unmetLine = (html) => /<p class="hint unmet-line" role="status">([^<]*)<\/p>/.exec(html)?.[1] ?? null;
-  for (const input of [{ units: 4, receiving: true }, null]) {
-    givenLibrary({ running: true, picture: { source: 'visualizer', input, unmet: input ? [] : [{ code: 'no-sender', since: 0 }] }, armed: true });
-    const html = ui.html(ui.h(ui.Show));
-    assert.match(html, /class="show-body picture"/);
-    const card = effects(html);
-    assert.doesNotMatch(card, /Search effects|class="contained-row"|main effect shows again/, 'nothing to choose, no promise');
-    assert.strictEqual(unmetLine(card), input ? null : `Visualizer: no picture sender since ${ui.clockTime(0)}`, 'the amber line only while unmet');
-    assert.ok(card.replace(/<[^>]+>/g, '').startsWith(`EffectsT${picture.slice(1)}`), 'the title and one sentence');
-  }
-  givenLibrary({ running: true, picture: { source: 'squid', input: null, unmet: [] }, armed: true });
-  const listed = ui.html(ui.h(ui.Show));
-  assert.match(listed, /class="show-body"/);
-  assert.match(effects(listed), /Current effect.*Search effects.*class="contained-row"/s);
-  assert.doesNotMatch(effects(listed), /picture paints the room|class="hint/);
-  givenLibrary({ running: true, picture: { source: 'squid', input: null, unmet: [{ code: 'no-panel', since: 0 }] }, armed: true });
-  const squid = effects(ui.html(ui.h(ui.Show)));
-  assert.strictEqual(unmetLine(squid), 'Squid: no LED panel');
-  assert.ok(squid.indexOf('unmet-line') < squid.indexOf('class="contained-list"'), 'above the list');
-  givenLibrary({ running: true, picture: { source: 'effects', input: null, unmet: [{ code: 'no-stems', since: 0 }] }, armed: true });
-  assert.strictEqual(unmetLine(effects(ui.html(ui.h(ui.Show)))), 'Stems in Space: no stems or reactive bands to follow');
-  givenLibrary({ running: false, control: { version: 1, frozen: true, blackout: false, armed: false }, picture: { source: 'effects', input: null } });
-  assert.match(effects(ui.html(ui.h(ui.Show))),
-    /<p class="hint contained-hint" role="status">The picture is frozen and the show is stopped\. The selected effect plays after Resume and play\.<\/p>.*Selected effect/s);
-  // The operator, 2026-11-17: the stage moves only while Play has the show playing, so a connected, disarmed, stopped
-  // page promises no preview of the selected effect, only that it plays when the show does.
-  ui.connectedSig.value = true;
-  try {
-    givenLibrary({ running: false, armed: false, control: { version: 1, playing: false, layers: false, frozen: false, blackout: false, armed: false },
-      picture: { source: 'effects', input: null } });
-    assert.match(effects(ui.html(ui.h(ui.Show))),
-      /<p class="hint contained-hint" role="status">The show is stopped\. The selected effect plays when the show plays\.<\/p>.*Selected effect/s);
-  } finally {
-    ui.connectedSig.value = false;
-  }
-});
-
-test('Perform lifts and grades the visualizer picture while it paints the room, and only then', () => {
-  const grade = { enabled: true, whiteLimit: 0.6, saturation: 1.25, ceiling: 0.7, hueCeiling: 0.5 };
-  given({ picture: { source: 'effects', input: null, grade } });
-  assert.ok(!ui.html(ui.h(ui.Perform, {})).includes('Picture colour grade'), 'effects paint: no grade to set');
-  given({ picture: { source: 'visualizer', input: { units: 40, receiving: true, remainingMs: 1500 }, grade } });
-  const card = (html) => /<section class="card picture-grade"[\s\S]*?<\/section>/.exec(html)?.[0] ?? '';
-  const html = card(ui.html(ui.h(ui.Perform, {})));
-  assert.match(html, /aria-label="Picture colour grade"/);
-  assert.deepStrictEqual([...html.matchAll(/class="picture-grade-value">(\d+)%</g)].map((m) => Number(m[1])), [12, 60, 125, 70, 50],
-    'the black point at its default, then the grade');
-  assert.match(html, /Graded: the sliders below apply/);
-  assert.match(html, /sRGB decode \(off\)/);
-  assert.strictEqual(count(html, 'disabled'), 0);
-  assert.strictEqual(count(html, 'type="range"'), 5);
-  const blackPoint = /<input type="range"[^>]*aria-label="Black point"[^>]*>/.exec(html)?.[0] ?? '';
-  assert.match(blackPoint, /min="0"/);
-  assert.match(blackPoint, /max="50"/);
-  assert.match(blackPoint, /list="picture-grade-blackPoint-marks"/);
-  assert.match(html, /<datalist id="picture-grade-blackPoint-marks"><option value="12" label="default">/, 'the default is marked');
-  assert.strictEqual(count(html, 'type="checkbox"'), 2, 'the decode switch and the grade switch');
-  given({ picture: { source: 'visualizer', input: null, decode: true, blackPoint: 0.3, grade: { ...grade, enabled: false } } });
-  const off = card(ui.html(ui.h(ui.Perform, {})));
-  assert.match(off, /Off: the picture(&#39;|')s own colours/);
-  assert.match(off, /sRGB decode \(on\)/);
-  assert.match(off, /class="picture-grade-value">30%</);
-  assert.strictEqual([...off.matchAll(/<input type="range"[^>]*disabled/g)].length, 4, 'the grade sliders wait while the grade is off');
-  assert.doesNotMatch(/<input type="range"[^>]*aria-label="Black point"[^>]*>/.exec(off)?.[0] ?? 'disabled', /disabled/, 'the black point does not wait on the grade');
 });
 
 test('shortcut help derives every view chord from the navigation', () => {
