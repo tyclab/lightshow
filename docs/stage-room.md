@@ -202,6 +202,18 @@ so it keeps its hue and saturation: orange at three times white stays orange, no
 multisamples the buffer; a software renderer (SwiftShader, llvmpipe) draws it without, since
 multisampling a half-float buffer costs one about three times the frame.
 
+What a light shows is the light its bytes make (`lightRGB` in `public-src/unit-light.js`, one
+function for the 3D room and the 2D plot). The engine renders every output as linear light
+(`src/shared/color.ts`), and a DMX dimmer, an LED driver or a WLED board running realtime data
+without gamma (its "Disable realtime gamma correction", `live.no-gc`, on) turns the byte into duty.
+So on a DMX output over Art-Net or sACN, on DDP and on OpenRGB a byte is that share of full light:
+128 is 0.502. The 3D room takes that light as it is; the 2D plot paints it encoded for the display,
+128 as sRGB 188. A light whose fixture streams to a Hue bridge keeps the sRGB decode the previews
+always drew it with, 128 as 0.216: the bridge's curve from the streamed RGB to the lamp's light is
+not measured, and that stays open. Which lights stream to a bridge is resolved once, when the room
+or the plot is built (`hueUnits`), not for each frame. A WLED board with realtime gamma correction
+on, or any driver with a curve of its own, gives less light at mid levels than Stage draws.
+
 A pool is clipped like any other: the one under a light to the room its light stands in, where
 a light outside every room polygon, such as one hung in the line of a wall, belongs to the room
 whose edge is nearest. A light under the floor or above the ceiling throws none under it. Room

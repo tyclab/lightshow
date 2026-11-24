@@ -2,7 +2,9 @@ import { emissionOf, hueEmission, hueLumen, lampLumen, beamDirection, BULB_LUMEN
 import { isPlaced, stagePositions } from '../../src/shared/stage.ts';
 import { lineOf } from '../../src/shared/rig.ts';
 import { bindingSources, pathPoints, plotPosition, resolveBindings, runLength } from '../../src/shared/space.ts';
+import { hueUnits, lightRGB } from '../unit-light.js';
 
+export { lightRGB };
 
 export const STAGE_W = 12;
 export const STAGE_D = 8;
@@ -561,7 +563,7 @@ export function placeRig(fixtures, profiles, rig) {
     lamps.push(fixture.emission.kind === 'beam' ? beamLight(cell, fixture.emission, fixture.group === 'floor')
       : { ...cell, kind: 'bulb', aim: null, length: 0 });
   }
-  return { lamps, cells: stripCells, trusses: trussesFor(hung) };
+  return { lamps, cells: stripCells, trusses: trussesFor(hung), hueUnits: hueUnits(rig) };
 }
 
 export { bindingSources };
@@ -705,7 +707,8 @@ export function roomRig(fixtures, rig, model, profiles = {}) {
   const missing = fixtures.filter((fixture) => !mapped.has(fixture.id));
   const partial = fixtures.filter((fixture, index) => mapped.has(fixture.id) && mapped.get(fixture.id).size < rig.ranges[index].count);
   const shared = [...outputs.values()].filter((output) => output.bindings.length > 1);
-  return { lamps, cells, pools, objectLights, bodies, trusses: [], missing, partial, plotted, unresolved, incomplete, shared, estimated, uncoloured };
+  return { lamps, cells, pools, objectLights, bodies, trusses: [], missing, partial, plotted, unresolved, incomplete, shared, estimated, uncoloured,
+    hueUnits: hueUnits(rig) };
 }
 
 /** The box an explicit cell map spans, a pixel wider than its pixels: the body Stage draws them in when no room object is the fixture. */
@@ -720,11 +723,13 @@ function bodyOf(fixture, cells) {
     size: { x: hi.x - lo.x + pad, y: hi.y - lo.y + pad, z: hi.z - lo.z + pad } };
 }
 
-export function meanLightRGB(sources, frame, out, scratch = new Float32Array(3)) {
+/** The weighted mean of sources' light, as linear RGB; `hue` is the world's `hueUnits` (unit-light.js). */
+export function meanLightRGB(sources, frame, out, scratch = new Float32Array(3), hue = null) {
   const total = sources.reduce((sum, source) => sum + source.weight, 0);
   out[0] = out[1] = out[2] = 0;
   for (const source of sources) {
-    lightRGB(source.unit === null ? null : frame[source.unit], scratch);
+    if (source.unit === null) lightRGB(null, scratch);
+    else lightRGB(frame[source.unit], scratch, 0, hue?.[source.unit] === 1);
     const weight = source.weight / total, tint = source.tint;
     for (let channel = 0; channel < 3; channel++) out[channel] += scratch[channel] * weight * (tint ? tint[channel] : 1);
   }
@@ -734,9 +739,9 @@ export function meanLightRGB(sources, frame, out, scratch = new Float32Array(3))
  * What a light gives the room from a frame, as linear RGB: its sources' mean or its unit's own, through the shell drawn
  * for it (roomRig's `tint`). A light a shell is drawn for shows no lens or glow of its own, so its pool and cone take this.
  */
-export function landingRGB(light, frame, out, scratch) {
-  if (light.sources) meanLightRGB(light.sources, frame, out, scratch);
-  else lightRGB(frame[light.unit], out);
+export function landingRGB(light, frame, out, scratch, hue = null) {
+  if (light.sources) meanLightRGB(light.sources, frame, out, scratch, hue);
+  else lightRGB(frame[light.unit], out, 0, hue?.[light.unit] === 1);
   if (light.tint) { out[0] *= light.tint[0]; out[1] *= light.tint[1]; out[2] *= light.tint[2]; }
 }
 
@@ -799,21 +804,4 @@ const linearOf = (colour) => [1, 3, 5].map((at) => toLinear(parseInt(colour.slic
 function shellTint(objects) {
   const tint = objects.find((object) => object.lightTint && object.lightTint.toLowerCase() !== '#ffffff')?.lightTint;
   return tint ? linearOf(tint) : null;
-}
-
-// Scale the whole RGB mix to preserve hue, then linearize for GPU lighting.
-export function lightRGB(light, out, at = 0) {
-  if (!light) { out[at] = 0; out[at + 1] = 0; out[at + 2] = 0; return 0; }
-  const w = light.w || 0;
-  const a = light.a || 0;
-  const uv = light.uv || 0;
-  let r = (light.r || 0) + w + a + uv * 0.2;
-  let g = (light.g || 0) + w + a * 0.5;
-  let b = (light.b || 0) + w + uv * 0.9;
-  const peak = Math.max(r, g, b);
-  if (peak > 255) { const k = 255 / peak; r *= k; g *= k; b *= k; }
-  out[at] = toLinear(r / 255);
-  out[at + 1] = toLinear(g / 255);
-  out[at + 2] = toLinear(b / 255);
-  return Math.min(1, peak / 255);
 }

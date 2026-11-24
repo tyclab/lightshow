@@ -140,7 +140,9 @@ test('stage lights mix channels and scale overbright colours together', () => {
   assert.equal(world.lightRGB({ r: 255, g: 0, b: 0 }, out, 3), 1);
   assert.deepEqual([...out.slice(3)], [1, 0, 0], 'written where it was asked for');
   world.lightRGB({ r: 128, g: 0, b: 0 }, out);
-  near(out[0], ((128 / 255 + 0.055) / 1.055) ** 2.4, 'half on is a linear quarter or so');
+  near(out[0], 128 / 255, 'a byte is linear light: half on is half the light');
+  world.lightRGB({ r: 128, g: 0, b: 0 }, out, 0, true);
+  near(out[0], ((128 / 255 + 0.055) / 1.055) ** 2.4, 'on a Hue bridge, the sRGB decode: a quarter or so');
   assert.ok(world.lightRGB({ r: 128 }, out) < 1);
   // Red and white at full: red wins, the hue kept, nothing past 1.
   world.lightRGB({ r: 255, w: 255 }, out);

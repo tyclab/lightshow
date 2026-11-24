@@ -134,8 +134,9 @@ test('a mesh shell emits its effective binding RGB and restores its base when da
   expect(red.materials[2].emissive).toEqual([0, 1, 0]);
   expect(red.info.bulbs).toBe(0);
   expect(red.image).not.toBe(off.image);
+  // A byte is linear light: 128 lights the shell at 128 / 255.
   const dim = await page.evaluate(() => window.meshFrame([{ r: 128 }]));
-  expect(dim.materials[0].emissive[0]).toBeCloseTo(0.21586, 5);
+  expect(dim.materials[0].emissive[0]).toBeCloseTo(0.50196, 5);
   const blue = await page.evaluate(() => window.meshFrame([{ b: 255 }]));
   expect(blue.materials[0].emissive).toEqual([0, 0, 1]);
   expect(blue.materials[0].color).toEqual([0, 0, 0.35]);

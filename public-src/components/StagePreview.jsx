@@ -1,7 +1,7 @@
 import { performanceReport } from '../performance.js';
 import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
 import { pick, dmxSig, connectedSig, emitFixture, idlePause, latestSent, stagePreviewSig } from '../state.js';
-import { colorToCss, fixtureOutputColor, fixtureCellColors, meanLight, patchedAt, stageMode } from '../utils.js';
+import { patchedAt, plotColours, stageMode } from '../utils.js';
 import { pictureUnmetSig } from '../picture-source.js';
 import { useDmxFeed, useDmxPaint } from '../use-dmx.js';
 import { frames } from '../frame-paint.js';
@@ -27,27 +27,17 @@ function paintPlot(surface, layer, { drawn, rig, positions, preview, shown, conn
   const dmx = live ? dmxSig.peek() : null;
   const lamps = surface ? surface.querySelectorAll(':scope > .stage-fixture') : NONE;
   const cells = layer && layer.size ? layoutOf(layer, rig, positions) : null;
-  const colours = cells ? new Array(rig.points.length) : null;
+  const painted = plotColours(drawn, rig, { preview, state: shown, connected, dmx });
   const lights = new Array(drawn.length);
   drawn.forEach((fix, i) => {
-    const { start, count } = rig.ranges[i];
-    const bar = !!rig.cellMaps[i];
-    if (bar && colours) {
-      const lit = preview
-        ? preview.slice(start, start + count).map(colorToCss)
-        : connected ? (fixtureCellColors(fix, shown, dmx) || NONE) : NONE;
-      for (let c = 0; c < count; c++) colours[start + c] = lit[c];
-    }
-    const color = preview
-      ? colorToCss(bar ? meanLight(preview.slice(start, start + count)) : preview[start])
-      : connected ? fixtureOutputColor(fix, shown, dmx) : '#222';
+    const color = painted.lamps[i];
     lights[i] = { key: fix.id, colour: color };
     const lamp = lamps[i];
     if (lamp && lamp.dataset.light !== color) lamp.dataset.light = color;
   });
   // An unchanged picture is not painted again: a still or dark rig costs no new frame.
   // While a lamp eases, the next frames draw the lamps alone (cell-layer.js easeLayer).
-  if (cells && paintLayer(cells, cells.units.map((u) => colours[u]), lights)) frames.schedule(cells.ease);
+  if (cells && paintLayer(cells, cells.units.map((u) => painted.cells[u]), lights)) frames.schedule(cells.ease);
 }
 
 /**

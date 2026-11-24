@@ -12,6 +12,7 @@ const built = await esbuild.build({
   stdin: { contents: `export { createStageScene } from './public-src/stage3d/scene.js';
     export { keptRig } from './public-src/stage3d/kept-rig.js';
     export { lightRGB, E_WHITE, E_FILL, PAR_LEVEL, FLOOR_COLOUR } from './public-src/stage3d/world.js';
+    export { plotColours, rigLights } from './public-src/utils.js';
     export { FrontSide, DoubleSide, Matrix4, Vector3, Color, ShaderChunk, HalfFloatType, CustomToneMapping } from 'three';
     export { built } from 'scene-counts';`, resolveDir: root },
   bundle: true, format: 'esm', platform: 'node', write: false, logLevel: 'silent',
@@ -360,4 +361,36 @@ test('a pool on a ceiling is drawn from both sides, on the room\'s ceiling and u
   const surfaceOf = (quad, k) => [...quad.mesh.material.uniforms.uClip.value.image.data.slice(k * 20, k * 20 + 3)];
   assert.deepEqual(surfaceOf(quads[0], 0), [0, 2.5, 0]);
   assert.deepEqual(surfaceOf(quads[2], 0), [0, 0, Math.fround(0.05)].map((v, i) => (i === 1 ? onWall.pool.clip.surface.centre.y : v)));
+});
+
+test('the 3D room lights each unit as the 2D plot paints it: a byte is linear light, on a Hue bridge decoded as sRGB', () => {
+  const stage = ui.createStageScene(canvas, { room: { width: 12, depth: 8, trussHeight: 4.6 }, lightRGB: ui.lightRGB });
+  const LAMP = { id: 'scene-lamp', name: 'Lamp', channelMap: { red: 0, green: 1, blue: 2 } };
+  const PAIR = { id: 'scene-pair', name: 'Pair', channelMap: {}, cells: [0, 1].map((c) => ({ channelMap: { red: c * 3, green: c * 3 + 1, blue: c * 3 + 2 } })) };
+  const profiles = { [LAMP.id]: LAMP, [PAIR.id]: PAIR }, hue = { protocol: 'hue', bridge: 'bridge', channels: [0] };
+  // In the generic venue a room light and a Hue lamp are bulbs, a fixture of cells a line of them.
+  const fixtures = [
+    { id: 1, label: 'Par', universe: 1, address: 1, profileId: LAMP.id, group: 'room' },
+    { id: 2, label: 'Hue lamp', universe: 60000, address: 1, profileId: LAMP.id, output: hue },
+    { id: 3, label: 'Bar', universe: 1, address: 10, profileId: PAIR.id },
+    { id: 4, label: 'Hue strip', universe: 60000, address: 10, profileId: PAIR.id, output: hue },
+  ];
+  const { rig, placed } = ui.keptRig(fixtures, profiles, null);
+  stage.setRoom(null);
+  stage.setRig(placed, rig.units.length);
+  const [bulbs, cells] = ui.built.meshes.slice(-2);
+  assert.deepEqual([bulbs.count, cells.count], [2, 4]);
+  const universe = [128, 128, 128, 0, 0, 0, 0, 0, 0, 200, 64, 9, 3, 77, 250];
+  const dmx = { 1: universe, 60000: universe }, state = { profiles, masterBlackout: false, masterDimmer: 255 };
+  stage.setLights(ui.rigLights(fixtures, state, dmx, rig));
+  const plot = ui.plotColours(fixtures, rig, { state, dmx });
+  const decode = (byte) => { const v = byte / 255; return v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; };
+  const pairs = [[bulbs, 0, plot.lamps[0]], [bulbs, 1, plot.lamps[1]], ...[0, 1, 2, 3].map((k) => [cells, k, plot.cells[2 + k]])];
+  for (const [mesh, k, css] of pairs) {
+    const painted = css.match(/\d+/g).map(Number), lit = [...mesh.instanceColor.array.slice(k * 3, k * 3 + 3)];
+    // The plot rounds to a byte of the display: the room's light lies within that byte's step.
+    painted.forEach((byte, c) => assert.ok(lit[c] >= decode(byte - 0.5) - 1e-6 && lit[c] <= decode(byte + 0.5) + 1e-6, `${css} against ${lit}`));
+  }
+  assert.deepEqual([plot.lamps[0], plot.lamps[1]], ['rgb(188,188,188)', 'rgb(128,128,128)'], 'half the light on DMX; on Hue the bytes, as before');
+  assert.ok(Math.abs(bulbs.instanceColor.array[0] - 128 / 255) < 1e-6 && Math.abs(bulbs.instanceColor.array[3] - decode(128)) < 1e-6);
 });

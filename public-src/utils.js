@@ -1,6 +1,7 @@
 import { hueChannelsLabel, hueChannels, isHueProfile } from '../src/shared/hue-lamp.ts';
 import { hueSectionColour } from '../src/shared/hue-colour.ts';
 import { channelReader, hasNoAddress, isWled } from '../src/shared/placement.ts';
+import { lightCss } from './unit-light.js';
 
 // Scale emitter mixes proportionally so white-heavy swatches retain their colour temperature.
 export function colorToCss({ r, g, b, w = 0, a = 0, uv = 0 }) {
@@ -128,20 +129,45 @@ export function fixtureLight(fix, state, dmxSnapshot) {
   return readLight(at, profile.channelMap, 1, profile);
 }
 
-export function fixtureOutputColor(fix, state, dmxSnapshot) {
+/** A fixture's swatch: its light, or its cells' mean, painted by `css` (the bytes as they are, by default). */
+export function fixtureOutputColor(fix, state, dmxSnapshot, css = colorToCss) {
   if (!fix) return '#000';
   if (state.masterBlackout) return '#000';
 
   if (fix.override && fix.override.enabled && !isHueProfile(state.profiles?.[fix.profileId])) {
     if (fix.override.blackout) return '#000';
-    return colorToCss(overrideLight(fix, state));
+    return css(overrideLight(fix, state));
   }
 
   const cells = fixtureCellLights(fix, state, dmxSnapshot);
-  if (cells) return colorToCss(meanLight(cells));
+  if (cells) return css(meanLight(cells));
 
   const light = fixtureLight(fix, state, dmxSnapshot);
-  return light ? colorToCss(light) : '#111';
+  return light ? css(light) : '#111';
+}
+
+const UNLIT = [];
+
+/**
+ * What the Stage's 2D plot paints: each bar cell's colour by rig unit, and each fixture's lamp, as the display shows the
+ * light their bytes make (unit-light.js), on a Hue bridge or not as the rig resolved it once. `preview` is an audition's
+ * or the demo beat's frame by unit; without it the fixtures are read from the feed `dmx` under `state`.
+ */
+export function plotColours(fixtures, rig, { preview = null, state, connected = true, dmx = null }) {
+  const cells = new Array(rig.points.length);
+  const lamps = new Array(fixtures.length);
+  fixtures.forEach((fix, i) => {
+    const { start, count } = rig.ranges[i];
+    const bar = !!rig.cellMaps[i], hue = !!rig.hue[i];
+    const css = (light) => lightCss(light, hue);
+    if (bar) {
+      const lit = preview ? preview.slice(start, start + count) : connected ? fixtureCellLights(fix, state, dmx) || UNLIT : UNLIT;
+      for (let c = 0; c < count; c++) cells[start + c] = lit[c] && css(lit[c]);
+    }
+    lamps[i] = preview ? css(bar ? meanLight(preview.slice(start, start + count)) : preview[start])
+      : connected ? fixtureOutputColor(fix, state, dmx, css) : '#222';
+  });
+  return { cells, lamps };
 }
 
 /** Why a paused page draws nothing: `paused` as idle-pause.js holds it, or true. */
