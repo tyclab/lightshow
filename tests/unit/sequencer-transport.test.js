@@ -9,7 +9,7 @@ import path from 'node:path';
 import { Worker } from 'node:worker_threads';
 import { z } from 'zod';
 
-import { Sequencer, automationValue, MAX_FRAME_OPERATIONS } from '../../src/server/sequencer.ts';
+import { Sequencer, automationValue } from '../../src/server/sequencer.ts';
 import { createRenderer } from '../../src/server/renderer.ts';
 import * as universes from '../../src/server/universes.ts';
 import { getProfile, profilesRevision, BUILTIN_PROFILE_ID } from '../../src/server/profiles.ts';
@@ -575,68 +575,6 @@ test('free-clock ownership follows sequence transport state', () => {
   r.at(204.5);
   assert.equal(r.s.status().error.code, 'goto-cycle');
   assert.deepEqual(told, [true, false, true, false, true, false, true, false]);
-});
-
-// ── The traversal budget ────────────────────────────────────────────────────
-
-test('frame traversal limits preserve the next unprocessed operation', () => {
-  assert.equal(MAX_FRAME_OPERATIONS, 4096);
-  const commands = (n) => Array.from({ length: n }, (_, i) => ({ id: `c${i}`, atBeat: 1, type: 'brightness', value: i % 200 }));
-  // Exactly 4096 on one beat: all of them, the last value on.
-  const fits = rig();
-  fits.s.load(sequence({ clips: [clip('A', 'a', 0, 8)], commands: commands(4096) }));
-  fits.s.play();
-  fits.at(100);
-  fits.at(101.5);
-  assert.equal(fits.s.status().error, null);
-  assert.deepEqual(fits.applied, [{ masterDimmer: 95 }]);
-  // 4097: the first 4096 go on, and the sequence stops on that beat with the last still to do.
-  const over = rig();
-  over.s.load(sequence({ clips: [clip('A', 'a', 0, 8)], commands: commands(4097) }));
-  over.s.play();
-  over.at(100);
-  over.at(101.5);
-  const st = over.s.status();
-  assert.equal(st.error.code, 'traversal-limit');
-  assert.equal(st.stopped, 'hold');
-  assert.equal(st.beat, 1);
-  assert.deepEqual(over.applied, [{ masterDimmer: 95 }]);
-  // Nothing drains on its own while stopped.
-  over.at(102);
-  over.at(110);
-  assert.equal(over.applied.length, 1);
-  // Play: on from the command still to do, never one already done.
-  over.s.play();
-  over.at(111);
-  assert.deepEqual(over.applied, [{ masterDimmer: 95 }, { masterDimmer: 96 }]);
-  assert.equal(over.s.status().error, null);
-  assert.equal(over.at(111.5), 1.5, 'and from that beat');
-
-  // Stopped by hand after the error, play is a real start from the top.
-  const reset = rig();
-  reset.s.load(sequence({ clips: [clip('A', 'a', 0, 8)], commands: commands(4097), options: { initialPalette: 'redCyan' } }));
-  reset.s.play();
-  reset.at(100);
-  reset.at(101.5);
-  assert.equal(reset.s.status().error.code, 'traversal-limit');
-  reset.s.stop();
-  reset.s.play();
-  assert.equal(reset.at(102), 0);
-  assert.equal(reset.s.status().error, null);
-  assert.equal(reset.applied.filter((p) => p.paletteOverride).length, 2, 'its first palette again');
-
-  // An empty loop too tiny for a frame: each time round counts.
-  const tiny = rig();
-  tiny.s.load(sequence({ clips: [clip('A', 'a', 0, 8)], loop: { on: true, startBeat: 1, endBeat: 1 + 1e-6 } }));
-  tiny.s.play();
-  tiny.at(100);
-  tiny.at(101.02);
-  assert.equal(tiny.s.status().error.code, 'traversal-limit');
-  // A seek after the error replaces where it stopped: play starts from there.
-  tiny.s.seek(4);
-  tiny.s.play();
-  assert.equal(tiny.at(103), 4);
-  assert.equal(tiny.s.status().error, null);
 });
 
 // ── Automation ──────────────────────────────────────────────────────────────

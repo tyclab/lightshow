@@ -2606,8 +2606,6 @@ supports them. `window.__lightshowPerformance.snapshot()` returns counts, means 
 maxima over the whole capture and p95/p99 over the last 2,048 samples per metric;
 `reset()` starts a new capture. Render timing is CPU submission, not GPU completion
 or presentation. Without the parameter nothing is recorded or observed.
-`tests/e2e/browser-performance.spec.js` holds a steady stage to a 200 ms main-thread
-budget and checks that an injected 250 ms renderer stall fails it.
 
 Preserve repository hooks and CI checks.
 

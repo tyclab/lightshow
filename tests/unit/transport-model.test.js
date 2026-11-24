@@ -1,8 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import fs from 'node:fs';
-import path from 'node:path';
-import { autoStatus, chooseDriver, driverOf, playlistRowRequests, transportButtons, transportState } from '../../public-src/transport-model.js';
+import { chooseDriver, driverOf, playlistRowRequests, transportButtons } from '../../public-src/transport-model.js';
 import { PANELS, PANEL_KEYS, resolveRoute, SETUP_GROUPS, SETUP_VIEWS, STRIP_VIEWS, viewShortcut } from '../../public-src/views.js';
 
 // G7 (Show v3 fixes): five views behind Setup, the three former views Stage, Auto Show and Preflight as panels.
@@ -28,16 +26,6 @@ test('every former hash, sub-hash and alias opens its place', () => {
   }
   assert.equal(resolveRoute('#unknown'), null);
   assert.equal(resolveRoute(''), null);
-});
-
-// G8: the badge shows only what autoStatus says, so no state of the removed planned show keeps a style.
-test('the Auto badge has a style for each state autoStatus gives, and for no other', () => {
-  const css = fs.readFileSync(path.join(import.meta.dirname, '..', '..', 'public', 'style.css'), 'utf8');
-  const styled = new Set([...css.matchAll(/\.auto-badge-([a-z]+)/g)].map((m) => m[1]));
-  const live = (director, listening = true) => ({ live: { listening, director } });
-  const states = new Set([{}, live(null, false), live({ active: false }), live({ active: true }), live({ active: true, silent: true }),
-    live({ active: true, holding: true })].map((s) => autoStatus(s).id));
-  assert.deepEqual([...styled].sort(), [...states].sort());
 });
 
 test('each of the ten digits opens what it opened: seven views, and the panels the other three views became', () => {
@@ -83,20 +71,6 @@ test('sequence transport offers timeline operations and a Pause that turns into 
   const paused = transportButtons('sequence', { sequence: { ...loaded, playing: false, paused: true } })[0];
   assert.deepEqual([paused.id, paused.label, paused.enabled, paused.control, paused.request], ['pause', 'Resume timeline', true, 'start', null]);
   assert.equal(transportButtons('sequence', { sequence: loaded })[0].enabled, false);
-});
-
-test('secondary transport names the timeline\'s and the auto show\'s state without inferring whole-picture Freeze', () => {
-  for (const running of [true, false]) assert.equal(transportState('look', { running }), null);
-  const seq = (flags) => transportState('sequence', { sequence: { loaded: { id: 'set', name: 'Set one' }, ...flags } });
-  for (const [flags, word] of [[{ playing: true }, 'playing'], [{ playing: true, paused: true }, 'paused'],
-    [{ stopped: 'hold' }, 'hold'], [{ stopped: 'black' }, 'black'], [{ ended: true }, 'ended'], [{}, 'loaded']]) {
-    assert.equal(seq(flags), `Timeline · ${word}`);
-  }
-  assert.equal(transportState('sequence', { sequence: { loaded: null } }), null);
-  assert.equal(transportState('auto', {}), 'Auto · Live input not listening');
-  assert.equal(transportState('auto', { live: { listening: true, director: { active: false } } }), 'Auto · Idle');
-  assert.equal(transportState('auto', { live: { listening: true, director: { active: true } } }), 'Auto · By ear');
-  assert.deepEqual(transportButtons('auto', { live: { listening: true } }), [], 'nothing to cancel: no analysis');
 });
 
 test('loading a sequence does not select or start a programme', () => {

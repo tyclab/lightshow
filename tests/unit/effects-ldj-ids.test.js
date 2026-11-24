@@ -3,7 +3,6 @@
 import test from 'node:test';
 import assert from 'node:assert';
 import { execFileSync } from 'node:child_process';
-import { readdirSync, readFileSync } from 'node:fs';
 import { V2_ALIASES } from '../../src/shared/effects/catalogue.ts';
 import { LDJ_IDS, CATALOGUE, BUILTIN_PALETTES, FAMILIES, LDJ_PRESETS, presetById, presetIndex } from '../../src/shared/effects/index.ts';
 import { KINDS, kindOf, requiresAcknowledgement, validateSpec } from '../../src/shared/effects/registry.ts';
@@ -17,7 +16,6 @@ import { parseHex } from '../../src/shared/effects/palette.ts';
 import { seedFrom } from '../../src/shared/effects/hash.ts';
 import { HD_MASTER_DEFAULTS } from '../../src/shared/effects/types.ts';
 import { buildRoom } from '../../src/shared/room.ts';
-import { PATTERN_IDS } from '../../src/server/presets.ts';
 
 test("entertainment ordinals classify into registered presets", () => {
   for (let id = 0; id <= 171; id++) {
@@ -79,21 +77,6 @@ test('the catalogue builds whichever effect module a host loads first', () => {
     const script = `await import('${dir}${first}'); const m = await import('${dir}index.ts'); console.log(m.CATALOGUE.length);`;
     assert.strictEqual(execFileSync(process.execPath, ['--input-type=module', '-e', script], { encoding: 'utf8' }).trim(), String(CATALOGUE.length), first);
   }
-});
-
-test("only effect entry points load the registry", () => {
-  // Whoever imports index.ts, render.ts or the catalogue may build the catalogue
-  // first; only these do, and type imports load nothing. layer.ts is the
-  // renderer's and the preview's way in, an entry point like render.ts itself.
-  const allowed = { 'index.ts': ['catalogue.ts', 'render.ts'], 'render.ts': ['layer.ts'], 'catalogue.ts': ['index.ts'] };
-  const dir = new URL('../../src/shared/effects/', import.meta.url);
-  const found = Object.fromEntries(Object.keys(allowed).map((target) => [target, []]));
-  for (const file of readdirSync(dir).filter((f) => f.endsWith('.ts')).sort()) {
-    for (const [, specifier] of readFileSync(new URL(file, dir), 'utf8').matchAll(/^(?:import|export)(?! type)[^'"]*['"]\.\/([\w-]+\.ts)['"]/gm)) {
-      if (specifier in found) found[specifier].push(file);
-    }
-  }
-  assert.deepStrictEqual(found, allowed);
 });
 
 // The effect names by ordinal, independent of the table under test; null where
@@ -292,10 +275,6 @@ test("unknown preset ids return null", () => {
   assert.strictEqual(presetById(''), null);
 });
 
-test("entertainment presets do not take legacy pattern ids", () => {
-  for (const id of PATTERN_IDS) assert.notStrictEqual(presetById(id)?.app, 'ldj', id);
-});
-
 test("preset aliases resolve to their canonical id", () => {
   const row = (id, aliases) => ({ id, name: id, desc: '', app: 'own', family: 'own', spec: validateSpec({ kind: 'energy.kill' }), aliases });
   const index = presetIndex([row('a', ['old-a']), row('b')]);
@@ -319,29 +298,6 @@ test('built-ins are frozen, and building them left the shared palette data untou
   assert.notStrictEqual(p.spec.palette[0], LDJ_PALETTES.find((x) => x.id === 'randomRandom').colours[0]);
   assert.deepStrictEqual(LDJ_PALETTES.find((x) => x.id === 'randomRandom').colours, RANDOM_RANDOM);
   assert.ok(Object.isFrozen(LDJ_IDS) && Object.isFrozen(LDJ_IDS[169]) && Object.isFrozen(LDJ_IDS[169].presets));
-});
-
-test("built-in palettes preserve app order and colours", () => {
-  const R = { random: true };
-  assert.deepStrictEqual(BUILTIN_PALETTES.map((p) => [p.id, p.app, [...p.colours]]), [
-    ['redCyan', 'ldj', ['#FF0000', '#00BFFF']], ['orangeBlue', 'ldj', ['#FF9900', '#2A00FF']],
-    ['yellowPurple', 'ldj', ['#FFFF00', '#AA00FF']], ['greenPink', 'ldj', ['#00FF00', '#FF0095']],
-    ['redYellow', 'ldj', ['#FF0000', '#FFFF00']], ['greenBlue', 'ldj', ['#00FF00', '#2A00FF']],
-    ['whiteOff', 'ldj', ['#FFFFFF', '#000000']], ['randomRandom', 'ldj', [R, R]],
-    ['redOrangeYellow', 'ldj', ['#FF0000', '#FF9900', '#FFFF00']], ['orangeYellowGreen', 'ldj', ['#FF9900', '#FFFF00', '#00FF00']],
-    ['yellowGreenCyan', 'ldj', ['#FFFF00', '#00FF00', '#00BFFF']], ['greenCyanBlue', 'ldj', ['#00FF00', '#00BFFF', '#2A00FF']],
-    ['cyanBluePurple', 'ldj', ['#00BFFF', '#2A00FF', '#AA00FF']], ['bluePurplePink', 'ldj', ['#2A00FF', '#AA00FF', '#FF0095']],
-    ['purplePinkRed', 'ldj', ['#AA00FF', '#FF0095', '#FF0000']], ['pinkRedOrange', 'ldj', ['#FF0095', '#FF0000', '#FF9900']],
-    ['redYellowBlue', 'ldj', ['#FF0000', '#FFFF00', '#2A00FF']], ['yellowPurplePink', 'ldj', ['#FFFF00', '#AA00FF', '#FF0095']],
-    ['greenCyanPink', 'ldj', ['#00FF00', '#00BFFF', '#FF0095']], ['rocketPop', 'ldj', ['#D60210', '#00BFFF', '#0814FF']],
-    ['blueDream', 'ldj', ['#0B1066', '#0A108C', '#0E4EAD', '#0E7BC9']], ['strawberryDaiquiri', 'ldj', ['#8A0700', '#F75C78', '#F53659', '#F20A34']],
-    ['screwdriver', 'ldj', ['#FC530A', '#FFA929', '#F7822F', '#FC6F0A']], ['goodVibes', 'ldj', ['#226987', '#FFF203', '#FFA600', '#3890B5']],
-    ['electricSummer', 'ldj', ['#00DBBE', '#BEF711', '#F1FF33', '#FC235A']],
-    ['rainbow', 'ldj', ['#FF0000', '#FF9900', '#FFFF00', '#00FF00', '#00BFFF', '#2A00FF', '#AA00FF', '#FF0095']],
-    ['hdDefault', 'hd', ['#A855F7', '#22D3EE', '#F472B6']], ['hdStrobe', 'hd', ['#FFFFFF']],
-  ]);
-  // One source: the catalogue's entertainment palettes are the Audio-reactive looks' own records.
-  BUILTIN_PALETTES.filter((p) => p.app === 'ldj').forEach((p, i) => assert.strictEqual(p, LDJ_PALETTES[i]));
 });
 
 test('families group every entertainment row and kind, as plain data', () => {

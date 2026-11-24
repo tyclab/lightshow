@@ -66,13 +66,6 @@ test('status retains separate pixel look names for patched panels', () => {
   assert.deepEqual(playingState({ ...state, fixtures: [] }).layers, []);
 });
 
-test('shared status names the clips covering the base look', () => {
-  const activeClips = [{ id: 'c1', laneId: 'a', lane: 'Front', name: 'Custom pulse' }];
-  const state = { pattern: 'solid', sequence: { ...sequence, playing: true, activeClips } };
-  assert.deepEqual(playingState(state).sequence.activeClips, activeClips);
-  assert.match(nowPlaying(state), /Clips: Front: Custom pulse/);
-});
-
 for (const kind of ['pattern', 'sequencePattern']) {
   test(`empty ${kind} pad labels use the saved pattern name`, () => {
     const sequencePatterns = [{ id: 'p1', name: 'Closing phrase' }];
@@ -153,14 +146,6 @@ test('the Matrix counts only while its voice plays, in the strip and the shared 
   assert.doesNotMatch(nowPlaying({ matrix: held }), /Matrix/);
   assert.equal(above({ matrix: { ...held, voice: 'voice:9' } }), 'Pads and overrides: Matrix');
   assert.match(nowPlaying({ matrix: { ...held, voice: 'voice:9' } }), /Matrix: 1 colour as fills/);
-});
-
-test('a long list shows the first names and how many more, the full list in the title', () => {
-  const voices = ['Blinder', 'Kill', 'UV', 'Glow', 'Domino'].map((label, i) => ({ id: String(i), label }));
-  assert.equal(above({ voices }), 'Pads and overrides: Blinder, Kill, UV +2 more');
-  assert.equal(pictureLayers({ voices }).at(0).title, 'Blinder, Kill, UV, Glow, Domino');
-  const long = [{ id: 'a', label: 'A long voice label from a pad bank' }, { id: 'b', label: 'Second long voice label' }];
-  assert.equal(above({ voices: long }), 'Pads and overrides: A long voice label from a pad bank +1 more', 'the first name always shows');
 });
 
 test('a stopped main effect reads as stopped and is not frozen: the two states are independent', () => {

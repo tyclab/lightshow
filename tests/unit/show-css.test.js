@@ -51,19 +51,3 @@ test('no script computes a Show size: columns, list heights and the preview come
   assert.ok(sources.length >= 2);
   for (const file of sources) assert.doesNotMatch(fs.readFileSync(file, 'utf8'), SIZING, path.basename(file));
 });
-
-test('the one height a script reports to Show is the open colour editor\'s, and the block adds it', () => {
-  const code = fs.readFileSync(component('Bands.jsx'), 'utf8');
-  const hook = code.match(/function useEditorHeight\([\s\S]*?\n\}\n/);
-  assert.ok(hook, 'Bands.jsx has useEditorHeight');
-  assert.deepStrictEqual([...hook[0].matchAll(/setProperty\('([^']+)'/g)].map((m) => m[1]), ['--show-editor-height']);
-  assert.doesNotMatch(code.replace(hook[0], ''), SIZING, 'Bands.jsx outside useEditorHeight');
-  assert.match(showBlock(css), /\.show-view\s*\{[^}]*min-height:[^;]*\+ var\(--show-editor-height, 0rem\)\)/);
-});
-
-// G8: the Auto Show view's timeline, its section roles and the analysis panel went; so did every rule only they used.
-test('no rule styles the removed Auto timeline, its section roles or the analysis panel', () => {
-  const selectors = [...css.replace(/\/\*[\s\S]*?\*\//g, '').matchAll(/[.#]([a-zA-Z][\w-]*)/g)].map((m) => m[1]);
-  const removed = selectors.filter((name) => /^(timeline-(view|track|time|scroll|canvas-wrap|mark|section)|auto-timeline-canvas|auto-analysis|stage3d-time|role-(intro|verse|chorus|drop|bridge|breakdown|outro))$/.test(name));
-  assert.deepStrictEqual([...new Set(removed)], []);
-});

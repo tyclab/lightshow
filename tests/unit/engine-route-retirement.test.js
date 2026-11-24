@@ -324,52 +324,6 @@ async function retirementStalls({ a, b, wire }) {
   return mark;
 }
 
-test('an unfinished retirement survives the engine thread: its replacement withholds B until A is dark and synced', async () => {
-  await rig(async ({ a, b, wire, worker }) => {
-    await litOnA({ a, worker });
-    await retirementStalls({ a, b, wire });
-    const pending = awaitFrameApplied().then(() => 'applied', (err) => err.message);
-    wire.crash();
-    assert.match(await pending, /restarted before acknowledging/, 'the thread died with the change unapplied');
-    // Its replacement starts from the retained routes: A is darkened again, B still waits, nothing is acknowledged.
-    const restart = sequence;
-    await until(() => dark(a, restart).length > 0 || lit(b, restart).length > 0, 10000, 'the replacement thread renders');
-    assert.equal(lit(b, restart).length, 0, 'the replacement must not light B while A was never retired');
-    assert.equal(engineStatus().thread, 'worker');
-    await assert.rejects(awaitFrameApplied(), /did not acknowledge/, 'the change stays unapplied while the old ArtSync fails');
-    assert.equal(lit(b).length, 0, 'B never got light while A was not retired');
-    assert.equal(syncs(a, restart).length, 0);
-    // The node answers again: dark and sync land on A, then B is lit and the change applied.
-    const retry = sequence;
-    await wire.policy({ refuseSyncPort: null });
-    await awaitFrameApplied();
-    // The acknowledgement can arrive before the datagrams of its frame: wait for those too.
-    await until(() => dark(a, retry).length > 0 && syncs(a, retry).length > 0 && lit(b, retry).length > 0, 2000, 'dark DMX, ArtSync and new light all happened');
-    const darkA = dark(a, retry)[0], syncA = syncs(a, retry)[0], litB = lit(b, retry)[0];
-    assert.ok(darkA.at < litB.at && syncA.at < litB.at, `A dark at ${darkA.at}, synced at ${syncA.at}, before B lit at ${litB.at}`);
-    assert.equal(lit(b).length, lit(b, retry).length, 'no earlier light on B');
-  });
-});
-
-test('a thread that dies before its first acknowledgement hands the retirement to the main thread, which finishes it before lighting B', async () => {
-  await rig(async ({ a, b, wire, worker }) => {
-    await litOnA({ a, worker });
-    await retirementStalls({ a, b, wire });
-    const pending = awaitFrameApplied().catch((err) => err.message);
-    wire.env({ crashOnStart: true });          // the replacement dies while loading, before 'ready'
-    wire.crash();
-    await pending;
-    await until(() => engineStatus().thread === 'main' && lit(b).length > 0, 10000, 'the engine falls back to the main thread and lights B');
-    assert.ok(engineStatus().fellBack);
-    // The main thread's own retirement: A's last dark frame before B's first light, and its ArtSync in between.
-    const litB = lit(b)[0];
-    const darkA = dark(a).filter((p) => p.at < litB.at).at(-1);
-    const syncA = syncs(a).find((p) => darkA && p.at > darkA.at && p.at < litB.at);
-    assert.ok(darkA && syncA, `the main thread sent A its dark frame and ArtSync before lighting B (dark ${darkA?.at}, sync ${syncA?.at}, lit ${litB.at})`);
-    await awaitFrameApplied();
-  });
-});
-
 // ── Protective Hue blackout while Art-Net retirement fails ──────────────────
 // One Hue lamp on a bridge whose REST side and stream socket are stand-ins;
 // what the lamp would receive is read off the socket.

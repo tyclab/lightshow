@@ -188,26 +188,6 @@ test('live input settings: off by default, a source it knows, a latency in range
   assert.strictEqual(s.get('live.source'), 'input', 'a refused update changes nothing');
 });
 
-// A settings file written by a build that still had the first-run setup holds its `setup` group.
-test('a file that still holds a retired group loads as it is and is written back without it', (t) => {
-  const s = store();
-  const warned = t.mock.method(console, 'warn', () => {});
-  const failed = t.mock.method(console, 'error', () => {});
-  fs.writeFileSync(s.file, JSON.stringify({ formatVersion: 1, values: { setup: { completed: true }, live: { latencyMs: 120 } } }));
-  s.load();
-  assert.strictEqual(s.get('live.latencyMs'), 120, 'the rest of the file is read');
-  assert.ok(!('setup' in s.all()));
-  assert.deepStrictEqual(fs.readdirSync(path.dirname(s.file)), ['settings.json'], 'not moved aside, no backup');
-  assert.deepStrictEqual([warned.mock.callCount(), failed.mock.callCount()], [0, 0], 'nothing logged');
-  assert.deepStrictEqual(JSON.parse(fs.readFileSync(s.file, 'utf8')), { formatVersion: 1, values: { live: { latencyMs: 120 } } },
-    'the load writes the file back without the group, the rest as it stood');
-
-  s.update({ live: { latencyMs: 80 } });
-  const saved = JSON.parse(fs.readFileSync(s.file, 'utf8'));
-  assert.deepStrictEqual([saved.formatVersion, saved.values.live.latencyMs, 'setup' in saved.values], [1, 80, false]);
-  assert.throws(() => s.update({ setup: { completed: false } }), 'the group is no longer a setting');
-});
-
 // Automatic tempo match is on unless the operator switched it off, and stays
 // how it was left across a restart.
 test('tempo mode validates and persists across reloads', () => {

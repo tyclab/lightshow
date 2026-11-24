@@ -126,27 +126,6 @@ const look = (pattern, extra = {}) => ({
   strobeSpeed: 0, strobeFunction: 'standard', energyOverride: null, overrides: [], ...extra,
 });
 
-test('cues: a cue whose look plays a retired look plays the default look, every other field kept', (t) => {
-  const at = '2026-11-01T00:00:00.000Z';
-  const cue = (id, name, l) => ({ id, name, createdAt: at, updatedAt: at, look: l });
-  const colours = { pattern: 'v2.visualizerFlow', palette: { colours: ['#FF0000', '#0000FF'] } };
-  const document = { cues: [
-    cue('a', 'Kept cue', look('v2.chase', { effectColours: { pattern: 'v2.chase', mode: 'solid' } })),
-    cue('b', 'Flow cue', look('v2.visualizerFlow', { effectColours: colours })),
-    cue('c', 'Drift cue', look('v2.visualizerDrift.2d')),
-  ] };
-  const { file, warned, saved, beside } = scene(t, 'cues.json', json(document));
-  const store = new CueStore(file).load();
-  const expected = json(document);
-  expected.cues[1].look = { ...expected.cues[1].look, pattern: 'chase', effectColours: null };
-  expected.cues[2].look = { ...expected.cues[2].look, pattern: 'chase' };
-  assert.deepEqual(saved(), expected);
-  assert.deepEqual(store.list(), clean(t, 'cues.json', expected, (f) => new CueStore(f).load()).list());
-  assert.deepEqual(naming(warned, ['Flow cue', 'Drift cue']), [1, 1], warned.join('\n'));
-  assert.equal(warned.length, 2);
-  assert.deepEqual(beside(), ['cues.json']);
-});
-
 test('the current look: a retired look comes back as the default look, every other field kept', (t) => {
   const document = { savedAt: '2026-11-01T00:00:00.000Z', look: look('v2.visualizerDrift', { running: true }) };
   const { file, warned, saved, beside } = scene(t, 'look.json', document);

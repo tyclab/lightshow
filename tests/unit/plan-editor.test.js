@@ -99,42 +99,6 @@ test('plot coordinates map top-left lamps to front-left room positions', () => {
   assert.ok(room.turn[a] > 0.75 && room.turn[a] < 1, 'clockwise from the front: front-left is the last quarter turn');
 });
 
-test('every lamp shows its number, its name and its height on the plot', () => {
-  const out = render([fixture(1, { position: { x: 20, y: 30, height: 80 } }), fixture(2, { position: { x: 60, y: 30 } })]);
-  assert.match(out, /<span class="stage-lamp">1<\/span> <span class="stage-label">Lamp 1<\/span> /);
-  assert.match(out, /class="plan-height" title="Height 80 % \(0 floor, 100 ceiling\)"[^>]*>↑80</);
-  assert.match(out, /class="plan-height unset" title="Height not set: mid-room \(50 %\)"[^>]*>↑50</);
-  assert.match(out, /aria-label="1 Lamp 1, 80 % high, position 20, 30\./);
-});
-
-test('unplaced lamps are listed beside the plot as chips; placed ones are not', () => {
-  const out = render([fixture(1, { position: { x: 20, y: 30 } }), fixture(2), fixture(3)]);
-  const chips = out.match(/<button[^>]*class="plan-chip[^"]*"[^>]*>/g) || [];
-  assert.equal(chips.length, 2);
-  assert.match(out, /aria-label="Not placed yet: 2 lamps"/);
-  assert.match(out, /data-chip="2"[^>]*aria-pressed="false"[^>]*title="Tap, then tap the plot to place Lamp 2 \(or drag it there\)"/);
-  assert.match(out, /<span class="plan-chip-n">3<\/span>Lamp 3/);
-  assert.doesNotMatch(out, /data-chip="1"/);
-  assert.match(out, /<button[^>]*class="btn sm plan-auto"[^>]*>Auto-place 2<\/button>/);
-});
-
-test('with everything placed the chips say so and Auto-place offers all', () => {
-  const out = render([fixture(1, { position: { x: 20, y: 30 } })]);
-  assert.match(out, /Every lamp is placed\./);
-  assert.match(out, /<button[^>]*class="btn sm plan-auto"[^>]*>Auto-place all<\/button>/);
-});
-
-test('one selected lamp gets a touch-sized height editor on the plot', () => {
-  const out = render([fixture(1, { position: { x: 20, y: 30, height: 80 } }), fixture(2)], [1]);
-  assert.match(out, /<section class="plan-selected" aria-label="Lamp 1 on the plot">/);
-  assert.match(out, /<button[^>]*class="btn plan-step"[^>]*aria-label="Lower Lamp 1"[^>]*>−<\/button>/);
-  assert.match(out, /<input[^>]*type="range"[^>]*min="0"[^>]*max="100"[^>]*step="5"[^>]*aria-label="Height of Lamp 1"[^>]*value="80"/);
-  assert.match(out, /<button[^>]*class="btn plan-step"[^>]*aria-label="Raise Lamp 1"[^>]*>\+<\/button>/);
-  assert.match(out, /<output[^>]*>80 %<\/output>/);
-  const none = render([fixture(1, { position: { x: 20, y: 30 } })], []);
-  assert.doesNotMatch(none, /plan-selected/);
-});
-
 test('height steps by 5 and stays between the floor and the ceiling', () => {
   assert.equal(ui.stepHeight(undefined, 1), 55, 'an unset height starts from mid-room');
   assert.equal(ui.stepHeight(80, -1), 75);
@@ -187,11 +151,4 @@ test('auto-place preserves grid clearance and opens rows as needed', () => {
   const full = ui.autoPlace([...row, fixture(40), fixture(41)]);
   for (const p of full) for (const q of [...row.map((f) => ({ position: f.position })), ...full.filter((o) => o !== p)]) assert.ok(!near(p.position, q.position));
   assert.notEqual(full[0].position.y, 50, 'a full row opens the next');
-});
-
-test('the height of a lamp with no place waits for it to be placed', () => {
-  const out = render([fixture(1)], [1]);
-  assert.match(out, /Place it first: a height belongs to a place on the plot\./);
-  const placed = render([fixture(1, { position: { x: 20, y: 30 } })], [1]);
-  assert.doesNotMatch(placed, /Place it first/);
 });

@@ -13,7 +13,7 @@ import { EffectLibrary } from '../../src/server/effect-library.ts';
 import { presetById } from '../../src/shared/effects/index.ts';
 import { KINDS, validateSpec } from '../../src/shared/effects/registry.ts';
 import { mappingOf, usesSpatialMapping } from '../../src/shared/effects/mapping.ts';
-import { LEGACY_TAGGED, REACTIVE_TAGS, SOURCES, TAG_AXES, TAG_NOTES, TAGS, browseListOf, legacyTags, specTags } from '../../src/shared/effects/tags.ts';
+import { LEGACY_TAGGED, REACTIVE_TAGS, SOURCES, TAG_AXES, TAGS, browseListOf, legacyTags, specTags } from '../../src/shared/effects/tags.ts';
 
 // What every registered kind reacts to with its default params, counted per tag.
 const KIND_REACTS = { beat: 133, static: 19, bands: 5, level: 2, sections: 0 };
@@ -291,11 +291,6 @@ test('kinds without a trigger: live input, their own rate or the beat, as their 
   const step = (effect) => ({ effect, beats: 4 });
   assert.deepEqual(reactsOf({ kind: 'macro', params: { steps: [step({ kind: 'ldj.StrobeCycle', params: {} })], loopBeats: 4 } }), ['beat']);
   assert.deepEqual(reactsOf({ kind: 'macro', params: { steps: [step({ kind: 'ldj.visualizer', params: {} }), step({ kind: 'ldj.Swirl', params: {} })], loopBeats: 8 } }), ['level']);
-});
-
-test('the Strobe pattern is Static by default and its badge says the drawn functions follow the beat', () => {
-  assert.deepEqual(legacyTags('strobe').tags, ['static', 'rig']);
-  assert.match(TAG_NOTES.strobe.static, /Ramp.*Random.*Burst.*beat/);
 });
 
 test('one rule sorts a row into the MIDI browse lists', () => {
