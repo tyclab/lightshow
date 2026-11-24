@@ -208,10 +208,9 @@ function for the 3D room and the 2D plot). The engine renders every output as li
 without gamma (its "Disable realtime gamma correction", `live.no-gc`, on) turns the byte into duty.
 So on a DMX output over Art-Net or sACN, on DDP and on OpenRGB a byte is that share of full light:
 128 is 0.502. The 3D room takes that light as it is; the 2D plot paints it encoded for the display,
-128 as sRGB 188. A light whose fixture streams to a Hue bridge keeps the sRGB decode the previews
-always drew it with, 128 as 0.216: the bridge's curve from the streamed RGB to the lamp's light is
-not measured, and that stays open. Which lights stream to a bridge is resolved once, when the room
-or the plot is built (`hueUnits`), not for each frame. A WLED board with realtime gamma correction
+128 as sRGB 188. Every output's byte is drawn as the linear light the engine renders, a Hue
+bridge's too: for Hue lamps this is the operator's choice of 2026-11-24, not a measurement of the
+bridge's curve from the streamed RGB to the lamp's light. A WLED board with realtime gamma correction
 on, or any driver with a curve of its own, gives less light at mid levels than Stage draws.
 
 A pool is clipped like any other: the one under a light to the room its light stands in, where

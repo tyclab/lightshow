@@ -363,7 +363,7 @@ test('a pool on a ceiling is drawn from both sides, on the room\'s ceiling and u
   assert.deepEqual(surfaceOf(quads[2], 0), [0, 0, Math.fround(0.05)].map((v, i) => (i === 1 ? onWall.pool.clip.surface.centre.y : v)));
 });
 
-test('the 3D room lights each unit as the 2D plot paints it: a byte is linear light, on a Hue bridge decoded as sRGB', () => {
+test('the 3D room lights each unit as the 2D plot paints it: a byte is linear light, on a Hue bridge as on DMX', () => {
   const stage = ui.createStageScene(canvas, { room: { width: 12, depth: 8, trussHeight: 4.6 }, lightRGB: ui.lightRGB });
   const LAMP = { id: 'scene-lamp', name: 'Lamp', channelMap: { red: 0, green: 1, blue: 2 } };
   const PAIR = { id: 'scene-pair', name: 'Pair', channelMap: {}, cells: [0, 1].map((c) => ({ channelMap: { red: c * 3, green: c * 3 + 1, blue: c * 3 + 2 } })) };
@@ -391,8 +391,8 @@ test('the 3D room lights each unit as the 2D plot paints it: a byte is linear li
     // The plot rounds to a byte of the display: the room's light lies within that byte's step.
     painted.forEach((byte, c) => assert.ok(lit[c] >= decode(byte - 0.5) - 1e-6 && lit[c] <= decode(byte + 0.5) + 1e-6, `${css} against ${lit}`));
   }
-  assert.deepEqual([plot.lamps[0], plot.lamps[1]], ['rgb(188,188,188)', 'rgb(128,128,128)'], 'half the light on DMX; on Hue the bytes, as before');
-  assert.ok(Math.abs(bulbs.instanceColor.array[0] - 128 / 255) < 1e-6 && Math.abs(bulbs.instanceColor.array[3] - decode(128)) < 1e-6);
+  assert.deepEqual([plot.lamps[0], plot.lamps[1]], ['rgb(188,188,188)', 'rgb(188,188,188)'], 'half the light on DMX and on Hue');
+  for (const at of [0, 3]) assert.ok(Math.abs(bulbs.instanceColor.array[at] - 128 / 255) < 1e-6, `${bulbs.instanceColor.array.slice(0, 6)}`);
   // A frame's supply gains (stage-supply.js) scale each unit's light; the same frame without them draws as before.
   const frame = ui.rigLights(fixtures, state, dmx, rig), before = [...cells.instanceColor.array];
   const gains = new Float32Array(rig.units.length).fill(1);

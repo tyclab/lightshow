@@ -225,12 +225,12 @@ test('the generic venue draws its pools at 0.9 of their light, as before, added 
   }
 });
 
-test('a byte of 128 lands half the light of a DMX par and the sRGB decode of it from a Hue lamp', async ({ page }) => {
+test('a byte of 128 lands half the light from a DMX par and from a Hue lamp: both are linear', async ({ page }) => {
   await page.goto('about:blank');
   await page.addScriptTag({ content: light });
-  const GREY = { r: 128, g: 128, b: 128 };
+  const GREY = { r: 128, g: 128, b: 128 }, shown = 128 / 255;
   // A DMX fixture names no output; a Hue lamp streams to its bridge. Each pool lands 0.9 of its light (PAR_LEVEL).
-  for (const [name, protocol, shown] of [['DMX', null, 128 / 255], ['Hue', 'hue', decode(128)]]) {
+  for (const [name, protocol] of [['DMX', null], ['Hue', 'hue']]) {
     const deck = await page.evaluate(([c, p]) => window.venuePool(c, p), [OFF, protocol]);
     const pool = await page.evaluate(([c, p]) => window.venuePool(c, p), [GREY, protocol]);
     const rise = pool.map((value, c) => decode(value) - decode(deck[c]));
