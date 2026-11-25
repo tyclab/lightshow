@@ -137,7 +137,6 @@ test('room schema rejects unsafe geometry, remote assets and ambiguous IDs', () 
     (r) => { r.rooms[0].polygon[0][0] = 100; },
     (r) => { r.bindings[1].id = r.bindings[0].id; },
     (r) => { r.bindings[0].unit = -1; },
-    (r) => { r.objects = Array.from({ length: 1501 }, (_, i) => ({ ...r.objects[0], id: `object-${i}` })); },
   ];
   for (const mutate of mutations) {
     const candidate = room();
@@ -279,6 +278,36 @@ test('mesh geometry is bounded by the request limit, not by vertex or triangle c
   assert.equal(parsed.data.objects[0].mesh.vertices.length, 70000);
   objects[0].mesh.triangles.push([69999, 0, 70000]);
   assert.equal(roomSceneSchema.safeParse(model).success, false, 'an index past the last vertex');
+});
+
+test('room objects are bounded by the request limit, not by a count', async (t) => {
+  // The smallest object there is, as many as one request holds: far more than a whole flat's 1,517.
+  const box = (index) => ({ id: index.toString(36), kind: 'box', role: 'furniture', position: { x: 0, y: 1, z: 0 }, size: { x: 1, y: 1, z: 1 } });
+  const model = { ...room(), objects: [] };
+  for (let bytes = Buffer.byteLength(JSON.stringify(model)); ;) {
+    const more = Buffer.byteLength(JSON.stringify(box(model.objects.length))) + (model.objects.length ? 1 : 0);
+    if (bytes + more > ROOM_SCENE_BODY_LIMIT) break;
+    model.objects.push(box(model.objects.length));
+    bytes += more;
+  }
+  assert.ok(model.objects.length > 1517, `${model.objects.length} objects`);
+  const store = storeFor(t);
+  const app = express();
+  app.use(express.json({ limit: ROOM_SCENE_BODY_LIMIT }));
+  attachRoomSceneRoutes(app, store);
+  app.use((error, _req, res, _next) => res.status(error.status || 500).json({ ok: false }));
+  const server = app.listen(0, '127.0.0.1');
+  await new Promise((resolve) => server.once('listening', resolve));
+  t.after(() => new Promise((resolve) => server.close(resolve)));
+  const url = `http://127.0.0.1:${server.address().port}/api/stage/room`;
+  const put = (body, revision) => fetch(url, { method: 'PUT', headers: { 'Content-Type': 'application/json', 'If-Match': revision }, body });
+  const full = await put(JSON.stringify(model), 'empty');
+  assert.equal(full.status, 200);
+  const { revision } = await full.json();
+  assert.equal(new RoomSceneStore(store.file).load().peek().room.objects.length, model.objects.length);
+  const over = { ...model, objects: [...model.objects, box(model.objects.length)] };
+  assert.equal((await put(JSON.stringify(over), revision)).status, 413, 'one object past the request limit');
+  assert.equal(store.peek().revision, revision);
 });
 
 test('room routes answer from the held room: no copy per request, one parse per import, compact on disk', async (t) => {
