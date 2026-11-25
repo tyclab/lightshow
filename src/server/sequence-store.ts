@@ -8,7 +8,6 @@ import { canonical } from '../shared/effects/layer.ts';
 import { patternSchema, sequenceSchema, validatePattern, validateSequence } from './sequencer.ts';
 import { HttpError, messageOf } from '../errors.ts';
 import { JsonStore } from './json-store.ts';
-import { retireSequences, retiredBeside } from './retired-looks.ts';
 import type { Sequence, SequencePattern } from './sequencer.ts';
 
 export const MAX_SEQUENCES = 64;
@@ -43,7 +42,7 @@ export class SequenceStore extends JsonStore {
   }
 
   load(): this {
-    const saved = this.readMigrated(fileSchema, (doc) => retireSequences(doc, retiredBeside(this.file)));
+    const saved = this.readValid(fileSchema);
     if (saved) {
       this._sequences = deepFreeze(saved.sequences as Sequence[]);
       this._patterns = deepFreeze((saved.patterns ?? []) as SequencePattern[]);

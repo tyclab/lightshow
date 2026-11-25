@@ -2,7 +2,6 @@ import fs from 'node:fs';
 import crypto from 'node:crypto';
 import { z } from 'zod';
 import { JsonStore } from './json-store.ts';
-import { retireWorkspace, retiredBeside } from './retired-looks.ts';
 import { patternSchema, sequenceSchema } from './sequencer.ts';
 import { canonical } from '../shared/effects/layer.ts';
 import { messageOf, codeOf } from '../errors.ts';
@@ -63,7 +62,6 @@ export class SequenceWorkspace extends JsonStore {
     try {
       if (fs.statSync(this.file).size > 32 * 1024 * 1024) throw new Error('Workspace exceeds 32 MiB');
       const document: unknown = JSON.parse(fs.readFileSync(this.file, 'utf8'));
-      const notes = retireWorkspace(document, retiredBeside(this.file));
       const data = workspaceSchema.parse(document);
       if (data.sequence) {
         this.sequencer.validateRecoveryTargets(data.sequence);
@@ -74,7 +72,6 @@ export class SequenceWorkspace extends JsonStore {
       }
       this.baseline = data.baseline;
       this.identity = data.sequence?.id ?? null;
-      this.saveMigrated(document, notes);
     } catch (err) {
       if (codeOf(err) !== 'ENOENT') {
         this.blocked = true;

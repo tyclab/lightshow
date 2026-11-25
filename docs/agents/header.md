@@ -126,8 +126,7 @@ history. The rulings below stay.
   investigate what is needed to imlement propper and build it and rollout". It was about 115 lines,
   so it went. The idea stays for a later build: the effect and at least its colour follow the
   visualizer's output without mirroring it; how the colour is taken (average, maximum or another
-  rule) is open. Saved looks, clips, pads and cues that named it are migrated when they load, one
-  warning each, and a stored `inspired` source loads as Effects.
+  rule) is open. A stored `inspired` source loads as Effects.
 - Blackout and Arm keep their own buttons at fixed positions with 44 px touch targets. Freeze has no
   button (2026-11-15): while the picture is frozen, one Resume shows after the master, at the end of the
   global controls, on every tab, so a hold is never hidden. Nothing is kept for it between Play and
