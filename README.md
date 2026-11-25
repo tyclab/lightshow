@@ -1613,9 +1613,13 @@ The lists offer the stage palettes and **TycStation**, with the palettes saved
 here. The two- and three-colour tables the party effects came with are what
 those effects draw from and are not offered; their ids still work through REST
 and Home Assistant. The **TycStation** palette (`tycStation`) holds the
-product mark's colours: blue `#5AA2FF`, violet `#8B6CF0`, red `#FF4A3D` and
-violet again, so an effect that runs round the palette comes back to blue
-without a seam. As the global override (`PUT /api/palette-override` with
+product mark's colours: blue, violet, red and violet again, so an effect that
+runs round the palette comes back to blue without a seam. The mark is written
+as screen colours (`#5AA2FF`, `#8B6CF0`, `#FF4A3D`) and the palette holds the
+light they stand for (`#1A5CFF`, `#4226DE`, `#FF110C`, each byte decoded with
+the IEC 61966-2-1 curve): the engine's values are linear light and an LED's
+byte is duty, so the page's blue sent as written is 35 % white on a pixel where
+a screen shows 10 %. As the global override (`PUT /api/palette-override` with
 `{ "paletteId": "tycStation" }`) it colours every lamp's effect. The shared editor and the active colour slot offer hue,
 saturation and brightness sliders. RGB edits retain the white, amber and UV
 emitters, available as separate numeric fields. **Generate a hue pair** controls
