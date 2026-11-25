@@ -9,7 +9,7 @@ import path from 'node:path';
 
 import { EffectLibrary, MAX_PRESETS } from '../../src/server/effect-library.ts';
 import { CATALOGUE, presetById } from '../../src/shared/effects/index.ts';
-import { migrateEffectSpec, EFFECT_LIBRARY_VERSION } from '../../src/shared/effects/migrate.ts';
+import { EFFECT_LIBRARY_VERSION } from '../../src/shared/effects/migrate.ts';
 import { validateSpec } from '../../src/shared/effects/registry.ts';
 
 function place(t) {
@@ -341,8 +341,8 @@ test('invalid preset files are quarantined', (t) => {
   // A good file loads with its specs as stored, defaults and all.
   fs.writeFileSync(file, JSON.stringify({ presets: [good] }));
   const library = new EffectLibrary(file).load();
-  assert.deepEqual(library.list().user, [{ ...good, spec: migrateEffectSpec(good.spec) }]);
-  assert.deepEqual(library.resolve(good.id), migrateEffectSpec(good.spec));
+  assert.deepEqual(library.list().user, [good]);
+  assert.deepEqual(library.resolve(good.id), good.spec);
 });
 
 test("a version-3 library plays every effect at the default and keeps a .v3 copy when a Between effect hits choice is saved", (t) => {

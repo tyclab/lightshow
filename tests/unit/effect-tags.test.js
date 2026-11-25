@@ -247,7 +247,7 @@ test('every registered kind says what it reacts to, from its code', () => {
   assert.deepEqual(counts, KIND_REACTS);
 });
 
-// Version 0 and 1 libraries load their hd/ldj specs as compat.* kinds (migrate.ts); they are the same effect.
+// A compat.* kind is the same effect as its plain kind.
 test('a compat kind gets the tags and mapping of its plain twin', () => {
   let compared = 0;
   for (const [kind, def] of KINDS) {

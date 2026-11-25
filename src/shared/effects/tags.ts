@@ -145,7 +145,7 @@ function containerReactions(children: unknown[]): LookTags {
   return reactive.length ? tagged(reactive.flatMap((r) => r.tags.filter((tag) => REACTIVE_TAGS.has(tag))), reactive.flatMap((r) => r.via)) : tagged(['beat']);
 }
 
-/** A compat.* spec (an old library's hd/ldj spec) is its plain kind's effect, so it gets that kind's tags. */
+/** A compat.* spec is its plain kind's effect, so it gets that kind's tags. */
 function plain<S extends Pick<EffectSpec, 'kind'>>(spec: S): S {
   return spec.kind.startsWith('compat.') ? { ...spec, kind: legacyKind(spec.kind) } : spec;
 }
