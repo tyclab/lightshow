@@ -15,7 +15,6 @@ import { paletteBodySchema } from '../shared/palette-model.ts';
 import { toHex } from '../shared/effects/palette.ts';
 import { HttpError, messageOf, statusOf } from '../errors.ts';
 import { JsonStore } from './json-store.ts';
-import { retireCues, retiredBeside } from './retired-looks.ts';
 import type { OverrideInput } from './validation.ts';
 import type { SettingsPatch } from './settings.ts';
 import { configFile } from './config-dir.ts';
@@ -160,7 +159,7 @@ class CueStore extends JsonStore {
   }
 
   load(): this {
-    const saved = this.readMigrated(fileSchema, (doc) => retireCues(doc, retiredBeside(this.file)));
+    const saved = this.readValid(fileSchema);
     if (saved) this._cues = saved.cues;
     return this;
   }

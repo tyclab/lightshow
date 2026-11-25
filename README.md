@@ -742,13 +742,7 @@ old preset ids intentionally map to modern 2D looks. The alias frame-diff script
 those of classic ids moved onto v2 presets, without rewriting the golden fixtures. The colour strip offers the stage palettes, TycStation and a hue-pair
 generator; every historical palette id still resolves.
 Visualizer Flow and Visualizer Drift left with the Colour + motion picture source
-(2026-11-15). Saved data naming them or their kind is migrated as its file loads, one
-warning in the log each: a saved look playing the kind leaves the library, a clip its
-sequence or pattern (and a clip group left with one clip dissolves), a pad is emptied, a
-MIDI binding that selects one is unbound, and a cue or the look kept for a restart plays
-the default look with its other fields kept. A saved look that leaves takes its
-references along the same way. A whole clip or saved look goes, never a step of its
-macro. A settings file that chose `inspired` loads as `effects`.
+(2026-11-15). A settings file that chose `inspired` loads as `effects`.
 
 Every generator shares one trigger: the timeline, a beat accent (a pulse per interval,
 as strong as its band with live audio) or a volume gate (the band above its threshold).
