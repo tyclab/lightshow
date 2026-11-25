@@ -19,7 +19,7 @@ const built = await esbuild.build({
   plugins: [{ name: 'stub-renderer', setup(build) {
     build.onResolve({ filter: /^three$/ }, () => ({ path: 'three', namespace: 'stub' }));
     build.onResolve({ filter: /^scene-counts$/ }, () => ({ path: 'counts', namespace: 'stub' }));
-    build.onLoad({ filter: /^counts$/, namespace: 'stub' }, () => ({ contents: 'export const built = { instanced: 0, groups: 0, lights: [], fill: [], meshes: [], renderers: [] };' }));
+    build.onLoad({ filter: /^counts$/, namespace: 'stub' }, () => ({ contents: 'export const built = { instanced: 0, groups: 0, lights: [], fill: [], meshes: [], renderers: [], room: {} };' }));
     // Real three.js, but no WebGL: InstancedMesh is built per rig, a Group per rig and per room.
     build.onLoad({ filter: /^three$/, namespace: 'stub' }, () => ({ resolveDir: root, contents: `
       import * as THREE from ${three};
@@ -32,7 +32,11 @@ const built = await esbuild.build({
         render(scene) {
           built.lights = [];
           built.fill = [];
-          scene.traverseVisible((object) => { if (object.isLight) { built.lights.push(object.type); built.fill.push(object); } });
+          built.room = {};
+          scene.traverseVisible((object) => {
+            if (object.isLight) { built.lights.push(object.type); built.fill.push(object); }
+            if (object.userData.roomObject) built.room[object.userData.roomObject] = object;
+          });
         }
       }
       export class InstancedMesh extends THREE.InstancedMesh { constructor(...args) { super(...args); built.instanced++; built.meshes.push(this); } }
@@ -89,6 +93,22 @@ test('a room the scene shows already is not built again; another room is', () =>
   stage.setRoom(null);
   stage.setRoom(first);
   assert.equal(groups() - start, 3, 'after the generic venue, the room is built again');
+});
+
+test('the picture plays on a room\'s screens, except one that says it does not: that one stays a dark screen', () => {
+  const stage = scene();
+  const tv = (id, more) => ({ id, kind: 'box', role: 'screen', color: '#0b0c0e', position: { x: 0, y: 1, z: 0 }, size: { x: 1, y: 0.6, z: 0.001 }, ...more });
+  stage.setRoom({ ...room('Two screens'), objects: [tv('plays'), tv('own', { picture: false })] });
+  const shown = () => { stage.render(); return Object.fromEntries(['plays', 'own'].map((id) => [id, ui.built.room[id].material])); };
+  const dark = shown();
+  assert.deepEqual([dark.plays.type, dark.own.type], ['MeshBasicMaterial', 'MeshBasicMaterial'], 'both are screens: unlit');
+  stage.setPicture({ width: 2, height: 1, data: new Uint8Array([255, 0, 0, 0, 0, 255]) });
+  const painted = shown();
+  assert.ok(painted.plays.map, 'the picture');
+  assert.equal(painted.own.map, null);
+  assert.equal(painted.own.color.getHexString(), dark.own.color.getHexString());
+  stage.setPicture(null);
+  assert.equal(shown().plays.map, null);
 });
 
 test('a room is shaded by its fill alone, whatever its lamps show; the generic venue has no light', () => {

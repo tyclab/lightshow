@@ -212,6 +212,16 @@ test('room API protects private geometry, supports caching and prevents stale re
   assert.deepEqual(store.snapshot(), { room: null, revision: 'empty' });
 });
 
+test('a screen says whether the picture plays on it; nothing else does', (t) => {
+  const tv = (id, more) => ({ id, kind: 'box', role: 'screen', position: { x: 0, y: 1, z: 0 }, size: { x: 1, y: 0.6, z: 0.001 }, ...more });
+  const model = { ...room(), objects: [tv('plays'), tv('own', { picture: false })] };
+  const store = storeFor(t); store.replace(model);
+  const loaded = new RoomSceneStore(store.file).load().snapshot().room;
+  assert.deepEqual(loaded.objects.map((object) => [object.role, object.picture]), [['screen', undefined], ['screen', false]]);
+  const wall = { ...room().objects[0], picture: false };
+  assert.equal(roomSceneSchema.safeParse({ ...room(), objects: [wall] }).success, false);
+});
+
 const meshObject = () => ({ id: 'sculpture', kind: 'mesh', role: 'furniture', position: { x: 0, y: 1, z: 0 }, size: { x: 0.2, y: 0.3, z: 0.4 }, color: '#aabbdd',
   mesh: { vertices: [[-0.5, -0.5, -0.5], [0.5, -0.5, -0.5], [0, 0.5, 0.5]], triangles: [[0, 1, 2]] } });
 
