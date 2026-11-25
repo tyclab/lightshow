@@ -505,7 +505,8 @@ export function createStageScene(canvas, { haze = 0.6, room, lightRGB }) {
           roomLightMaterials.set(object.id, { material, baseColor: material.color.clone(), tint: new THREE.Color(object.lightTint || '#ffffff'), glow });
         }
         if (object.role === 'wall') roomWalls.push({ mesh, model: object });
-        if (object.role === 'screen') screens.push({ material: mesh.material, color: object.color || OBJECT_COLOUR });
+        // A screen the picture does not play on keeps its own colour: it is no less a screen.
+        if (object.role === 'screen' && object.picture !== false) screens.push({ material: mesh.material, color: object.color || OBJECT_COLOUR });
         roomGroup.add(mesh);
       }
       scene.add(roomGroup);

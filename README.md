@@ -1308,6 +1308,8 @@ to the pages subscribed to the picture topic (`picture-image`, the newest up to
 24 times a second, null once the sender is gone), and the 3D Stage, the one
 subscriber, paints it on the room's screens: the objects a room
 export marks `role: screen` (the TV and the monitors in a house-model export).
+A screen with `picture: false` stays dark: it is in the room, and the picture does
+not play on it.
 
 ### Squid picture
 

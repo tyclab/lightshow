@@ -63,7 +63,11 @@ revision and measurement confidence can be retained in the model.
 }
 ```
 
-Objects are `box`, `cylinder`, `prism` or `mesh`, with role `wall` or `furniture`.
+Objects are `box`, `cylinder`, `prism` or `mesh`, with role `wall`, `furniture` or `screen`.
+A `screen` is drawn unlit and shows the picture while a sender paints it; a screen with
+`picture: false` stays a dark screen (a TV in the model the show does not play on).
+Builds from before `picture` refuse a room that holds it and show the generic stage:
+take the key out before rolling back.
 Position is the object's centre; size is its local width, height and depth.
 Every wall, hidden or not, and opaque furniture (opacity 0.9 or more, not bound to a
 light) stop a directional beam and take its pool: a box by its sides, a prism or

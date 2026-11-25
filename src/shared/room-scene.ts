@@ -95,8 +95,9 @@ export const roomSceneSchema = z.object({
     id,
     label: name.optional(),
     kind: z.enum(['box', 'cylinder', 'prism', 'mesh']),
-    // A screen shows the live room picture while a sender paints.
+    // A screen shows the live room picture while a sender paints, unless its `picture` is false.
     role: z.enum(['wall', 'furniture', 'screen']),
+    picture: z.boolean().optional(),
     position: vector,
     size,
     rotation: rotation.optional(),
@@ -175,6 +176,9 @@ export const roomSceneSchema = z.object({
     }
     if (object.lightBindingId && (object.role !== 'furniture' || !bindingIds.has(object.lightBindingId))) {
       ctx.addIssue({ code: 'custom', path: ['objects', index, 'lightBindingId'], message: 'Only furniture objects may reference an existing light binding' });
+    }
+    if (object.picture !== undefined && object.role !== 'screen') {
+      ctx.addIssue({ code: 'custom', path: ['objects', index, 'picture'], message: 'Only a screen shows the picture or not' });
     }
     if (object.kind === 'mesh' && object.role === 'screen') {
       ctx.addIssue({ code: 'custom', path: ['objects', index, 'role'], message: 'Triangle meshes do not support screen texture coordinates' });
