@@ -283,11 +283,13 @@ toward −z (the top of the Rig plot) and 90 toward +x:
 Both stay inside the room bounds; a room holds up to 32 anchors and 8 listeners, and their
 IDs must be unique across the whole room. A room without them is unchanged.
 
-Models accept up to 128 room polygons, 1,500 objects and 4,096 bindings, with up
-to 128 vertices per polygon and 8,192 total source references. A request carries at most
+Models accept up to 128 room polygons and 4,096 bindings, with up to 128 vertices per
+polygon and 8,192 total source references. Stage builds one mesh per object and nothing is
+sized by their count, so only the request limit bounds how many objects a room holds. A request carries at most
 12 MiB of JSON: the server parses, validates and stores an import on its main thread, about
-0.1 s per MB, and 12 MiB is three times the largest real room (a whole flat with detailed
-furniture, 4.2 MB). External asset URLs, scripts and unrecognised fields are rejected. Keep the original floor-plan
+0.1 s per MB whether it holds mesh geometry or plain objects (12 MiB of the smallest objects,
+about 121,000, block it for 0.7 s), and 12 MiB is close to three times the largest real room
+(a whole flat with detailed furniture and 1,517 objects, 4.6 MB). External asset URLs, scripts and unrecognised fields are rejected. Keep the original floor-plan
 source and measurements separately; this is a rendering format, not an archive
 of the floor-plan source.
 

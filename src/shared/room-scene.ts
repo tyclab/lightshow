@@ -91,6 +91,7 @@ export const roomSceneSchema = z.object({
   // `floorPattern` shows its boards or tiles, with `color` their mean.
   rooms: z.array(z.object({ id, label: name, polygon, color: color.optional(), ceiling: color.optional(), floorPattern: floorPattern.optional() })
     .strict()).max(128).default([]),
+  // Nothing is sized by the object count (Stage builds one mesh per object), so only the request limit bounds how many.
   objects: z.array(z.object({
     id,
     label: name.optional(),
@@ -109,7 +110,7 @@ export const roomSceneSchema = z.object({
     lightTint: color.optional(),
     // A glow-in-the-dark shell's own light, shown whatever its light does; it lights nothing else.
     lightAfterglow: color.optional(),
-  }).strict()).max(1500).default([]),
+  }).strict()).default([]),
   bindings: z.array(binding).max(4096).default([]),
   // Optional and without defaults, so a room saved before they existed parses to the same value.
   anchors: z.array(z.object({ id, label: name.optional(), position: vector }).strict()).max(32).optional(),
