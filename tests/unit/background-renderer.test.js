@@ -3,7 +3,6 @@ import assert from 'node:assert/strict';
 import { createRenderer, withInputDefaults } from '../../src/server/renderer.ts';
 import { createUniverseStore } from '../../src/server/universes.ts';
 import { validateSpec } from '../../src/shared/effects/registry.ts';
-import { migrateEffectSpec } from '../../src/shared/effects/migrate.ts';
 import { HD_DEFAULTS } from '../../src/shared/effects/hd.ts';
 import { bundleSpec } from '../../src/shared/effects/bundle.ts';
 import { DEFAULT_BACKGROUND, composeBackground } from '../../src/shared/background.ts';
@@ -93,19 +92,19 @@ test('bitmap raster distinguishes authored colour beds from its black background
   }
 });
 
-test('migration captures authored gain once; foreground brightness edits leave it unchanged', () => {
-  const migrated = migrateEffectSpec({ kind: 'v2.neural', params: { background: .4 }, brightness: .3 }, 2);
-  assert.deepEqual(migrated.background, { version: 1, level: .3 });
-  const changed = validateSpec({ ...migrated, brightness: 0 });
-  assert.deepEqual(changed.background, migrated.background);
-  const legacy = engine({ effect: migrated }), edited = engine({ effect: changed });
-  assert.deepEqual(edited.draw(0), legacy.draw(0));
+test('validation captures authored gain once; foreground brightness edits leave it unchanged', () => {
+  const authored = validateSpec({ kind: 'v2.neural', params: { background: .4 }, brightness: .3 });
+  assert.deepEqual(authored.background, { version: 1, level: .3 });
+  const changed = validateSpec({ ...authored, brightness: 0 });
+  assert.deepEqual(changed.background, authored.background);
+  const before = engine({ effect: authored }), edited = engine({ effect: changed });
+  assert.deepEqual(edited.draw(0), before.draw(0));
   assert.ok(lit(edited.draw(500)));
 });
 
 test('nested macro conversion retains child gains and Off reaches the child field', () => {
   const raw = { kind: 'macro', params: { steps: [{ beats: 4, effect: { kind: 'v2.neural', brightness: .2, params: { background: .5 } } }] } };
-  const spec = migrateEffectSpec(raw, 2);
+  const spec = validateSpec(raw);
   assert.equal(spec.params.steps[0].effect.background.level, .2);
   assert.ok(lit(engine({ effect: spec }).draw(0)));
   assert.ok(dark(engine({ effect: spec, background: off }).draw(0)));

@@ -735,8 +735,8 @@ flowchart LR
 ```
 
 Retired catalogue rows stay resolvable but are hidden from new-show pickers.
-The version-2 saved-effect library keeps authored legacy parameters through
-compatibility adapters; those engines remain for exact legacy playback. Selected
+Saved effects keep authored legacy parameters on the legacy engines, which remain
+for exact legacy playback. Selected
 old preset ids intentionally map to modern 2D looks. The alias frame-diff script
 (`node scripts/effects-v2-alias-diff.js [id=preset …]`) records those changes, and
 those of classic ids moved onto v2 presets, without rewriting the golden fixtures. The colour strip offers the stage palettes, TycStation and a hue-pair

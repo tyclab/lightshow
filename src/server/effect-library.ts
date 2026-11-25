@@ -4,7 +4,7 @@ import { z } from 'zod';
 
 // The entry point registers every kind, so a stored spec validates against it.
 import { CATALOGUE, deepFreeze, presetById } from '../shared/effects/index.ts';
-import { EFFECT_LIBRARY_VERSION, migrateEffectSpec } from '../shared/effects/migrate.ts';
+import { EFFECT_LIBRARY_VERSION } from '../shared/effects/migrate.ts';
 import { requiresAcknowledgement, validateSpec } from '../shared/effects/registry.ts';
 import { canonical } from '../shared/effects/layer.ts';
 import { specTags, tagFields } from '../shared/effects/tags.ts';
@@ -119,7 +119,7 @@ export class EffectLibrary extends JsonStore {
     const saved = this.readValid(fileSchema);
     if (saved) {
       this._savedVersion = saved.version;
-      this._install(saved.presets.map((preset) => ({ ...preset, spec: migrateEffectSpec(preset.spec, saved.version) })));
+      this._install(saved.presets);
     }
     return this;
   }
