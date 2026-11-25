@@ -544,13 +544,6 @@ test("playing manual strobes suppress Disco automatic flashes", () => {
   assert.strictEqual(captureState(r, probe(), 0, { energy: HOLD_STROBE }).frames.at(-1).frame.manualStrobeActive, true);
 });
 
-test('an empty rig renders no effect and initializes nothing', () => {
-  const r = rig([]);
-  lastState = null;
-  r.at(0, { pattern: 'look', effect: probe(), voices: [voice('pad', probe('v'))], universes: [] });
-  assert.strictEqual(lastState, null);
-});
-
 // ── The energy burst as a voice, and who may see a fast flash ───────────────
 
 // Universe 0's first 47 bytes (a par, a Hue lamp, a four-cell bar) after

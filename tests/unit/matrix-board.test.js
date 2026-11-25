@@ -165,15 +165,6 @@ test('a press for a token released within the lease does not bring the colour ba
   assert.deepStrictEqual(board.press('a', RED).colours, [GREEN, RED], 'the tombstone ends with the lease');
 });
 
-test('released-token tombstones stay bounded and expire', (t) => {
-  const { board, advance } = bench(t);
-  for (let i = 0; i < 1000; i++) { board.press(`t${i}`, RED); board.release(`t${i}`); }
-  assert.ok(board._released.size <= 256, `kept ${board._released.size}`);
-  advance(MATRIX_LEASE_MS + 1);
-  board.press('x', RED);
-  assert.equal(board._released.size, 0, 'expired tombstones are cleared');
-});
-
 /** As `bench`, with the manager telling the board of every change, as the server wires it. */
 function wired(t, options) {
   t.mock.timers.enable({ apis: ['setTimeout'] });

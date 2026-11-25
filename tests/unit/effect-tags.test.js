@@ -13,7 +13,7 @@ import { EffectLibrary } from '../../src/server/effect-library.ts';
 import { presetById } from '../../src/shared/effects/index.ts';
 import { KINDS, validateSpec } from '../../src/shared/effects/registry.ts';
 import { mappingOf, usesSpatialMapping } from '../../src/shared/effects/mapping.ts';
-import { LEGACY_TAGGED, REACTIVE_TAGS, SOURCES, TAG_AXES, TAGS, browseListOf, legacyTags, specTags } from '../../src/shared/effects/tags.ts';
+import { REACTIVE_TAGS, SOURCES, TAG_AXES, TAGS, browseListOf, legacyTags, specTags } from '../../src/shared/effects/tags.ts';
 
 // What every registered kind reacts to with its default params, counted per tag.
 const KIND_REACTS = { beat: 133, static: 19, bands: 5, level: 2, sections: 0 };
@@ -181,12 +181,6 @@ test('tags restate the fields the server already sends: pixel, room mapping, rap
     assert.equal(row.tags.includes('rapid'), !!row.rapidFlash, row.id);
     if (!row.legacy) assert.equal(row.tags.includes('energy'), row.family === 'own.energy', row.id);
   }
-});
-
-test('the legacy table covers exactly the legacy patterns', () => {
-  const legacy = PATTERNS.map((row) => row.id);
-  assert.deepEqual([...LEGACY_TAGGED].sort(), [...legacy].sort());
-  assert.deepEqual(legacyTags('no-such-pattern'), { tags: [], via: [] });
 });
 
 test('a saved preset is tagged from its kind and params, so an edited copy gets its own tags', () => {

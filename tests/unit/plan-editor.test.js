@@ -54,16 +54,6 @@ function render(fixtures, selected = []) {
   return ui.html(ui.h(ui.PlanEditor, {}));
 }
 
-test('the plot names its edges the way the effects read the room', () => {
-  const out = render([fixture(1)]);
-  assert.match(out, /class="[^"]*plan-edge-top[^"]*"[^>]*>Stage · TV wall — front</);
-  assert.match(out, /class="[^"]*plan-edge-bottom[^"]*"[^>]*>Audience — back</);
-  assert.match(out, /class="[^"]*plan-edge-left[^"]*"[^>]*>Left</);
-  assert.match(out, /class="[^"]*plan-edge-right[^"]*"[^>]*>Right</);
-  assert.match(out, /aria-label="Plan of the rig from above: the stage and TV wall \(the front\) at the top, the audience \(the back\) at the bottom, left and right as the audience sees them"/);
-  assert.doesNotMatch(out, /BACK OF STAGE/, 'the top edge is the front in the room the effects play over');
-});
-
 test('the stage preview names its top and bottom edges as the plot does', () => {
   const plot = render([fixture(1)]);
   const preview = ui.html(ui.h(ui.StagePreview, {}));

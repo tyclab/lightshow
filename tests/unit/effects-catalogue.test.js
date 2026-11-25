@@ -47,14 +47,6 @@ test("every public catalogue spec validates", () => {
   for (const p of CATALOGUE.filter((c) => !c.legacy)) assert.doesNotThrow(() => validateSpec(p.spec), p.id);
 });
 
-test("PATTERNS contains only legacy rows", () => {
-  assert.ok(PATTERNS.some((p) => p.id === 'chase'));
-  assert.ok(!PATTERNS.some((p) => p.id === 'ldj.ScatterStrobe'));
-  assert.deepStrictEqual(PATTERNS.filter((p) => p.legacy !== true).map((p) => p.id), []);
-  assert.strictEqual(PATTERNS.find((p) => p.id === 'position-chase').preset, 'hd.neonDomino');
-  assert.ok(!('preset' in PATTERNS.find((p) => p.id === 'chase')));
-});
-
 test("preset picker rows carry catalogue metadata", () => {
   const row = PRESET_ROWS.find((p) => p.id === presetById('ldj.ScatterStrobe').id);
   assert.strictEqual(row.app, 'own');

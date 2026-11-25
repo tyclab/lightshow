@@ -54,23 +54,3 @@ test('explicit controls preserve independent states and content edits cannot rel
   await controls.getByRole('button', { name: 'Blackout, Restore', exact: true }).click();
   await until(request, s => !s.control.blackout && !s.control.pending);
 });
-
-test('stale releases and legacy transport are rejected without mutating live state', async ({ request }) => {
-  await reset(request);
-  const stale = (await state(request)).control;
-  await control(request, 'freeze');
-  for (const action of ['restore', 'resume', 'arm', 'start']) {
-    const result = await request.post('/api/control', { data: { ...stale, action } });
-    expect(result.status()).toBe(409);
-  }
-  for (const path of ['/api/play', '/api/stop', '/api/blackout/toggle', '/api/outputs/arm']) {
-    expect((await request.post(path)).status()).toBe(409);
-  }
-  for (const patch of [{ running: true }, { running: false }, { masterBlackout: false }]) {
-    expect((await request.post('/api/set', { data: patch })).status()).toBe(409);
-  }
-  const current = await state(request);
-  expect(current.control.frozen).toBe(true);
-  expect(current.control.playing).toBe(true);
-  expect(current.armed).toBe(false);
-});

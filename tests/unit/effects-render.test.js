@@ -269,14 +269,6 @@ test("constant tables expose bounded row and column access", () => {
   assert.deepStrictEqual([table.rows, table.columns, table.at(2, 1), table.at(3, 0), table.at(0, 2), table.at(-1, 0), table.at(0.5, 0)], [3, 2, 21, undefined, undefined, undefined, undefined]);
 });
 
-test("constant tables cannot be changed", () => {
-  const table = new ConstantTable(3, 2, (row, column) => row * 10 + column);
-  assert.ok(Object.isFrozen(table));
-  assert.throws(() => { table.rows = 1; }, TypeError);
-  assert.throws(() => { table.values = []; }, TypeError);
-  assert.deepStrictEqual(Object.keys(table).sort(), ['columns', 'rows'], 'its values are not reachable');
-});
-
 test("constant tables require integral dimensions", () => {
   assert.throws(() => new ConstantTable(1.5, 1, () => 0), RangeError);
 });

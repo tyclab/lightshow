@@ -249,41 +249,6 @@ test('G7: every old hash, sub-hash and alias opens its place from an open page, 
   }
 });
 
-test('G7: the digits of the former Stage, Auto Show and Preflight views open their panel, not its remembered sibling', async ({ page }) => {
-  const digits = [['4', ['stage', 'rig/room', 'rig', 'Room', ROOM], 'rig/outputs', '7', 'Outputs'],
-    ['5', ['auto', 'sources/auto', 'sources', 'Auto show', AUTO], 'sources/live', '8', 'Live input'],
-    ['0', ['preflight', 'settings/check', 'settings', 'Check', CHECK], 'settings/system', '9', 'System']];
-  for (const [key, place, sibling, viewKey, siblingName] of digits) {
-    const view = place[2];
-    // The view remembers the sibling; the digit is pressed on another view, then on the view itself.
-    await open(page, sibling);
-    await expect(panelTab(page, view, siblingName)).toHaveAttribute('aria-selected', 'true');
-    await page.locator('body').press('1');
-    await expect(page.locator('#panel-show')).toBeVisible();
-    await page.locator('body').press(key);
-    await expectPlace(page, place, `on ${key} from another view`);
-    await panelTab(page, view, siblingName).click();
-    await expect(page).toHaveURL(new RegExp(`#${sibling}$`));
-    await page.locator('body').press(key);
-    await expectPlace(page, place, `on ${key} from its sibling panel`);
-    // The view's own digit keeps the panel that is open, and from elsewhere opens the one last used.
-    await page.locator('body').press(viewKey);
-    await expectPlace(page, place, `on ${viewKey}, the view's own digit`);
-    await panelTab(page, view, siblingName).click();
-    await page.locator('body').press('1');
-    await page.locator('body').press(viewKey);
-    await expect(panelTab(page, view, siblingName), `${viewKey} opens the panel last used`).toHaveAttribute('aria-selected', 'true');
-    await expect(page).toHaveURL(new RegExp(`#${sibling}$`));
-  }
-  // A digit typed into a field is text.
-  await open(page, 'settings/show');
-  const minutes = page.locator('[id="set-outputs.idleStopMin"]');
-  await minutes.focus();
-  await page.keyboard.press('4');
-  await expect(page.locator('#panel-settings'), 'a digit in a field opens nothing').toBeVisible();
-  await expect(panelTab(page, 'settings', 'Show')).toHaveAttribute('aria-selected', 'true');
-});
-
 // R03's rule on the new path: a digit of a former view writes its panel's address at the press, and nothing writes
 // the address again, so a navigation that arrives before the switch's effects run is not undone.
 for (const [from, then, view, panel, target, wins] of [

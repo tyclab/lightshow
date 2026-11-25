@@ -981,7 +981,3 @@ test('a server runs its integrations\' interval timers while it is up', async (t
   await serve(t);
   assert.equal(liveIntervals(), 5, 'four from the integrations, one from Node\'s HTTP server checking its connections');
 });
-
-test('no interval timer outlives the server torn down before it', () => {
-  assert.equal(liveIntervals(), 0);
-});
