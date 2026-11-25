@@ -95,7 +95,6 @@ midi.setFixtureMax = setFixtureMaxBrightness;
 
 midi.setMap(midiMap.get());
 midiMap.onChange((map) => midi.setMap(map));
-midi.onRebind = (_from, to, binding) => midiMap.setBinding('cc', to, binding);
 midi.recallCue = (id) => {
   if (!cues.recall(id)) console.warn(`[MIDI] recallCue: no cue ${id} — it may have been deleted`);
 };

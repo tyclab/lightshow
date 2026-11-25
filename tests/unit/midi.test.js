@@ -742,45 +742,6 @@ test('fader touch sensors no longer drive level changes', () => {
   assert.ok(said.join('\n'));
 });
 
-test('legacy touch-sensor bindings migrate to their faders', () => {
-  const h = harness({ cc: { 101: { action: 'setMasterDimmer', type: 'absolute' } }, notes: {} });
-  const moved = [];
-  h.midi.onRebind = (from, to, binding) => moved.push([from, to, binding.action]);
-  const warn = console.warn;
-  console.warn = () => {};
-  try {
-    h.input.emit('cc', { controller: 101, value: 127, channel: 0 });   // touch
-    h.input.emit('cc', { controller: 1, value: 90, channel: 0 });      // the fader moves at once
-    h.input.emit('cc', { controller: 1, value: 64, channel: 0 });
-    h.input.emit('cc', { controller: 101, value: 0, channel: 0 });     // release
-  } finally {
-    console.warn = warn;
-  }
-  assert.deepStrictEqual(moved, [[101, 1, 'setMasterDimmer']]);
-  assert.strictEqual(h.midi.map.cc[1].action, 'setMasterDimmer');
-  assert.strictEqual(h.midi.map.cc[101], undefined);
-  assert.strictEqual(h.state.masterDimmer, Math.round((64 / 127) * 255), 'the fader drives the level from its second message on');
-});
-
-test('a fader that is already bound elsewhere is not taken over', () => {
-  const h = harness({ cc: {
-    101: { action: 'setMasterDimmer', type: 'absolute' },
-    1: { action: 'setStrobeSpeed', type: 'absolute' },
-  }, notes: {} });
-  const moved = [];
-  h.midi.onRebind = (...args) => moved.push(args);
-  const warn = console.warn;
-  console.warn = () => {};
-  try {
-    h.input.emit('cc', { controller: 101, value: 127, channel: 0 });
-    h.input.emit('cc', { controller: 1, value: 90, channel: 0 });
-  } finally {
-    console.warn = warn;
-  }
-  assert.deepStrictEqual(moved, []);
-  assert.strictEqual(h.midi.map.cc[101].action, 'setMasterDimmer');
-});
-
 test('touched faders suppress motor feedback until released', () => {
   const h = harness({ cc: { 9: { action: 'setBpm', type: 'absolute' } }, notes: {} });
   // Pair the sensor with its fader: touch, then movement right after.
