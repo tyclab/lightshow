@@ -1,13 +1,13 @@
 import { state, allocateFixtureId, countUniverses, placeAddresslessFixtures } from './state.ts';
 import { resizeFixtureBuffers } from './engine.ts';
-import { getProfile, registerProfile, unitCapOverflow } from './profiles.ts';
+import { getProfile, registerProfile } from './profiles.ts';
 import { MAX_UNIVERSES } from './universes.ts';
 import { ddpConflict } from './ddp-routes.ts';
 import { showStore } from './show-store.ts';
 import type { Fixture, Profile } from '../types/rig.ts';
 
 /**
- * New fixtures and the profiles they bring, patched after the checks every add runs: the cell cap,
+ * New fixtures and the profiles they bring, patched after the checks every add runs:
  * two outputs on the same LEDs or device, and the universes this server renders (`tooManyUniverses`
  * names what would pass them). The problem, or the fixtures as patched, each with its new id.
  */
@@ -17,7 +17,7 @@ export function addFixtures(draft: readonly Fixture[], profiles: readonly Profil
   const profileOf = (f: Pick<Fixture, 'profileId'>) => byId.get(f.profileId) || getProfile(f);
   const next = [...state.fixtures.map((f) => ({ ...f })), ...draft.map((f) => ({ ...f }))];
   placeAddresslessFixtures(next, profileOf);
-  const problem = unitCapOverflow(next, profileOf) || ddpConflict(next, profileOf)
+  const problem = ddpConflict(next, profileOf)
     || (countUniverses(next, profileOf) > MAX_UNIVERSES ? tooManyUniverses : null);
   if (problem) return { error: problem };
   for (const profile of byId.values()) {

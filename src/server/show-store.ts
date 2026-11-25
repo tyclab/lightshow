@@ -1,6 +1,6 @@
 import { state, universeOf, maxBrightnessOf, placeAddresslessFixtures } from './state.ts';
 import { resizeFixtureBuffers } from './engine.ts';
-import { BUILTIN_PROFILE_ID, BUILTIN_PROFILE_IDS, isBuiltinProfile, MAX_FIXTURES, universeOverflow, unitCapOverflow, registerProfile, clearNonBuiltinProfiles, listProfiles } from './profiles.ts';
+import { BUILTIN_PROFILE_ID, BUILTIN_PROFILE_IDS, isBuiltinProfile, MAX_FIXTURES, universeOverflow, registerProfile, clearNonBuiltinProfiles, listProfiles } from './profiles.ts';
 import { MAX_UNIVERSES } from './universes.ts';
 import { INTERNAL_UNIVERSE, hasNoAddress, isHueLamp, universesOf } from '../shared/placement.ts';
 import { isHueProfile, hueSections, hueChannels } from '../shared/hue-lamp.ts';
@@ -159,8 +159,6 @@ function prepareShow(rawShow: unknown): PreparedRig {
         : universeOverflow(fix.label, fix.address, incoming[fix.profileId], fix.universe);
       if (overflow) throw badShow(overflow);
     }
-    const tooMany = unitCapOverflow(next, (fix) => incoming[fix.profileId]);
-    if (tooMany) throw badShow(tooMany);
     const wled = ddpConflict(next, (fix) => incoming[fix.profileId] as Profile);
     if (wled) throw badShow(wled);
     const spanned = new Set([showUniverse, ...next.flatMap((f) => universesOf(f.universe as number, incoming[f.profileId]))]);

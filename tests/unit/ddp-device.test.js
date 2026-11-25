@@ -155,10 +155,14 @@ test('a request that is not a device the patch can take is refused', async () =>
     ]) assert.equal((await call('POST', '/api/ddp/add', body)).status, 400, JSON.stringify(body));
 
     assert.equal((await call('POST', '/api/ddp/add', MATRIX)).status, 200);
-    const wall = await call('POST', '/api/ddp/add', { host: 'wall.local', columns: 64, rows: 64 });
+    // A 64 x 64 wall is 25 universes: two fit beside the matrix, the third passes the 64 this server transmits.
+    for (const host of ['wall-1.local', 'wall-2.local']) {
+      assert.equal((await call('POST', '/api/ddp/add', { host, columns: 64, rows: 64 })).status, 200, host);
+    }
+    const wall = await call('POST', '/api/ddp/add', { host: 'wall-3.local', columns: 64, rows: 64 });
     assert.equal(wall.status, 400);
-    assert.match(wall.body.error, /4353 lights \(cells\), more than the 4096 the engine renders/);
-    assert.equal(state.fixtures.length, 2, 'and nothing of it was patched');
+    assert.match(wall.body.error, /more than the 64 universes/);
+    assert.equal(state.fixtures.length, 4, 'and nothing of it was patched');
   });
 
   const full = Array.from({ length: 64 }, (_, i) => par(i, 1 + (i % 40) * 12, Math.floor(i / 40)));
@@ -166,6 +170,21 @@ test('a request that is not a device the patch can take is refused', async () =>
     const res = await call('POST', '/api/ddp/add', MATRIX);
     assert.deepEqual([res.status, res.body.error], [400, 'Patch is full (64 fixtures)']);
   }, full);
+});
+
+test('a patched profile may not grow the patch past the universes this server transmits', async () => {
+  const strip = (cells) => ({ id: 'acme-strip', name: 'Acme strip', channelCount: cells * 3, channelMap: {},
+    cells: Array.from({ length: cells }, (_, c) => ({ channelMap: { red: 3 * c, green: 3 * c + 1, blue: 3 * c + 2 } })) });
+  assert.ok(registerProfile(strip(170)));
+  // Forty strips, each with the universe after it free: 170 pixels use forty universes, 340 would use eighty.
+  const strips = Array.from({ length: 40 }, (_, i) => ({ ...par(i, 1, i * 2), profileId: 'acme-strip' }));
+  await withApp(async ({ call }) => {
+    const grown = await call('POST', '/api/profiles', strip(340));
+    assert.equal(grown.status, 400);
+    assert.match(grown.body.error, /more than the 64 universes/);
+    assert.equal(listProfiles()['acme-strip'].cells.length, 170, 'and the profile is as it was');
+    assert.equal((await call('POST', '/api/profiles', strip(169))).status, 200, 'a change that fits is taken');
+  }, strips);
 });
 
 test('removing it offers an undo that brings it back as it was', async () => {

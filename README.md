@@ -1025,7 +1025,9 @@ row from the top left (a grid when both sizes are above 1, a strip otherwise),
 and DDP sends the pixels in that order from offset 0 to port 4048. A panel wired
 in a serpentine or from another corner remaps on the device. Like a WLED it has
 no DMX address, takes internal rendering space and counts against the 64
-fixtures, the 4096 cells the engine renders and the 64 universes.
+fixtures and the 64 universes. No count limits the pixels of a patch: every
+cell is rendered every frame, and Setup shows what that costs as the engine's
+render time and the frames that came late in the last minute.
 
 Its output is `{ protocol: 'ddp', host, device: 'generic' }`; a DDP output with
 no `device` is a WLED, so shows saved before keep their meaning. The server

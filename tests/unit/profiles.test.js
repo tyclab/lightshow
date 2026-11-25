@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert';
 import { BUILTIN_PROFILE_ID, BUILTIN_PROFILE_IDS, HUE_COLOR_PROFILE_ID, HUE_WHITE_AMBIANCE_PROFILE_ID, HUE_WHITE_PROFILE_ID, isBuiltinProfile, getProfile, registerProfile, unregisterProfile, listProfiles, clearNonBuiltinProfiles } from '../../src/server/profiles.ts';
-import { profilesRevision, unitCapOverflow, MAX_UNITS } from '../../src/server/profiles.ts';
+import { profilesRevision } from '../../src/server/profiles.ts';
 import { cellsOf, unitCount } from '../../src/shared/rig.ts';
 
 test('built-in profile is always resolvable', () => {
@@ -133,15 +133,9 @@ test('anything that caches the rig can tell when a profile under it changed', ()
   assert.strictEqual(profilesRevision(), removed + 1, 'a refused registration changes nothing');
 });
 
-// Each cell is rendered every frame; sixty-four copies of one outsized
-// profile must not be able to ask for eleven thousand of them.
-test('a patch may not have more cells than the engine renders', () => {
+test('a profile counts one light per cell, and one without cells', () => {
   const big = { cells: Array.from({ length: 170 }, (_, i) => ({ channelMap: { red: i } })) };
   assert.strictEqual(unitCount(big), 170);
   assert.strictEqual(unitCount({ cells: [{ channelMap: { red: 0 } }] }), 1, 'one cell is a single light');
   assert.strictEqual(cellsOf({}), null);
-  const fixtures = (n) => Array.from({ length: n }, () => ({ profileId: 'big' }));
-  const profileOf = () => big;
-  assert.strictEqual(unitCapOverflow(fixtures(24), profileOf), null, `${24 * 170} fits in ${MAX_UNITS}`);
-  assert.ok(unitCapOverflow(fixtures(25), profileOf));
 });

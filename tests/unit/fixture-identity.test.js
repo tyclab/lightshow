@@ -95,17 +95,22 @@ test('a bar\'s line on the stage survives a save and reload', () => {
   });
 });
 
-test('a show with more cells than the engine renders is refused whole', () => {
-  const huge = {
-    id: 'acme-strip-170', name: 'Strip', channelCount: 510, channelMap: {},
-    cells: Array.from({ length: 170 }, (_, i) => ({ channelMap: { red: i * 3, green: i * 3 + 1, blue: i * 3 + 2 } })),
-  };
+test('a show on more universes than the server transmits is refused whole', () => {
+  const strip = (cells) => ({
+    id: `acme-strip-${cells}`, name: 'Strip', channelCount: cells * 3, channelMap: {},
+    cells: Array.from({ length: cells }, (_, i) => ({ channelMap: { red: i * 3, green: i * 3 + 1, blue: i * 3 + 2 } })),
+  });
   withFixtures([
     { id: 1, label: 'Par', address: 1, universe: 0, profileId: 'cameo-root-par-6-12ch', maxBrightness: 255, override: null },
   ], () => {
-    const fixtures = Array.from({ length: 25 }, (_, i) => ({ id: i, address: 1, universe: i, profileId: 'acme-strip-170' }));
-    assert.throws(() => applyShow({ profiles: [huge], fixtures }));
+    // 340 pixels are two universes each: thirty-three strips are sixty-six.
+    const over = Array.from({ length: 33 }, (_, i) => ({ id: i, address: 1, universe: i * 2, profileId: 'acme-strip-340' }));
+    assert.throws(() => applyShow({ profiles: [strip(340)], fixtures: over }), /66 universes, more than the 64/);
     assert.strictEqual(state.fixtures.length, 1, 'and nothing on the rig changed');
+    // The universes are the bound: 5,440 pixels on thirty-two of them load.
+    const fits = Array.from({ length: 32 }, (_, i) => ({ id: i, address: 1, universe: i, profileId: 'acme-strip-170' }));
+    applyShow({ profiles: [strip(170)], fixtures: fits });
+    assert.strictEqual(state.fixtures.length, 32);
   });
 });
 
