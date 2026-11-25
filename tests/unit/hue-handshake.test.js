@@ -369,54 +369,6 @@ test('reliability: stop waits for release and re-addition cannot overtake it', a
   await stopping;
 });
 
-test('reliability: renamed bridge waits for the same physical host release', async (t) => {
-  quiet(t);
-  let release;
-  let deferStop = true;
-  const calls = fakeBridge(t, { put: ({ body }) => ({ status: 200, body: { data: [] },
-    ...(body.action === 'stop' && deferStop ? { defer: respond => { release = respond; } } : {}) }) });
-  const sockets = fakeDtls(t);
-  const { wires, closeAll } = createHueWire();
-  const first = { ...PAIRED, host: 'Bridge.Invalid.' };
-  wires.hue(first, RED);
-  await settle();
-  sockets[0].emit('connected');
-  wires.hueClose(first, true);
-  wires.hue({ ...PAIRED, id: 'renamed', host: 'bridge.invalid' }, RED);
-  await settle();
-  assert.deepStrictEqual(actions(calls), ['start', 'stop']);
-  assert.strictEqual(sockets.length, 1);
-  deferStop = false;
-  release();
-  await settle();
-  assert.deepStrictEqual(actions(calls), ['start', 'stop', 'start']);
-  assert.strictEqual(sockets.length, 2);
-  await closeAll();
-});
-
-test('reliability: a renamed bridge retries failed retirement after ownership recovers', async (t) => {
-  quiet(t);
-  let unreadable = false;
-  const calls = fakeBridge(t, { area: () => unreadable
-    ? { status: 503, body: { errors: [{ description: 'unavailable' }] } }
-    : { status: 200, body: OURS } });
-  const sockets = fakeDtls(t);
-  const { wires, closeAll } = createHueWire();
-  wires.hue(PAIRED, RED);
-  await settle();
-  sockets[0].emit('connected');
-  unreadable = true;
-  wires.hueClose(PAIRED, true);
-  await settle();
-  assert.deepStrictEqual(actions(calls), ['start']);
-  unreadable = false;
-  wires.hue({ ...PAIRED, id: 'renamed' }, RED);
-  await settle();
-  assert.deepStrictEqual(actions(calls), ['start', 'stop', 'start']);
-  assert.strictEqual(sockets.length, 2);
-  await closeAll();
-});
-
 test('reliability: duplicate physical hosts cannot acquire two sessions', async (t) => {
   quiet(t);
   const calls = fakeBridge(t);

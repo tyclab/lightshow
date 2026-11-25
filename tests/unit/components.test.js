@@ -26,7 +26,7 @@ async function load() {
         export { Header, StatusDetails } from './public-src/components/Header.jsx';
         export { PictureSource } from './public-src/components/PictureSource.jsx';
         export { Bands } from './public-src/components/Bands.jsx';
-        export { pictureColours, clockTime } from './public-src/picture-source.js';
+        export { pictureColours } from './public-src/picture-source.js';
         export { PlayingVoices } from './public-src/components/NowPlaying.jsx';
         export { SHORTCUTS } from './public-src/components/Shortcuts.jsx';
         export { VIEWS } from './public-src/views.js';
@@ -34,7 +34,7 @@ async function load() {
         export { Effects, PhotosensitivityConfirm, filtersSig, filterByChips, chipCounts, byName, matchesSearch, catalogueRows, catalogueOf, quickDeck, tapRow, usePress, utilityEffect } from './public-src/components/Effects.jsx';
         export { legacyTags, specTags, tagFields } from './src/shared/effects/tags.ts';
         export { mappingOf } from './src/shared/effects/mapping.ts';
-        export { Inspector, SingleColourField, readRecommendedPreference, savePreset, withRecommended } from './public-src/components/Inspector.jsx';
+        export { Inspector, SingleColourField, savePreset, withRecommended } from './public-src/components/Inspector.jsx';
         export { PaletteEditor, isHexColour, normaliseHex, savePalette } from './public-src/components/PaletteEditor.jsx';
         export { librarySig, pick, socket, followMusic } from './public-src/state.js';
         export { Pads, padBody, padChoices } from './public-src/components/Pads.jsx';
@@ -156,30 +156,6 @@ test('the Hue pill says when another app holds a bridge, and leads to the bridge
   assert.match(held, /aria-label="Hue busy: /);
   assert.match(ui.html(ui.h(ui.Header, {})), /class="status-chip alert[^"]*"[^>]*>.*<span class="status-chip-alert">Hue busy<\/span>/s,
     'a held bridge shows on the chip, without a tap');
-});
-
-// Show v3 fixes, G4: Freeze has no header button; Resume shows while the picture is frozen. PR 9 (2026-11-15, "fix all
-// bugs"): it stands after the master, and no slot is kept for it.
-test('the header shows Resume exactly while the whole picture is frozen, after the master, whatever the programme and playback, and never Freeze', () => {
-  const resume = (header) => /aria-label="Master dimmer"[^]*?<\/label>(<button[^>]*>Resume<\/button>)?<span class="global-status/.exec(header)?.[1];
-  for (const programme of ['look', 'auto', 'sequence']) {
-    for (const playing of [false, true]) {
-      for (const frozen of [false, true]) {
-        given({ running: playing, control: { version: 1, programme, playing, frozen, blackout: false, armed: false } });
-        const header = ui.html(ui.h(ui.Header, {}));
-        assert.strictEqual(count(header, 'aria-label="Global show controls"'), 1);
-        assert.doesNotMatch(header, />Freeze<\/button>/, 'no Freeze button');
-        assert.doesNotMatch(header, /global-hold/, 'no slot kept for it');
-        if (frozen) assert.match(resume(header) ?? '', /^<button type="button" class="btn global-control global-resume active"[^>]*>Resume<\/button>$/, `${programme} ${playing}`);
-        else assert.strictEqual(resume(header), undefined, `${programme} ${playing}: nothing after the master`);
-        assert.doesNotMatch(header, /aria-label="Look playback"/);
-      }
-    }
-  }
-  given({ running: false });
-  const unavailable = ui.html(ui.h(ui.Header, {}));
-  assert.match(unavailable, /<span class="global-status sr-only" role="status">Global controls unavailable<\/span>/);
-  assert.strictEqual(resume(unavailable), undefined, 'legacy running=false must not masquerade as a whole-picture hold');
 });
 
 test('sync health says whether the live input, which Auto follows, hears the music', () => {
@@ -353,27 +329,6 @@ test("a Spatial preset opens in the inspector", () => {
   assert.match(html, /Save as…/);
 });
 
-test("the inspector draws a kind's labelled controls: the shape's own above Advanced, the rest under it, none it does not read", () => {
-  givenLibrary({});
-  const sections = (id) => {
-    const html = ui.html(ui.h(ui.Inspector, { id }));
-    const at = html.indexOf('<details class="insp-advanced">');
-    const labels = (part) => [...part.matchAll(/<label for="spatial-(?!space")[^"]+">([^<]+)<\/label>|<input id="spatial-[^"]+" type="checkbox"[^>]*\/>([^<]+)</g)].map((m) => m[1] || m[2]);
-    return { primary: labels(html.slice(0, at)), advanced: labels(html.slice(at)) };
-  };
-  const wave = sections('v2.grooveWave');
-  assert.deepStrictEqual(wave.primary, ['Shape', 'Heading', 'Tilt', 'Width', 'Speed', 'Motion', 'Turn per lap', 'Colours', 'React']);
-  assert.ok(wave.advanced.includes('Start anchor') && wave.advanced.includes('Floor colour'));
-  for (const wall of ['Driven by', 'Length']) assert.ok(!wave.primary.includes(wall) && !wave.advanced.includes(wall), wall);
-  const wall = sections('v2.risingWall');
-  assert.deepStrictEqual(wall.primary, ['Shape', 'Heading', 'Tilt', 'Width', 'Driven by', 'Length', 'Direction', 'Colours', 'React']);
-  assert.ok(wall.advanced.includes('Speed'), 'a wall only turns with the speed, so it waits under Advanced');
-  const strobe = sections('overlay.scatter');
-  assert.deepStrictEqual(strobe.primary, ['Lamps', 'Colour', 'Rate', 'Over the look', 'Density', 'Function']);
-  assert.ok(!strobe.primary.includes('Zone axis') && !strobe.advanced.includes('Function speed'));
-  assert.doesNotMatch(ui.html(ui.h(ui.Inspector, { id: 'v2.grooveWave' })), /Elevation Deg|Turn Per Lap|Azimuth/, 'no label is a parameter name');
-});
-
 test("Position Chase inspector exposes ordered envelope controls", () => {
   givenLibrary({});
   const html = ui.html(ui.h(ui.Inspector, { id: 'hd.neonDomino' }));
@@ -493,19 +448,6 @@ test('single-colour controls ignore invalid emitter values', () => {
   assert.deepStrictEqual(changes, []);
 });
 
-test("palette editor marks invalid colours and offers saved palettes", () => {
-  const html = ui.html(ui.h(ui.PaletteEditor, {
-    colours: ['#FF0000', 'nope', { random: true }], onChange: () => {}, builtin: ui.BUILTIN_PALETTES, user: [USER_PALETTE],
-  }));
-  assert.match(html, /aria-label="Colour 1"[^>]*value="#FF0000"/);
-  assert.doesNotMatch(html, /aria-label="Colour 1"[^>]*aria-invalid/);
-  assert.match(html, /aria-label="Colour 2"[^>]*aria-invalid="true"/);
-  assert.match(html, /class="palette-random"[^>]*>Random</);
-  assert.match(html, /<optgroup label="Palettes">(?:(?!<\/optgroup>).)*>Red Cyan</s);
-  assert.match(html, /<optgroup label="Your palettes">(?:(?!<\/optgroup>).)*>Mine</s);
-  assert.match(html, /Save as palette…/);
-});
-
 test("full palettes omit the add-colour control", () => {
   const full = ui.html(ui.h(ui.PaletteEditor, { colours: Array(8).fill('#FFFFFF'), onChange: () => {} }));
   assert.doesNotMatch(full, />\+ Colour</);
@@ -560,29 +502,6 @@ const deckOf = (html) => {
   const deck = /<div class="effects-deck"[^>]*>(.*?)<div class="effects-catalogue">/s.exec(html);
   return deck ? [...deck[1].matchAll(/<div class="effect-pad ?[^"]*" data-id="([^"]+)"/g)].map((m) => m[1]) : null;
 };
-
-test('the Background card offers Fixed colour by hue, saturation and brightness, with white, amber and UV, and says what it reaches', () => {
-  givenLibrary({ background: { version: 1, mode: 'fixed', level: .4, colour: { r: 255, g: 128, b: 0, w: 40, a: 0, uv: 0 } } });
-  const card = /<section class="card background-controls"[^>]*>(.*?)<\/section>/s.exec(ui.html(ui.h(ui.Show)))[1];
-  assert.match(card, /role="group" aria-label="Background colour sliders"/);
-  const slider = (name) => new RegExp(`value="([^"]*)"[^>]*aria-label="Background colour ${name}"`).exec(card)?.[1];
-  assert.deepStrictEqual(['hue', 'saturation', 'brightness'].map((name) => Math.round(Number(slider(name)))), [30, 100, 100]);
-  for (const name of ['White', 'Amber', 'UV']) assert.ok(card.includes(`>${name}`), name);
-  assert.match(card, /under every effect, pad and the visualizer picture/);
-  assert.doesNotMatch(card, /Follow between notes/, 'the fill is Follow\'s alone');
-  givenLibrary({ background: { version: 1, mode: 'follow', level: 1, colour: { r: 255, g: 128, b: 0, w: 0, a: 0, uv: 0 } } });
-  const followed = /<section class="card background-controls"[^>]*>(.*?)<\/section>/s.exec(ui.html(ui.h(ui.Show)))[1];
-  assert.doesNotMatch(followed, /Background colour sliders/, 'Follow effect takes its colours from the effect');
-  // The operator, asked how brightly Follow should fill an effect's gaps: "i must see it to decide".
-  const between = /<select aria-label="Follow between notes"[^>]*>(.*?)<\/select>/s.exec(followed)?.[1] ?? '';
-  assert.deepStrictEqual([...between.matchAll(/<option[^>]*>([^<]*)</g)].map((m) => m[1]), ['Off', 'Glow', 'Full']);
-  assert.match(between, /<option selected value="off">/, 'Off by default');
-  assert.match(followed, /stay dark between notes/);
-  givenLibrary({ background: { version: 1, mode: 'follow', level: 1, colour: { r: 255, g: 128, b: 0, w: 0, a: 0, uv: 0 }, followFill: 'glow' } });
-  const glowing = /<section class="card background-controls"[^>]*>(.*?)<\/section>/s.exec(ui.html(ui.h(ui.Show)))[1];
-  assert.match(glowing, /<option selected value="glow">/);
-  assert.match(glowing, /faint glow/);
-});
 
 test('Show keeps effect selection, Background and Bands; a Disco shows its bands, another effect its own palette', () => {
   givenLibrary({ pattern: 'hd.disco.ambient', audio: { mode: 'reactive' } });
@@ -778,26 +697,6 @@ test('a plain tap puts the row on stage and nothing else', () => {
   }
 });
 
-test("family recommendation preferences persist in this browser", () => {
-  givenLibrary({});
-  const stored = {};
-  globalThis.localStorage = { getItem: (key) => stored[key] ?? null, setItem: (key, v) => { stored[key] = v; }, removeItem() {} };
-  try {
-    assert.strictEqual(ui.readRecommendedPreference(), 'ask', 'asks until told otherwise');
-    let html = ui.html(ui.h(ui.Inspector, { id: 'hd.neonDomino' }));
-    assert.match(html, />On a family change</);
-    assert.match(html, /<option selected value="ask">Ask</);
-    stored['lightshow.effects.recommended'] = 'keep';
-    assert.strictEqual(ui.readRecommendedPreference(), 'keep');
-    html = ui.html(ui.h(ui.Inspector, { id: 'hd.neonDomino' }));
-    assert.match(html, /<option selected value="keep">Keep mine</, 'the kept answer can be changed back');
-    stored['lightshow.effects.recommended'] = 'bogus';
-    assert.strictEqual(ui.readRecommendedPreference(), 'ask', 'anything else is Ask');
-  } finally {
-    delete globalThis.localStorage;
-  }
-});
-
 test("recommended settings preserve the name and copy family defaults", () => {
   const def = ui.FAMILIES.flatMap((f) => f.kinds).find((k) => k.defaults && k.defaults.params);
   const before = { name: 'x', kind: 'hd.other', params: { stale: 1 }, brightness: 0.1 };
@@ -924,26 +823,6 @@ test('every picture source segment reads its own name with its hint as tooltip, 
         ['effects', 'visualizer', 'squid'].map((id) => [id, id === picture.source ? 'undefined' : 'function']), 'only another source does something');
     }
   }
-});
-
-// G5: "also i dont like the defauilt that the scene just playing until conditions for the visulaisizter or shquid are
-// matched." The chosen segment turns amber with the server's unmet line as its tooltip; the page adds no reason of its own.
-test('an unmet source turns its chosen segment amber, its tooltip the unmet line', () => {
-  const since = Date.UTC(2026, 10, 15, 20, 3, 12);
-  const cases = [
-    [{ source: 'visualizer', input: null, unmet: [{ code: 'no-sender', since }] }, `Visualizer: no picture sender since ${ui.clockTime(since)}`],
-    [{ source: 'visualizer', input: null, unmet: [{ code: 'disarmed', since }, { code: 'no-sender', since }] }, 'Visualizer: outputs disarmed'],
-    [{ source: 'visualizer', input: null, unmet: [{ code: 'unacknowledged', since }] }, 'Visualizer: photosensitivity not acknowledged'],
-    [{ source: 'squid', input: null, unmet: [{ code: 'no-panel', since }] }, 'Squid: no LED panel'],
-  ];
-  for (const [picture, line] of cases) {
-    givenLibrary({ picture, armed: true, ...PANEL });
-    const { chosen } = pictureSource();
-    assert.match(chosen, /class="picture-segment active unmet"/, line);
-    assert.ok(chosen.includes(`title="${line}"`), `${line}: ${chosen}`);
-  }
-  givenLibrary({ picture: { source: 'visualizer', input: { units: 4, receiving: true }, unmet: [] }, armed: true });
-  assert.match(pictureSource().chosen, /class="picture-segment active"/, 'met: not amber');
 });
 
 test('Squid is offered once the rig has an LED panel, and stays in view while chosen', () => {

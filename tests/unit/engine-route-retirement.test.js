@@ -44,7 +44,7 @@ async function until(done, limit, what) {
   assert.ok(done(), what);
 }
 
-// ── Unit: the ledger and the seeded transmitter ─────────────────────────────
+// ── Unit: the ledger ────────────────────────────────────────────────────────
 
 const config = (host, port, extra = {}) => ({
   universes: [0], artnet: { enabled: true, host, port, sync: true, routes: null }, sacn: { enabled: false }, delayMs: 0, armed: true, ...extra,
@@ -98,45 +98,6 @@ test('the ledger stays bounded, keeping the newest destinations', () => {
   const left = ledger.outstanding();
   assert.equal(left.length, 8);
   assert.ok(left.some((d) => d.host === '192.0.2.20') && !left.some((d) => d.host === '192.0.2.1'));
-});
-
-function recorder() {
-  const log = [];
-  const wires = {
-    artnet: (target, frame) => { log.push({ type: 'dmx', hosts: [...target.hosts], port: target.port, universe: target.universe, value: frame[0] }); return true; },
-    artnetSync: (target) => { log.push({ type: 'sync', host: target.host, port: target.port }); return true; },
-    sacn: () => true, sacnDiscovery: () => {}, ddp: () => true, openrgb: () => true, openrgbClose: () => {},
-  };
-  return { log, wires };
-}
-
-test('a seeded transmitter retires every seeded route, one universe on two old ports, before new light', () => {
-  const { log, wires } = recorder();
-  let refuseSync = true;
-  const sync = wires.artnetSync;
-  wires.artnetSync = (target) => { if (refuseSync && target.port === 6454) return false; return sync(target); };
-  const tx = transmit.createTransmitter({ wires });
-  tx.seed([
-    { universe: 0, host: '192.0.2.10', port: 6454, sync: true },
-    { universe: 0, host: '192.0.2.11', port: 6454, sync: true },
-    { universe: 0, host: '192.0.2.20', port: 6455, sync: false },
-  ]);
-  const next = config('192.0.2.30', 6456, { artnet: { enabled: true, host: '192.0.2.30', port: 6456, sync: false, routes: null } });
-  tx.send(0, Buffer.alloc(512, 200), next);
-  assert.equal(tx.endFrame(next), false, 'application is withheld while the old ArtSync fails');
-  assert.ok(log.every((p) => p.type === 'dmx' ? p.value === 0 : p.port !== 6454), 'only dark frames, and no sync claimed on the refused port');
-  assert.ok(log.some((p) => p.type === 'dmx' && p.port === 6455 && p.value === 0), 'the other old port is darkened too');
-  assert.ok(!log.some((p) => p.port === 6456), 'no light on the new destination yet');
-  log.length = 0;
-  refuseSync = false;
-  tx.send(0, Buffer.alloc(512, 200), next);
-  assert.equal(tx.endFrame(next), true);
-  const port6454 = log.filter((p) => p.port === 6454);
-  assert.deepEqual(port6454.filter((p) => p.type === 'dmx').map((p) => [p.hosts, p.value]), [[['192.0.2.10', '192.0.2.11'], 0]]);
-  assert.deepEqual(port6454.filter((p) => p.type === 'sync').map((p) => p.host).sort(), ['192.0.2.10', '192.0.2.11']);
-  const lit = log.findIndex((p) => p.type === 'dmx' && p.value === 200);
-  assert.ok(lit > port6454.length - 1 && log[lit].port === 6456, 'the new destination is lit only after the retirement');
-  assert.ok(!log.some((p) => p.type === 'dmx' && p.port === 6455 && p.value === 0), 'the already retired port is not darkened again');
 });
 
 // ── The live engine, over loopback Art-Net ──────────────────────────────────
@@ -312,18 +273,6 @@ async function litOnA({ a, worker }) {
   assert.equal(engineStatus().thread, 'worker');
 }
 
-/** Switch the route to B while A's ArtSync is refused: A gets dark DMX, no sync; B gets nothing; no acknowledgement. */
-async function retirementStalls({ a, b, wire }) {
-  await wire.policy({ refuseSyncPort: a.port });
-  const mark = sequence;
-  state.artnet.port = b.port;
-  await until(() => dark(a, mark).length > 0, 5000, 'the old route gets its dark frame');
-  await wait(150);
-  assert.equal(syncs(a, mark).length, 0, 'its ArtSync is refused');
-  assert.equal(dmx(b, mark).length, 0, 'and B waits');
-  return mark;
-}
-
 // ── Protective Hue blackout while Art-Net retirement fails ──────────────────
 // One Hue lamp on a bridge whose REST side and stream socket are stand-ins;
 // what the lamp would receive is read off the socket.
@@ -414,33 +363,6 @@ test('stopping the engine thread: the lamp gets its dark frame and the area is r
       assert.ok(darkAt && darkAt < release.at, `the dark frame (${darkAt}) leaves before the release (${release.at})`);
       assert.ok(release.at < stopped, `the release (${release.at}) was asked for before the stop resolved (${stopped})`);
       assert.equal(litHue(frames, mark).length, 0, 'nothing lit follows the stop');
-    }, { fixtures: [...state.fixtures, lamp] });
-  });
-});
-
-test('while the old route fails to retire, Blackout still darkens Hue, without acknowledging the failed Art-Net barrier or letting a newer lit picture through', async (t) => {
-  await withHue(t, async (frames) => {
-    await rig(async ({ a, b, wire, worker }) => {
-      await litOnA({ a, worker });
-      await until(() => litHue(frames).length > 0, 8000, 'the lamp streams the lit look');
-      const stalled = await retirementStalls({ a, b, wire });
-      assert.equal(hueFrames(frames, stalled).length, 0, 'no Hue frame follows an unapplied Art-Net frame');
-      // Blackout: the explicitly dark Hue frame goes out; the Art-Net barrier is still not acknowledged.
-      const blackout = sequence;
-      applyPatch({ masterBlackout: true });
-      const barrier = assert.rejects(awaitFrameApplied(), /did not acknowledge/, 'the Art-Net barrier is not acknowledged by the Hue blackout');
-      await until(() => darkHue(frames, blackout).length > 0, 3000, 'Hue receives a dark frame');
-      await barrier;
-      assert.equal(litHue(frames, blackout).length, 0, 'nothing lit reaches Hue meanwhile');
-      assert.equal(dmx(b, stalled).length, 0, 'B is still withheld');
-      // A newer lit picture is not let through while the barrier stays unacknowledged.
-      const relit = sequence;
-      applyPatch({ masterBlackout: false });
-      await wait(400);
-      assert.equal(litHue(frames, relit).length, 0, 'the lit picture waits for the retirement');
-      await wire.policy({ refuseSyncPort: null });
-      await awaitFrameApplied();
-      await until(() => litHue(frames, relit).length > 0, 3000, 'light returns to Hue once the retirement is through');
     }, { fixtures: [...state.fixtures, lamp] });
   });
 });

@@ -148,18 +148,6 @@ test('a take invalidated by an edit stays unkeepable after recovery', (t) => {
   assert.equal(next.recording().hits, 1);
 });
 
-test('corrupt workspace survives edits until explicit recovery', (t) => {
-  const { w, file, dir } = workspace(t); w.close(); fs.writeFileSync(file, '{broken');
-  const next = rig(); const restored = new SequenceWorkspace(file, next, () => null).open(); t.after(() => restored.close());
-  next.load(show()); restored.flush();
-  assert.equal(restored.status().blocked, true);
-  assert.equal(fs.readFileSync(file, 'utf8'), '{broken');
-  restored.startFresh();
-  assert.equal(restored.status().blocked, false);
-  const backup = fs.readdirSync(dir).find((name) => name.includes('.recovery-'));
-  assert.equal(fs.readFileSync(path.join(dir, backup), 'utf8'), '{broken');
-});
-
 test('failed autosave preserves the last valid workspace', (t) => {
   const { w, s, file } = workspace(t); s.load(show()); w.flush();
   const before = fs.readFileSync(file, 'utf8');

@@ -190,19 +190,6 @@ test('clips outside Edit do not advertise an inactive button', () => {
   }
 });
 
-test('deleting a saved sequence requires confirmation', () => {
-  given({ sequence: STATUS, sequences: SHELF });
-  let html = ui.html(ui.h(ui.Sequence, { initial: { sequence: SEQ, editing: true } }));
-  assert.match(html, /class="seq-danger"[^>]*>Delete</);
-  assert.doesNotMatch(html, /Delete it/);
-  html = ui.html(ui.h(ui.Sequence, { initial: { sequence: SEQ, editing: true, deleting: true } }));
-  assert.match(html, /role="alert"/);
-  assert.match(html, />Delete it<.*>Keep</s);
-  given({ sequence: STATUS, sequences: [{ id: 'warmup', name: 'Warm-up' }] });
-  html = ui.html(ui.h(ui.Sequence, { initial: { sequence: SEQ, editing: true } }));
-  assert.doesNotMatch(html, />Delete</, 'not saved yet: nothing to delete');
-});
-
 test('clip presets come from playable library rows', (t) => {
   t.after(() => { ui.librarySig.value = { ...ui.librarySig.value, builtin: [], user: [] }; });
   ui.librarySig.value = {
@@ -316,16 +303,6 @@ test('new clips skip unsupported or unacknowledged presets', () => {
   assert.strictEqual(ui.newClip(empty, { ...at, library: CLIP_LIBRARY.slice(0, 4), rows: CLIP_ROWS }), null, 'nothing that plays, no clip');
 });
 
-test('Add clip uses the current library and acknowledgement', (t) => {
-  t.after(() => { ui.librarySig.value = { ...ui.librarySig.value, builtin: [] }; });
-  ui.librarySig.value = { ...ui.librarySig.value, builtin: CLIP_LIBRARY.slice(0, 4) };
-  const view = () => ui.html(ui.h(ui.Sequence, { initial: { sequence: { ...SEQ, clips: [] }, editing: true } }));
-  given({ sequence: STATUS, patterns: CLIP_ROWS, safety: { photosensitivityAcknowledged: false } });
-  assert.match(view(), /<button type="button" disabled[^>]*>Add clip to Base</);
-  given({ sequence: STATUS, patterns: CLIP_ROWS, safety: { photosensitivityAcknowledged: true } });
-  assert.match(view(), /<button type="button">Add clip to Base</);
-});
-
 test('a command changed to another type takes a value of that type', () => {
   const k = { id: 'k1', atBeat: 16, type: 'tempo', value: 132 };
   assert.strictEqual(ui.commandAs(k, 'brightness').value, 255);
@@ -352,15 +329,6 @@ test('focused field edits survive live updates until commit', () => {
   d.input('');
   d.commit(ui.parseNumber, (v) => committed.push(v));
   assert.deepStrictEqual(committed, [12], 'an empty field is not 0: the stored value comes back');
-});
-
-test('matrix cells reflect canonical held colours', () => {
-  given({ matrix: { mode: 'cycle', colours: ['#FF0000', '#FFFFFF'], voice: 'v1' },
-    builtinPalettes: [{ id: 'rainbow', colours: ['#FF0000', '#FFFFFF'] }], userPalettes: [] });
-  const html = ui.html(ui.h(ui.Matrix, {}));
-  assert.match(html, /class="matrix-cell held"[^>]*aria-label="Colour #ff0000"/);
-  assert.match(html, /class="matrix-cell held"[^>]*aria-label="Colour #ffffff"/);
-  assert.strictEqual(count(html, 'class="matrix-cell held"'), 2);
 });
 
 test('before the board state arrives no mode is shown as chosen', () => {

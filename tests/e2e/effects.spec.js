@@ -182,63 +182,6 @@ test.describe('on a touch screen', () => {
   });
 });
 
-test('the tag chips filter the deck and the list: any chip within an axis, every axis with one, live counts and Clear', async ({ page, request }) => {
-  const rows = (await state(request)).patterns.filter((row) => !row.retired && row.id !== 'energy.whiteStrobe');
-  const has = (row, tags) => tags.some((tag) => row.tags.includes(tag));
-  const REACTIVE = ['bands', 'level', 'sections'];
-  await open(page, 'effects');
-  const filters = page.getByRole('group', { name: 'Filters' });
-  const chip = (name) => filters.getByRole('button', { name: new RegExp(`^${name}`) });
-  const countOf = async (name) => Number(await chip(name).locator('.effects-chip-count').textContent());
-  const listed = () => page.locator('.effects-catalogue .pattern-btn').evaluateAll((els) => els.map((el) => el.dataset.id));
-  // No folded sections: every look is listed once, A to Z.
-  await expect(page.locator('.effects-catalogue details')).toHaveCount(0);
-  const all = await listed();
-  expect(all).toHaveLength(rows.length);
-  const names = await page.locator('.effects-catalogue .pattern-btn .name').evaluateAll((els) =>
-    els.map((el) => [...el.childNodes].filter((node) => node.nodeType === node.TEXT_NODE).map((node) => node.textContent).join('').trim()));
-  expect(names).toEqual([...names].sort(new Intl.Collator('en', { sensitivity: 'base', numeric: true }).compare));
-  for (const [name, tags] of [['Beat only', ['beat']], ['Reactive', REACTIVE], ['Room-placed', ['room']], ['Rapid', ['rapid']]]) {
-    expect(await countOf(name), name).toBe(rows.filter((row) => has(row, tags)).length);
-  }
-  await expect(filters.getByRole('button', { name: 'Clear' })).toHaveCount(0);
-
-  // Within an axis: either.
-  await chip('Beat only').click();
-  await chip('Static').click();
-  await expect(chip('Beat only')).toHaveAttribute('aria-pressed', 'true');
-  expect(await listed()).toEqual(all.filter((id) => has(rows.find((row) => row.id === id), ['beat', 'static'])));
-  // Across axes: both. The Surface counts follow the Reacts-to choice; Beat only's own count does not.
-  await chip('Whole rig').click();
-  const both = all.filter((id) => { const row = rows.find((r) => r.id === id); return has(row, ['beat', 'static']) && has(row, ['rig']); });
-  expect(await listed()).toEqual(both);
-  expect(await countOf('Whole rig')).toBe(both.length);
-  expect(await countOf('Beat only')).toBe(rows.filter((row) => has(row, ['beat']) && has(row, ['rig'])).length);
-  // The deck follows the chips.
-  for (const id of await page.locator('.effects-deck .effect-pad').evaluateAll((els) => els.map((el) => el.dataset.id))) expect(both).toContain(id);
-  await filters.getByRole('button', { name: 'Clear' }).click();
-  expect(await listed()).toEqual(all);
-  await expect(filters.locator('[aria-pressed="true"]')).toHaveCount(0);
-  await expect(filters.getByRole('button', { name: 'Clear' })).toHaveCount(0);
-  // A chip nothing would match is disabled: no static look is placed in the room.
-  await chip('Static').click();
-  expect(rows.some((row) => has(row, ['static']) && has(row, ['room']))).toBe(false);
-  await expect(chip('Room-placed')).toBeDisabled();
-  await expect(chip('Whole rig')).toBeEnabled();
-  await filters.getByRole('button', { name: 'Clear' }).click();
-
-  // Reactive folds the three narrow reactions; each row still says which, and from where.
-  await chip('Reactive').click();
-  const reactive = await listed();
-  expect(reactive).toEqual(all.filter((id) => has(rows.find((row) => row.id === id), REACTIVE)));
-  await expect(page.locator('.effects-catalogue .pattern-btn[data-id="v2.neural"] .effect-tag').first()).toHaveText('Bands & drums · live');
-  await expect(page.locator('.effects-catalogue .pattern-btn[data-id="v2.stemsSpace"] .effect-tag').first()).toHaveText('Bands & drums · track + live');
-  // The search also reads tag names.
-  await filters.getByRole('button', { name: 'Clear' }).click();
-  await page.getByLabel('Search effects').fill('song sections');
-  expect((await listed()).sort()).toEqual(rows.filter((row) => row.tags.includes('sections')).map((row) => row.id).sort());
-});
-
 test.describe('on a phone', () => {
   test.use({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
 

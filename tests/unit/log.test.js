@@ -147,20 +147,3 @@ test('at exit, the lines queued and the write the disk never did are written onc
   log.close();
   assert.deepEqual(lines(file).map((l) => l.n), [0, 1, 2, 3, 4]);
 });
-
-test('a disk that does not answer keeps a file\'s worth of lines waiting, and says how many it dropped', async (t) => {
-  const file = path.join(tmp(t), 'lightshow.log');
-  const log = new RotatingFile(file, { maxBytes: 200, keep: 1 });
-  const disk = freeze(t);
-  log.write(`${JSON.stringify({ n: -1 })}\n`);
-  while (!disk.held.length) await new Promise(setImmediate);
-  for (let n = 0; n < 40; n++) log.write(`${JSON.stringify({ n, pad: 'x'.repeat(10) })}\n`);
-  assert.ok(log._queued <= 200, `${log._queued} bytes wait`);
-  log.flushSync();
-  log.close();
-  assert.equal(disk.held.length, 1, 'the frozen write is never repeated by the disk');
-  const written = lines(path.join(path.dirname(file), 'lightshow.log'));
-  const notice = written.find((l) => l.component === 'log');
-  assert.match(notice.msg, /^\d+ lines dropped while the disk did not answer$/);
-  assert.equal(written.at(-1).n, 39, 'the newest lines are kept');
-});

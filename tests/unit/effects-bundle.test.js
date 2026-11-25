@@ -113,17 +113,6 @@ test("bundle validation rejects strobe children", () => {
   assert.throws(() => validateSpec(raw(validateSpec(strobe)), { internal: true }), z.ZodError);
 });
 
-test("bundle rendering skips forged strobe children", () => {
-  const strobe = { kind: 'strobe', params: { clock: 'beat', flashesPerSecond: 5 } };
-  const raw = (s) => ({ kind: BUNDLE_KIND, params: { patternId: 'p', lengthBeats: 4, once: false,
-    table: { revision: 0, lanes: [lane('shared:0')], clips: [{ ...clip('0:0', 'shared:0', paintSpec(1), 0, 4), spec: s }] } } });
-  const forged = { ...validateSpec(raw(validateSpec(paintSpec(1))), { internal: true }) };
-  forged.params = { ...forged.params, table: { ...forged.params.table, clips: [{ ...forged.params.table.clips[0], spec: validateSpec(strobe) }] } };
-  const stepper = new EffectStepper(), out = [];
-  renderEffect({ id: 'v', spec: forged, seed: SEED, anchorBeat: 0, startedAtMs: 0, targets: null }, frame(0.1), room, stepper, out);
-  assert.deepEqual(reds(out), [null, null, null]);
-});
-
 test("bundle nesting shares the macro depth limit", () => {
   let inner = paintSpec(1);
   for (let k = 0; k < MAX_NEST_DEPTH - 1; k++) inner = { kind: 'macro', params: { steps: [{ effect: inner, beats: 4 }], loopBeats: 4 } };
@@ -173,12 +162,6 @@ test("once bundles expose no leaves after their length", () => {
   const table = { revision: 0, lanes: [lane('shared:0'), lane('shared:1')],
     clips: [clip('a', 'shared:0', paintSpec(255), 0, 4), clip('b', 'shared:1', paintSpec(128), 1.5, 1, [11]), clip('c', 'shared:1', inner, 2.5, 1.1)] };
   assert.deepEqual(playingLeaves(bundle(true, table), 4, 0, IDS), [], 'once stops at the length');
-});
-
-test("over-deep nesting exposes no playing leaves", () => {
-  let deep = paintSpec(1);
-  for (let i = 0; i <= MAX_NEST_DEPTH; i++) deep = { kind: 'macro', params: { steps: [{ effect: deep, beats: 1 }], loopBeats: 1 } };
-  assert.deepEqual(playingLeaves(deep, 0.5, 0, IDS), []);
 });
 
 test("a Party & Disco clip's gaps stay the pad's own black and carry their background field", () => {

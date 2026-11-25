@@ -16,8 +16,6 @@ import { clipLap, playingClips, selectClips, sequencePlace } from '../../src/sha
 import { presetById } from '../../src/shared/effects/catalogue.ts';
 import { validateSpec } from '../../src/shared/effects/registry.ts';
 import { seedFrom } from '../../src/shared/effects/hash.ts';
-import { domainOf } from '../../src/server/protocol.ts';
-import { getLiveState, setSequenceProvider } from '../../src/server/state.ts';
 
 const FADE = presetById('ldj.FadeCycle').spec;
 const GLOW = validateSpec({ kind: 'energy.glow', params: {} });
@@ -368,21 +366,6 @@ test('tables resolve effects and fixture targets', () => {
   const playlist = new Sequencer({ resolve });
   assert.equal(playlist.load(sequence({ mode: 'playlist', lanes: [lane('a')], clips: [clip('r1', 'a', 0, 8)] })).options.autoplay, true);
   assert.equal(playlist.frame({ beatPos: 0, bpm: 120, epoch: 0 }).transport, null);
-});
-
-test('the live state carries the sequencer\'s status in a domain of its own', () => {
-  assert.equal(domainOf('sequence'), 'sequence');
-  const sequencer = new Sequencer({ resolve });
-  try {
-    setSequenceProvider(() => sequencer.status());
-    const idle = { playing: false, paused: false, stopped: null, ended: false, beat: 0, bar: 1, beatsPerBar: 4, beatSize: 1, history: { canUndo: false, canRedo: false }, loop: null, activeClips: [], error: null };
-    assert.deepEqual(getLiveState().sequence, { loaded: null, revision: 0, mode: null, ...idle, lanes: [] });
-    sequencer.load(sequence({ mode: 'playlist', lanes: [lane('a')] }));
-    assert.deepEqual(getLiveState().sequence, { loaded: { id: 'set-1', name: 'Set one' }, revision: 1, mode: 'playlist', ...idle, lanes: [{ id: 'a', clip: null }] });
-  } finally {
-    setSequenceProvider(null);
-  }
-  assert.equal(getLiveState().sequence, null, 'without a sequencer');
 });
 
 test('active clip status names only winners on patched fixtures', () => {

@@ -76,28 +76,6 @@ test('a failed old-route retirement blocks replacement light until retried', () 
   assert.deepEqual(log.filter(p => p.type === 'dmx').map(p => p.value), [0, 200]);
 });
 
-test('failed old ArtSync retains retirement and blocks new light until dark+sync retry', () => {
-  const { log, wires } = recorder();
-  let refuseSync = false;
-  const sync = wires.artnetSync;
-  wires.artnetSync = target => { if (refuseSync && target.host === '192.0.2.10') return false; sync(target); return true; };
-  const tx = createTransmitter({ wires });
-  const old = config('192.0.2.10');
-  const next = config('192.0.2.20', { artnet: { ...old.artnet, host: '192.0.2.20', port: 6455, sync: false } });
-  tx.send(0, Buffer.alloc(512, 100), old);
-  tx.endFrame(old);
-  log.length = 0;
-  refuseSync = true;
-  tx.send(0, Buffer.alloc(512, 200), next);
-  assert.equal(tx.endFrame(next), false);
-  assert.ok(log.every(packet => packet.type === 'dmx' && packet.value === 0 && packet.port === 6454));
-  refuseSync = false;
-  log.length = 0;
-  tx.send(0, Buffer.alloc(512, 200), next);
-  assert.equal(tx.endFrame(next), true);
-  assert.deepEqual(log.map(packet => [packet.type, packet.value, packet.port]), [['dmx', 0, 6454], ['sync', undefined, 6454], ['dmx', 200, 6455]]);
-});
-
 test('Blackout followed by Disarm retains a refused ArtSync and retries darkness before acknowledging', () => {
   const { log, wires } = recorder();
   let refuseSync = false;

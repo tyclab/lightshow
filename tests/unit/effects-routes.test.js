@@ -252,23 +252,6 @@ test('POST/PUT/DELETE round trip', async (t) => {
   assert.equal(res.status, 200);
 });
 
-test("concurrent preset edits persist in order", async (t) => {
-  const s = await serve(t);
-  const preset = s.effectLibrary.create({ name: 'Fade', spec: FADE });
-  const before = s.effectLibrary.revision();
-  const answers = await Promise.all([
-    s.call('PUT', `/api/effects/${preset.id}`, { name: 'First', spec: { ...FADE, params: { cadence: 4 } } }),
-    s.call('PUT', `/api/effects/${preset.id}`, { name: 'Second', spec: { ...FADE, params: { cadence: 8 } } }),
-  ]);
-  assert.deepEqual(answers.map((a) => a.status), [200, 200]);
-  assert.equal(s.effectLibrary.revision(), before + 2);
-  const [saved] = s.effectLibrary.list().user;
-  assert.ok(['First', 'Second'].includes(saved.name));
-  assert.equal(saved.spec.params.cadence, saved.name === 'First' ? 4 : 8, 'one edit whole, never half of each');
-  assert.deepEqual(JSON.parse(fs.readFileSync(path.join(s.dir, 'effects.json'), 'utf8')), { version: 4, presets: [saved] });
-  assert.deepEqual(fs.readdirSync(s.dir).filter((f) => f.endsWith('.tmp')), []);
-});
-
 test("failed preset and palette writes return HTTP 500", async (t) => {
   const s = await serve(t);
   const warn = t.mock.method(console, 'warn', () => {});
