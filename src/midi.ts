@@ -289,7 +289,6 @@ class MidiController {
   declare _touchDown: Map<string, number>;
   declare _touchOf: Map<string, string>;
   declare _warnedSwitch: Set<string>;
-  declare onRebind: ((from: number, to: number, binding: MidiBinding) => void) | null;
   declare pads: MidiPads | null;
   declare _heldPads: Map<string, HeldPad>;
   declare _inputName: string | null;
@@ -327,7 +326,6 @@ class MidiController {
     this._touchDown = new Map();
     this._touchOf = new Map();
     this._warnedSwitch = new Set();
-    this.onRebind = null;
   }
 
   setMap(map: MidiMap | null | undefined): void {
@@ -532,7 +530,6 @@ class MidiController {
       for (const [touch, at] of this._touchDown) {
         if (touch === key || this._touchOf.has(touch) || now - at > TOUCH_PAIR_MS) continue;
         this._touchOf.set(touch, key);
-        this._heal(touch, key);
       }
       return;
     }
@@ -546,22 +543,6 @@ class MidiController {
         this._lastCcOut.delete(Number(fader.split(':')[1]));
         this._sendControlFeedback();
       }
-    }
-  }
-
-  _heal(touchKey: string, faderKey: string): void {
-    const touchCc = Number(touchKey.split(':')[1]);
-    const faderCc = Number(faderKey.split(':')[1]);
-    const binding = this.map.cc && this.map.cc[touchCc];
-    if (!binding || !FADER_ACTIONS.has(binding.action) || binding.type === 'relative') return;
-    if (this.map.cc[faderCc]) return;
-    console.warn(`[MIDI] CC ${touchCc} is the touch sensor of the fader on CC ${faderCc}: `
-      + `its binding (${binding.action}) moves to CC ${faderCc}`);
-    const cc: Record<string, MidiBinding> = { ...this.map.cc, [String(faderCc)]: binding };
-    delete cc[String(touchCc)];
-    this.map = { ...this.map, cc };
-    if (this.onRebind) {
-      try { this.onRebind(touchCc, faderCc, binding); } catch (err) { console.warn(`[MIDI] could not save the move: ${messageOf(err)}`); }
     }
   }
 
