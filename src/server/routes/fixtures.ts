@@ -1,6 +1,6 @@
 import { state, allocateFixtureId, universeOf, maxBrightnessOf, countUniverses, placeAddresslessFixtures } from '../state.ts';
 import { resizeFixtureBuffers } from '../engine.ts';
-import { BUILTIN_PROFILE_ID, HUE_BY_HAND, isBuiltinProfile, MAX_FIXTURES, UNIVERSE_SIZE, endChannel, fitsInUniverse, universeOverflow, registerProfile, unregisterProfile, listProfiles, getProfile, unitCapOverflow } from '../profiles.ts';
+import { BUILTIN_PROFILE_ID, HUE_BY_HAND, isBuiltinProfile, MAX_FIXTURES, UNIVERSE_SIZE, endChannel, fitsInUniverse, universeOverflow, registerProfile, unregisterProfile, listProfiles, getProfile } from '../profiles.ts';
 import { MAX_UNIVERSES } from '../universes.ts';
 import { INTERNAL_UNIVERSE, footprintOf, hasNoAddress, isHueLamp, isWled, universeCount } from '../../shared/placement.ts';
 import { isHueProfile, hueSections, hueChannels } from '../../shared/hue-lamp.ts';
@@ -180,7 +180,7 @@ export function attachFixtureRoutes(app: Express, ctx: RouteContext): void {
       const draft = state.fixtures.map((f) => (f.id === fixtureId ? next : { ...f }));
       const profileOf = (f: Pick<Fixture, 'profileId'>) => (f.profileId === profile.id ? profile : getProfile(f));
       placeAddresslessFixtures(draft, profileOf);
-      const problem = geometryUnitIssue(current.geometry, profile) || unitCapOverflow(draft, profileOf) || ddpConflict(draft, profileOf)
+      const problem = geometryUnitIssue(current.geometry, profile) || ddpConflict(draft, profileOf)
         || (countUniverses(draft, profileOf) > MAX_UNIVERSES ? `${info.name} would put the patch on more than the ${MAX_UNIVERSES} universes this server transmits` : null);
       if (problem) return res.status(400).json({ ok: false, error: problem });
       // The held room, not a copy: the remap builds a new room and leaves this one as it is.
@@ -303,7 +303,9 @@ export function attachFixtureRoutes(app: Express, ctx: RouteContext): void {
     const profiles = listProfiles();
     const profileOf = (f: Pick<Fixture, 'profileId'>) => (f.profileId === profile.id ? profile : profiles[f.profileId] || profiles[BUILTIN_PROFILE_ID]);
 
-    return unitCapOverflow(state.fixtures, profileOf) || ddpConflict(state.fixtures, profileOf);
+    return ddpConflict(state.fixtures, profileOf)
+      || (countUniverses(state.fixtures, profileOf) > MAX_UNIVERSES
+        ? `${profile.name} would put the patch on more than the ${MAX_UNIVERSES} universes this server transmits` : null);
   }
 
   app.delete('/api/profiles/:id', (req, res) => {
@@ -390,8 +392,6 @@ export function attachFixtureRoutes(app: Express, ctx: RouteContext): void {
     const labelOf = (id: number, k: number) => (body.label ? (count > 1 ? `${body.label} ${k + 1}` : body.label) : `Fixture ${id + 1}`);
     const draft = placed.map((p, k) => ({ id: -1 - k, label: labelOf(state.fixtures.length + k, k), ...p, profileId }));
     const next = [...state.fixtures, ...draft];
-    const tooMany = unitCapOverflow(next);
-    if (tooMany) return res.status(400).json({ ok: false, error: tooMany });
     const wled = ddpConflict(next, getProfile);
     if (wled) return res.status(400).json({ ok: false, error: wled });
     if (countUniverses(next) > MAX_UNIVERSES) {
@@ -566,7 +566,7 @@ export function attachFixtureRoutes(app: Express, ctx: RouteContext): void {
     const profileOf = (fixture: Pick<Fixture, 'profileId'>) => refreshedProfiles.get(fixture.profileId) || getProfile(fixture);
     placeAddresslessFixtures(draft, profileOf);
     const mapIssue = draft.map((fix) => geometryUnitIssue(fix.geometry, profileOf(fix))).find(Boolean);
-    const problem = mapIssue || unitCapOverflow(draft, profileOf) || (countUniverses(draft, profileOf) > MAX_UNIVERSES ? 'The refreshed patch exceeds the universe limit' : null);
+    const problem = mapIssue || (countUniverses(draft, profileOf) > MAX_UNIVERSES ? 'The refreshed patch exceeds the universe limit' : null);
     if (problem) return res.status(400).json({ ok: false, error: problem });
     for (const { profile } of updates) registerProfile(profile);
     state.fixtures = draft;
@@ -682,8 +682,6 @@ export function attachFixtureRoutes(app: Express, ctx: RouteContext): void {
       const proposed = state.fixtures.map((f) => ({ ...f }));
       proposed.splice(at, 0, { ...restored } as Fixture);
       placeAddresslessFixtures(proposed);
-      const tooMany = unitCapOverflow(proposed);
-      if (tooMany) return res.status(400).json({ ok: false, error: tooMany });
       const wled = ddpConflict(proposed, getProfile);
       if (wled) return res.status(400).json({ ok: false, error: wled });
 

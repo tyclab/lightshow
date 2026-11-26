@@ -9,8 +9,6 @@ const BUILTIN_PROFILE_ID = 'cameo-root-par-6-12ch';
 // Bound patch growth so a stuck client cannot expand rendering and broadcasts indefinitely.
 const MAX_FIXTURES = 64;
 
-const MAX_UNITS = 4096;
-
 function endChannel(address: number, channelCount: number): number {
   return address + channelCount - 1;
 }
@@ -26,7 +24,6 @@ function universeOverflow(label: string, address: number, profile: Pick<Profile,
 
 // Share UV compensation with the preview so both use the same emitter arithmetic.
 import { UV_BOOST } from '../shared/look-math.ts';
-import { countUnits } from '../shared/rig.ts';
 
 const RESERVED_PROFILE_IDS = new Set(['__proto__', 'constructor', 'prototype']);
 
@@ -173,13 +170,6 @@ function clearNonBuiltinProfiles(): void {
   revision++;
 }
 
-function unitCapOverflow<F extends Pick<Fixture, 'profileId'>>(fixtures: Iterable<F>,
-  profileOf: (fixture: F) => Pick<Profile, 'cells'> | null | undefined = getProfile): string | null {
-  const total = countUnits(fixtures, profileOf);
-  if (total <= MAX_UNITS) return null;
-  return `The patch would have ${total} lights (cells), more than the ${MAX_UNITS} the engine renders`;
-}
-
 export {
   BUILTIN_PROFILE_ID,
   BUILTIN_PROFILE_IDS,
@@ -192,8 +182,6 @@ export {
   isBuiltinProfile,
   UNIVERSE_SIZE,
   MAX_FIXTURES,
-  MAX_UNITS,
-  unitCapOverflow,
   profilesRevision,
   endChannel,
   fitsInUniverse,

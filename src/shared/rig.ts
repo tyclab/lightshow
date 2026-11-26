@@ -99,12 +99,6 @@ function geometryUnitIssue(geometry: Geometry | null | undefined, profile: Pick<
   return `The explicit cell map has ${geometry.points.length} points; the profile needs ${unitCount(profile)}. Clear or replace the map first.`;
 }
 
-function countUnits<F>(fixtures: Iterable<F>, profileOf: ProfileLookup<F>): number {
-  let total = 0;
-  for (const fixture of fixtures) total += unitCount(profileOf(fixture));
-  return total;
-}
-
 
 function lineOf(fixture: StageFixture, cells: number, unplaced: number): Geometry {
   const g = fixture.geometry;
@@ -404,7 +398,6 @@ export {
   gridLabel,
   unitCount,
   geometryUnitIssue,
-  countUnits,
   lineOf,
   buildRig,
   rigSignature,

@@ -2,7 +2,7 @@ import { checkLegacyControlPatch, control } from './control.ts';
 import { state, getClientState, getLiveState, getRigState, getFixture, countUniverses, universeOf, placeAddresslessFixtures, voices, legacyEnergy, onVoicesChange } from './state.ts';
 import { applyPatch, applyOverride, processTap } from './patch.ts';
 import { overrideMessageSchema, fixtureMessageSchema, validate } from './validation.ts';
-import { listProfiles, getProfile, universeOverflow, unitCapOverflow, HUE_BY_HAND, DEVICE_BY_HAND } from './profiles.ts';
+import { listProfiles, getProfile, universeOverflow, HUE_BY_HAND, DEVICE_BY_HAND } from './profiles.ts';
 import { INTERNAL_UNIVERSE, hasNoAddress, isHueLamp, isWled } from '../shared/placement.ts';
 import { isHueProfile } from '../shared/hue-lamp.ts';
 import { geometryUnitIssue } from '../shared/rig.ts';
@@ -291,13 +291,6 @@ function attachSockets(io: Server, { midi, integrations, activity = () => {} }: 
         const wled = ddpConflict(proposed, getProfile);
         if (wled) {
           socket.emit('error-msg', { source: 'fixture', message: wled });
-          return;
-        }
-        // And a bar's cells are each rendered every frame, so a profile change
-        // may not take the patch past the cells the engine renders.
-        const tooMany = nextProfileId !== fixture.profileId ? unitCapOverflow(proposed) : null;
-        if (tooMany) {
-          socket.emit('error-msg', { source: 'fixture', message: tooMany });
           return;
         }
         if (countUniverses(proposed) > MAX_UNIVERSES) {
