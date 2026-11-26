@@ -10,9 +10,11 @@ import path from 'node:path';
 import http from 'node:http';
 import express from 'express';
 import { Server } from 'socket.io';
+import { io as connect } from 'socket.io-client';
 
 import { installControlRuntime, sendControl } from './control-runtime-helpers.js';
 import { attachRoutes } from '../../src/server/routes.ts';
+import { attachSockets } from '../../src/server/sockets.ts';
 import { setupIntegrations } from '../../src/server/integrations.ts';
 import { createApplier } from '../../src/server/apply.ts';
 import { EffectLibrary } from '../../src/server/effect-library.ts';
@@ -111,7 +113,7 @@ async function serve(t) {
     method, headers: { 'Content-Type': 'application/json' }, body: body === undefined ? undefined : JSON.stringify(body),
   }).then(async (res) => ({ status: res.status, body: res.status === 204 ? null : await res.json() }));
   call.url = url;
-  return { call, live, integrations, cues, midi };
+  return { call, live, integrations, cues, midi, io };
 }
 
 const director = () => getLiveState().live.director;
@@ -317,4 +319,48 @@ test('every route Home Assistant calls answers with the shape it reads, after it
   for (const key of ['builtin', 'user']) assert.ok(Array.isArray(effects.effects?.[key] ?? effects[key]), `effects.${key}`);
   assert.ok(Array.isArray((await ok('GET', '/api/state')).pads.layout), 'state.pads.layout');
   assert.ok(Array.isArray((await ok('GET', '/api/sequences')).sequences), 'sequences.sequences');
+});
+
+// README: content edits cannot start the show or release Blackout; the transport fields of a patch are refused.
+const TRANSPORT_PATCHES = [{ running: true }, { running: false }, { masterBlackout: false }];
+const transport = () => [state.masterBlackout, state.running, control.snapshot().playing];
+
+/** Blackout on, then each transport patch through `send` with the look playing and stopped: refused, nothing moves. */
+async function refusesTransport(s, send) {
+  assert.equal((await sendControl(s.call, 'blackout')).status, 200);
+  for (const playing of [true, false]) {
+    assert.equal((await (playing ? sendControl(s.call, 'start', 'look') : sendControl(s.call, 'stop'))).status, 200);
+    const before = transport();
+    assert.deepEqual(before, [true, playing, playing], 'Blackout on and the look ' + (playing ? 'playing' : 'stopped'));
+    for (const patch of TRANSPORT_PATCHES) {
+      await send(patch);
+      assert.deepEqual(transport(), before, `${JSON.stringify(patch)} with the look ${playing ? 'playing' : 'stopped'}`);
+    }
+  }
+}
+
+test('/api/set refuses running and a Blackout release with 409, and Blackout and playback stay', async (t) => {
+  const s = await serve(t);
+  await refusesTransport(s, async (patch) => {
+    const res = await s.call('POST', '/api/set', patch);
+    assert.deepEqual([res.status, res.body.ok], [409, false], JSON.stringify(patch));
+  });
+});
+
+test('the socket\'s set refuses running and a Blackout release, and Blackout and playback stay', async (t) => {
+  const s = await serve(t);
+  attachSockets(s.io, { midi: s.midi, integrations: s.integrations });
+  const socket = connect(s.call.url, { auth: { protocol: 2 }, transports: ['websocket'], reconnection: false });
+  t.after(() => socket.close());
+  await new Promise((resolve) => socket.once('snapshot', resolve));
+  await refusesTransport(s, async (patch) => {
+    const refused = new Promise((resolve, reject) => {
+      const timer = setTimeout(() => reject(new Error(`no refusal of ${JSON.stringify(patch)}`)), 2000);
+      socket.once('error-msg', (message) => { clearTimeout(timer); resolve(message); });
+    });
+    socket.emit('set', patch);
+    const { source, message } = await refused;
+    assert.equal(source, 'set', JSON.stringify(patch));
+    assert.match(message, /explicit/, JSON.stringify(patch));
+  });
 });
