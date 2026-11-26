@@ -222,6 +222,23 @@ test('missing recovery targets preserve the workspace without loading it', (t) =
   assert.equal(fs.readFileSync(file, 'utf8'), before);
 });
 
+test('a workspace that could not be loaded survives edits, and Start fresh keeps it as a recovery copy', (t) => {
+  const { w, s, file, dir } = workspace(t);
+  const next = show(); next.clips[0].targets = [99]; s.load(next); w.flush();
+  const before = fs.readFileSync(file, 'utf8');
+  const restored = rig(); const saved = new SequenceWorkspace(file, restored, () => null).open(); t.after(() => saved.close());
+  assert.equal(saved.status().blocked, true);
+  restored.load(show()); saved.flush();
+  assert.equal(restored.current().id, 'show', 'the edit is in the editor');
+  assert.equal(fs.readFileSync(file, 'utf8'), before, 'the edit did not write over the workspace that could not be loaded');
+  saved.startFresh();
+  assert.equal(saved.status().blocked, false);
+  const kept = fs.readdirSync(dir).filter((name) => name.startsWith('sequence-workspace.json.recovery-'));
+  assert.equal(kept.length, 1, 'Start fresh kept the old workspace beside the new one');
+  assert.equal(fs.readFileSync(path.join(dir, kept[0]), 'utf8'), before);
+  assert.equal(JSON.parse(fs.readFileSync(file, 'utf8')).sequence.clips[0].targets, 'lane', 'the new workspace holds the edit');
+});
+
 test('shutdown flush captures the current playhead without frame autosaves', (t) => {
   const { w, s, file } = workspace(t);
   s.load(show()); s.play(); s.frame({ beatPos: 10, bpm: 120, source: 'tap', epoch: 0 }); w.flush();
