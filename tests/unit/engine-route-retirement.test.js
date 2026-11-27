@@ -273,6 +273,44 @@ async function litOnA({ a, worker }) {
   assert.equal(engineStatus().thread, 'worker');
 }
 
+/** Switch the route to B while A's ArtSync is refused: A gets its dark frame and the retirement stays unfinished. */
+async function retirementStalls({ a, b, wire }) {
+  await wire.policy({ refuseSyncPort: a.port });
+  const mark = sequence;
+  state.artnet.port = b.port;
+  await until(() => dark(a, mark).length > 0, 5000, 'the old route gets its dark frame');
+}
+
+/** A's last dark frame before B's first light, and an ArtSync to A between them. */
+function retiredBeforeB(a, b) {
+  const litB = lit(b)[0];
+  const darkA = dark(a).filter((p) => p.at < litB.at).at(-1);
+  const syncA = syncs(a).find((p) => darkA && p.at > darkA.at && p.at < litB.at);
+  assert.ok(darkA && syncA, `A got its dark frame and ArtSync before B was lit (dark ${darkA?.at}, sync ${syncA?.at}, lit ${litB.at})`);
+}
+
+test('an unfinished retirement survives the engine thread: its replacement withholds B until A is dark and synced', async () => {
+  await rig(async ({ a, b, wire, worker }) => {
+    await litOnA({ a, worker });
+    await retirementStalls({ a, b, wire });
+    wire.env({ refuseSyncPort: null });        // A answers the replacement thread
+    wire.crash();
+    await until(() => lit(b).length > 0, 10000, 'the replacement thread lights B');
+    retiredBeforeB(a, b);
+  });
+});
+
+test('a thread that dies before its first acknowledgement hands the retirement to the main thread, which finishes it before lighting B', async () => {
+  await rig(async ({ a, b, wire, worker }) => {
+    await litOnA({ a, worker });
+    await retirementStalls({ a, b, wire });
+    wire.env({ crashOnStart: true });          // the replacement dies while loading, before 'ready'
+    wire.crash();
+    await until(() => engineStatus().thread === 'main' && lit(b).length > 0, 10000, 'the engine falls back to the main thread and lights B');
+    retiredBeforeB(a, b);
+  });
+});
+
 // ── Protective Hue blackout while Art-Net retirement fails ──────────────────
 // One Hue lamp on a bridge whose REST side and stream socket are stand-ins;
 // what the lamp would receive is read off the socket.
